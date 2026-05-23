@@ -317,15 +317,23 @@ function generateSchedule() {
     }
   }
 
-  // Get tasks that need scheduling (active + has end date this week or earlier)
+  // Get tasks that need scheduling for THIS WEEK
+  // 條件：任務區間與本週有交集（task.start <= 本週日 AND task.end >= 本週一）
+  // 或無日期但有 urgency = high
+  const friday = D.addDays(monday, 4);
+  const sunday = D.addDays(monday, 6);
   const candidates = DATA.tasks
     .filter(t => t.status !== 'done' && t.status !== 'hold')
     .filter(t => {
-      if (t.end) {
-        const dl = new Date(t.end);
-        return D.daysBetween(D.today(), dl) <= 21;
+      // 1. 沒日期但是高緊急度的任務 → 排
+      if (!t.start && !t.end) {
+        return t.urgency === 'high';
       }
-      return true;
+      // 2. 任務區間和本週有交集才排
+      const ts = t.start ? new Date(t.start) : new Date(t.end);
+      const te = t.end   ? new Date(t.end)   : new Date(t.start);
+      // 區間 [ts, te] 與 [monday, sunday] 有交集
+      return te >= monday && ts <= sunday;
     });
 
   const sorted = sortTasks(candidates);
@@ -438,14 +446,8 @@ const Sync = {
       Storage.save();
       if (!silent) {
         U.toast(`✅ J 系列已同步 (${data.tasks.length} 項任務)`, 'success');
-        U.toast('🪄 自動執行智慧排程...', 'success');
       }
-      // Auto-generate schedule
-      setTimeout(() => {
-        const result = generateSchedule();
-        if (!silent) U.toast(`✨ 排程更新：${result.scheduledCount} 個任務已安排`);
-        App.refreshAll();
-      }, 800);
+      App.refreshAll();
     } catch (e) {
       console.error('Sync failed:', e);
       if (!silent) U.toast(`❌ 同步失敗：${e.message}`, 'error');
@@ -685,15 +687,34 @@ App.renderDashboard = function() {
   const wk = D.weekKey();
   const weekRange = D.weekRange();
   const monday = D.monday();
+  const today = D.today();
 
-  // Stats
-  const activeTasks = DATA.tasks.filter(t => t.status !== 'done' && t.status !== 'hold');
-  const wipTasks = DATA.tasks.filter(t => t.status === 'wip');
-  const urgentTasks = activeTasks.filter(t => {
+  // ─── Filter: 前後兩週內該做的事 ───
+  // 顯示條件：任務的「日期區間」與「前後兩週」有交集
+  // 即：task.start <= twoWeeksAfter AND task.end >= twoWeeksBefore
+  const twoWeeksBefore = D.addDays(today, -14);
+  const twoWeeksAfter  = D.addDays(today, +14);
+
+  const inWindowTasks = DATA.tasks.filter(t => {
+    if (t.status === 'done' || t.status === 'hold') return false;
+    // 沒有日期的任務一律顯示（本地任務通常沒填日期）
+    if (!t.start && !t.end) return true;
+    // 有任一日期就用日期判斷
+    const ts = t.start ? new Date(t.start) : (t.end ? new Date(t.end) : null);
+    const te = t.end   ? new Date(t.end)   : (t.start ? new Date(t.start) : null);
+    if (!ts || !te) return true;
+    // 任務區間與 [-14, +14] 視窗有交集
+    return te >= twoWeeksBefore && ts <= twoWeeksAfter;
+  });
+
+  const activeTasks = inWindowTasks;
+  const wipTasks    = inWindowTasks.filter(t => t.status === 'wip');
+  const urgentTasks = inWindowTasks.filter(t => {
     if (t.urgency === 'high') return true;
-    if (t.end && D.daysBetween(D.today(), new Date(t.end)) <= 1) return true;
+    if (t.end && D.daysBetween(today, new Date(t.end)) <= 1) return true;
     return false;
   });
+
   const totalHours = (DATA.schedule.items || [])
     .filter(it => it.week === wk)
     .reduce((s, it) => s + (it.duration / 60), 0);
@@ -706,7 +727,7 @@ App.renderDashboard = function() {
   const statsHtml = `<div class="stats-row">
     <div class="stat">
       <div class="stat-num">${activeTasks.length}</div>
-      <div class="stat-label">本週任務</div>
+      <div class="stat-label">兩週內任務</div>
     </div>
     <div class="stat">
       <div class="stat-num">${wipTasks.length}</div>
@@ -1226,6 +1247,28 @@ App.generateNow = function() {
     `;
   }
   U.toast(`✨ 排程已產生 (${result.scheduledCount} 項)`);
+};
+
+// ─── Global schedule (Topbar button) ───
+App.generateGlobalSchedule = function() {
+  const activeTasks = DATA.tasks.filter(t => t.status !== 'done' && t.status !== 'hold');
+  if (activeTasks.length === 0) {
+    U.toast('⚠ 沒有任務可排程', 'warning');
+    return;
+  }
+
+  const result = generateSchedule();
+  this.refreshAll();
+
+  if (result.scheduledCount === 0) {
+    U.toast('⚠ 本週沒有需要排程的任務（任務日期都在本週外）', 'warning');
+    return;
+  }
+  U.toast(`⚡ 本週智慧排程完成：${result.scheduledCount} 個時段`);
+  // Jump to dashboard to see the result
+  if (this.currentPage !== 'dashboard') {
+    this.showPage('dashboard', document.querySelector('[data-page=dashboard]'));
+  }
 };
 
 // ═══════════════════════════════════════════════════════
@@ -2001,21 +2044,27 @@ App.renderReport = function() {
   const { monday, sunday } = currentOpt;
   const wkNum = D.weekNum(monday);
 
-  // Gather tasks completed/active during this week
+  // Gather tasks active during this specific week
+  // Logic: 任務的「日期區間」與「該週」有交集
+  // 嚴格依照選擇的週別，不擴大範圍（區別於儀表板的兩週視窗）
+  const weekEnd = D.addDays(sunday, 1); // 含週日整天
   const inWeekTasks = DATA.tasks.filter(t => {
+    // 已完成：只看完成日是否在這週
     if (t.status === 'done' && t.completedAt) {
       const cd = new Date(t.completedAt);
-      if (cd >= monday && cd <= D.addDays(sunday, 1)) return true;
+      return cd >= monday && cd < weekEnd;
     }
-    // active tasks with deadline in/around this week
+    // 已完成但沒 completedAt → 用實際完成日
+    if (t.status === 'done' && t.actualEnd) {
+      const ad = new Date(t.actualEnd);
+      return ad >= monday && ad < weekEnd;
+    }
+    // 進行中/未開始：任務區間 [start, end] 與本週 [monday, sunday] 有交集
     if (t.status !== 'done' && t.status !== 'hold') {
-      if (t.end) {
-        const ed = new Date(t.end);
-        if (ed >= monday && ed <= D.addDays(sunday, 14)) return true;
-      } else if (t.start) {
-        const sd = new Date(t.start);
-        if (sd >= monday && sd <= sunday) return true;
-      }
+      const ts = t.start ? new Date(t.start) : (t.end ? new Date(t.end) : null);
+      const te = t.end   ? new Date(t.end)   : (t.start ? new Date(t.start) : null);
+      if (!ts || !te) return false; // 無日期任務不計入週報
+      return te >= monday && ts <= sunday;
     }
     return false;
   });
@@ -2177,17 +2226,22 @@ App.exportReportExcel = function(weekKey) {
   const monday = D.addDays(w1Monday, (wk - 1) * 7);
   const sunday = D.addDays(monday, 6);
 
-  // Gather tasks
+  // Gather tasks (same logic as renderReport: strict per-week)
+  const weekEnd = D.addDays(sunday, 1);
   const inWeekTasks = DATA.tasks.filter(t => {
     if (t.status === 'done' && t.completedAt) {
       const cd = new Date(t.completedAt);
-      if (cd >= monday && cd <= D.addDays(sunday, 1)) return true;
+      return cd >= monday && cd < weekEnd;
+    }
+    if (t.status === 'done' && t.actualEnd) {
+      const ad = new Date(t.actualEnd);
+      return ad >= monday && ad < weekEnd;
     }
     if (t.status !== 'done' && t.status !== 'hold') {
-      if (t.end) {
-        const ed = new Date(t.end);
-        if (ed >= monday && ed <= D.addDays(sunday, 14)) return true;
-      }
+      const ts = t.start ? new Date(t.start) : (t.end ? new Date(t.end) : null);
+      const te = t.end   ? new Date(t.end)   : (t.start ? new Date(t.start) : null);
+      if (!ts || !te) return false;
+      return te >= monday && ts <= sunday;
     }
     return false;
   });

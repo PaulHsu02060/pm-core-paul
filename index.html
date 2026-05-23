@@ -72,12 +72,13 @@
     </div>
 
     <div class="sb-bottom">
-      <div class="sb-sync-info" id="syncInfo" style="display:none">
+      <div class="sb-sync-info" id="syncInfo" style="display:none; cursor:pointer;" data-edit onclick="Sync.syncJSeries()" title="點擊立即同步">
         <div class="dot"></div>
-        <div>
+        <div style="flex:1; min-width:0;">
           <div>J系列 已同步</div>
           <div class="sync-time" id="syncTime">尚未同步</div>
         </div>
+        <div style="font-size:11px; color:var(--sage-600);">↻</div>
       </div>
       <div class="sb-foot">v1.0</div>
     </div>
@@ -93,6 +94,12 @@
       <div class="tb-meta-info">
         <span id="weekInfo"></span>
       </div>
+      <button class="tb-action ghost" data-edit onclick="Sync.syncJSeries()" title="從 Google Sheet 同步 J 系列">
+        🔗 立即同步
+      </button>
+      <button class="tb-action" data-edit onclick="App.generateGlobalSchedule()" title="針對所有任務產生本週智慧排程">
+        ⚡ 智慧排程
+      </button>
     </div>
 
     <div class="content" id="content">
