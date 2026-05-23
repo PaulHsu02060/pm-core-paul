@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM-Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&family=Caveat:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ─── LOGIN OVERLAY ─── -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">PM-Workspace</div>
+    <div class="login-sub">Personal Task Board</div>
+    <div class="login-form">
+      <input type="password" id="loginPw" placeholder="輸入編輯密碼">
+      <button onclick="App.doLogin()">登入並編輯</button>
+    </div>
+    <div class="login-hint">
+      首次使用：直接按「登入並編輯」設定密碼（可在設定頁更改）
+    </div>
+    <button class="login-view-only" onclick="App.enterViewOnly()">👁 不登入，僅檢視</button>
+  </div>
+</div>
+
+<!-- ─── APP SHELL ─── -->
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-brand-mark">PM-Workspace</div>
+      <div class="sb-brand-sub">Personal Task Board</div>
+      <div class="sb-user-badge">
+        <div class="sb-user-avatar" id="userAvatar">P</div>
+        <div>
+          <div id="userName">使用者</div>
+          <div class="sb-user-mode" id="userMode">EDITOR</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">主要</div>
+      <div class="sb-nav">
+        <button class="sb-item active" data-page="dashboard" onclick="App.showPage('dashboard', this)">
+          <span class="ico">▦</span> 總儀表板
+        </button>
+        <button class="sb-item" data-page="gantt" onclick="App.showPage('gantt', this)">
+          <span class="ico">▤</span> 甘特圖
+        </button>
+        <button class="sb-item" data-page="month" onclick="App.showPage('month', this)">
+          <span class="ico">▥</span> 月曆視圖
+        </button>
+        <button class="sb-item" data-page="report" onclick="App.showPage('report', this)">
+          <span class="ico">📋</span> 專案週報
+        </button>
+        <button class="sb-item" data-page="settings" onclick="App.showPage('settings', this)">
+          <span class="ico">⚙</span> 設定
+        </button>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">專案</div>
+      <div class="sb-proj-list" id="projectList"></div>
+      <button class="sb-add-proj" data-edit onclick="App.openProjectDialog()">＋ 新增專案</button>
+    </div>
+
+    <div class="sb-bottom">
+      <div class="sb-sync-info" id="syncInfo" style="display:none">
+        <div class="dot"></div>
+        <div>
+          <div>J系列 已同步</div>
+          <div class="sync-time" id="syncTime">尚未同步</div>
+        </div>
+      </div>
+      <div class="sb-foot">v1.0</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="tb-crumb"><span>PM-Workspace</span> / <b id="crumbPage">總儀表板</b></div>
+        <div class="tb-title" id="pageTitle">總儀表板</div>
+      </div>
+      <div class="tb-spacer"></div>
+      <div class="tb-meta-info">
+        <span id="weekInfo"></span>
+      </div>
+    </div>
+
+    <div class="content" id="content">
+      <div class="viewonly-banner">
+        👁 你目前是「僅檢視」模式。需要編輯請重新整理頁面後登入。
+      </div>
+
+      <!-- Pages are rendered dynamically -->
+      <div class="page active" id="page-dashboard"></div>
+      <div class="page" id="page-project"></div>
+      <div class="page" id="page-gantt"></div>
+      <div class="page" id="page-month"></div>
+      <div class="page" id="page-report"></div>
+      <div class="page" id="page-settings"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ─── MODAL CONTAINER ─── -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)App.closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+
+<!-- ─── TOAST ─── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
