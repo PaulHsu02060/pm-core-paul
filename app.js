@@ -68,17 +68,14 @@ const Storage = {
       DATA.settings  = { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(STORE.settings) || '{}')) };
       DATA.weekNotes = JSON.parse(localStorage.getItem(STORE.weekNotes) || '{}');
 
-      // ─── 自動清掉「同步任務」殘留在 schedule 的舊資料 ───
-      // 新邏輯：synced 任務不參與本週智慧排程，但舊版本資料可能殘留
+      // ─── 清掉「找不到任務」的 schedule 殘留 ───
       if (DATA.schedule && Array.isArray(DATA.schedule.items)) {
         const before = DATA.schedule.items.length;
         DATA.schedule.items = DATA.schedule.items.filter(it => {
           const task = DATA.tasks.find(t => t.id === it.taskId);
-          // 找不到任務，或任務是同步來的 → 從 schedule 移除
-          return task && !task.synced;
+          return !!task; // 找不到對應任務就清掉
         });
         if (before !== DATA.schedule.items.length) {
-          console.log(`Cleaned ${before - DATA.schedule.items.length} stale synced schedule items`);
           localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
         }
       }
@@ -335,25 +332,33 @@ function generateSchedule() {
     }
   }
 
-  // Get tasks that need scheduling for THIS WEEK
-  // 條件：
-  //   1. 不是同步來的（synced 任務有自己的時間區間，由甘特圖呈現，不該塞進本週時程表）
-  //   2. 任務區間與本週有交集 或 無日期但 urgency=high
+  // Get tasks that need scheduling for THIS WEEK (4 個條件都納入，包含同步任務)
+  //   1. 預計開始日 ≤ 本週五
+  //   2. 預計完成日 ≥ 本週一
+  //   3. 已逾期（end < today 且未 done）
+  //   4. 預計完成日 ≤ 兩週內
   const friday = D.addDays(monday, 4);
   const sunday = D.addDays(monday, 6);
+  const todayDate = D.today();
+  const twoWeeksLater = D.addDays(todayDate, 14);
+
   const candidates = DATA.tasks
     .filter(t => t.status !== 'done' && t.status !== 'hold')
-    .filter(t => !t.synced) // 同步任務不參與本週智慧排程
     .filter(t => {
-      // 1. 沒日期但是高緊急度的任務 → 排
       if (!t.start && !t.end) {
-        return t.urgency === 'high';
+        return t.urgency === 'high'; // 無日期高緊急的才排
       }
-      // 2. 任務區間和本週有交集才排
-      const ts = t.start ? new Date(t.start) : new Date(t.end);
-      const te = t.end   ? new Date(t.end)   : new Date(t.start);
-      // 區間 [ts, te] 與 [monday, sunday] 有交集
-      return te >= monday && ts <= sunday;
+      const ts = t.start ? new Date(t.start) : null;
+      const te = t.end   ? new Date(t.end)   : null;
+
+      // 條件 1+2：任務區間與本週有交集
+      if (ts && te && te >= monday && ts <= sunday) return true;
+      // 條件 3：已逾期
+      if (te && te < todayDate) return true;
+      // 條件 4：兩週內 deadline
+      if (te && te <= twoWeeksLater && te >= monday) return true;
+
+      return false;
     });
 
   const sorted = sortTasks(candidates);
@@ -361,43 +366,58 @@ function generateSchedule() {
   // Schedule items
   const items = [...lockedItems];
 
-  // 每個任務最多佔本週 3 個 slot，避免 150h 任務霸佔整個時程表
-  const MAX_CHUNKS_PER_TASK = 3;
+  // 硬上限：每個任務本週最多 2 個時段（兩個時段優先分到不同天）
+  const MAX_CHUNKS_PER_TASK = 2;
+  const HOURS_PER_CHUNK = 2;
+
+  // 紀錄每個任務已排的日期，用於分散到不同天
+  const taskDates = {};
 
   for (const task of sorted) {
-    let hoursNeeded = parseFloat(task.estHours) || 1;
+    const totalHours = parseFloat(task.estHours) || 1;
     const isDeep = task.category === 'deep' || !task.category;
-    const canSplit = (task.canSplit !== false) && hoursNeeded >= splitThreshold;
-    // 切分 chunks：最多 3 段，每段最多 2h
+
     let chunks;
-    if (canSplit) {
-      chunks = Math.min(MAX_CHUNKS_PER_TASK, Math.ceil(hoursNeeded / 2));
+    if (totalHours <= 1.5) {
+      chunks = 1; // 不到 1.5h 的小任務不切
+    } else if (task.canSplit === false) {
+      chunks = 1; // 不可切分
     } else {
-      chunks = 1;
+      chunks = MAX_CHUNKS_PER_TASK; // 預設排 2 段
     }
-    const hoursPerChunk = Math.min(canSplit ? hoursNeeded / chunks : hoursNeeded, 2);
+    const hoursPerChunk = Math.min(totalHours / chunks, HOURS_PER_CHUNK);
 
-    let placed = 0;
-    // try golden slots first for deep work
-    const availableSlots = slots.filter(s => !s.taken);
-    if (isDeep) availableSlots.sort((a, b) => (b.golden ? 1 : 0) - (a.golden ? 1 : 0));
+    taskDates[task.id] = new Set();
 
-    for (let i = 0; i < chunks && placed < chunks; i++) {
-      const slot = availableSlots.find(s => !s.taken);
+    for (let i = 0; i < chunks; i++) {
+      // 取得 slot 候選清單：
+      //   1. 排除已排過此任務的日期（分散到不同天）
+      //   2. 深度工作優先 golden time
+      let candidateSlots = slots
+        .filter(s => !s.taken && !taskDates[task.id].has(s.date));
+
+      // 若不同天 slot 都用完，才允許同天
+      if (candidateSlots.length === 0) {
+        candidateSlots = slots.filter(s => !s.taken);
+      }
+
+      if (isDeep) candidateSlots.sort((a, b) => (b.golden ? 1 : 0) - (a.golden ? 1 : 0));
+
+      const slot = candidateSlots[0];
       if (!slot) break;
+
       slot.taken = true;
+      taskDates[task.id].add(slot.date);
       items.push({
         taskId: task.id,
         date: slot.date,
         start: slot.start,
         duration: Math.min(hoursPerChunk, 1) * 60,
         chunk: chunks > 1 ? `${i + 1}/${chunks}` : null,
-        // 標記任務總工時，UI 可以顯示「本週只排 3h / 共需 150h」
-        totalHours: hoursNeeded,
+        totalHours: totalHours,
         week: weekKey,
         locked: false,
       });
-      placed++;
     }
   }
 
@@ -944,7 +964,9 @@ App.renderDashboard = function() {
             <span class="legend-item"><span class="legend-sw" style="background:var(--sage-500)"></span>深度工作</span>
             <span class="legend-item"><span class="legend-sw" style="background:var(--amber)"></span>雜事零碎</span>
             <span class="legend-item"><span class="legend-sw" style="background:var(--slate)"></span>會議</span>
-            <span style="margin-left:auto; font-size:10.5px;">🔒 已鎖定（重新產生時不會被覆蓋）</span>
+            <span class="legend-item"><span style="color:var(--terracotta);">⚠</span> 延遲</span>
+            <span class="legend-item"><span style="color:var(--sage-600);">🔗</span> 同步</span>
+            <span style="margin-left:auto; font-size:10.5px;">⋮⋮ 拖曳調整 · 🔒 已鎖定</span>
           </div>
         </div>
       </div>
@@ -999,19 +1021,44 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         return mh === hr;
       });
 
-      html += '<div class="ws-cell">';
+      // Cell is drop target
+      html += `<div class="ws-cell" data-date="${dateIso}" data-start="${hrStr}" ondragover="event.preventDefault(); this.classList.add('drag-over');" ondragleave="this.classList.remove('drag-over');" ondrop="App.handleScheduleDrop(event, '${dateIso}', '${hrStr}')">`;
       if (item) {
         const task = DATA.tasks.find(t => t.id === item.taskId);
         if (task) {
           const cat = task.category || 'deep';
-          html += `<div class="ws-event ${cat} ${item.locked ? 'locked' : ''}" style="top:0;height:60px;" onclick="App.openTaskModal('${task.id}')">
-            ${item.locked ? '<span class="lock-ico">🔒</span>' : ''}
+          const today = D.today();
+          const isOverdue = task.end && new Date(task.end) < today && task.status !== 'done';
+          // Tooltip
+          const tipParts = [];
+          if (task.syncRef) tipParts.push(`🔗 ${task.syncRef}`);
+          tipParts.push(`預估總工時：${item.totalHours || task.estHours || '?'} h`);
+          tipParts.push(`本週已排：${(item.duration/60).toFixed(1)} h${item.chunk ? ' (' + item.chunk + ')' : ''}`);
+          if (task.end) tipParts.push(`預計完成：${D.fmt(task.end, 'ymdShort')}`);
+          if (isOverdue) tipParts.push(`⚠ 已逾期 ${-D.daysBetween(today, new Date(task.end))} 天`);
+          if (task.owner) tipParts.push(`擔當：${task.owner}`);
+          if (task.note) tipParts.push(`備註：${task.note}`);
+          const tipText = tipParts.join('\n');
+
+          html += `<div class="ws-event ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''}"
+            style="top:0;height:60px;"
+            draggable="true"
+            data-task-id="${task.id}"
+            data-from-date="${dateIso}"
+            data-from-start="${hrStr}"
+            ondragstart="App.handleScheduleDragStart(event)"
+            ondragend="event.target.classList.remove('dragging')"
+            onclick="App.openTaskModal('${task.id}')"
+            title="${U.esc(tipText)}">
+            ${item.locked ? '<span class="lock-ico">🔒</span>' : '<span class="drag-handle">⋮⋮</span>'}
+            ${isOverdue ? '<span class="overdue-badge">⚠</span>' : ''}
+            ${task.synced ? '<span class="sync-badge">🔗</span>' : ''}
             <b>${U.esc(task.name).slice(0, 20)}</b>
-            <div class="ev-meta">${(item.duration/60).toFixed(1)}h${item.chunk ? ' · ' + item.chunk : ''}</div>
+            <div class="ev-meta">${(item.duration/60).toFixed(1)}h${item.chunk ? ' · ' + item.chunk : ''}${item.totalHours && item.totalHours > (item.duration/60) ? ' / ' + item.totalHours + 'h' : ''}</div>
           </div>`;
         }
       } else if (meeting) {
-        html += `<div class="ws-event meeting" style="top:0;height:32px;">
+        html += `<div class="ws-event meeting" style="top:0;height:32px;" title="${U.esc(meeting.title)}">
           <b>${U.esc(meeting.title).slice(0, 14)}</b>
           <div class="ev-meta">${meeting.startTime || ''}</div>
         </div>`;
@@ -1021,6 +1068,51 @@ App.buildWeekScheduleHtml = function(targetMonday) {
   }
   html += '</div>';
   return html;
+};
+
+// ─── DRAG & DROP HANDLERS ───
+App.handleScheduleDragStart = function(e) {
+  const target = e.target.closest('.ws-event');
+  if (!target) return;
+  target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('taskId', target.dataset.taskId);
+  e.dataTransfer.setData('fromDate', target.dataset.fromDate);
+  e.dataTransfer.setData('fromStart', target.dataset.fromStart);
+};
+
+App.handleScheduleDrop = function(e, toDate, toStart) {
+  e.preventDefault();
+  const cell = e.currentTarget;
+  cell.classList.remove('drag-over');
+  const taskId = e.dataTransfer.getData('taskId');
+  const fromDate = e.dataTransfer.getData('fromDate');
+  const fromStart = e.dataTransfer.getData('fromStart');
+  if (!taskId) return;
+
+  // 若目標 cell 已有任務 → 互換
+  const items = DATA.schedule.items || [];
+  const draggedIdx = items.findIndex(it => it.taskId === taskId && it.date === fromDate && it.start === fromStart);
+  const targetIdx = items.findIndex(it => it.date === toDate && it.start === toStart);
+
+  if (draggedIdx === -1) return;
+
+  if (targetIdx !== -1 && draggedIdx !== targetIdx) {
+    // 互換位置
+    const a = items[draggedIdx];
+    const b = items[targetIdx];
+    a.date = toDate; a.start = toStart;
+    b.date = fromDate; b.start = fromStart;
+    a.locked = true; b.locked = true;
+  } else {
+    // 移到空格
+    items[draggedIdx].date = toDate;
+    items[draggedIdx].start = toStart;
+    items[draggedIdx].locked = true; // 手動移動後鎖定
+  }
+  Storage.save();
+  this.renderDashboard();
+  U.toast('✓ 已調整並鎖定');
 };
 
 App.buildMemoListHtml = function() {

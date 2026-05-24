@@ -292,9 +292,33 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .ws-event.meeting { background: var(--slate-l); border-color: var(--slate); color: #2E3F4D; }
 .ws-event.other { background: var(--stone-100); border-color: var(--stone-300); color: var(--stone-600); }
 .ws-event.locked { border-left-style: double; border-left-width: 5px; }
+.ws-event.overdue { box-shadow: 0 0 0 1.5px var(--terracotta); }
+.ws-event.dragging { opacity: 0.4; }
+.ws-event[draggable="true"]:hover .drag-handle { opacity: .8; }
+.ws-event .drag-handle {
+  position: absolute; top: 2px; right: 4px;
+  font-size: 10px; color: var(--ink3); opacity: 0.3;
+  cursor: grab; transition: opacity .15s; user-select: none;
+}
+.ws-event .drag-handle:active { cursor: grabbing; }
 .ws-event .lock-ico { position: absolute; top: 2px; right: 4px; font-size: 9px; opacity: .7; }
-.ws-event b { display: block; font-weight: 600; font-size: 11px; }
-.ws-event .ev-meta { font-size: 9.5px; opacity: .85; font-family: var(--mono); margin-top: 1px; }
+.ws-event .overdue-badge {
+  position: absolute; top: 2px; left: 4px;
+  font-size: 9px; color: var(--terracotta);
+}
+.ws-event .sync-badge {
+  position: absolute; top: 2px; left: 4px;
+  font-size: 8.5px; color: var(--sage-600);
+}
+.ws-event.overdue .sync-badge { left: 14px; }
+.ws-event b { display: block; font-weight: 600; font-size: 11px; padding-left: 10px; }
+.ws-event .ev-meta { font-size: 9.5px; opacity: .85; font-family: var(--mono); margin-top: 1px; padding-left: 10px; }
+
+.ws-cell.drag-over {
+  background: var(--sage-100) !important;
+  outline: 2px dashed var(--sage-500);
+  outline-offset: -2px;
+}
 
 .legend-row { display: flex; gap: 16px; padding: 12px 0 0; font-size: 11px; color: var(--ink3); border-top: 1px dashed var(--rule); margin-top: 12px; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 5px; }
