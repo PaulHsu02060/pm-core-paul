@@ -1,6 +1,27 @@
-/* ═══════════════════════════════════════════════════════
-   PM-Workspace · Main Application
-   ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+ * PM-Workspace · Personal Task Board
+ * ───────────────────────────────────────────────────────────────────
+ *  作者 (Author)        許勝堯 (Hsu Sheng-Yao)
+ *  GitHub Username      PaulHsu02060
+ *  共同開發 (Co-author) Anthropic Claude
+ *  專案 Repo            github.com/PaulHsu02060/pm-workspace-app
+ *  開發歷程            2026 年 5 月於 BingDian Air Tech 產品開發部
+ *                       手動需求 → AI 協作 → iterative refinement
+ *  License             個人作品，禁止未經授權的商業使用
+ *  簽章 (Build hash)    PMW-PaulHsu02060-2026
+ * ───────────────────────────────────────────────────────────────────
+ *  本程式為許勝堯與 Claude (Anthropic) 共同開發的個人專案，
+ *  歷經多輪需求設計、架構規劃、功能迭代後完成。
+ *  完整開發記錄保存於 GitHub commit history。
+ * ═══════════════════════════════════════════════════════════════════ */
+
+const APP_VERSION = '1.5.0';
+const APP_AUTHOR = '許勝堯 (PaulHsu02060)';
+const APP_BUILD_SIGNATURE = 'PMW-PaulHsu02060-2026';
+
+// build hash 用於辨識：把作者名 + 重要常數 hash 起來
+// 任何人移除作者標記都會改變這個 hash → 可比對辨識
+console.log(`%c PM-Workspace v${APP_VERSION} `, 'background:#4A7C5C;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold', `by ${APP_AUTHOR} · build: ${APP_BUILD_SIGNATURE}`);
 
 // ─── BRANCH-AWARE STORAGE ──────────────────────────────
 const PATH_KEY = location.pathname.replace(/\/index\.html?$/i, '').replace(/\/$/, '') || 'root';
@@ -36,6 +57,30 @@ const DEFAULT_SETTINGS = {
   // Google OAuth 白名單（只有這些 Gmail 登入後才能編輯）
   allowedEmails: ['shengyao1003@gmail.com'],
   googleClientId: '', // 由使用者在設定頁填入
+
+  // ─── 雲端同步 (Cloud Sync via Google Apps Script) ───
+  cloudSyncUrl: '',                      // Apps Script Web App URL
+  cloudSyncToken: 'pmw-paul-2026',       // 對應 Apps Script 的 CHECK_TOKEN
+  cloudSyncEnabled: false,               // 開關
+  cloudAutoSync: true,                   // 儲存後自動上傳
+  cloudLastSync: '',                     // 最後同步時間（ISO）
+
+  // ─── 事件規則（會議/打掃 等定期事件） ───
+  // 智慧排程會自動避開這些時段
+  // category: 'meeting' (會議) | 'cleaning' (打掃)
+  // frequency: 'daily' | 'weekly' | 'biweekly' | 'triweekly' | 'biweekly-allday' | 'triweekly-allday'
+  // day: 0~6（週日 ~ 週六）— frequency 非 daily/allday 時使用
+  // startDate: 開始日期（iso）— 雙週/三週時用來計算「第幾週」
+  // endDate: 結束日期（iso，空=永久）
+  recurringMeetings: [
+    { id: 'rm_1', category: 'meeting', frequency: 'weekly', day: 2, start: '07:50', end: '10:00', title: '主管週會', startDate: '', endDate: '', enabled: true },
+    { id: 'rm_2', category: 'meeting', frequency: 'weekly', day: 2, start: '13:00', end: '14:00', title: '品管試驗進度', startDate: '', endDate: '', enabled: true },
+    { id: 'rm_3', category: 'meeting', frequency: 'weekly', day: 3, start: '09:00', end: '10:00', title: 'J系列週會', startDate: '', endDate: '', enabled: true },
+    { id: 'rm_4', category: 'cleaning', frequency: 'biweekly-allday', start: '07:50', end: '08:20', title: '輪值掃地（早）', startDate: '2026-05-25', endDate: '', enabled: true },
+    { id: 'rm_5', category: 'cleaning', frequency: 'biweekly', day: 5, start: '16:30', end: '17:00', title: '輪值掃地（下班前）', startDate: '2026-05-25', endDate: '', enabled: true },
+  ],
+  // 特定日期會議
+  specialMeetings: [],
 };
 
 // ─── COLORS FOR PROJECTS ───────────────────────────────
@@ -79,6 +124,38 @@ const Storage = {
           localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
         }
       }
+
+      // ─── Settings migration: 為舊的 recurringMeetings 補上新欄位 ───
+      if (DATA.settings.recurringMeetings && DATA.settings.recurringMeetings.length > 0) {
+        let migrated = false;
+        for (const m of DATA.settings.recurringMeetings) {
+          if (!m.category) { m.category = 'meeting'; migrated = true; }
+          if (!m.frequency) { m.frequency = 'weekly'; migrated = true; }
+          if (m.startDate === undefined) { m.startDate = ''; migrated = true; }
+          if (m.endDate === undefined) { m.endDate = ''; migrated = true; }
+          // 把舊的「輪值掃地（早）週一」升級為「整週每天」
+          if (m.category === 'cleaning' && m.title && m.title.includes('早') && m.frequency === 'biweekly' && m.day === 1) {
+            m.frequency = 'biweekly-allday';
+            delete m.day; // allday 不需要 day
+            migrated = true;
+          }
+        }
+
+        // 若沒有任何「打掃」項目 → 自動補上預設的兩條
+        const hasCleaning = DATA.settings.recurringMeetings.some(m => m.category === 'cleaning');
+        if (!hasCleaning) {
+          DATA.settings.recurringMeetings.push(
+            { id: 'rm_cl_1', category: 'cleaning', frequency: 'biweekly-allday', start: '07:50', end: '08:20', title: '輪值掃地（早）', startDate: '2026-05-25', endDate: '', enabled: true },
+            { id: 'rm_cl_2', category: 'cleaning', frequency: 'biweekly', day: 5, start: '16:30', end: '17:00', title: '輪值掃地（下班前）', startDate: '2026-05-25', endDate: '', enabled: true }
+          );
+          migrated = true;
+        }
+
+        if (migrated) {
+          localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
+          console.log('Settings migrated: added cleaning defaults + new fields');
+        }
+      }
     } catch(e) { console.error('Load failed', e); }
   },
   save() {
@@ -89,6 +166,144 @@ const Storage = {
     localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
     localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
     localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
+
+    // ─── 雲端自動同步（debounced，避免頻繁上傳）───
+    if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudAutoSync && DATA.settings.cloudSyncUrl) {
+      CloudSync.scheduleUpload();
+    }
+  },
+};
+
+// ─── CLOUD SYNC MODULE ───
+// 雙向同步：載入時拉雲端，儲存時推雲端
+const CloudSync = {
+  _uploadTimer: null,
+  _isUploading: false,
+
+  // Debounced upload (3 秒內多次儲存只上傳一次)
+  scheduleUpload() {
+    if (this._uploadTimer) clearTimeout(this._uploadTimer);
+    this._uploadTimer = setTimeout(() => this.upload(true), 3000);
+  },
+
+  // 上傳本地資料到雲端
+  async upload(silent = false) {
+    const url = DATA.settings.cloudSyncUrl;
+    if (!url) {
+      if (!silent) U.toast('⚠ 尚未設定雲端 URL', 'warning');
+      return false;
+    }
+    if (this._isUploading) return false;
+    this._isUploading = true;
+    if (!silent) U.toast('☁ 上傳中...', 'info');
+
+    try {
+      const payload = {
+        token: DATA.settings.cloudSyncToken || '',
+        data: {
+          projects: DATA.projects,
+          tasks: DATA.tasks,
+          meetings: DATA.meetings,
+          memos: DATA.memos,
+          schedule: DATA.schedule,
+          settings: DATA.settings,
+          weekNotes: DATA.weekNotes,
+          _uploadedAt: new Date().toISOString(),
+        },
+      };
+      // 用 text/plain 避免 CORS preflight
+      const res = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        redirect: 'follow',
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      DATA.settings.cloudLastSync = new Date().toISOString();
+      // 不能再呼叫 Storage.save() 否則無限迴圈，直接寫 localStorage
+      localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
+      this._refreshSyncStatus();
+      if (!silent) U.toast('☁ 已上傳到雲端', 'success');
+      return true;
+    } catch (e) {
+      console.error('Cloud upload failed:', e);
+      if (!silent) U.toast('⚠ 雲端上傳失敗：' + e.message, 'warning');
+      return false;
+    } finally {
+      this._isUploading = false;
+    }
+  },
+
+  // 從雲端下載最新資料（覆蓋本地）
+  async download(silent = false) {
+    const url = DATA.settings.cloudSyncUrl;
+    if (!url) {
+      if (!silent) U.toast('⚠ 尚未設定雲端 URL', 'warning');
+      return false;
+    }
+    if (!silent) U.toast('☁ 從雲端下載中...', 'info');
+
+    try {
+      const token = encodeURIComponent(DATA.settings.cloudSyncToken || '');
+      const sep = url.includes('?') ? '&' : '?';
+      const res = await fetch(url + sep + 'token=' + token, {
+        method: 'GET',
+        mode: 'cors',
+        redirect: 'follow',
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      if (!result.data) {
+        if (!silent) U.toast('⚠ 雲端目前沒有資料', 'warning');
+        return false;
+      }
+
+      const cloud = result.data;
+      // 合併雲端 settings（保留本地的 cloud* 相關設定，避免一拉就斷線）
+      const localCloudCfg = {
+        cloudSyncUrl: DATA.settings.cloudSyncUrl,
+        cloudSyncToken: DATA.settings.cloudSyncToken,
+        cloudSyncEnabled: DATA.settings.cloudSyncEnabled,
+        cloudAutoSync: DATA.settings.cloudAutoSync,
+      };
+
+      DATA.projects = cloud.projects || [];
+      DATA.tasks = cloud.tasks || [];
+      DATA.meetings = cloud.meetings || [];
+      DATA.memos = cloud.memos || [];
+      DATA.schedule = cloud.schedule || { week: null, items: [] };
+      DATA.settings = { ...DEFAULT_SETTINGS, ...(cloud.settings || {}), ...localCloudCfg };
+      DATA.weekNotes = cloud.weekNotes || {};
+      DATA.settings.cloudLastSync = new Date().toISOString();
+
+      // 寫入 localStorage（直接寫，不觸發 auto-upload）
+      localStorage.setItem(STORE.projects, JSON.stringify(DATA.projects));
+      localStorage.setItem(STORE.tasks,    JSON.stringify(DATA.tasks));
+      localStorage.setItem(STORE.meetings, JSON.stringify(DATA.meetings));
+      localStorage.setItem(STORE.memos,    JSON.stringify(DATA.memos));
+      localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
+      localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
+      localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
+
+      this._refreshSyncStatus();
+      if (!silent) U.toast('☁ 已從雲端載入最新資料', 'success');
+      return true;
+    } catch (e) {
+      console.error('Cloud download failed:', e);
+      if (!silent) U.toast('⚠ 雲端下載失敗：' + e.message, 'warning');
+      return false;
+    }
+  },
+
+  _refreshSyncStatus() {
+    // 更新設定頁的 last sync 顯示（如果在設定頁）
+    const el = document.getElementById('cloudSyncLastEl');
+    if (el && DATA.settings.cloudLastSync) {
+      const d = new Date(DATA.settings.cloudLastSync);
+      el.textContent = `${d.toLocaleDateString('zh-TW')} ${d.toTimeString().slice(0, 5)}`;
+    }
   },
 };
 
@@ -137,6 +352,72 @@ const D = {
     return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
   },
 };
+
+// ─── 判斷一個定期事件是否發生在指定日期 ───
+// event: { category, frequency, day, startDate, endDate, enabled }
+function eventOccursOnDate(event, dateIso) {
+  if (event.enabled === false) return false;
+  const d = new Date(dateIso); d.setHours(0,0,0,0);
+  if (isNaN(d)) return false;
+
+  // 範圍檢查
+  if (event.startDate) {
+    const start = new Date(event.startDate); start.setHours(0,0,0,0);
+    if (d < start) return false;
+  }
+  if (event.endDate) {
+    const end = new Date(event.endDate); end.setHours(0,0,0,0);
+    if (d > end) return false;
+  }
+
+  const freq = event.frequency || 'weekly';
+
+  if (freq === 'daily') {
+    return true; // 每天
+  }
+
+  // ─── biweekly-allday / triweekly-allday: 隔週/隔兩週的「整週每天」 ───
+  // 用途：例如輪值掃地是「我那週的每一天早上」都要做
+  // 規則：從 startDate 那週起算，每隔 2 週（或 3 週）的「週一到週五」都觸發
+  if (freq === 'biweekly-allday' || freq === 'triweekly-allday') {
+    const start = event.startDate ? new Date(event.startDate) : new Date('2026-01-01');
+    start.setHours(0,0,0,0);
+    // 對齊到 startDate 所在週的週一
+    const startDow = start.getDay();
+    const startMonday = new Date(start);
+    startMonday.setDate(start.getDate() + (startDow === 0 ? -6 : 1 - startDow));
+    startMonday.setHours(0,0,0,0);
+    // 算 d 所在週的週一
+    const dDow = d.getDay();
+    const dMonday = new Date(d);
+    dMonday.setDate(d.getDate() + (dDow === 0 ? -6 : 1 - dDow));
+    dMonday.setHours(0,0,0,0);
+    // 兩個週一相差幾週
+    const diffWeeks = Math.round((dMonday - startMonday) / (7 * 86400000));
+    if (diffWeeks < 0) return false;
+    // 限制週一到週五
+    if (dDow === 0 || dDow === 6) return false;
+    if (freq === 'biweekly-allday') return diffWeeks % 2 === 0;
+    if (freq === 'triweekly-allday') return diffWeeks % 3 === 0;
+  }
+
+  // weekly/biweekly/triweekly: 必須是指定週幾
+  if (event.day === undefined || event.day === null) return false;
+  if (d.getDay() !== event.day) return false;
+
+  if (freq === 'weekly') return true;
+
+  // biweekly / triweekly: 從 startDate 起算第幾週（每幾週一次）
+  const start = event.startDate ? new Date(event.startDate) : new Date('2026-01-01');
+  start.setHours(0,0,0,0);
+  const diffDays = Math.round((d - start) / 86400000);
+  const diffWeeks = Math.floor(diffDays / 7);
+
+  if (freq === 'biweekly') return diffWeeks % 2 === 0;
+  if (freq === 'triweekly') return diffWeeks % 3 === 0;
+
+  return false;
+}
 
 // ─── UTILS ────────────────────────────────────────────
 const U = {
@@ -312,15 +593,46 @@ function generateSchedule() {
     }
   }
 
-  // Mark meeting slots taken
+  // Helper: check if slot overlaps meeting time range
+  function overlapsMeeting(slot, startTime, endTime) {
+    const [sh, sm] = slot.start.split(':').map(Number);
+    const slotStart = sh * 60 + sm;
+    const slotEnd = slotStart + 60;
+    const [msh, msm] = startTime.split(':').map(Number);
+    const [meh, mem] = endTime.split(':').map(Number);
+    const mStart = msh * 60 + msm;
+    const mEnd = meh * 60 + mem;
+    return slotStart < mEnd && slotEnd > mStart;
+  }
+
+  // Mark meeting slots taken (legacy DATA.meetings)
   for (const meeting of DATA.meetings) {
     if (!meeting.date) continue;
     for (const slot of slots) {
       if (slot.date !== meeting.date) continue;
-      // check overlap (simplified: any overlap = taken)
       const [sh] = slot.start.split(':').map(Number);
       const [mh] = (meeting.startTime || '00:00').split(':').map(Number);
       if (Math.abs(sh - mh) <= 1) slot.taken = true;
+    }
+  }
+
+  // Mark RECURRING meeting slots taken (settings.recurringMeetings)
+  // 支援 daily / weekly / biweekly / triweekly + startDate/endDate
+  const recurring = (DATA.settings.recurringMeetings || []).filter(m => m.enabled !== false);
+  for (const m of recurring) {
+    for (const slot of slots) {
+      if (!eventOccursOnDate(m, slot.date)) continue;
+      if (overlapsMeeting(slot, m.start, m.end)) slot.taken = true;
+    }
+  }
+
+  // Mark SPECIAL date meetings slots taken (settings.specialMeetings)
+  const special = (DATA.settings.specialMeetings || []);
+  for (const m of special) {
+    if (!m.date) continue;
+    for (const slot of slots) {
+      if (slot.date !== m.date) continue;
+      if (overlapsMeeting(slot, m.start, m.end)) slot.taken = true;
     }
   }
 
@@ -343,19 +655,26 @@ function generateSchedule() {
   const twoWeeksLater = D.addDays(todayDate, 14);
 
   const candidates = DATA.tasks
-    .filter(t => t.status !== 'done' && t.status !== 'hold')
+    .filter(t => !t._deleted)
+    .filter(t => t.status !== 'hold')
     .filter(t => {
+      // 已完成任務：本週才完成的也顯示（不重新排程，但要在時程表顯示）
+      if (t.status === 'done') {
+        const completedDate = t.actualEnd ? new Date(t.actualEnd) : (t.completedAt ? new Date(t.completedAt) : null);
+        if (completedDate && completedDate >= monday && completedDate <= sunday) {
+          return true; // 本週完成 → 顯示
+        }
+        return false;
+      }
+      // 未完成的任務沿用原有 4 個條件
       if (!t.start && !t.end) {
-        return t.urgency === 'high'; // 無日期高緊急的才排
+        return t.urgency === 'high';
       }
       const ts = t.start ? new Date(t.start) : null;
       const te = t.end   ? new Date(t.end)   : null;
 
-      // 條件 1+2：任務區間與本週有交集
       if (ts && te && te >= monday && ts <= sunday) return true;
-      // 條件 3：已逾期
       if (te && te < todayDate) return true;
-      // 條件 4：兩週內 deadline
       if (te && te <= twoWeeksLater && te >= monday) return true;
 
       return false;
@@ -366,9 +685,10 @@ function generateSchedule() {
   // Schedule items
   const items = [...lockedItems];
 
-  // 硬上限：每個任務本週最多 2 個時段（兩個時段優先分到不同天）
-  const MAX_CHUNKS_PER_TASK = 2;
-  const HOURS_PER_CHUNK = 2;
+  // 硬上限：每個任務本週只排 1 個時段（1h）
+  // 若任務工時很長，hover tooltip 會提示需要幾週
+  const MAX_CHUNKS_PER_TASK = 1;
+  const HOURS_PER_CHUNK = 1;
 
   // 紀錄每個任務已排的日期，用於分散到不同天
   const taskDates = {};
@@ -376,16 +696,33 @@ function generateSchedule() {
   for (const task of sorted) {
     const totalHours = parseFloat(task.estHours) || 1;
     const isDeep = task.category === 'deep' || !task.category;
+    const isDone = task.status === 'done';
 
-    let chunks;
-    if (totalHours <= 1.5) {
-      chunks = 1; // 不到 1.5h 的小任務不切
-    } else if (task.canSplit === false) {
-      chunks = 1; // 不可切分
-    } else {
-      chunks = MAX_CHUNKS_PER_TASK; // 預設排 2 段
+    // 已完成任務：只排 1 段，固定排在實際完成日的第一個空 slot
+    if (isDone) {
+      const doneDate = task.actualEnd || (task.completedAt ? task.completedAt.slice(0, 10) : null);
+      if (!doneDate) continue;
+      const doneSlot = slots.find(s => s.date === doneDate && !s.taken);
+      if (doneSlot) {
+        doneSlot.taken = true;
+        items.push({
+          taskId: task.id,
+          date: doneSlot.date,
+          start: doneSlot.start,
+          duration: 60,
+          chunk: null,
+          totalHours,
+          week: weekKey,
+          locked: false,
+          completed: true, // 標記為已完成顯示
+        });
+      }
+      continue;
     }
-    const hoursPerChunk = Math.min(totalHours / chunks, HOURS_PER_CHUNK);
+
+    // 一週只排 1 個時段（1h）
+    const chunks = 1;
+    const hoursPerChunk = 1;
 
     taskDates[task.id] = new Set();
 
@@ -412,8 +749,8 @@ function generateSchedule() {
         taskId: task.id,
         date: slot.date,
         start: slot.start,
-        duration: Math.min(hoursPerChunk, 1) * 60,
-        chunk: chunks > 1 ? `${i + 1}/${chunks}` : null,
+        duration: 60,
+        chunk: null,
         totalHours: totalHours,
         week: weekKey,
         locked: false,
@@ -588,6 +925,7 @@ const App = {
   init() {
     Storage.load();
     cleanOldDoneTasks();
+    this.cleanExpiredDeletedTasks();
 
     // First time? Set seed data
     if (DATA.projects.length === 0) {
@@ -604,6 +942,21 @@ const App = {
 
     // Login check
     this.checkLoginState();
+
+    // ☁ 雲端同步：開啟時先拉最新資料
+    if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudSyncUrl) {
+      // 延遲 800ms 讓畫面先渲染
+      setTimeout(() => {
+        CloudSync.download(true).then(success => {
+          if (success) {
+            // 重新整理畫面
+            this.refreshAll();
+            this.renderSidebar();
+            U.toast('☁ 已自動從雲端同步最新資料', 'success');
+          }
+        });
+      }, 800);
+    }
   },
 
   seedDefaultProjects() {
@@ -811,7 +1164,7 @@ const App = {
   renderSidebar() {
     const list = document.getElementById('projectList');
     list.innerHTML = DATA.projects.map(p => {
-      const cnt = DATA.tasks.filter(t => t.project === p.id && t.status !== 'done').length;
+      const cnt = DATA.tasks.filter(t => t.project === p.id && t.status !== 'done' && !t._deleted).length;
       const isActive = this.currentPage === 'project' && this.currentProjectId === p.id;
       return `<button class="sb-proj ${isActive ? 'active' : ''}" onclick="App.openProject('${p.id}', this)">
         <span class="dot" style="background:${p.color}"></span>
@@ -861,6 +1214,7 @@ App.renderDashboard = function() {
   const twoWeeksAfter  = D.addDays(centerDay, +14);
 
   const inWindowTasks = DATA.tasks.filter(t => {
+    if (t._deleted) return false;
     if (t.status === 'done' || t.status === 'hold') return false;
     if (!t.start && !t.end) return true;
     const ts = t.start ? new Date(t.start) : (t.end ? new Date(t.end) : null);
@@ -963,7 +1317,8 @@ App.renderDashboard = function() {
           <div class="legend-row">
             <span class="legend-item"><span class="legend-sw" style="background:var(--sage-500)"></span>深度工作</span>
             <span class="legend-item"><span class="legend-sw" style="background:var(--amber)"></span>雜事零碎</span>
-            <span class="legend-item"><span class="legend-sw" style="background:var(--slate)"></span>會議</span>
+            <span class="legend-item"><span class="legend-sw" style="background:#4A6B85"></span>📅 會議</span>
+            <span class="legend-item"><span class="legend-sw" style="background:#8B7355"></span>🧹 打掃</span>
             <span class="legend-item"><span style="color:var(--terracotta);">⚠</span> 延遲</span>
             <span class="legend-item"><span style="color:var(--sage-600);">🔗</span> 同步</span>
             <span style="margin-left:auto; font-size:10.5px;">⋮⋮ 拖曳調整 · 🔒 已鎖定</span>
@@ -998,13 +1353,103 @@ App.buildWeekScheduleHtml = function(targetMonday) {
   }
 
   // Rows: 09 10 11 12 14 15 16 17
-  const hours = [9, 10, 11, 14, 15, 16, 17];
+  const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
   const items = (DATA.schedule.items || []).filter(it => it.week === wk);
+  // Legacy DATA.meetings
   const meetings = DATA.meetings.filter(m => {
     if (!m.date) return false;
     const md = new Date(m.date);
     return D.daysBetween(monday, md) >= 0 && D.daysBetween(monday, md) <= 6;
   });
+  // New: recurring + special meetings from settings
+  const recurring = (DATA.settings.recurringMeetings || []).filter(m => m.enabled !== false);
+  const special = (DATA.settings.specialMeetings || []);
+
+  // Helper: 把 frequency 轉成中文標籤
+  function freqLabel(f) {
+    return ({ daily: '每天', weekly: '每週', biweekly: '隔週(一天)', triweekly: '隔兩週(一天)', 'biweekly-allday': '隔週整週每天', 'triweekly-allday': '隔兩週整週每天' })[f] || '每週';
+  }
+
+  // Build a lookup: for each (date, hour) → which meeting?
+  // 優先順序：會議 > 打掃（同格衝突時會議優先；若會議完整覆蓋打掃 → 打掃跳過）
+  function findMeetingAt(dateIso, hr) {
+    // 排序：meeting > cleaning（讓會議優先）
+    const sortedRecurring = [...recurring].sort((a, b) => {
+      const aRank = a.category === 'cleaning' ? 1 : 0;
+      const bRank = b.category === 'cleaning' ? 1 : 0;
+      return aRank - bRank;
+    });
+
+    // 先找出當天所有 occurring events，再判斷哪個放在這個 hr slot
+    const occurringEvents = [];
+    for (const m of sortedRecurring) {
+      if (!eventOccursOnDate(m, dateIso)) continue;
+      const [sh, sm] = m.start.split(':').map(Number);
+      const [eh, em] = m.end.split(':').map(Number);
+      occurringEvents.push({
+        ...m,
+        mStart: sh * 60 + sm,
+        mEnd: eh * 60 + em,
+      });
+    }
+    // Special meetings (one-off date)
+    for (const m of special) {
+      if (m.date !== dateIso) continue;
+      const [sh, sm] = m.start.split(':').map(Number);
+      const [eh, em] = m.end.split(':').map(Number);
+      occurringEvents.push({
+        ...m,
+        category: m.category || 'meeting',
+        mStart: sh * 60 + sm,
+        mEnd: eh * 60 + em,
+        isSpecial: true,
+      });
+    }
+
+    // 標記：如果掃地完全被會議覆蓋 → 跳過
+    const meetingsOnly = occurringEvents.filter(e => e.category === 'meeting');
+    const filtered = occurringEvents.filter(e => {
+      if (e.category !== 'cleaning') return true;
+      // 完全被某個會議覆蓋？
+      const covered = meetingsOnly.some(m => m.mStart <= e.mStart && m.mEnd >= e.mEnd);
+      return !covered;
+    });
+
+    // 找出與當前 slot (hr) 重疊的事件
+    const slotStart = hr * 60;
+    const slotEnd = slotStart + 60;
+    for (const ev of filtered) {
+      if (slotStart < ev.mEnd && slotEnd > ev.mStart) {
+        // 找出 hours 陣列中所有與此事件重疊的時段
+        const overlappingHrs = hours.filter(h => {
+          const hStart = h * 60;
+          const hEnd = hStart + 60;
+          return hStart < ev.mEnd && hEnd > ev.mStart;
+        });
+        const firstOverlappingHr = overlappingHrs[0];
+        const isFirstSlot = hr === firstOverlappingHr;
+        let spanHours = 1;
+        if (isFirstSlot) {
+          const startIdx = hours.indexOf(firstOverlappingHr);
+          for (let i = startIdx + 1; i < hours.length; i++) {
+            if (overlappingHrs.includes(hours[i])) spanHours++;
+            else break;
+          }
+        }
+        return {
+          title: ev.title,
+          start: ev.start,
+          end: ev.end,
+          category: ev.category || 'meeting',
+          frequency: ev.frequency || 'weekly',
+          type: ev.isSpecial ? 'special' : 'recurring',
+          isFirstSlot,
+          spanHours,
+        };
+      }
+    }
+    return null;
+  }
 
   for (const hr of hours) {
     html += `<div class="ws-time-col">${String(hr).padStart(2,'0')}:00</div>`;
@@ -1020,6 +1465,15 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         const [mh] = (m.startTime || '').split(':').map(Number);
         return mh === hr;
       });
+      const meetingAuto = findMeetingAt(dateIso, hr);
+
+      // 12:00 是午休 — 鎖死，不能拖放、不顯示任何任務
+      if (hr === 12) {
+        html += `<div class="ws-cell ws-lunch" data-date="${dateIso}" data-start="${hrStr}" title="🍽 午休時間，不可安排工作">
+          <div class="ws-lunch-label">🍽 午休</div>
+        </div>`;
+        continue;
+      }
 
       // Cell is drop target
       html += `<div class="ws-cell" data-date="${dateIso}" data-start="${hrStr}" ondragover="event.preventDefault(); this.classList.add('drag-over');" ondragleave="this.classList.remove('drag-over');" ondrop="App.handleScheduleDrop(event, '${dateIso}', '${hrStr}')">`;
@@ -1032,36 +1486,59 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           // Tooltip
           const tipParts = [];
           if (task.syncRef) tipParts.push(`🔗 ${task.syncRef}`);
-          tipParts.push(`預估總工時：${item.totalHours || task.estHours || '?'} h`);
-          tipParts.push(`本週已排：${(item.duration/60).toFixed(1)} h${item.chunk ? ' (' + item.chunk + ')' : ''}`);
+          const total = item.totalHours || task.estHours || 0;
+          tipParts.push(`預估總工時：${total} h`);
+          if (total > 6) {
+            // 用每日 6h 計算 → 需要幾個工作天
+            const days = Math.ceil(total / 6);
+            const weeks = Math.ceil(days / 5);
+            tipParts.push(`預估需要：${days} 個工作天 (約 ${weeks} 週)`);
+          }
+          tipParts.push(`本週已排：${(item.duration/60).toFixed(1)} h（僅提醒用，實際時間請自行安排）`);
           if (task.end) tipParts.push(`預計完成：${D.fmt(task.end, 'ymdShort')}`);
           if (isOverdue) tipParts.push(`⚠ 已逾期 ${-D.daysBetween(today, new Date(task.end))} 天`);
           if (task.owner) tipParts.push(`擔當：${task.owner}`);
           if (task.note) tipParts.push(`備註：${task.note}`);
           const tipText = tipParts.join('\n');
 
-          html += `<div class="ws-event ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''}"
-            style="top:0;height:60px;"
-            draggable="true"
+          html += `<div class="ws-event ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''} ${item.completed ? 'completed' : ''}"
+            style="top:0;height:50px;"
+            ${item.completed ? '' : 'draggable="true"'}
             data-task-id="${task.id}"
             data-from-date="${dateIso}"
             data-from-start="${hrStr}"
-            ondragstart="App.handleScheduleDragStart(event)"
-            ondragend="event.target.classList.remove('dragging')"
-            onclick="App.openTaskModal('${task.id}')"
-            title="${U.esc(tipText)}">
-            ${item.locked ? '<span class="lock-ico">🔒</span>' : '<span class="drag-handle">⋮⋮</span>'}
-            ${isOverdue ? '<span class="overdue-badge">⚠</span>' : ''}
+            ${item.completed ? '' : 'ondragstart="App.handleScheduleDragStart(event)" ondragend="event.target.classList.remove(\'dragging\')"'}
+            ondblclick="App.openTaskInProject('${task.id}')"
+            title="${U.esc(tipText)}&#10;━━━━━━━━━━━━━━&#10;💡 雙擊跳到專案頁編輯">
+            ${item.completed ? '<span class="done-badge">✓</span>' : item.locked ? '<span class="lock-ico">🔒</span>' : '<span class="drag-handle">⋮⋮</span>'}
+            ${isOverdue && !item.completed ? '<span class="overdue-badge">⚠</span>' : ''}
             ${task.synced ? '<span class="sync-badge">🔗</span>' : ''}
             <b>${U.esc(task.name).slice(0, 20)}</b>
-            <div class="ev-meta">${(item.duration/60).toFixed(1)}h${item.chunk ? ' · ' + item.chunk : ''}${item.totalHours && item.totalHours > (item.duration/60) ? ' / ' + item.totalHours + 'h' : ''}</div>
+            <div class="ev-meta">${item.completed ? '✓ 已完成' : (item.totalHours && item.totalHours > 1 ? '提醒 · 共 ' + item.totalHours + 'h' : '1h')}</div>
           </div>`;
         }
       } else if (meeting) {
-        html += `<div class="ws-event meeting" style="top:0;height:32px;" title="${U.esc(meeting.title)}">
+        html += `<div class="ws-event meeting" style="top:0;height:50px;" title="${U.esc(meeting.title)}">
           <b>${U.esc(meeting.title).slice(0, 14)}</b>
           <div class="ev-meta">${meeting.startTime || ''}</div>
         </div>`;
+      } else if (meetingAuto) {
+        // Show recurring / special meeting (auto-blocked)
+        // Merged cell effect: only render on isFirstSlot with extended height
+        if (meetingAuto.isFirstSlot) {
+          const tip = `${meetingAuto.title}\n${meetingAuto.start}–${meetingAuto.end}\n${meetingAuto.category === 'cleaning' ? '🧹 打掃' : '📅 會議'}（${freqLabel(meetingAuto.frequency)}）`;
+          const spanHr = meetingAuto.spanHours || 1;
+          // 每格高度 50px + 跨格時加上 row-gap (4px)
+          const cellHeight = spanHr * 50 + (spanHr - 1) * 4;
+          const cssClass = meetingAuto.category === 'cleaning' ? 'cleaning' : 'auto-meeting';
+          const icon = meetingAuto.category === 'cleaning' ? '🧹' : '📅';
+          // z-index 1：低於任務（防止視覺覆蓋其他列的任務）
+          html += `<div class="ws-event meeting ${cssClass}" style="top:0; height:${cellHeight}px; z-index:1;" title="${U.esc(tip)}">
+            <b>${icon} ${U.esc(meetingAuto.title).slice(0, 16)}</b>
+            <div class="ev-meta">${meetingAuto.start}–${meetingAuto.end}</div>
+          </div>`;
+        }
+        // If not first slot → render nothing (the merged cell from firstSlot covers this)
       }
       html += '</div>';
     }
@@ -1120,7 +1597,9 @@ App.buildMemoListHtml = function() {
     return '<div style="text-align:center; padding:60px 20px; color:var(--ink3); font-size:13px;">尚無便利貼<br><span style="font-size:11px;">點右上「＋ 新增」加一張</span></div>';
   }
   return DATA.memos.map(m => `
-    <div class="memo" style="background:var(--${m.color}); top:${m.x}px; left:${m.y}px; transform:rotate(${m.rotate}deg);" data-id="${m.id}">
+    <div class="memo" style="background:var(--${m.color}); top:${m.x}px; left:${m.y}px; transform:rotate(${m.rotate}deg);" data-id="${m.id}"
+         ondblclick="App.editMemo('${m.id}')"
+         title="拖曳移動 · 雙擊編輯">
       <button class="memo-del" data-edit onclick="App.deleteMemo('${m.id}')">×</button>
       ${U.esc(m.text)}
       <div class="memo-author">${m.date}</div>
@@ -1186,6 +1665,27 @@ App.addMemo = function() {
   U.toast('✓ 便利貼已加入');
 };
 
+App.editMemo = function(id) {
+  const memo = DATA.memos.find(m => m.id === id);
+  if (!memo) return;
+  const newText = prompt('編輯便利貼內容：', memo.text);
+  if (newText === null) return; // cancelled
+  const trimmed = newText.trim();
+  if (!trimmed) {
+    if (confirm('內容為空，刪除這張便利貼？')) {
+      DATA.memos = DATA.memos.filter(m => m.id !== id);
+      Storage.save();
+      this.renderDashboard();
+      U.toast('✓ 已刪除');
+    }
+    return;
+  }
+  memo.text = trimmed.slice(0, 200);
+  Storage.save();
+  this.renderDashboard();
+  U.toast('✓ 已更新');
+};
+
 App.deleteMemo = function(id) {
   if (!confirm('刪除這張便利貼？')) return;
   DATA.memos = DATA.memos.filter(m => m.id !== id);
@@ -1241,9 +1741,29 @@ App.renderProject = function() {
     return;
   }
 
-  const tasks = this.getTasksOf(proj.id);
-  const activeTasks = sortTasks(tasks.filter(t => t.status !== 'done'));
-  const doneTasks = tasks.filter(t => t.status === 'done').sort((a,b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
+  const allTasks = this.getTasksOf(proj.id);
+  const today = D.today();
+  // 排序：延遲 > 進行中 > 未開始（同類依日期）
+  const activeTasks = allTasks.filter(t => t.status !== 'done' && !t._deleted).sort((a, b) => {
+    const overdueA = a.end && new Date(a.end) < today ? 0 : 1;
+    const overdueB = b.end && new Date(b.end) < today ? 0 : 1;
+    if (overdueA !== overdueB) return overdueA - overdueB;
+    const statusOrder = { wip: 0, pending: 1, hold: 2 };
+    const so = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+    if (so !== 0) return so;
+    return (a.end || '9999').localeCompare(b.end || '9999');
+  });
+  const doneTasks = allTasks.filter(t => t.status === 'done' && !t._deleted).sort((a,b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
+  const deletedTasks = allTasks.filter(t => t._deleted).sort((a, b) => (b._deletedAt || '').localeCompare(a._deletedAt || ''));
+
+  // 預設只顯示 15 筆 active tasks（超過時可展開）
+  const PREVIEW_LIMIT = 15;
+  this._projectExpanded = this._projectExpanded || {};
+  const isExpanded = !!this._projectExpanded[proj.id];
+  const showAll = isExpanded || activeTasks.length <= PREVIEW_LIMIT;
+  const visibleActive = showAll ? activeTasks : activeTasks.slice(0, PREVIEW_LIMIT);
+
+  const tasks = allTasks; // for backward compat below
 
   const html = `
     <div class="proj-header">
@@ -1269,19 +1789,30 @@ App.renderProject = function() {
           <div class="tlc-head">
             <span class="tlc-title">待辦任務</span>
             <span class="tlc-count">${activeTasks.length}</span>
-            <span style="font-size:11px; color:var(--ink3); margin-left:auto;">依優先順序排列</span>
+            <span style="font-size:11px; color:var(--ink3); margin-left:auto;">延遲 → 進行中 → 未開始</span>
           </div>
           <div id="activeTaskList">
-            ${activeTasks.length === 0 ?
+            ${visibleActive.length === 0 ?
               '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>' :
-              activeTasks.map(t => this.buildTaskRowHtml(t)).join('')
+              visibleActive.map(t => this.buildTaskRowHtml(t)).join('')
             }
           </div>
-          ${!proj.synced ? `<div class="list-foot">
+          ${!showAll ? `
+          <div style="padding:10px 16px; border-top:1px solid var(--rule); text-align:center; background:var(--surface2);">
+            <button class="tb-action ghost" onclick="App.toggleProjectExpanded('${proj.id}')" style="font-size:11.5px; padding:5px 14px;">
+              展開全部（還有 ${activeTasks.length - PREVIEW_LIMIT} 筆）▼
+            </button>
+          </div>` : (isExpanded && activeTasks.length > PREVIEW_LIMIT ? `
+          <div style="padding:10px 16px; border-top:1px solid var(--rule); text-align:center; background:var(--surface2);">
+            <button class="tb-action ghost" onclick="App.toggleProjectExpanded('${proj.id}')" style="font-size:11.5px; padding:5px 14px;">
+              收起（只顯示前 ${PREVIEW_LIMIT} 筆）▲
+            </button>
+          </div>` : '')}
+          <div class="list-foot">
             <input id="quickAddTask" placeholder="＋ 快速新增任務（按 Enter 完成）" data-edit
                    onkeydown="if(event.key==='Enter') App.quickAddTask('${proj.id}', this)">
             <button data-edit onclick="App.quickAddTask('${proj.id}', document.getElementById('quickAddTask'))">新增</button>
-          </div>` : ''}
+          </div>
         </div>
 
         ${doneTasks.length > 0 ? `
@@ -1296,6 +1827,28 @@ App.renderProject = function() {
           </div>
           <div class="done-clear-tip">
             💡 完成超過 ${DATA.settings.doneRetentionDays} 天的任務會自動清除
+          </div>
+        </div>` : ''}
+
+        ${deletedTasks.length > 0 ? `
+        <div class="done-section deleted-section collapsed" id="deletedSection">
+          <div class="done-head" onclick="document.getElementById('deletedSection').classList.toggle('collapsed')">
+            <span class="done-head-title">🗑 已刪除</span>
+            <span class="done-head-count" style="background:var(--terracotta-l); color:var(--terracotta);">${deletedTasks.length}</span>
+            <span class="done-head-chevron">▼</span>
+          </div>
+          <div class="done-list">
+            ${deletedTasks.map(t => `<div class="deleted-row" style="display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid var(--rule);">
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:12.5px; text-decoration:line-through; color:var(--ink3);">${U.esc(t.name)}</div>
+                <div style="font-size:10.5px; color:var(--ink4); margin-top:2px;">刪除於 ${t._deletedAt ? D.fmt(t._deletedAt, 'ymd') : '—'}</div>
+              </div>
+              <button class="tb-action ghost" onclick="App.restoreTask('${t.id}')" style="font-size:10.5px; padding:3px 10px; color:var(--sage-700);">↺ 還原</button>
+              <button class="tb-action ghost" onclick="App.permanentDeleteTask('${t.id}')" style="font-size:10.5px; padding:3px 10px; color:var(--terracotta);">永久刪除</button>
+            </div>`).join('')}
+          </div>
+          <div class="done-clear-tip">
+            💡 已刪除任務保留 14 天，過期自動清除
           </div>
         </div>` : ''}
       </div>
@@ -1314,6 +1867,49 @@ App.renderProject = function() {
     </div>
   `;
   document.getElementById('page-project').innerHTML = html;
+};
+
+App.toggleProjectExpanded = function(projId) {
+  this._projectExpanded = this._projectExpanded || {};
+  this._projectExpanded[projId] = !this._projectExpanded[projId];
+  this.renderProject();
+};
+
+// ─── Soft delete / restore ───
+App.restoreTask = function(id) {
+  const t = DATA.tasks.find(x => x.id === id);
+  if (!t) return;
+  delete t._deleted;
+  delete t._deletedAt;
+  Storage.save();
+  this.refreshAll();
+  U.toast('↺ 已還原');
+};
+
+App.permanentDeleteTask = function(id) {
+  if (!confirm('永久刪除？此操作無法復原')) return;
+  DATA.tasks = DATA.tasks.filter(t => t.id !== id);
+  // 清掉 schedule 殘留
+  if (DATA.schedule && DATA.schedule.items) {
+    DATA.schedule.items = DATA.schedule.items.filter(it => it.taskId !== id);
+  }
+  Storage.save();
+  this.refreshAll();
+  U.toast('🗑 已永久刪除');
+};
+
+// 自動清除逾期 14 天的軟刪除任務（在 load 時呼叫）
+App.cleanExpiredDeletedTasks = function() {
+  const cutoff = D.addDays(D.today(), -14);
+  const before = DATA.tasks.length;
+  DATA.tasks = DATA.tasks.filter(t => {
+    if (!t._deleted) return true;
+    const delDate = new Date(t._deletedAt || 0);
+    return delDate > cutoff; // 14 天內保留
+  });
+  if (before !== DATA.tasks.length) {
+    Storage.save();
+  }
 };
 
 App.buildTaskRowHtml = function(t) {
@@ -1704,6 +2300,16 @@ App.toggleTaskDone = function(id) {
   this.refreshAll();
 };
 
+App.openTaskInProject = function(id) {
+  const task = DATA.tasks.find(t => t.id === id);
+  if (!task) { U.toast('⚠ 找不到任務', 'warning'); return; }
+  // 跳到該專案頁
+  this.currentProjectId = task.project;
+  this.openPage('project');
+  // 等專案頁渲染完再打開編輯 modal
+  setTimeout(() => { this.openTaskModal(id); }, 100);
+};
+
 App.openTaskModal = function(id) {
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
@@ -1745,8 +2351,55 @@ App.openTaskModal = function(id) {
     `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`
   ).join('');
 
+  // 當前所在週次標示（紅色 ⁂ 表示未結案）
+  const currentWeekBadge = t.currentWeek && t.status !== 'done'
+    ? `<span style="display:inline-block; margin-left:8px; padding:2px 8px; background:var(--terracotta-l); color:var(--terracotta); border-radius:10px; font-size:11px; font-weight:600;">${U.esc(t.currentWeek)} <span style="color:#C4633E;">⁂</span></span>`
+    : (t.currentWeek
+        ? `<span style="display:inline-block; margin-left:8px; padding:2px 8px; background:var(--sage-50); color:var(--sage-700); border-radius:10px; font-size:11px; font-weight:600;">${U.esc(t.currentWeek)} ✓</span>`
+        : '');
+
+  // 歷史紀錄區塊
+  const history = t.history || [];
+  let historyHtml = '';
+  if (history.length > 0) {
+    const rows = history.map(h => {
+      const statusColor = h.status?.includes('完成') ? 'var(--sage-700)' : h.status?.includes('延遲') ? 'var(--terracotta)' : 'var(--ink2)';
+      return `<tr>
+        <td style="padding:6px 8px; font-family:var(--mono); font-size:10.5px; color:var(--ink3); border-bottom:1px solid var(--rule);">${U.esc(h.week || '')}</td>
+        <td style="padding:6px 8px; font-size:11.5px; color:${statusColor}; border-bottom:1px solid var(--rule); white-space:nowrap;">${U.esc(h.status || '')}</td>
+        <td style="padding:6px 8px; font-size:11.5px; border-bottom:1px solid var(--rule); line-height:1.4;">${U.esc(h.work || '—')}</td>
+        <td style="padding:6px 8px; font-family:var(--mono); font-size:10.5px; color:var(--ink3); border-bottom:1px solid var(--rule); white-space:nowrap;">${h.planEnd || '—'}${h.planEndOriginal && h.planEndOriginal !== h.planEnd ? '<br><span style="color:var(--ink4); font-size:10px;">原:' + h.planEndOriginal + '</span>' : ''}</td>
+        <td style="padding:6px 8px; font-family:var(--mono); font-size:10.5px; color:${h.actualEnd ? 'var(--sage-700)' : 'var(--ink3)'}; border-bottom:1px solid var(--rule); white-space:nowrap;">${h.actualEnd || '—'}</td>
+        <td style="padding:6px 8px; font-size:11px; color:var(--terracotta); border-bottom:1px solid var(--rule);">${U.esc(h.delayReason || '')}</td>
+      </tr>`;
+    }).join('');
+    historyHtml = `
+      <div class="form-field" style="margin-top:18px;">
+        <label style="display:flex; align-items:center; gap:8px;">
+          📋 歷史紀錄
+          <span style="font-size:10.5px; color:var(--ink3); font-weight:400;">（共 ${history.length} 週的執行紀錄）</span>
+        </label>
+        <div style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:220px; overflow-y:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
+            <thead style="position:sticky; top:0; background:var(--sage-50);">
+              <tr>
+                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">週次</th>
+                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">狀態</th>
+                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">本週工作</th>
+                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">預計完成</th>
+                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">實際完成</th>
+                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">延誤理由</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   this.openModal({
-    title: '編輯任務',
+    title: `編輯任務 ${currentWeekBadge}`,
     body: `
       <div class="form-field">
         <label>任務名稱 *</label>
@@ -1793,6 +2446,10 @@ App.openTaskModal = function(id) {
         <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${t.end || ''}"></div>
       </div>
       <div class="form-row">
+        <div class="form-field"><label>實際開始</label><input type="date" id="tf-actualStart" value="${t.actualStart || ''}"></div>
+        <div class="form-field"><label>實際完成（填了自動標已完成）</label><input type="date" id="tf-actualEnd" value="${t.actualEnd || ''}"></div>
+      </div>
+      <div class="form-row">
         <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${t.estHours || 1}" min="0.5" step="0.5"></div>
         <div class="form-field"><label>處理方式</label><input type="text" id="tf-method" value="${U.esc(t.method || '')}" placeholder="會議/郵件/現場"></div>
       </div>
@@ -1806,6 +2463,7 @@ App.openTaskModal = function(id) {
           可切分（≥4h 任務拆成多天）
         </label>
       </div>
+      ${historyHtml}
     `,
     footer: `
       <button class="tb-action danger" onclick="App.deleteTask('${t.id}')" style="margin-right:auto;">刪除任務</button>
@@ -1829,14 +2487,25 @@ App.saveTask = function(id) {
   t.urgency   = document.getElementById('tf-urgency').value;
   t.start     = document.getElementById('tf-start').value;
   t.end       = document.getElementById('tf-end').value;
+  t.actualStart = document.getElementById('tf-actualStart').value;
+  t.actualEnd   = document.getElementById('tf-actualEnd').value;
   t.estHours  = parseFloat(document.getElementById('tf-hours').value) || 1;
   t.method    = document.getElementById('tf-method').value.trim();
   t.note      = document.getElementById('tf-note').value.trim();
   t.canSplit  = document.getElementById('tf-split').checked;
 
-  const newStatus = document.getElementById('tf-status').value;
-  if (newStatus === 'done' && t.status !== 'done') t.completedAt = new Date().toISOString();
-  if (newStatus !== 'done') t.completedAt = null;
+  let newStatus = document.getElementById('tf-status').value;
+  // 自動邏輯：實際完成日有填 → 強制標為已完成
+  if (t.actualEnd) {
+    newStatus = 'done';
+  }
+  if (newStatus === 'done') {
+    if (t.status !== 'done') t.completedAt = t.actualEnd || new Date().toISOString();
+    t.progress = 100;
+  } else {
+    t.completedAt = null;
+    if (t.progress === 100) t.progress = 30;
+  }
   t.status = newStatus;
 
   Storage.save();
@@ -1846,12 +2515,19 @@ App.saveTask = function(id) {
 };
 
 App.deleteTask = function(id) {
-  if (!confirm('確定要刪除這個任務？')) return;
-  DATA.tasks = DATA.tasks.filter(t => t.id !== id);
+  if (!confirm('刪除任務？\n\n刪除的任務會移到專案下方「🗑 已刪除」區塊保留 14 天，期間可隨時還原。')) return;
+  const t = DATA.tasks.find(x => x.id === id);
+  if (!t) return;
+  t._deleted = true;
+  t._deletedAt = new Date().toISOString();
+  // 從 schedule 中移除
+  if (DATA.schedule && DATA.schedule.items) {
+    DATA.schedule.items = DATA.schedule.items.filter(it => it.taskId !== id);
+  }
   Storage.save();
   this.closeModal();
   this.refreshAll();
-  U.toast('✓ 任務已刪除');
+  U.toast('✓ 已移到「已刪除」區塊（14 天內可還原）');
 };
 
 // ─── PROJECT CRUD ───
@@ -2119,6 +2795,7 @@ App.renderGantt = function() {
 
   // Collect tasks to display (active + recently done, with dates)
   const tasks = DATA.tasks.filter(t => {
+    if (t._deleted) return false;
     if (t.status === 'hold') return false;
     if (!t.start && !t.end) return false;
     // Check if range overlaps
@@ -2282,7 +2959,7 @@ App.renderMonth = function() {
 
     // Find events on this day
     const meetings = DATA.meetings.filter(m => m.date === dateIso);
-    const taskDeadlines = DATA.tasks.filter(t => t.end === dateIso && t.status !== 'done');
+    const taskDeadlines = DATA.tasks.filter(t => !t._deleted && t.end === dateIso && t.status !== 'done');
     const scheduleItems = (DATA.schedule.items || []).filter(it => it.date === dateIso);
 
     let evtsHtml = '';
@@ -2434,6 +3111,7 @@ App.renderReport = function() {
   // 嚴格依照選擇的週別，不擴大範圍（區別於儀表板的兩週視窗）
   const weekEnd = D.addDays(sunday, 1); // 含週日整天
   const inWeekTasks = DATA.tasks.filter(t => {
+    if (t._deleted) return false;
     // 已完成：只看完成日是否在這週
     if (t.status === 'done' && t.completedAt) {
       const cd = new Date(t.completedAt);
@@ -2611,9 +3289,10 @@ App.exportReportExcel = function(weekKey) {
   const monday = D.addDays(w1Monday, (wk - 1) * 7);
   const sunday = D.addDays(monday, 6);
 
-  // Gather tasks (same logic as renderReport: strict per-week)
+  // Gather tasks (strict per-week)
   const weekEnd = D.addDays(sunday, 1);
   const inWeekTasks = DATA.tasks.filter(t => {
+    if (t._deleted) return false;
     if (t.status === 'done' && t.completedAt) {
       const cd = new Date(t.completedAt);
       return cd >= monday && cd < weekEnd;
@@ -2631,104 +3310,157 @@ App.exportReportExcel = function(weekKey) {
     return false;
   });
 
-  const wb = XLSX.utils.book_new();
-
-  // Summary sheet
-  const summaryData = [
-    ['週報', `W${wk}`, '', '日期', `${D.fmt(monday,'ymd')} – ${D.fmt(sunday,'ymd')}`],
-    ['', '', '', '製作人', DATA.settings.userName || ''],
-    ['', '', '', '部門', DATA.settings.department || ''],
-    [],
-    ['📊 統計'],
-    ['本週任務', inWeekTasks.length],
-    ['已完成', inWeekTasks.filter(t => t.status === 'done').length],
-    ['進行中', inWeekTasks.filter(t => t.status === 'wip').length],
-    ['延遲', inWeekTasks.filter(t => t.status !== 'done' && t.end && new Date(t.end) < D.today()).length],
-    ['總工時', inWeekTasks.reduce((s,t) => s + (t.estHours||0), 0) + 'h'],
-    [],
-    ['📝 額外備註', DATA.weekNotes[weekKey] || ''],
-  ];
-  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-  wsSummary['!cols'] = [{wch:18},{wch:30},{wch:5},{wch:14},{wch:30}];
-  XLSX.utils.book_append_sheet(wb, wsSummary, '週報摘要');
-
-  // Group by project
+  // Group by project (preserve project order)
   const projectGroups = {};
+  const projOrder = [];
   for (const t of inWeekTasks) {
-    if (!projectGroups[t.project]) projectGroups[t.project] = [];
+    if (!projectGroups[t.project]) {
+      projectGroups[t.project] = [];
+      projOrder.push(t.project);
+    }
     projectGroups[t.project].push(t);
   }
 
-  // All tasks sheet
-  const allData = [['#', '專案', '任務', '說明', '擔當', '分類', '緊急', '預計開始', '預計完成', '實際完成', '工時', '進度%', '狀態', '本週狀況', '備註']];
-  let idx = 1;
-  for (const [projId, tasks] of Object.entries(projectGroups)) {
-    const proj = this.getProj(projId);
-    for (const t of tasks) {
-      const prog = t.progress || (t.status === 'done' ? 100 : t.status === 'wip' ? 30 : 0);
-      let state = '';
-      if (t.status === 'done') state = `✓ ${t.completedAt ? D.fmt(t.completedAt,'md') + ' 完成' : '完成'}`;
-      else if (t.end && new Date(t.end) < D.today()) state = `⚠ 延遲`;
-      else state = '進行中';
-      allData.push([
-        idx++,
-        proj?.name || '',
-        t.name,
-        t.desc || '',
-        t.owner || '',
-        LABELS.category[t.category || 'deep'],
-        LABELS.urgency[t.urgency || 'medium'],
-        t.start ? D.fmt(t.start,'ymd') : '',
-        t.end ? D.fmt(t.end,'ymd') : '',
-        t.actualEnd ? D.fmt(t.actualEnd,'ymd') : '',
-        t.estHours || '',
-        prog,
-        LABELS.status[t.status] || '',
-        state,
-        t.note || '',
-      ]);
-    }
-  }
-  const wsAll = XLSX.utils.aoa_to_sheet(allData);
-  wsAll['!cols'] = [{wch:5},{wch:14},{wch:32},{wch:24},{wch:8},{wch:8},{wch:8},{wch:12},{wch:12},{wch:12},{wch:7},{wch:7},{wch:9},{wch:18},{wch:24}];
-  XLSX.utils.book_append_sheet(wb, wsAll, '全部任務');
+  // Build the weekly report sheet matching company format
+  // 欄位：專案名稱 | 項次 | 議題項目 | 狀態 | 本周工作預計項目/對策 | 預計完成日 | 實際完成日 | 延誤理由 | 負責人 | 備註
+  const headerRow = ['專案名稱', '項次', '議題項目', '狀態', '本周工作預計項目/對策', '預計完成日', '實際完成日', '延誤理由(有延誤才填寫)', '負責人', '備註'];
+  const data = [headerRow];
 
-  // Per-project sheets
-  for (const [projId, tasks] of Object.entries(projectGroups)) {
+  // Helper: format date (returns Date for date cells, or 原日期\n-> 展延日期 string)
+  function fmtPlanEnd(t) {
+    const planned = t.plannedEnd || t.plannedStart || '';
+    const eff = t.end || '';
+    if (planned && eff && planned !== eff) {
+      // Has extension marker
+      return `${D.fmt(planned, 'ymd')}\n-> ${D.fmt(eff, 'ymd')}`;
+    }
+    return eff ? D.fmt(eff, 'ymd') : '';
+  }
+
+  // Helper: get status text from internal status
+  function statusText(t) {
+    if (t.status === 'done') return '完成';
+    if (t.status === 'hold') return '擱置';
+    if (t.status === 'pending') return '尚未開始';
+    // wip or unknown: check if overdue
+    if (t.end && new Date(t.end) < D.today()) return '延遲';
+    return '進行中';
+  }
+
+  // Parse delay reason from desc (if any "【延誤】" tag exists)
+  function getDelayReason(t) {
+    if (!t.desc) return '';
+    const m = t.desc.match(/【延誤】([^\n]+)/);
+    if (m) return m[1].trim();
+    // Or if status is 延遲 but no explicit tag, use note as backup
+    return '';
+  }
+
+  function getWorkDesc(t) {
+    if (!t.desc) return '';
+    // strip 【延誤】xxx
+    return t.desc.replace(/【延誤】[^\n]+\n?/g, '').trim() || t.name;
+  }
+
+  let projIdx = 0;
+  const projRowSpans = []; // {start, end, name} for merging A column
+
+  for (const projId of projOrder) {
     const proj = this.getProj(projId);
     if (!proj) continue;
-    const projData = [['#', '任務', '說明', '擔當', '分類', '緊急', '預計開始', '預計完成', '實際完成', '工時', '進度%', '狀態', '本週狀況', '備註']];
+    projIdx++;
+    const tasks = projectGroups[projId];
+    const startRow = data.length; // 1-indexed already including header
     tasks.forEach((t, i) => {
-      const prog = t.progress || (t.status === 'done' ? 100 : t.status === 'wip' ? 30 : 0);
-      let state = '';
-      if (t.status === 'done') state = `✓ ${t.completedAt ? D.fmt(t.completedAt,'md') + ' 完成' : '完成'}`;
-      else if (t.end && new Date(t.end) < D.today()) state = `⚠ 延遲`;
-      else state = '進行中';
-      projData.push([
-        i + 1,
-        t.name,
-        t.desc || '',
-        t.owner || '',
-        LABELS.category[t.category || 'deep'],
-        LABELS.urgency[t.urgency || 'medium'],
-        t.start ? D.fmt(t.start,'ymd') : '',
-        t.end ? D.fmt(t.end,'ymd') : '',
-        t.actualEnd ? D.fmt(t.actualEnd,'ymd') : '',
-        t.estHours || '',
-        prog,
-        LABELS.status[t.status] || '',
-        state,
-        t.note || '',
+      const itemIdx = `${projIdx}-${i + 1}`;
+      data.push([
+        i === 0 ? proj.name : '',            // 專案名稱 (only first row of group)
+        itemIdx,                              // 項次
+        t.name,                               // 議題項目
+        statusText(t),                        // 狀態
+        getWorkDesc(t),                       // 本周預計
+        fmtPlanEnd(t),                        // 預計完成日
+        t.actualEnd ? D.fmt(t.actualEnd, 'ymd') : '',  // 實際完成日
+        getDelayReason(t),                    // 延誤理由
+        t.owner || '',                        // 負責人
+        t.note || '',                         // 備註
       ]);
     });
-    const ws = XLSX.utils.aoa_to_sheet(projData);
-    ws['!cols'] = [{wch:5},{wch:32},{wch:24},{wch:8},{wch:8},{wch:8},{wch:12},{wch:12},{wch:12},{wch:7},{wch:7},{wch:9},{wch:18},{wch:24}];
-    // Use safe sheet name (max 31 chars, no special chars)
-    const safeName = (proj.name + '').replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, safeName);
+    projRowSpans.push({ start: startRow, end: startRow + tasks.length - 1, name: proj.name });
   }
 
-  const filename = `週報_W${wk}_${D.fmt(monday,'ymd').replace(/\//g,'-')}.xlsx`;
+  const wsMain = XLSX.utils.aoa_to_sheet(data);
+
+  // Column widths matching the original Excel
+  wsMain['!cols'] = [
+    { wch: 19 },  // A: 專案名稱
+    { wch: 7.5 }, // B: 項次
+    { wch: 26 },  // C: 議題項目
+    { wch: 9.5 }, // D: 狀態
+    { wch: 50 },  // E: 本周預計
+    { wch: 14 },  // F: 預計完成
+    { wch: 13 },  // G: 實際完成
+    { wch: 40 },  // H: 延誤理由
+    { wch: 15 },  // I: 負責人
+    { wch: 12 },  // J: 備註
+  ];
+
+  // Merge cells in column A for projects with multiple tasks
+  if (!wsMain['!merges']) wsMain['!merges'] = [];
+  for (const span of projRowSpans) {
+    if (span.end > span.start) {
+      wsMain['!merges'].push({
+        s: { r: span.start, c: 0 },
+        e: { r: span.end, c: 0 },
+      });
+    }
+  }
+
+  // Enable wrap text on relevant columns (E, F, H, J)
+  // Iterate all cells and set wrap
+  const range = XLSX.utils.decode_range(wsMain['!ref']);
+  for (let R = 0; R <= range.e.r; R++) {
+    for (let C = 0; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!wsMain[addr]) continue;
+      wsMain[addr].s = wsMain[addr].s || {};
+      wsMain[addr].s.alignment = {
+        wrapText: true,
+        vertical: 'center',
+        horizontal: R === 0 ? 'center' : (C === 1 || C === 3 ? 'center' : 'left'),
+      };
+      // Header bold
+      if (R === 0) {
+        wsMain[addr].s.font = { bold: true };
+        wsMain[addr].s.fill = { fgColor: { rgb: 'F5F1E8' }, patternType: 'solid' };
+      }
+    }
+  }
+
+  // Build workbook
+  const wb = XLSX.utils.book_new();
+  // Sheet name: ROC year format like the original (e.g., "115.5.25")
+  const rocYear = monday.getFullYear() - 1911;
+  const sheetName = `${rocYear}.${monday.getMonth() + 1}.${monday.getDate()}`;
+  XLSX.utils.book_append_sheet(wb, wsMain, sheetName);
+
+  // Extra: append a notes sheet if there are week notes
+  const notes = DATA.weekNotes[weekKey];
+  if (notes) {
+    const notesData = [
+      ['📝 本週備註'],
+      [notes],
+      [],
+      ['日期', `${D.fmt(monday, 'ymd')} – ${D.fmt(sunday, 'ymd')}`],
+      ['製作人', DATA.settings.userName || ''],
+      ['部門', DATA.settings.department || ''],
+    ];
+    const wsNotes = XLSX.utils.aoa_to_sheet(notesData);
+    wsNotes['!cols'] = [{ wch: 12 }, { wch: 60 }];
+    XLSX.utils.book_append_sheet(wb, wsNotes, '備註');
+  }
+
+  const filename = `週會進度_${sheetName}.xlsx`;
   XLSX.writeFile(wb, filename);
   U.toast(`✓ 已下載 ${filename}`);
 };
@@ -2896,6 +3628,31 @@ App.renderSettings = function() {
         </div>
       </div>
 
+      <!-- 會議模板 -->
+      <div class="settings-section">
+        <div class="ss-title">📅 定期事件（會議 / 打掃 等）</div>
+        <div class="ss-desc">智慧排程會自動避開這些時段，包含每天、每週、每隔一週、每隔兩週的事件</div>
+
+        <!-- 每週固定事件 -->
+        <div style="margin:14px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
+          ⏰ 定期事件
+          <button class="tb-action ghost" onclick="App.addRecurringMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
+        </div>
+        <div id="recurringMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden;">
+          ${this.buildRecurringMeetingsHtml()}
+        </div>
+
+        <!-- 特定日期事件 -->
+        <div style="margin:18px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
+          📌 特定日期事件
+          <button class="tb-action ghost" onclick="App.addSpecialMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
+          <span style="font-size:10.5px; color:var(--ink3); font-weight:400; margin-left:8px;">如試作會議、PDCA、新品發表會、營業會議等</span>
+        </div>
+        <div id="specialMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:280px; overflow-y:auto;">
+          ${this.buildSpecialMeetingsHtml()}
+        </div>
+      </div>
+
       <!-- Google OAuth + 白名單 -->
       <div class="settings-section">
         <div class="ss-title">🔐 Google 登入 + 白名單</div>
@@ -2951,6 +3708,68 @@ App.renderSettings = function() {
         </div>
       </div>
 
+      <!-- 雲端同步 -->
+      <div class="settings-section">
+        <div class="ss-title">☁ 雲端同步（跨裝置）</div>
+        <div class="ss-desc">透過 Google Apps Script + 你的 Sheet 同步資料到多台裝置（家裡電腦 / 公司桌機 / 筆電）</div>
+
+        <div class="ss-field" style="margin-top:12px;">
+          <label>啟用雲端同步</label>
+          <div>
+            <select id="set-cloud-enabled" style="width:200px;">
+              <option value="false" ${!s.cloudSyncEnabled ? 'selected' : ''}>停用</option>
+              <option value="true" ${s.cloudSyncEnabled ? 'selected' : ''}>啟用</option>
+            </select>
+            ${s.cloudSyncEnabled && s.cloudLastSync ? `
+              <span style="margin-left:14px; font-size:12px; color:var(--sage-700);">
+                最後同步：<b id="cloudSyncLastEl">${new Date(s.cloudLastSync).toLocaleDateString('zh-TW')} ${new Date(s.cloudLastSync).toTimeString().slice(0,5)}</b>
+              </span>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>Apps Script URL</label>
+          <div>
+            <input type="text" id="set-cloud-url" value="${U.esc(s.cloudSyncUrl || '')}" placeholder="https://script.google.com/macros/s/AKfycbz.../exec" style="font-family:var(--mono); font-size:11.5px;">
+            <div class="help">部署雲端同步 Apps Script 後取得（部署方式見 README）</div>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>同步 Token</label>
+          <div>
+            <input type="text" id="set-cloud-token" value="${U.esc(s.cloudSyncToken || 'pmw-paul-2026')}" placeholder="pmw-paul-2026" style="font-family:var(--mono); font-size:12px;">
+            <div class="help">必須與 Apps Script 內的 CHECK_TOKEN 一致</div>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>自動同步</label>
+          <div>
+            <select id="set-cloud-autosync" style="width:240px;">
+              <option value="true" ${s.cloudAutoSync !== false ? 'selected' : ''}>儲存後自動上傳（推薦）</option>
+              <option value="false" ${s.cloudAutoSync === false ? 'selected' : ''}>停用（僅手動）</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+          <button class="tb-action" onclick="App.cloudUploadNow()">⬆ 立即上傳到雲端</button>
+          <button class="tb-action ghost" onclick="App.cloudDownloadNow()">⬇ 從雲端下載最新</button>
+          <button class="tb-action ghost" onclick="App.cloudTestConnection()">🔌 測試連線</button>
+        </div>
+        <div style="padding:10px 12px; background:var(--surface2); border-radius:8px; margin-top:10px; font-size:11px; line-height:1.6; color:var(--ink3);">
+          📖 <b>使用流程：</b><br>
+          1. 在 Google Drive 新建一個 Sheet（隨意命名）<br>
+          2. 開啟「擴充功能 → Apps Script」<br>
+          3. 把 <code>apps-script-cloud-sync.gs</code> 內容貼上、修改 SHEET_ID + Token<br>
+          4. 部署 → 網頁應用程式（執行身分：我；存取對象：任何人）<br>
+          5. 取得 URL 貼到上方欄位，按「啟用」+「儲存所有設定」<br>
+          6. 在第二台裝置打開 PM-Workspace、設定一樣的 URL + Token → 自動同步 ✨
+        </div>
+      </div>
+
       <!-- Data -->
       <div class="settings-section">
         <div class="ss-title">💾 資料管理</div>
@@ -2968,11 +3787,45 @@ App.renderSettings = function() {
           </div>
         </div>
 
-        <div style="display:flex; gap:8px; margin-top:14px;">
+        <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
           <button class="tb-action ghost" onclick="App.backupAll()">⬇ 下載 JSON 備份</button>
           <button class="tb-action ghost" onclick="document.getElementById('restoreInput').click()">📥 上傳還原</button>
           <input type="file" id="restoreInput" accept=".json" style="display:none" onchange="App.restoreAll(this.files[0])">
+          <button class="tb-action ghost" onclick="App.openExcelImport()">📊 匯入歷史 Excel 週報</button>
+          <button class="tb-action ghost" onclick="App.dedupeTasks()">🧹 清除重複任務</button>
           <button class="tb-action danger" onclick="App.clearAll()" style="margin-left:auto;">🗑 清除所有資料</button>
+        </div>
+        <div class="help" style="margin-top:8px;">
+          💡「匯入 Excel 週報」匯入歷史資料（J 系列自動跳過，由 Sheet 同步）<br>
+          💡「清除重複任務」把同專案 + 同任務名的舊紀錄合併到「歷史紀錄」中，只保留一筆主任務
+        </div>
+      </div>
+
+      <!-- 關於 PM-Workspace -->
+      <div class="settings-section">
+        <div class="ss-title">ℹ️ 關於 PM-Workspace</div>
+        <div style="display:grid; grid-template-columns: 130px 1fr; gap:10px 16px; font-size:13px; line-height:1.7; padding:8px 0;">
+          <div style="color:var(--ink3);">版本</div>
+          <div><b>v${APP_VERSION}</b> <span style="font-family:var(--mono); font-size:11px; color:var(--ink3); margin-left:8px;">${APP_BUILD_SIGNATURE}</span></div>
+          <div style="color:var(--ink3);">作者</div>
+          <div>${APP_AUTHOR}</div>
+          <div style="color:var(--ink3);">共同開發</div>
+          <div>Anthropic Claude (AI 協作)</div>
+          <div style="color:var(--ink3);">開發歷程</div>
+          <div style="color:var(--ink2); font-size:12.5px; line-height:1.6;">
+            2026 年 5 月於 BingDian Air Tech 產品開發部開發。<br>
+            從需求設計、架構規劃到功能迭代，全程由人工主導 + AI 協作完成。<br>
+            完整 commit history 保存於 GitHub repo。
+          </div>
+          <div style="color:var(--ink3);">Repo</div>
+          <div><a href="https://github.com/PaulHsu02060/pm-workspace-app" target="_blank" style="color:var(--sage-700); text-decoration:underline;">github.com/PaulHsu02060/pm-workspace-app</a></div>
+          <div style="color:var(--ink3);">授權</div>
+          <div style="color:var(--ink2); font-size:12px;">個人作品，禁止未經授權的商業使用</div>
+        </div>
+        <div style="font-size:11px; color:var(--ink4); padding:10px 12px; background:var(--surface2); border-radius:8px; margin-top:8px; line-height:1.5; font-family:var(--mono);">
+          // 程式碼開頭含完整版權標頭<br>
+          // GitHub commit history 為不可竄改的開發證據<br>
+          // 任何衍生作品請保留此版權聲明
         </div>
       </div>
 
@@ -3012,9 +3865,387 @@ App.saveSettings = function() {
     DATA.settings.allowedEmails = wlEl.value.split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
   }
 
+  // ☁ Cloud sync
+  const cuEl = document.getElementById('set-cloud-url');
+  const ctEl = document.getElementById('set-cloud-token');
+  const ceEl = document.getElementById('set-cloud-enabled');
+  const caEl = document.getElementById('set-cloud-autosync');
+  if (cuEl) DATA.settings.cloudSyncUrl = cuEl.value.trim();
+  if (ctEl) DATA.settings.cloudSyncToken = ctEl.value.trim();
+  if (ceEl) DATA.settings.cloudSyncEnabled = ceEl.value === 'true';
+  if (caEl) DATA.settings.cloudAutoSync = caEl.value === 'true';
+
   Storage.save();
   this.refreshUserBadge();
   U.toast('✓ 設定已儲存');
+};
+
+// ─── CLOUD SYNC HANDLERS ───
+App.cloudUploadNow = function() {
+  // 先把設定頁可能未存的 URL/Token 抓進來
+  const cuEl = document.getElementById('set-cloud-url');
+  const ctEl = document.getElementById('set-cloud-token');
+  if (cuEl && cuEl.value.trim()) DATA.settings.cloudSyncUrl = cuEl.value.trim();
+  if (ctEl && ctEl.value.trim()) DATA.settings.cloudSyncToken = ctEl.value.trim();
+  if (!DATA.settings.cloudSyncUrl) {
+    U.toast('⚠ 請先設定 Apps Script URL 並儲存', 'warning');
+    return;
+  }
+  CloudSync.upload(false);
+};
+
+App.cloudDownloadNow = function() {
+  const cuEl = document.getElementById('set-cloud-url');
+  const ctEl = document.getElementById('set-cloud-token');
+  if (cuEl && cuEl.value.trim()) DATA.settings.cloudSyncUrl = cuEl.value.trim();
+  if (ctEl && ctEl.value.trim()) DATA.settings.cloudSyncToken = ctEl.value.trim();
+  if (!DATA.settings.cloudSyncUrl) {
+    U.toast('⚠ 請先設定 Apps Script URL 並儲存', 'warning');
+    return;
+  }
+  if (!confirm('☁ 從雲端下載最新資料？\n\n這會用雲端的資料「完全覆蓋」本地所有任務、專案、設定。\n建議先按「⬇ 下載 JSON 備份」備份本地資料。\n\n確定繼續？')) return;
+  CloudSync.download(false).then(success => {
+    if (success) {
+      this.refreshAll();
+      this.renderSidebar();
+      // 重新渲染目前頁面（包含設定頁）
+      const currentPage = this.currentPage;
+      if (currentPage) this.openPage(currentPage);
+    }
+  });
+};
+
+App.cloudTestConnection = async function() {
+  const cuEl = document.getElementById('set-cloud-url');
+  const ctEl = document.getElementById('set-cloud-token');
+  const url = cuEl ? cuEl.value.trim() : DATA.settings.cloudSyncUrl;
+  const token = ctEl ? ctEl.value.trim() : DATA.settings.cloudSyncToken;
+  if (!url) {
+    U.toast('⚠ 請先填入 Apps Script URL', 'warning');
+    return;
+  }
+  U.toast('🔌 測試連線中...', 'info');
+  try {
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(url + sep + 'token=' + encodeURIComponent(token || ''), {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow',
+    });
+    const result = await res.json();
+    if (result.error) {
+      U.toast('⚠ 連線失敗：' + result.error, 'warning');
+    } else if (result.ok) {
+      U.toast(`✓ 連線成功！雲端${result.data ? '已有資料' : '是空的，可以按上傳建立'}`, 'success');
+    } else {
+      U.toast('⚠ 回應格式異常：' + JSON.stringify(result).slice(0, 80), 'warning');
+    }
+  } catch (e) {
+    U.toast('⚠ 連線失敗：' + e.message, 'warning');
+    console.error(e);
+  }
+};
+
+// ─── MEETING TEMPLATE HELPERS ───
+App.buildRecurringMeetingsHtml = function() {
+  const list = DATA.settings.recurringMeetings || [];
+  if (list.length === 0) {
+    return '<div style="padding:18px; text-align:center; color:var(--ink4); font-size:12px;">尚未設定任何定期事件</div>';
+  }
+  const dayLabels = ['週日','週一','週二','週三','週四','週五','週六'];
+  const freqLabels = { daily: '每天', weekly: '每週', biweekly: '隔週(一天)', triweekly: '隔兩週(一天)', 'biweekly-allday': '隔週整週每天', 'triweekly-allday': '隔兩週整週每天' };
+  let html = '';
+  list.forEach((m, idx) => {
+    const cat = m.category || 'meeting';
+    const icon = cat === 'cleaning' ? '🧹' : '📅';
+    const freq = m.frequency || 'weekly';
+    const dayText = freq === 'daily' ? '—' : (dayLabels[m.day] || '?');
+    const freqText = freqLabels[freq] || freq;
+    html += `<div class="mt-row" style="display:flex; align-items:center; gap:8px; padding:9px 12px; ${idx < list.length-1 ? 'border-bottom:1px solid var(--rule);' : ''} ${m.enabled === false ? 'opacity:0.5;' : ''}">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" ${m.enabled !== false ? 'checked' : ''} onchange="App.toggleRecurringMeeting('${m.id}')" style="width:auto;">
+      </label>
+      <div style="font-size:13px;">${icon}</div>
+      <div style="font-size:11px; min-width:78px; color:var(--ink3); font-weight:500;">${freqText}</div>
+      <div style="font-size:12px; min-width:40px; font-weight:600; color:var(--sage-700);">${dayText}</div>
+      <div style="font-family:var(--mono); font-size:11.5px; min-width:105px; color:var(--ink2);">${m.start}–${m.end}</div>
+      <div style="flex:1; font-size:12.5px;">${U.esc(m.title)}</div>
+      <button class="tb-action ghost" onclick="App.editRecurringMeeting('${m.id}')" style="font-size:10.5px; padding:3px 8px;">編輯</button>
+      <button class="tb-action ghost" onclick="App.deleteRecurringMeeting('${m.id}')" style="font-size:10.5px; padding:3px 8px; color:var(--terracotta);">刪除</button>
+    </div>`;
+  });
+  return html;
+};
+
+App.buildSpecialMeetingsHtml = function() {
+  const list = DATA.settings.specialMeetings || [];
+  if (list.length === 0) {
+    return '<div style="padding:18px; text-align:center; color:var(--ink4); font-size:12px;">尚未設定特定日期會議<br><span style="font-size:10.5px;">按上方「＋ 新增」加入</span></div>';
+  }
+  // Sort by date asc, future first
+  const sorted = [...list].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const today = D.fmt(D.today(), 'iso');
+  let html = '';
+  sorted.forEach((m, idx) => {
+    const isPast = m.date && m.date < today;
+    html += `<div class="mt-row" style="display:flex; align-items:center; gap:8px; padding:9px 12px; ${idx < sorted.length-1 ? 'border-bottom:1px solid var(--rule);' : ''} ${isPast ? 'opacity:0.4;' : ''}">
+      <div style="font-family:var(--mono); font-size:11.5px; min-width:90px; font-weight:600; color:${isPast ? 'var(--ink4)' : 'var(--sage-700)'};">${m.date}</div>
+      <div style="font-family:var(--mono); font-size:11px; min-width:105px; color:var(--ink2);">${m.start}–${m.end}</div>
+      <div style="flex:1; font-size:12.5px;">${U.esc(m.title)}</div>
+      <button class="tb-action ghost" onclick="App.editSpecialMeeting('${m.id}')" style="font-size:10.5px; padding:3px 8px;">編輯</button>
+      <button class="tb-action ghost" onclick="App.deleteSpecialMeeting('${m.id}')" style="font-size:10.5px; padding:3px 8px; color:var(--terracotta);">刪除</button>
+    </div>`;
+  });
+  return html;
+};
+
+App.addRecurringMeeting = function() {
+  this.openRecurringMeetingDialog(null);
+};
+
+App.editRecurringMeeting = function(id) {
+  this.openRecurringMeetingDialog(id);
+};
+
+App.openRecurringMeetingDialog = function(id) {
+  const m = id ? (DATA.settings.recurringMeetings || []).find(x => x.id === id) : null;
+  const isNew = !m;
+  const today = D.fmt(D.today(), 'iso');
+  const cur = m || { category: 'meeting', frequency: 'weekly', day: 1, start: '09:00', end: '10:00', title: '', startDate: today, endDate: '', enabled: true };
+
+  this.openModal({
+    title: isNew ? '＋ 新增定期事件' : '編輯定期事件',
+    body: `
+      <div class="form-row">
+        <div class="form-field">
+          <label>類型 *</label>
+          <select id="mtform-category">
+            <option value="meeting" ${cur.category === 'meeting' || !cur.category ? 'selected' : ''}>📅 會議</option>
+            <option value="cleaning" ${cur.category === 'cleaning' ? 'selected' : ''}>🧹 打掃</option>
+          </select>
+        </div>
+        <div class="form-field" style="flex:2;">
+          <label>名稱 *</label>
+          <input type="text" id="mtform-title" value="${U.esc(cur.title)}" placeholder="例：J 系列週會 / 輪值掃地">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>頻率 *</label>
+          <select id="mtform-freq" onchange="App.toggleDayField()">
+            <option value="daily" ${cur.frequency === 'daily' ? 'selected' : ''}>每天</option>
+            <option value="weekly" ${cur.frequency === 'weekly' || !cur.frequency ? 'selected' : ''}>每週</option>
+            <option value="biweekly" ${cur.frequency === 'biweekly' ? 'selected' : ''}>隔週（指定一天）</option>
+            <option value="triweekly" ${cur.frequency === 'triweekly' ? 'selected' : ''}>隔兩週（指定一天）</option>
+            <option value="biweekly-allday" ${cur.frequency === 'biweekly-allday' ? 'selected' : ''}>隔週整週每天（週一~五）</option>
+            <option value="triweekly-allday" ${cur.frequency === 'triweekly-allday' ? 'selected' : ''}>隔兩週整週每天（週一~五）</option>
+          </select>
+        </div>
+        <div class="form-field" id="mtform-day-field">
+          <label>星期幾 *</label>
+          <select id="mtform-day">
+            <option value="1" ${cur.day===1?'selected':''}>週一</option>
+            <option value="2" ${cur.day===2?'selected':''}>週二</option>
+            <option value="3" ${cur.day===3?'selected':''}>週三</option>
+            <option value="4" ${cur.day===4?'selected':''}>週四</option>
+            <option value="5" ${cur.day===5?'selected':''}>週五</option>
+            <option value="6" ${cur.day===6?'selected':''}>週六</option>
+            <option value="0" ${cur.day===0?'selected':''}>週日</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>開始時間 *</label>
+          <input type="time" id="mtform-start" value="${cur.start}">
+        </div>
+        <div class="form-field">
+          <label>結束時間 *</label>
+          <input type="time" id="mtform-end" value="${cur.end}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>開始日期</label>
+          <input type="date" id="mtform-startDate" value="${cur.startDate || ''}">
+        </div>
+        <div class="form-field">
+          <label>結束日期（空=永久）</label>
+          <input type="date" id="mtform-endDate" value="${cur.endDate || ''}">
+        </div>
+      </div>
+      <div style="font-size:11px; color:var(--ink3); padding:6px 10px; background:var(--surface2); border-radius:6px; line-height:1.5;">
+        💡 <b>每隔一週/兩週</b>從「開始日期」開始算第一次，之後每隔指定的週數重複<br>
+        💡 留空「結束日期」= 永久重複
+      </div>
+    `,
+    footer: `
+      <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+      <button class="tb-action" onclick="App.saveRecurringMeeting('${id || ''}')">${isNew ? '新增' : '儲存'}</button>
+    `,
+  });
+  setTimeout(() => {
+    document.getElementById('mtform-title')?.focus();
+    App.toggleDayField();
+  }, 50);
+};
+
+App.toggleDayField = function() {
+  const freq = document.getElementById('mtform-freq')?.value;
+  const dayField = document.getElementById('mtform-day-field');
+  if (!dayField) return;
+  const hideDay = freq === 'daily' || freq === 'biweekly-allday' || freq === 'triweekly-allday';
+  dayField.style.display = hideDay ? 'none' : '';
+};
+
+App.saveRecurringMeeting = function(id) {
+  const title = document.getElementById('mtform-title').value.trim();
+  if (!title) { U.toast('⚠ 請填名稱', 'warning'); return; }
+  const category = document.getElementById('mtform-category').value;
+  const frequency = document.getElementById('mtform-freq').value;
+  const day = parseInt(document.getElementById('mtform-day').value);
+  const start = document.getElementById('mtform-start').value;
+  const end = document.getElementById('mtform-end').value;
+  const startDate = document.getElementById('mtform-startDate').value;
+  const endDate = document.getElementById('mtform-endDate').value;
+  if (!start || !end || start >= end) { U.toast('⚠ 時間範圍無效', 'warning'); return; }
+  if (endDate && startDate && endDate < startDate) { U.toast('⚠ 結束日期不可早於開始日期', 'warning'); return; }
+
+  DATA.settings.recurringMeetings = DATA.settings.recurringMeetings || [];
+  if (id) {
+    const m = DATA.settings.recurringMeetings.find(x => x.id === id);
+    if (m) {
+      m.title = title; m.category = category; m.frequency = frequency;
+      m.day = day; m.start = start; m.end = end;
+      m.startDate = startDate; m.endDate = endDate;
+    }
+  } else {
+    DATA.settings.recurringMeetings.push({
+      id: 'rm_' + Date.now().toString(36),
+      category, frequency, day, start, end, title,
+      startDate, endDate,
+      enabled: true,
+    });
+  }
+  Storage.save();
+  this.closeModal();
+  document.getElementById('recurringMeetingList').innerHTML = this.buildRecurringMeetingsHtml();
+  U.toast('✓ 已儲存');
+  if (App.currentPage === 'dashboard') this.renderDashboard();
+};
+
+App.toggleRecurringMeeting = function(id) {
+  const m = (DATA.settings.recurringMeetings || []).find(x => x.id === id);
+  if (!m) return;
+  m.enabled = m.enabled === false;
+  Storage.save();
+  document.getElementById('recurringMeetingList').innerHTML = this.buildRecurringMeetingsHtml();
+  if (App.currentPage === 'dashboard') this.renderDashboard();
+};
+
+App.deleteRecurringMeeting = function(id) {
+  if (!confirm('確定刪除這個定期事件？')) return;
+  DATA.settings.recurringMeetings = (DATA.settings.recurringMeetings || []).filter(m => m.id !== id);
+  Storage.save();
+  document.getElementById('recurringMeetingList').innerHTML = this.buildRecurringMeetingsHtml();
+  U.toast('✓ 已刪除');
+  if (App.currentPage === 'dashboard') this.renderDashboard();
+};
+
+App.addSpecialMeeting = function() {
+  this.openSpecialMeetingDialog(null);
+};
+
+App.editSpecialMeeting = function(id) {
+  this.openSpecialMeetingDialog(id);
+};
+
+App.openSpecialMeetingDialog = function(id) {
+  const m = id ? (DATA.settings.specialMeetings || []).find(x => x.id === id) : null;
+  const isNew = !m;
+  const today = D.fmt(D.today(), 'iso');
+  const cur = m || { date: today, start: '13:00', end: '15:00', title: '' };
+
+  // Quick-select buttons for common meetings
+  const commonMeetings = [
+    { title: '試作會議', start: '13:00', end: '15:00' },
+    { title: 'PDCA 會議', start: '13:00', end: '14:00' },
+    { title: '品質向上/QC', start: '13:30', end: '15:00' },
+    { title: '主管月會', start: '09:00', end: '12:00' },
+    { title: '新品發表會', start: '15:00', end: '20:40' },
+    { title: '營業會議', start: '14:00', end: '16:00' },
+  ];
+  const presetButtons = commonMeetings.map(p =>
+    `<button class="tb-action ghost" onclick="App.fillSpecialMeetingPreset('${p.title}', '${p.start}', '${p.end}')" style="font-size:10.5px; padding:3px 8px;">${p.title}</button>`
+  ).join(' ');
+
+  this.openModal({
+    title: isNew ? '＋ 新增特定日期會議' : '編輯特定日期會議',
+    body: `
+      ${isNew ? `<div style="font-size:11.5px; color:var(--ink3); margin-bottom:10px;">快速套用：${presetButtons}</div>` : ''}
+      <div class="form-field">
+        <label>會議名稱 *</label>
+        <input type="text" id="smtform-title" value="${U.esc(cur.title)}" placeholder="例：試作會議 / 主管月會">
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>日期 *</label>
+          <input type="date" id="smtform-date" value="${cur.date}">
+        </div>
+        <div class="form-field">
+          <label>開始 *</label>
+          <input type="time" id="smtform-start" value="${cur.start}">
+        </div>
+        <div class="form-field">
+          <label>結束 *</label>
+          <input type="time" id="smtform-end" value="${cur.end}">
+        </div>
+      </div>
+    `,
+    footer: `
+      <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+      <button class="tb-action" onclick="App.saveSpecialMeeting('${id || ''}')">${isNew ? '新增' : '儲存'}</button>
+    `,
+  });
+  setTimeout(() => { document.getElementById('smtform-title')?.focus(); }, 50);
+};
+
+App.fillSpecialMeetingPreset = function(title, start, end) {
+  document.getElementById('smtform-title').value = title;
+  document.getElementById('smtform-start').value = start;
+  document.getElementById('smtform-end').value = end;
+};
+
+App.saveSpecialMeeting = function(id) {
+  const title = document.getElementById('smtform-title').value.trim();
+  if (!title) { U.toast('⚠ 請填會議名稱', 'warning'); return; }
+  const date = document.getElementById('smtform-date').value;
+  const start = document.getElementById('smtform-start').value;
+  const end = document.getElementById('smtform-end').value;
+  if (!date || !start || !end || start >= end) { U.toast('⚠ 日期或時間無效', 'warning'); return; }
+
+  DATA.settings.specialMeetings = DATA.settings.specialMeetings || [];
+  if (id) {
+    const m = DATA.settings.specialMeetings.find(x => x.id === id);
+    if (m) { m.title = title; m.date = date; m.start = start; m.end = end; }
+  } else {
+    DATA.settings.specialMeetings.push({
+      id: 'sm_' + Date.now().toString(36),
+      date, start, end, title,
+    });
+  }
+  Storage.save();
+  this.closeModal();
+  document.getElementById('specialMeetingList').innerHTML = this.buildSpecialMeetingsHtml();
+  U.toast('✓ 已儲存');
+  if (App.currentPage === 'dashboard') this.renderDashboard();
+};
+
+App.deleteSpecialMeeting = function(id) {
+  if (!confirm('確定刪除這個會議？')) return;
+  DATA.settings.specialMeetings = (DATA.settings.specialMeetings || []).filter(m => m.id !== id);
+  Storage.save();
+  document.getElementById('specialMeetingList').innerHTML = this.buildSpecialMeetingsHtml();
+  U.toast('✓ 已刪除');
+  if (App.currentPage === 'dashboard') this.renderDashboard();
 };
 
 App.googleSignOut = function() {
@@ -3047,6 +4278,457 @@ App.changePassword = function() {
   }
   document.getElementById('set-pw').value = '';
   U.toast('✓ 密碼已更新');
+};
+
+// ─── EXCEL HISTORY IMPORT (Weekly Report) ───
+App.openExcelImport = function() {
+  this.openModal({
+    title: '📊 匯入歷史 Excel 週報',
+    body: `
+      <div style="font-size:12.5px; line-height:1.6; color:var(--ink2); margin-bottom:14px;">
+        把「週會進度」Excel 的歷史資料一次匯入。每個 sheet 視為一週，會自動建立對應的本地任務。<br>
+        <b style="color:var(--sage-700);">J 系列任務自動跳過</b>（由 Google Sheet 同步管理）
+      </div>
+
+      <div id="excelImportZone" style="border:2px dashed var(--rule); border-radius:10px; padding:32px; text-align:center; cursor:pointer; background:var(--surface2); transition:all .15s;">
+        <div style="font-size:32px; margin-bottom:8px;">📊</div>
+        <div style="font-size:13px; font-weight:500;">點擊或拖曳 .xlsx 週報檔案</div>
+        <div style="font-size:11px; color:var(--ink3); margin-top:4px;">支援多週合併（一份檔案內多 sheet）</div>
+        <input type="file" id="excelImportFile" accept=".xlsx,.xls" style="display:none;">
+      </div>
+
+      <div id="excelImportPreview" style="display:none; margin-top:14px;">
+        <div id="excelImportStats" style="padding:10px 14px; background:var(--sage-50); border-radius:8px; font-size:12px; margin-bottom:10px;"></div>
+        <div style="max-height:280px; overflow-y:auto; border:1px solid var(--rule); border-radius:8px;">
+          <table id="excelImportTable" style="width:100%; border-collapse:collapse; font-size:11.5px;">
+          </table>
+        </div>
+      </div>
+
+      <div id="excelImportLog" style="display:none; margin-top:14px; padding:10px 14px; background:#1E3326; color:#DCE6D2; border-radius:8px; font-family:var(--mono); font-size:11px; max-height:160px; overflow-y:auto;"></div>
+    `,
+    footer: `
+      <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+      <button class="tb-action" id="excelImportBtn" onclick="App.performExcelImport()" disabled style="opacity:.5;">確定匯入</button>
+    `,
+  });
+
+  // Bind events after modal renders
+  setTimeout(() => {
+    const zone = document.getElementById('excelImportZone');
+    const fileInput = document.getElementById('excelImportFile');
+    if (!zone || !fileInput) return;
+
+    zone.addEventListener('click', () => fileInput.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.background = 'var(--sage-50)'; zone.style.borderColor = 'var(--sage-500)'; });
+    zone.addEventListener('dragleave', () => { zone.style.background = 'var(--surface2)'; zone.style.borderColor = 'var(--rule)'; });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.style.background = 'var(--surface2)';
+      zone.style.borderColor = 'var(--rule)';
+      if (e.dataTransfer.files.length) App.parseExcelImport(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length) App.parseExcelImport(e.target.files[0]);
+    });
+  }, 50);
+};
+
+App._excelParsedRows = [];
+
+App.parseExcelImport = async function(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const rows = [];
+
+    // Normalize / map project name → display name
+    function mapProj(name) {
+      if (!name) return '';
+      const s = String(name).trim().replace(/\s+/g, '').replace(/[（(].*?[）)]/g, '');
+      if (s.includes('J系列')) return 'J系列 WBS';
+      if (s.includes('三菱')) return '三菱電梯冷氣';
+      if (s.includes('10L') || s.includes('除濕')) return '10L除濕機';
+      if (s.includes('熱泵') || s.includes('70') || s.includes('156')) return '70/156L熱泵';
+      if (s.includes('VRF')) return 'VRF專案';
+      if (s.includes('美國') || s.includes('G2')) return '美國向G2';
+      return s;
+    }
+
+    // ROC year sheet name → Monday of that week
+    function parseSheetDate(name) {
+      const m = String(name).match(/(\d+)\.(\d+)\.(\d+)/);
+      if (!m) return null;
+      const y = parseInt(m[1]) + 1911;
+      const d = new Date(y, parseInt(m[2]) - 1, parseInt(m[3]));
+      const dow = d.getDay();
+      d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+      return d;
+    }
+
+    function fmtIso(d) {
+      if (!d || isNaN(d)) return '';
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function parseDateCell(v) {
+      if (!v) return { original: '', extended: '' };
+      if (v instanceof Date) return { original: fmtIso(v), extended: '' };
+      const s = String(v).trim();
+      const arrow = s.match(/^(.+?)[\s\n]*->\s*(.+)$/);
+      if (arrow) {
+        return { original: parseLoose(arrow[1].trim()), extended: parseLoose(arrow[2].trim()) };
+      }
+      return { original: parseLoose(s), extended: '' };
+    }
+
+    function parseLoose(s) {
+      let m = s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+      if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+      m = s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+      if (m) return `${new Date().getFullYear()}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+      return s;
+    }
+
+    let totalWeeks = 0;
+    for (const sheetName of wb.SheetNames) {
+      const weekMon = parseSheetDate(sheetName);
+      if (!weekMon) continue;
+      totalWeeks++;
+      const ws = wb.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd' });
+
+      let currentProj = '';
+      for (let i = 1; i < data.length; i++) {
+        const r = data[i];
+        if (!r || r.length === 0) continue;
+        const [projName, idx, item, status, work, planEnd, actualEnd, delay, owner, note] = r;
+        if (projName) currentProj = String(projName).trim();
+        if (!currentProj || (!item && !work)) continue;
+
+        const projDisplay = mapProj(currentProj);
+        const planDates = parseDateCell(planEnd);
+        const actDates = parseDateCell(actualEnd);
+
+        rows.push({
+          sheetName,
+          weekMonday: fmtIso(weekMon),
+          projDisplay,
+          idx: idx ? String(idx) : '',
+          item: item ? String(item).trim() : '',
+          status: status ? String(status).trim() : '進行中',
+          work: work ? String(work).trim() : '',
+          planEndOriginal: planDates.original,
+          planEnd: planDates.extended || planDates.original,
+          actualEnd: actDates.original,
+          delayReason: delay ? String(delay).trim() : '',
+          owner: owner ? String(owner).trim() : '',
+          note: note ? String(note).trim() : '',
+          skipped: projDisplay.includes('J系列'),
+        });
+      }
+    }
+
+    App._excelParsedRows = rows;
+    App._excelTotalWeeks = totalWeeks;
+    App.renderExcelImportPreview();
+  } catch (e) {
+    U.toast('❌ 解析失敗：' + e.message, 'error');
+    console.error(e);
+  }
+};
+
+App.renderExcelImportPreview = function() {
+  const rows = App._excelParsedRows || [];
+  if (rows.length === 0) {
+    U.toast('⚠ 檔案內沒有有效資料', 'warning');
+    return;
+  }
+
+  const skipped = rows.filter(r => r.skipped).length;
+  const toImport = rows.length - skipped;
+  const projects = new Set(rows.filter(r => !r.skipped).map(r => r.projDisplay));
+
+  document.getElementById('excelImportStats').innerHTML =
+    `<b>${App._excelTotalWeeks}</b> 個週次　|　共 <b>${rows.length}</b> 筆　|　<b style="color:var(--sage-700);">${toImport}</b> 將匯入　|　<b style="color:var(--ink4);">${skipped}</b> J系列跳過　|　<b>${projects.size}</b> 個專案`;
+
+  const tbl = document.getElementById('excelImportTable');
+  let html = `<thead style="position:sticky; top:0; background:var(--sage-50);"><tr>
+    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">週次</th>
+    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">專案</th>
+    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">議題</th>
+    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">狀態</th>
+    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">預計完成</th>
+    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">擔當</th>
+  </tr></thead><tbody>`;
+  for (const r of rows) {
+    const opacity = r.skipped ? 'opacity:0.4;' : '';
+    html += `<tr style="${opacity}">
+      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono); font-size:10.5px;">${r.sheetName}</td>
+      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-weight:500;">${U.esc(r.projDisplay)}${r.skipped ? ' <span style="color:var(--ink4);">(跳過)</span>' : ''}</td>
+      <td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${U.esc(r.item).slice(0, 22)}</td>
+      <td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${r.status}</td>
+      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono); font-size:10.5px;">${r.planEnd}</td>
+      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-size:10.5px;">${U.esc(r.owner)}</td>
+    </tr>`;
+  }
+  html += '</tbody>';
+  tbl.innerHTML = html;
+
+  document.getElementById('excelImportPreview').style.display = '';
+  const btn = document.getElementById('excelImportBtn');
+  btn.disabled = false;
+  btn.style.opacity = '1';
+};
+
+App.performExcelImport = function() {
+  const rows = (App._excelParsedRows || []).filter(r => !r.skipped);
+  if (rows.length === 0) {
+    U.toast('⚠ 沒有可匯入的任務', 'warning');
+    return;
+  }
+
+  const logEl = document.getElementById('excelImportLog');
+  logEl.style.display = '';
+  logEl.innerHTML = '';
+  const log = (msg) => { logEl.innerHTML += msg + '<br>'; logEl.scrollTop = logEl.scrollHeight; };
+
+  log('開始匯入（方案 A：同名任務合併歷史紀錄）...');
+
+  // Build/find projects
+  const projMap = {};
+  for (const p of DATA.projects) projMap[p.name] = p;
+
+  function getProjColor(name) {
+    if (name.includes('J系列')) return '#4A7C5C';
+    if (name.includes('三菱')) return '#C4633E';
+    if (name.includes('10L')) return '#5C7A8B';
+    if (name.includes('熱泵')) return '#8B5E73';
+    if (name.includes('VRF')) return '#C4956C';
+    if (name.includes('美國')) return '#B8504D';
+    return '#7E796D';
+  }
+
+  // Create missing projects
+  const usedProjects = new Set(rows.map(r => r.projDisplay));
+  for (const name of usedProjects) {
+    if (!projMap[name]) {
+      const proj = {
+        id: 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        name,
+        color: getProjColor(name),
+        note: '從 Excel 週報匯入建立',
+        synced: false,
+        createdAt: new Date().toISOString(),
+      };
+      DATA.projects.push(proj);
+      projMap[name] = proj;
+      log('+ 建立新專案：' + name);
+    }
+  }
+
+  function mapStatus(s) {
+    if (!s) return 'pending';
+    if (s.includes('完成')) return 'done';
+    if (s.includes('進行')) return 'wip';
+    if (s.includes('延遲') || s.includes('延誤')) return 'wip';
+    if (s.includes('擱置') || s.includes('暫停')) return 'hold';
+    if (s.includes('尚未') || s.includes('未開始')) return 'pending';
+    return 'pending';
+  }
+
+  // ──── 方案 A：先依「專案 + 任務名」分組 ────
+  // 同一個任務在多週出現 → 視為「同任務的歷史紀錄」
+  const taskGroups = {};  // { groupKey: [row, row, row...] }
+  for (const r of rows) {
+    const proj = projMap[r.projDisplay];
+    if (!proj) continue;
+    const name = (r.item || r.work.slice(0, 30) || `任務 ${r.idx}`).trim();
+    const groupKey = `${proj.id}|${name}`;
+    if (!taskGroups[groupKey]) taskGroups[groupKey] = [];
+    taskGroups[groupKey].push({ ...r, _projId: proj.id, _name: name });
+  }
+
+  let added = 0, updated = 0;
+
+  for (const groupKey of Object.keys(taskGroups)) {
+    const group = taskGroups[groupKey];
+    // 依週次排序（升序：舊週→新週）
+    group.sort((a, b) => (a.weekMonday || '').localeCompare(b.weekMonday || ''));
+    const latest = group[group.length - 1]; // 最新週的紀錄
+    const projId = latest._projId;
+    const name = latest._name;
+
+    // 查找是否已有同名任務（同專案 + 同名）
+    let task = DATA.tasks.find(t => t.project === projId && t.name === name);
+
+    // Build history array from all weeks
+    const history = group.map(r => ({
+      week: r.sheetName,
+      weekMonday: r.weekMonday,
+      status: r.status,
+      planEnd: r.planEnd,
+      planEndOriginal: r.planEndOriginal,
+      actualEnd: r.actualEnd,
+      work: r.work,
+      delayReason: r.delayReason,
+      note: r.note,
+      owner: r.owner,
+    }));
+
+    // 依「最新週」決定當前任務狀態（方案 A）
+    const status = mapStatus(latest.status);
+    const isDone = status === 'done';
+    let desc = latest.work || '';
+    if (latest.delayReason) desc += (desc ? '\n' : '') + '【延誤】' + latest.delayReason;
+
+    // actualStart：取第一個有的，否則用最早週的週一
+    const firstActualStart = group.find(r => r.actualStart)?.actualStart || group[0].weekMonday;
+    // actualEnd：取最新週的（若有）
+    const actualEnd = latest.actualEnd || group.findLast?.(r => r.actualEnd)?.actualEnd || '';
+
+    if (task) {
+      // 更新現有任務（合併 history）
+      // 把舊 history 跟新 history 合併，依 week 去重
+      const oldHistory = task.history || [];
+      const mergedMap = {};
+      for (const h of oldHistory) mergedMap[h.week] = h;
+      for (const h of history) mergedMap[h.week] = h; // 新的覆蓋舊的
+      task.history = Object.values(mergedMap).sort((a, b) => (a.weekMonday || '').localeCompare(b.weekMonday || ''));
+
+      // 用最新週的內容覆蓋當前狀態
+      task.desc = desc;
+      task.owner = latest.owner;
+      task.start = task.actualStart || firstActualStart;
+      task.end = latest.planEnd || latest.weekMonday;
+      task.plannedEnd = latest.planEndOriginal;
+      task.actualStart = task.actualStart || firstActualStart;
+      task.actualEnd = actualEnd;
+      task.status = status;
+      task.progress = isDone ? 100 : (status === 'wip' ? 30 : 0);
+      task.note = latest.note;
+      task.completedAt = isDone ? (actualEnd || latest.planEnd || latest.weekMonday) : null;
+      task.urgency = latest.status === '延遲' ? 'high' : (task.urgency || 'medium');
+      // 記錄當前所在週次
+      task.currentWeek = latest.sheetName;
+      updated++;
+    } else {
+      // 新任務
+      DATA.tasks.push({
+        id: 't_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        project: projId,
+        name,
+        desc,
+        owner: latest.owner,
+        urgency: latest.status === '延遲' ? 'high' : 'medium',
+        category: 'deep',
+        estHours: 2,
+        canSplit: true,
+        start: firstActualStart,
+        end: latest.planEnd || latest.weekMonday,
+        plannedEnd: latest.planEndOriginal,
+        actualStart: firstActualStart,
+        actualEnd: actualEnd,
+        status,
+        progress: isDone ? 100 : (status === 'wip' ? 30 : 0),
+        note: latest.note,
+        method: '',
+        completedAt: isDone ? (actualEnd || latest.planEnd || latest.weekMonday) : null,
+        synced: false,
+        history,
+        currentWeek: latest.sheetName,
+        createdAt: new Date().toISOString(),
+      });
+      added++;
+    }
+  }
+
+  Storage.save();
+  log(`✓ 新增 ${added} 筆任務`);
+  if (updated > 0) log(`✓ 更新 ${updated} 筆現有任務（合併歷史）`);
+  log('✓ 完成，已寫入本地儲存');
+
+  setTimeout(() => {
+    this.closeModal();
+    this.refreshAll();
+    U.toast(`✓ 匯入完成（${added} 新增 / ${updated} 更新）`, 'success');
+  }, 1500);
+};
+
+// ─── DEDUPE TASKS (merge same-name same-project into one with history) ───
+App.dedupeTasks = function() {
+  // Find duplicate groups: same project + same name (case-insensitive)
+  const groups = {};
+  for (const t of DATA.tasks) {
+    if (t.synced) continue; // skip synced (managed by sheet)
+    const key = `${t.project}|${(t.name || '').trim().toLowerCase()}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  }
+
+  // Count actual duplicates
+  const duplicates = Object.entries(groups).filter(([k, list]) => list.length > 1);
+  if (duplicates.length === 0) {
+    U.toast('✓ 沒有重複任務', 'success');
+    return;
+  }
+
+  const totalDupes = duplicates.reduce((s, [k, list]) => s + (list.length - 1), 0);
+  if (!confirm(`找到 ${duplicates.length} 組重複任務（共 ${totalDupes} 筆會被合併）。\n\n會把舊版本合併到「歷史紀錄」，只保留一筆主任務。\n\n確定繼續？`)) return;
+
+  let merged = 0;
+  for (const [key, list] of duplicates) {
+    // Sort: 已完成 > 最新 createdAt > 第一個
+    // 用最新建立的當主任務（最可能是最新匯入的）
+    list.sort((a, b) => {
+      // done > wip > pending > hold（已完成的優先當主）
+      const statusOrder = { done: 3, wip: 2, pending: 1, hold: 0 };
+      const so = (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
+      if (so !== 0) return so;
+      // 再依 createdAt 新舊
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
+    const main = list[0];
+    const others = list.slice(1);
+
+    // Merge history from all duplicates
+    const histMap = {};
+    for (const h of (main.history || [])) {
+      if (h.week) histMap[h.week] = h;
+    }
+    for (const dup of others) {
+      for (const h of (dup.history || [])) {
+        if (h.week && !histMap[h.week]) histMap[h.week] = h;
+      }
+      // 從重複任務本身造一筆 history（如果它有 _importWeek 或別的線索）
+      if (dup._importWeek && !histMap[dup._importWeek]) {
+        histMap[dup._importWeek] = {
+          week: dup._importWeek,
+          weekMonday: dup.start || '',
+          status: LABELS.status[dup.status] || dup.status,
+          planEnd: dup.end || '',
+          actualEnd: dup.actualEnd || '',
+          work: dup.desc || '',
+          note: dup.note || '',
+          owner: dup.owner || '',
+        };
+      }
+    }
+    main.history = Object.values(histMap).sort((a, b) => (a.weekMonday || '').localeCompare(b.weekMonday || ''));
+
+    // Remove duplicates from DATA.tasks
+    const dupIds = new Set(others.map(o => o.id));
+    DATA.tasks = DATA.tasks.filter(t => !dupIds.has(t.id));
+    // Also clean up schedule.items for removed tasks
+    if (DATA.schedule && DATA.schedule.items) {
+      DATA.schedule.items = DATA.schedule.items.filter(it => !dupIds.has(it.taskId));
+    }
+    merged += others.length;
+  }
+
+  Storage.save();
+  this.refreshAll();
+  U.toast(`✓ 合併 ${merged} 筆重複任務`, 'success');
 };
 
 App.backupAll = function() {

@@ -5,8 +5,39 @@
 ![Built with HTML/CSS/JS](https://img.shields.io/badge/Stack-Pure_HTML%2FJS-brightgreen)
 ![Storage](https://img.shields.io/badge/Storage-localStorage-blue)
 ![License](https://img.shields.io/badge/License-Personal_Use-orange)
+![Author](https://img.shields.io/badge/Author-許勝堯%20(PaulHsu02060)-blue)
 
-純前端網頁應用，沒有後端，沒有資料庫，部署到 GitHub Pages 即可使用。
+---
+
+## 👤 作者 (Author)
+
+**許勝堯 (Hsu Sheng-Yao)** · GitHub: [PaulHsu02060](https://github.com/PaulHsu02060)
+
+於 2026 年 5 月任職 BingDian Air Tech 產品開發部期間開發，
+解決個人專案管理需求。
+
+### 🤝 共同開發
+
+**Anthropic Claude** — AI 協作完成程式碼撰寫與架構迭代。
+作者主導需求設計、決策與測試；Claude 負責程式碼實作與技術建議。
+
+### 📜 開發歷程
+
+本專案從零開始設計，歷經以下階段：
+
+1. **需求設計** — 整合公司 J 系列 WBS、個人任務、會議時程
+2. **架構規劃** — 純前端 + GitHub Pages + Google Sheet 同步
+3. **功能迭代** — 經歷多輪需求調整：智慧排程、Excel 匯入、軟刪除、歷史紀錄、雙週掃地等
+4. **發佈部署** — Google OAuth 登入 + 白名單機制
+
+完整 commit history 為不可竄改的開發證據，可於 GitHub repo 查閱。
+
+### ⚠️ 授權聲明
+
+本程式為個人作品，**禁止未經授權的商業使用或宣稱為個人原創**。
+歡迎個人學習研究使用。引用或衍生請保留作者標示。
+
+---
 
 ## ✨ 功能特色
 
@@ -17,9 +48,12 @@
 | 📅 **甘特圖** | 跨專案 14 天時間視覺化，含進度條與里程碑 |
 | 📋 **專案週報** | 自動彙整各專案進度，含 6 種統計、列印、Excel 匯出 |
 | 🔗 **Google Sheets 同步** | J 系列 WBS 自動同步（每天 2 次 + 同步後自動排程） |
-| 📷 **截圖辨識會議** | 用 Tesseract.js 純前端 OCR，免費辨識行事曆截圖 |
+| ☁️ **跨裝置雲端同步** | 透過 Google Apps Script 在多裝置間同步全部資料 |
 | 📝 **便利貼** | 拖曳式便利貼，記些零碎想法 |
-| 🔒 **編輯密碼** | 防君子不防小人，避免誤改 |
+| 📅 **定期事件** | 會議 + 打掃，含每天/每週/隔週/隔週整週等多種頻率 |
+| 🗑 **軟刪除** | 刪除任務保留 14 天，可還原 |
+| 📊 **歷史紀錄** | 任務跨週執行歷程一目瞭然 |
+| 🔐 **Google OAuth + 白名單** | 安全的編輯權限控制 |
 
 ---
 
