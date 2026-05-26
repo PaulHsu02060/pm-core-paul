@@ -19,6 +19,22 @@ const APP_VERSION = '1.5.0';
 const APP_AUTHOR = '許勝堯 (PaulHsu02060)';
 const APP_BUILD_SIGNATURE = 'PMW-PaulHsu02060-2026';
 
+// ─── ADMIN / DEFAULT OAUTH ─────────────────────────────
+// Admin Gmail 名單：登入後能看到 J 系列同步等管理者功能
+// 非 admin 看不到也用不到（J 系列 Sheet 由公司權限自行管控）
+const ADMIN_EMAILS = ['shengyao1003@gmail.com'];
+
+// 預設 OAuth Client ID：hardcode 在這，同事零設定就能 Google 登入
+// 安全性：OAuth Client ID 本來就是公開資訊，配 redirect_uri 白名單防呆
+// 來源：https://console.cloud.google.com/apis/credentials  (paulhsu02060.github.io)
+const DEFAULT_OAUTH_CLIENT_ID = '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com';
+
+// helper：當前登入的 Gmail 是不是 admin
+function isAdmin() {
+  const email = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings._loggedInEmail) || '';
+  return ADMIN_EMAILS.includes(String(email).toLowerCase());
+}
+
 // build hash 用於辨識：把作者名 + 重要常數 hash 起來
 // 任何人移除作者標記都會改變這個 hash → 可比對辨識
 console.log(`%c PM-Workspace v${APP_VERSION} `, 'background:#4A7C5C;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold', `by ${APP_AUTHOR} · build: ${APP_BUILD_SIGNATURE}`);
@@ -995,7 +1011,9 @@ const App = {
 
   // ─── LOGIN ───
   checkLoginState() {
-    const clientId = DATA.settings.googleClientId;
+    // Fallback：若使用者沒設過 OAuth Client ID，用 hardcode 的預設值
+    // 這讓「拿到 URL 的同事」零設定就能 Google 登入
+    const clientId = DATA.settings.googleClientId || DEFAULT_OAUTH_CLIENT_ID;
     const pwMode = document.getElementById('loginPwMode');
     const googleMode = document.getElementById('loginGoogleMode');
     const googleSetupHint = document.getElementById('googleSetupHint');
@@ -1058,13 +1076,9 @@ const App = {
       const name = payload.name || payload.given_name || 'User';
       const picture = payload.picture || '';
 
-      const allowed = (DATA.settings.allowedEmails || []).map(e => String(e).toLowerCase());
-      if (allowed.length > 0 && !allowed.includes(email)) {
-        // 不在白名單 → 直接進檢視模式 + 提示
-        this.enterViewOnly();
-        U.toast(`⚠ ${email} 不在白名單，僅可檢視。如需編輯權限，請聯絡管理員。`, 'warning');
-        return;
-      }
+      // 個人獨立模式：所有 Google 登入都進入 editor 模式
+      // 資料以 Gmail 區分（透過 localStorage 命名空間），各看各的
+      // J 系列同步等 admin 功能由 isAdmin() 控制，不再依賴白名單擋人
 
       // 通過 → 編輯模式
       DATA.settings.userName = name;
@@ -1075,6 +1089,13 @@ const App = {
       document.body.classList.remove('viewonly');
       document.getElementById('loginOverlay').classList.add('hidden');
       U.toast(`✓ 歡迎 ${name}`);
+
+      // 非 admin 首次登入（沒設過雲端同步 URL）→ 顯示 onboarding 提示
+      if (!isAdmin() && !DATA.settings.cloudSyncUrl && !DATA.settings._onboardingShown) {
+        DATA.settings._onboardingShown = true;
+        Storage.save();
+        setTimeout(() => this.showOnboarding(), 800);
+      }
     } catch (e) {
       console.error('Login failed', e);
       U.toast('❌ 登入失敗：' + e.message, 'error');
@@ -1174,10 +1195,12 @@ const App = {
       </button>`;
     }).join('');
 
-    // Update sync info display
+    // Update sync info display (僅 admin 顯示 J 系列同步徽章 + 頂部立即同步按鈕)
     const log = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
     const syncInfo = document.getElementById('syncInfo');
-    if (log.syncedAt) {
+    const topbarBtn = document.getElementById('topbarJSyncBtn');
+    if (topbarBtn) topbarBtn.style.display = isAdmin() ? '' : 'none';
+    if (isAdmin() && log.syncedAt) {
       const t = new Date(log.syncedAt);
       const today = D.isSameDay(t, new Date()) ? '今日' : D.fmt(t, 'md');
       document.getElementById('syncTime').textContent = `${today} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
@@ -1452,7 +1475,8 @@ App.buildWeekScheduleHtml = function(targetMonday) {
   }
 
   for (const hr of hours) {
-    html += `<div class="ws-time-col">${String(hr).padStart(2,'0')}:00</div>`;
+    const isLunch = hr === 12;
+    html += `<div class="ws-time-col${isLunch ? ' ws-time-lunch' : ''}">${String(hr).padStart(2,'0')}:00</div>`;
     for (let i = 0; i < 5; i++) {
       const d = D.addDays(monday, i);
       const dateIso = D.fmt(d, 'iso');
@@ -3535,10 +3559,13 @@ App.renderSettings = function() {
   document.getElementById('page-settings').innerHTML = `
     <div class="settings-grid">
 
-      <!-- Sync -->
-      <div class="settings-section">
-        <div class="ss-title">🔗 Google Sheets 同步</div>
-        <div class="ss-desc">從 J 系列 WBS 自動同步任務資料（唯讀，每天 2 次 + 同步後自動執行智慧排程）</div>
+      <!-- Sync (J 系列同步：僅 admin 顯示) -->
+      ${isAdmin() ? `
+      <div class="settings-section" id="settings-jsync">
+        <div class="ss-title">🔗 J 系列 WBS 同步 <span style="font-size:11px; background:var(--sage-100); color:var(--sage-700); padding:2px 8px; border-radius:10px; margin-left:8px;">👑 ADMIN</span></div>
+        <div class="ss-desc">從公司「J 系列整合 WBS」Sheet 唯讀同步任務（每天 2 次 + 同步後自動執行智慧排程）<br>
+          <span style="color:var(--ink4); font-size:11.5px;">⚠️ 僅限產品開發部使用，需 J 系列 Sheet 的讀取權限</span>
+        </div>
 
         ${s.jSheetUrl ? `<div class="sync-status ${syncOk ? '' : 'error'}">
           <div class="sync-pulse"></div>
@@ -3549,9 +3576,9 @@ App.renderSettings = function() {
         </div>` : ''}
 
         <div class="ss-field">
-          <label>Apps Script URL</label>
+          <label>J 系列 Apps Script URL</label>
           <div>
-            <input type="text" id="set-url" value="${U.esc(s.jSheetUrl || '')}" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:var(--mono); font-size:11px;">
+            <input type="text" id="set-url" value="${U.esc(s.jSheetUrl || '')}" placeholder="https://script.google.com/macros/s/.../exec  (J 系列 WBS API)" style="font-family:var(--mono); font-size:11px;">
             <div class="help">由你或 RD 部署 Apps Script 後取得（部署方式見 README）</div>
           </div>
         </div>
@@ -3602,6 +3629,7 @@ App.renderSettings = function() {
           • 已完成任務同步進「已完成」區，超過 ${s.doneRetentionDays} 天自動清除
         </div>
       </div>
+      ` : ''}
 
       <!-- Work schedule -->
       <div class="settings-section">
@@ -3714,39 +3742,37 @@ App.renderSettings = function() {
 
       <!-- Google OAuth + 白名單 -->
       <div class="settings-section">
-        <div class="ss-title">🔐 Google 登入 + 白名單</div>
-        <div class="ss-desc">用 Google 帳號登入，只有白名單內的 Gmail 能編輯，其他人僅可檢視</div>
+        <div class="ss-title">🔐 Google 登入</div>
+        <div class="ss-desc">用 Google 帳號登入，資料以 Gmail 區分，各使用者完全獨立</div>
 
         ${s._loggedInEmail ? `
         <div class="sync-status" style="margin-bottom:14px;">
           <div class="sync-pulse"></div>
           <div class="sync-status-text">
-            目前登入：<b>${U.esc(s._loggedInEmail)}</b>
+            目前登入：<b>${U.esc(s._loggedInEmail)}</b>${isAdmin() ? ' <span style="font-size:10.5px; background:var(--sage-100); color:var(--sage-700); padding:1px 6px; border-radius:8px; margin-left:6px;">👑 ADMIN</span>' : ''}
           </div>
           <button class="tb-action ghost" onclick="App.googleSignOut()" style="font-size:11px; padding:4px 10px;">登出</button>
         </div>` : ''}
 
+        ${isAdmin() ? `
         <div class="ss-field">
-          <label>Google OAuth Client ID</label>
+          <label>Google OAuth Client ID <span style="font-size:10.5px; color:var(--ink4);">(admin only)</span></label>
           <div>
-            <input type="text" id="set-gci" value="${U.esc(s.googleClientId || '')}" placeholder="123456789012-abc...apps.googleusercontent.com" style="font-family:var(--mono); font-size:11px;">
+            <input type="text" id="set-gci" value="${U.esc(s.googleClientId || '')}" placeholder="留空 = 使用內建預設 Client ID" style="font-family:var(--mono); font-size:11px;">
             <div class="help">
-              到 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--sage-600);">Google Cloud Console</a> 建立 OAuth 2.0 Client ID（Web application 類型）<br>
+              留空時自動使用內建預設值（同事零設定即可登入）<br>
+              如要自訂：到 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--sage-600);">Google Cloud Console</a> 建立 OAuth 2.0 Client ID（Web application 類型）<br>
               授權的 JavaScript 來源加入：<code style="background:var(--surface2); padding:1px 5px; border-radius:3px;">https://paulhsu02060.github.io</code>
             </div>
           </div>
         </div>
-
-        <div class="ss-field">
-          <label>白名單 Gmail</label>
-          <div>
-            <textarea id="set-whitelist" rows="3" style="width:100%; font-family:var(--mono); font-size:12px; padding:8px 10px; border:1px solid var(--rule); border-radius:var(--r8); background:var(--surface2); outline:none; resize:vertical;" placeholder="一行一個 email">${(s.allowedEmails || []).join('\n')}</textarea>
-            <div class="help">
-              一行一個 email，列在這的人才能編輯。空白 = 任何 Google 帳號都可編輯（不建議）<br>
-              <b>提醒：</b>純前端白名單僅作軟性管控，無法完全阻止有心人，但能避免誤觸
-            </div>
-          </div>
+        ` : `
+        <div style="padding:12px 14px; background:var(--surface2); border-radius:6px; font-size:12px; color:var(--ink3); line-height:1.6;">
+          💡 你的資料以 Gmail 區分，完全獨立。<br>
+          • 想跨裝置同步：到下方「☁ PM-Workspace 跨裝置同步」設定<br>
+          • 想本機備份：到下方「📦 資料管理」下載 JSON 備份
         </div>
+        `}
       </div>
 
       <!-- Password fallback -->
@@ -3769,8 +3795,10 @@ App.renderSettings = function() {
 
       <!-- 雲端同步 -->
       <div class="settings-section">
-        <div class="ss-title">☁ 雲端同步（跨裝置）</div>
-        <div class="ss-desc">透過 Google Apps Script + 你的 Sheet 同步資料到多台裝置（家裡電腦 / 公司桌機 / 筆電）</div>
+        <div class="ss-title">☁ PM-Workspace 跨裝置同步</div>
+        <div class="ss-desc">透過你自己的 Google Sheet + Apps Script，把 PM-Workspace 個人資料同步到多台裝置<br>
+          <span style="color:var(--ink4); font-size:11.5px;">📋 首次使用：你需要建立自己的 Sheet + 部署 Apps Script，每人資料完全獨立</span>
+        </div>
 
         <div class="ss-field" style="margin-top:12px;">
           <label>啟用雲端同步</label>
@@ -3788,10 +3816,10 @@ App.renderSettings = function() {
         </div>
 
         <div class="ss-field">
-          <label>Apps Script URL</label>
+          <label>跨裝置 Apps Script URL</label>
           <div>
-            <input type="text" id="set-cloud-url" value="${U.esc(s.cloudSyncUrl || '')}" placeholder="https://script.google.com/macros/s/AKfycbz.../exec" style="font-family:var(--mono); font-size:11.5px;">
-            <div class="help">部署雲端同步 Apps Script 後取得（部署方式見 README）</div>
+            <input type="text" id="set-cloud-url" value="${U.esc(s.cloudSyncUrl || '')}" placeholder="https://script.google.com/macros/s/.../exec  (跨裝置同步 API)" style="font-family:var(--mono); font-size:11.5px;">
+            <div class="help">部署跨裝置同步 Apps Script 後取得（部署方式見 README）</div>
           </div>
         </div>
 
@@ -4874,6 +4902,41 @@ App.clearAll = function() {
 // ═══════════════════════════════════════════════════════
 //  MODAL HELPERS
 // ═══════════════════════════════════════════════════════
+// ─── ONBOARDING (新使用者第一次登入時的引導) ───
+App.showOnboarding = function() {
+  this.openModal({
+    title: '🎉 歡迎使用 PM-Workspace',
+    body: `
+      <div style="font-size:13px; line-height:1.7; color:var(--ink2);">
+        <p>這是 <b>${U.esc(DATA.settings.userName || '你')}</b> 的個人任務管理工作區。</p>
+        <p>所有功能你<b>現在就可以開始用</b>，資料會自動存在這台電腦的瀏覽器裡。</p>
+
+        <div style="margin:18px 0; padding:14px 16px; background:var(--sage-50); border-left:3px solid var(--sage-500); border-radius:6px;">
+          <div style="font-weight:600; margin-bottom:6px;">💡 想要跨裝置同步嗎？</div>
+          <div style="font-size:12.5px; color:var(--ink3);">
+            預設情況下，你的資料只存在這台電腦。如果要在多台裝置（家裡電腦 / 公司桌機 / 筆電）間同步，
+            需要建立自己的 Google Sheet 當儲存空間（5 分鐘設定 / 完全免費 / 資料 100% 屬於你）。
+          </div>
+          <div style="font-size:12px; color:var(--ink4); margin-top:8px;">
+            ⚙ 之後到「設定 → PM-Workspace 跨裝置同步」依步驟設定即可
+          </div>
+        </div>
+
+        <div style="margin-top:14px; padding:12px 14px; background:var(--surface2); border-radius:6px; font-size:12px;">
+          <b>📚 快速上手</b><br>
+          • 左側 <b>＋ 新增專案</b> 建立你的第一個專案<br>
+          • 進入專案後底部「快速新增任務」即可加入任務<br>
+          • 任務拖曳到時程表自動排程<br>
+          • <b>設定 → 個人資訊</b> 可改名字 / 工時 / 會議時段
+        </div>
+      </div>
+    `,
+    footer: `
+      <button class="tb-action" onclick="App.closeModal()" style="padding:10px 28px;">開始使用 →</button>
+    `,
+  });
+};
+
 App.openModal = function({ title, body, footer }) {
   const modal = document.getElementById('modal');
   modal.innerHTML = `

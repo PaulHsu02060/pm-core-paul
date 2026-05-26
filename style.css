@@ -274,19 +274,24 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 /* ─── WEEK SCHEDULE ─── */
 .week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 4px; }
 .ws-time-col { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: right; padding-right: 8px; align-self: center; padding-top: 0; line-height: 50px; }
+.ws-time-col.ws-time-lunch { line-height: 20px; font-size: 10px; opacity: 0.6; }
 .ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; }
 .ws-day-header .date { font-family: var(--sans); font-weight: 600; font-size: 20px; display: block; color: var(--ink2); margin-bottom: 2px; }
 .ws-day-header.today .date { color: var(--sage-600); }
 .ws-day-header.today { background: var(--sage-50); border-radius: var(--r6); }
 .ws-cell { background: var(--surface2); border-radius: var(--r6); height: 50px; position: relative; }
-.ws-lunch {
-  background: repeating-linear-gradient(45deg, var(--stone-100), var(--stone-100) 6px, var(--stone-50) 6px, var(--stone-50) 12px);
+.ws-cell.ws-lunch {
+  background: #FFFFFF;
+  height: 20px;
+  border-top: 1px dashed var(--rule);
+  border-bottom: 1px dashed var(--rule);
+  border-radius: 0;
   cursor: not-allowed;
   display: flex; align-items: center; justify-content: center;
 }
 .ws-lunch-label {
-  font-size: 11px; color: var(--ink4); font-family: var(--mono);
-  letter-spacing: 1px; font-weight: 500;
+  font-size: 10px; color: var(--ink4); font-family: var(--mono);
+  letter-spacing: 1.5px; font-weight: 500; opacity: 0.7;
 }
 .ws-event {
   position: absolute; left: 2px; right: 2px;
