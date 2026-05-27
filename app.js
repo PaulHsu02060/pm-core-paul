@@ -3434,8 +3434,9 @@ App.exportReportExcel = async function(weekKey, opts) {
 
   // F 欄 (預計完成日)：若有展延則用 "原日期\n-> 展延" 字串；單一日期則用 Date 物件（讓 Excel 套日期格式）
   function planEndCell(t) {
+    const sch = getEffectiveSchedule(t);
     const planned = t.plannedEnd || '';
-    const eff = t.end || '';
+    const eff = sch.end || '';
     if (planned && eff && D.fmt(planned, 'iso') !== D.fmt(eff, 'iso')) {
       // 有展延：可能還有多段（歷史更多次展延），但目前 schema 只記一次
       return `${D.fmt(planned, 'ymd')}\n-> ${D.fmt(eff, 'ymd')}`;
@@ -3461,8 +3462,9 @@ App.exportReportExcel = async function(weekKey, opts) {
         return ad >= monday && ad < weekEnd;
       }
       if (t.status !== 'done' && t.status !== 'hold') {
-        const ts = t.start ? new Date(t.start) : (t.end ? new Date(t.end) : null);
-        const te = t.end   ? new Date(t.end)   : (t.start ? new Date(t.start) : null);
+        const sch = getEffectiveSchedule(t);
+        const ts = sch.start ? new Date(sch.start) : (sch.end ? new Date(sch.end) : null);
+        const te = sch.end   ? new Date(sch.end)   : (sch.start ? new Date(sch.start) : null);
         if (!ts || !te) return false;
         return te >= monday && ts <= sunday;
       }
@@ -3477,7 +3479,8 @@ App.exportReportExcel = async function(weekKey, opts) {
     const wks = new Set();
     for (const t of DATA.tasks) {
       if (t._deleted) continue;
-      const d = t.end || t.start || t.actualEnd || t.completedAt;
+      const sch = getEffectiveSchedule(t);
+      const d = sch.end || sch.start || t.actualEnd || t.completedAt;
       if (d) wks.add(D.weekKey(new Date(d)));
     }
     weekKeysToExport.push(...Array.from(wks).sort((a, b) => {
