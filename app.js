@@ -2060,7 +2060,7 @@ App.buildTaskRowHtml = function(t) {
     </div>
     <span class="task-tag ${LABELS.categoryClass[cat]}">${LABELS.category[cat]}</span>
     <span class="task-urg ${t.urgency || 'medium'}" title="${LABELS.urgency[t.urgency || 'medium']}"></span>
-    <span class="task-deadline ${dlClass}">${dlText}</span>
+    <span class="task-deadline ${dlClass}">${dlText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
   </div>`;
 };
 
@@ -3041,7 +3041,7 @@ App.buildGanttRowHtml = function(task, start, days) {
   // Row label
   let html = `<div class="gantt-row-label">
     <span class="dot" style="background:${proj?.color || '#888'}"></span>
-    <span class="gantt-row-label-text">${U.esc(task.name)}${task.synced ? ' 🔗' : ''}</span>
+    <span class="gantt-row-label-text">${U.esc(task.name)}${task.synced ? ' 🔗' : ''}${sch.hasOverride ? '<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整">✎</span>' : ''}</span>
   </div>`;
 
   // Empty cells before
