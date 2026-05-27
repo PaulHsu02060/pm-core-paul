@@ -1576,7 +1576,8 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         if (task) {
           const cat = task.category || 'deep';
           const today = D.today();
-          const isOverdue = task.end && new Date(task.end) < today && task.status !== 'done';
+          const sch = getEffectiveSchedule(task);
+          const isOverdue = sch.end && new Date(sch.end) < today && task.status !== 'done';
           // Tooltip
           const tipParts = [];
           if (task.syncRef) tipParts.push(`🔗 ${task.syncRef}`);
@@ -1589,8 +1590,8 @@ App.buildWeekScheduleHtml = function(targetMonday) {
             tipParts.push(`預估需要：${days} 個工作天 (約 ${weeks} 週)`);
           }
           tipParts.push(`本週已排：${(item.duration/60).toFixed(1)} h（僅提醒用，實際時間請自行安排）`);
-          if (task.end) tipParts.push(`預計完成：${D.fmt(task.end, 'ymdShort')}`);
-          if (isOverdue) tipParts.push(`⚠ 已逾期 ${-D.daysBetween(today, new Date(task.end))} 天`);
+          if (sch.end) tipParts.push(`預計完成：${D.fmt(sch.end, 'ymdShort')}`);
+          if (isOverdue) tipParts.push(`⚠ 已逾期 ${-D.daysBetween(today, new Date(sch.end))} 天`);
           if (task.owner) tipParts.push(`擔當：${task.owner}`);
           if (task.note) tipParts.push(`備註：${task.note}`);
           const tipText = tipParts.join('\n');
@@ -1790,16 +1791,20 @@ App.deleteMemo = function(id) {
 App.showUrgentModal = function() {
   const urgent = DATA.tasks
     .filter(t => t.status !== 'done' && t.status !== 'hold')
-    .filter(t => t.urgency === 'high' || (t.end && D.daysBetween(D.today(), new Date(t.end)) <= 1));
+    .filter(t => {
+      const sch = getEffectiveSchedule(t);
+      return t.urgency === 'high' || (sch.end && D.daysBetween(D.today(), new Date(sch.end)) <= 1);
+    });
 
   const sorted = sortTasks(urgent);
   const body = sorted.length === 0 ?
     '<div style="text-align:center; padding:32px 0; color:var(--ink3);">目前沒有緊急任務 🎉</div>' :
     sorted.map(t => {
+      const sch = getEffectiveSchedule(t);
       const proj = this.getProj(t.project);
       let dlText = '無 deadline';
-      if (t.end) {
-        const days = D.daysBetween(D.today(), new Date(t.end));
+      if (sch.end) {
+        const days = D.daysBetween(D.today(), new Date(sch.end));
         dlText = days < 0 ? `逾期 ${-days} 天` : days === 0 ? '今天截止' : days === 1 ? '明天截止' : `${days} 天後`;
       }
       return `<div class="urgent-row" onclick="App.openTaskModal('${t.id}'); App.closeModal();">
@@ -1839,13 +1844,15 @@ App.renderProject = function() {
   const today = D.today();
   // 排序：延遲 > 進行中 > 未開始（同類依日期）
   const activeTasks = allTasks.filter(t => t.status !== 'done' && !t._deleted).sort((a, b) => {
-    const overdueA = a.end && new Date(a.end) < today ? 0 : 1;
-    const overdueB = b.end && new Date(b.end) < today ? 0 : 1;
+    const aSch = getEffectiveSchedule(a);
+    const bSch = getEffectiveSchedule(b);
+    const overdueA = aSch.end && new Date(aSch.end) < today ? 0 : 1;
+    const overdueB = bSch.end && new Date(bSch.end) < today ? 0 : 1;
     if (overdueA !== overdueB) return overdueA - overdueB;
     const statusOrder = { wip: 0, pending: 1, hold: 2 };
     const so = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
     if (so !== 0) return so;
-    return (a.end || '9999').localeCompare(b.end || '9999');
+    return (aSch.end || '9999').localeCompare(bSch.end || '9999');
   });
   const doneTasks = allTasks.filter(t => t.status === 'done' && !t._deleted).sort((a,b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
   const deletedTasks = allTasks.filter(t => t._deleted).sort((a, b) => (b._deletedAt || '').localeCompare(a._deletedAt || ''));
@@ -2007,19 +2014,20 @@ App.cleanExpiredDeletedTasks = function() {
 };
 
 App.buildTaskRowHtml = function(t) {
+  const sch = getEffectiveSchedule(t);
   const cat = t.category || 'deep';
   const isPreview = !DATA.settings.previewWeeks ? false : (
-    t.end && D.daysBetween(D.today(), new Date(t.end)) > 7 && D.daysBetween(D.today(), new Date(t.end)) <= (DATA.settings.previewWeeks * 7)
+    sch.end && D.daysBetween(D.today(), new Date(sch.end)) > 7 && D.daysBetween(D.today(), new Date(sch.end)) <= (DATA.settings.previewWeeks * 7)
   );
   let dlText = '—';
   let dlClass = '';
-  if (t.end) {
-    const days = D.daysBetween(D.today(), new Date(t.end));
+  if (sch.end) {
+    const days = D.daysBetween(D.today(), new Date(sch.end));
     if (days < 0)      { dlText = `逾期 ${-days} 天`; dlClass = 'overdue'; }
     else if (days === 0) { dlText = '今日'; dlClass = 'near'; }
     else if (days === 1) { dlText = '明日'; dlClass = 'near'; }
     else if (days <= 3)  { dlText = `${days} 天後`; dlClass = 'near'; }
-    else                 { dlText = D.fmt(new Date(t.end), 'md'); }
+    else                 { dlText = D.fmt(new Date(sch.end), 'md'); }
   }
 
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
@@ -3060,7 +3068,7 @@ App.renderMonth = function() {
 
     // Find events on this day
     const meetings = DATA.meetings.filter(m => m.date === dateIso);
-    const taskDeadlines = DATA.tasks.filter(t => !t._deleted && t.end === dateIso && t.status !== 'done');
+    const taskDeadlines = DATA.tasks.filter(t => !t._deleted && getEffectiveSchedule(t).end === dateIso && t.status !== 'done');
     const scheduleItems = (DATA.schedule.items || []).filter(it => it.date === dateIso);
 
     let evtsHtml = '';
@@ -3070,7 +3078,8 @@ App.renderMonth = function() {
     }
     // Task deadlines (urgent/preview)
     for (const t of taskDeadlines.slice(0, 2)) {
-      const days = D.daysBetween(today, new Date(t.end));
+      const sch = getEffectiveSchedule(t);
+      const days = D.daysBetween(today, new Date(sch.end));
       const isPreview = days > 7 && days <= 14;
       const cls = days <= 3 ? 'rust-evt' : isPreview ? 'preview' : 'deep';
       evtsHtml += `<div class="month-evt ${cls}" title="${U.esc(t.name)}" onclick="event.stopPropagation(); App.openTaskModal('${t.id}')">${U.esc(t.name).slice(0, 8)}</div>`;
