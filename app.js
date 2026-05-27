@@ -2668,6 +2668,27 @@ App.resetJOverride = function(id) {
   U.toast('↺ 已重置為 Sheet 原值');
 };
 
+App.resetAllJOverrides = function() {
+  const list = getAllJOverrides();
+  if (list.length === 0) {
+    U.toast('目前沒有本地覆蓋的 J 系列時程');
+    return;
+  }
+  if (!confirm(`確定要重置 ${list.length} 筆 J 系列任務的本地時程？此操作不可復原。`)) return;
+  list.forEach(o => {
+    const task = DATA.tasks.find(t => t.id === o.id);
+    if (task) {
+      J_OVERRIDE_FIELDS.forEach(f => {
+        const key = '_local' + f.charAt(0).toUpperCase() + f.slice(1);
+        delete task[key];
+      });
+    }
+  });
+  Storage.save();
+  this.refreshAll();
+  U.toast(`↺ 已重置 ${list.length} 筆 J 系列時程`);
+};
+
 App.deleteTask = function(id) {
   if (!confirm('刪除任務？\n\n刪除的任務會移到專案下方「🗑 已刪除」區塊保留 14 天，期間可隨時還原。')) return;
   const t = DATA.tasks.find(x => x.id === id);
@@ -3757,8 +3778,9 @@ App.renderSettings = function() {
           </div>
         </div>
 
-        <div style="margin-top:12px;">
+        <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
           <button class="tb-action" onclick="App.saveAndSync()">↻ 儲存設定並立即同步</button>
+          <button class="tb-action ghost" onclick="App.resetAllJOverrides()">↺ 重置所有 J 系列本地時程</button>
         </div>
 
         <div class="tip" style="margin-top:14px;">
