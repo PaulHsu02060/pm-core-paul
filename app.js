@@ -1319,7 +1319,8 @@ App.renderDashboard = function() {
   const wipTasks    = inWindowTasks.filter(t => t.status === 'wip');
   const urgentTasks = inWindowTasks.filter(t => {
     if (t.urgency === 'high') return true;
-    if (t.end && D.daysBetween(today, new Date(t.end)) <= 1) return true;
+    const sch = getEffectiveSchedule(t);
+    if (sch.end && D.daysBetween(today, new Date(sch.end)) <= 1) return true;
     return false;
   });
 
