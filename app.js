@@ -464,8 +464,9 @@ function scoreTask(t) {
   if (t.status === 'hold')  return -9000;
   let score = 0;
   score += { high: 300, medium: 100, low: 0 }[t.urgency] || 0;
-  if (t.end) {
-    const days = D.daysBetween(D.today(), new Date(t.end));
+  const sch = getEffectiveSchedule(t);
+  if (sch.end) {
+    const days = D.daysBetween(D.today(), new Date(sch.end));
     if (days < 0)      score += 500 + Math.abs(days) * 10;
     else if (days <= 1) score += 400;
     else if (days <= 3) score += 250;
