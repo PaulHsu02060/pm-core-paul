@@ -2433,14 +2433,16 @@ App.openTaskModal = function(id) {
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
 
-  // For synced tasks: read-only view
+  // For synced tasks: read-only view with editable schedule
   if (t.locked) {
     const proj = this.getProj(t.project);
+    const sch = getEffectiveSchedule(t);
+    const hasOverride = !!getJOverride(t.id);
     this.openModal({
       title: `🔗 ${U.esc(t.name)}`,
       body: `
         <div style="font-size:12px; color:var(--ink3); margin-bottom:12px; padding:8px 12px; background:var(--sage-50); border-radius:8px;">
-          此任務由 Google Sheet 同步，<b>唯讀</b>。如需修改請到 sheet 編輯。
+          此任務由 Google Sheet 同步。<b>時程可在此調整</b>（不寫回 Sheet）。
         </div>
         <div class="form-field"><label>所屬專案</label><div style="padding:8px 0; font-size:13px;">${U.esc(proj?.name || '')}</div></div>
         <div class="form-field"><label>WBS 編號</label><div style="padding:8px 0; font-family:var(--mono);">${U.esc(t.syncRef || '')}</div></div>
@@ -2450,8 +2452,13 @@ App.openTaskModal = function(id) {
           <div class="form-field"><label>進度</label><div style="padding:8px 0; font-weight:600;">${t.progress || 0}%</div></div>
         </div>
         <div class="form-row">
-          <div class="form-field"><label>預計開始</label><div style="padding:8px 0; font-family:var(--mono); ${t.actualStart ? 'color:var(--ink4); text-decoration:line-through;' : ''}">${t.plannedStart ? D.fmt(t.plannedStart, 'ymdShort') : '—'}</div></div>
-          <div class="form-field"><label>預計完成</label><div style="padding:8px 0; font-family:var(--mono); ${t.actualEnd ? 'color:var(--ink4); text-decoration:line-through;' : ''}">${t.plannedEnd ? D.fmt(t.plannedEnd, 'ymdShort') : '—'}</div></div>
+          <div class="form-field"><label>開始日期</label><input type="date" id="tf-start" value="${sch.start || ''}"></div>
+          <div class="form-field"><label>完成日期 / Deadline</label><input type="date" id="tf-end" value="${sch.end || ''}"></div>
+        </div>
+        ${hasOverride ? `<div style="font-size:11px; color:var(--ink3); margin-top:-8px; padding:0 4px;">✎ 已調整（Sheet 原值：${t.start || '—'} ~ ${t.end || '—'}）</div>` : ''}
+        <div class="form-row">
+          <div class="form-field"><label>預計開始（Sheet）</label><div style="padding:8px 0; font-family:var(--mono); ${t.actualStart ? 'color:var(--ink4); text-decoration:line-through;' : ''}">${t.plannedStart ? D.fmt(t.plannedStart, 'ymdShort') : '—'}</div></div>
+          <div class="form-field"><label>預計完成（Sheet）</label><div style="padding:8px 0; font-family:var(--mono); ${t.actualEnd ? 'color:var(--ink4); text-decoration:line-through;' : ''}">${t.plannedEnd ? D.fmt(t.plannedEnd, 'ymdShort') : '—'}</div></div>
         </div>
         ${t.actualStart || t.actualEnd ? `
         <div class="form-row">
@@ -2460,7 +2467,11 @@ App.openTaskModal = function(id) {
         </div>` : ''}
         <div class="form-field"><label>狀態</label><div style="padding:8px 0;">${LABELS.status[t.status] || t.status}${t.actualEnd ? ' ✓（依實際完成日判定）' : t.actualStart ? '（依實際開始日判定）' : ''}</div></div>
       `,
-      footer: '<button class="tb-action ghost" onclick="App.closeModal()">關閉</button>',
+      footer: `
+        ${hasOverride ? `<button class="tb-action ghost" onclick="App.resetJOverride('${t.id}')" style="margin-right:auto;">↺ 重置為 Sheet 原值</button>` : '<div style="flex:1"></div>'}
+        <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+        <button class="tb-action" onclick="App.saveJSchedule('${t.id}')">儲存時程</button>
+      `,
     });
     return;
   }
@@ -2632,6 +2643,29 @@ App.saveTask = function(id) {
   this.closeModal();
   this.refreshAll();
   U.toast('✓ 任務已儲存');
+};
+
+App.saveJSchedule = function(id) {
+  const t = DATA.tasks.find(x => x.id === id);
+  if (!t) return;
+  const start = document.getElementById('tf-start').value;
+  const end = document.getElementById('tf-end').value;
+  if (start === t.start && end === t.end) {
+    clearJOverride(id);
+  } else {
+    setJOverride(id, { start, end });
+  }
+  this.closeModal();
+  this.refreshAll();
+  U.toast('✓ 時程已更新');
+};
+
+App.resetJOverride = function(id) {
+  if (!confirm('確定要重置為 Sheet 原始時程？')) return;
+  clearJOverride(id);
+  this.closeModal();
+  this.refreshAll();
+  U.toast('↺ 已重置為 Sheet 原值');
 };
 
 App.deleteTask = function(id) {
