@@ -2917,8 +2917,10 @@ App.renderGantt = function() {
 
   // Build rows
   const sortedTasks = tasks.sort((a, b) => {
-    const aStart = new Date(a.start || a.end);
-    const bStart = new Date(b.start || b.end);
+    const aSch = getEffectiveSchedule(a);
+    const bSch = getEffectiveSchedule(b);
+    const aStart = new Date(aSch.start || aSch.end);
+    const bStart = new Date(bSch.start || bSch.end);
     return aStart - bStart;
   });
 
