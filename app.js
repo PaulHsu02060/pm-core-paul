@@ -2894,10 +2894,11 @@ App.renderGantt = function() {
   const tasks = DATA.tasks.filter(t => {
     if (t._deleted) return false;
     if (t.status === 'hold') return false;
-    if (!t.start && !t.end) return false;
+    const sch = getEffectiveSchedule(t);
+    if (!sch.start && !sch.end) return false;
     // Check if range overlaps
-    const ts = t.start ? new Date(t.start) : new Date(t.end);
-    const te = t.end ? new Date(t.end) : new Date(t.start);
+    const ts = sch.start ? new Date(sch.start) : new Date(sch.end);
+    const te = sch.end ? new Date(sch.end) : new Date(sch.start);
     return te >= start && ts <= endDay;
   });
 
