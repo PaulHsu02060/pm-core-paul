@@ -2969,9 +2969,10 @@ App.buildGanttRowHtml = function(task, start, days) {
   const proj = this.getProj(task.project);
   const colorIdx = proj ? PROJ_COLORS.indexOf(proj.color) : -1;
   const colorClass = ['bar-sage','bar-terracotta','bar-slate','bar-plum','bar-amber','bar-rose','bar-sage','bar-sage'][colorIdx % 8] || 'bar-sage';
-  const isMilestone = task.category === 'meeting' && task.start === task.end;
-  const tsDate = new Date(task.start || task.end);
-  const teDate = new Date(task.end || task.start);
+  const sch = getEffectiveSchedule(task);
+  const isMilestone = task.category === 'meeting' && sch.start === sch.end;
+  const tsDate = new Date(sch.start || sch.end);
+  const teDate = new Date(sch.end || sch.start);
   const tsIdx = D.daysBetween(start, tsDate);
   const teIdx = D.daysBetween(start, teDate);
   const startCol = Math.max(0, tsIdx);
@@ -2993,7 +2994,7 @@ App.buildGanttRowHtml = function(task, start, days) {
   }
 
   // Bar cell
-  const isPreview = task.end && D.daysBetween(D.today(), new Date(task.end)) > 7 && D.daysBetween(D.today(), new Date(task.end)) <= 14;
+  const isPreview = sch.end && D.daysBetween(D.today(), new Date(sch.end)) > 7 && D.daysBetween(D.today(), new Date(sch.end)) <= 14;
   const progress = task.progress || (task.status === 'done' ? 100 : task.status === 'wip' ? 30 : 0);
 
   if (isMilestone) {
