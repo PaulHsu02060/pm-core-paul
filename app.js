@@ -1590,7 +1590,9 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         const task = DATA.tasks.find(t => t.id === item.taskId);
         if (task) {
           const cat = task.category || 'deep';
-          const projName = (App.getProj(task.project) || {}).name || '';
+          const proj = App.getProj(task.project);
+          const projName = proj ? proj.name : '';
+          const projColor = (proj && proj.color) ? proj.color : '#3a3a3a';
           const today = D.today();
           const sch = getEffectiveSchedule(task);
           const isOverdue = sch.end && new Date(sch.end) < today && task.status !== 'done';
@@ -1606,13 +1608,15 @@ App.buildWeekScheduleHtml = function(targetMonday) {
             tipParts.push(`預估需要：${days} 個工作天 (約 ${weeks} 週)`);
           }
           tipParts.push(`本週已排：${(item.duration/60).toFixed(1)} h（僅提醒用，實際時間請自行安排）`);
+          if (sch.start) tipParts.push(`預計開始：${D.fmt(sch.start, 'ymdShort')}`);
           if (sch.end) tipParts.push(`預計完成：${D.fmt(sch.end, 'ymdShort')}`);
           if (isOverdue) tipParts.push(`⚠ 已逾期 ${-D.daysBetween(today, new Date(sch.end))} 天`);
+          if (item.completed) tipParts.push(`✓ 已完成`);
           if (task.owner) tipParts.push(`擔當：${task.owner}`);
           if (task.note) tipParts.push(`備註：${task.note}`);
           const tipText = tipParts.join('\n');
 
-          html += `<div class="ws-event ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''} ${item.completed ? 'completed' : ''}"
+          html += `<div class="ws-event ws-ev-task ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''} ${item.completed ? 'completed' : ''}"
             style="top:0;height:44px;"
             ${item.completed ? '' : 'draggable="true"'}
             data-task-id="${task.id}"
@@ -1624,9 +1628,8 @@ App.buildWeekScheduleHtml = function(targetMonday) {
             ${item.completed ? '<span class="done-badge">✓</span>' : item.locked ? '<span class="lock-ico">🔒</span>' : '<span class="drag-handle">⋮⋮</span>'}
             ${isOverdue && !item.completed ? '<span class="overdue-badge">⚠</span>' : ''}
             ${task.synced ? '<span class="sync-badge">🔗</span>' : ''}
-            ${projName ? `<div class="ws-ev-proj">${U.esc(projName)}</div>` : ''}
+            ${projName ? `<div class="ws-ev-proj" style="color:${projColor}">${U.esc(projName)}</div>` : ''}
             <b>${U.esc(task.name).slice(0, 20)}</b>
-            <div class="ev-meta">${item.completed ? '✓ 已完成' : (item.totalHours && item.totalHours > 1 ? '提醒 · 共 ' + item.totalHours + 'h' : '1h')}</div>
           </div>`;
         }
       } else if (meeting) {

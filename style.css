@@ -295,11 +295,12 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 }
 .ws-event {
   position: absolute; left: 2px; right: 2px;
-  border-radius: var(--r4); padding: 5px 8px;
+  border-radius: var(--r4); padding: 6px 8px;
   font-size: 11px; line-height: 1.2;
   overflow: hidden; cursor: pointer;
   border-left: 3px solid; transition: transform .1s;
 }
+.ws-event.ws-ev-task { display: flex; flex-direction: column; justify-content: center; }
 .ws-event b { font-size: 12px; font-weight: 600; display: block; }
 .ws-event .ev-meta { font-size: 10.5px; color: var(--ink3); margin-top: 1px; font-family: var(--mono); }
 .ws-event:hover { transform: scale(1.02); z-index: 2; }
@@ -375,11 +376,10 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   font-size: 8.5px; color: var(--sage-600);
 }
 .ws-event.overdue .sync-badge { left: 14px; }
-.ws-event b { display: block; font-weight: 600; font-size: 13px; line-height: 1.2; padding-left: 10px; }
+.ws-event b { display: block; font-weight: 600; font-size: 14px; line-height: 1.2; padding-left: 10px; }
 .ws-event .ev-meta { font-size: 10px; opacity: .85; font-family: var(--mono); margin-top: 0; line-height: 1.15; padding-left: 10px; color: var(--ink3); }
 .ws-event .ws-ev-proj {
-  font-size: 10px; font-weight: 500; line-height: 1.15;
-  color: var(--ink3); opacity: .9;
+  font-size: 12px; font-weight: 500; line-height: 1.15;
   padding-left: 10px; padding-right: 16px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
