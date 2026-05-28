@@ -1597,7 +1597,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           const sch = getEffectiveSchedule(task);
           const isOverdue = sch.end && new Date(sch.end) < today && task.status !== 'done';
           // Tooltip
-          const tipParts = [];
+          const tipParts = [task.name];
           if (task.syncRef) tipParts.push(`🔗 ${task.syncRef}`);
           const total = item.totalHours || task.estHours || 0;
           tipParts.push(`預估總工時：${total} h`);
@@ -1629,7 +1629,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
             ${isOverdue && !item.completed ? '<span class="overdue-badge">⚠</span>' : ''}
             ${task.synced ? '<span class="sync-badge">🔗</span>' : ''}
             ${projName ? `<div class="ws-ev-proj" style="color:${projColor}">${U.esc(projName)}</div>` : ''}
-            <b>${U.esc(task.name).slice(0, 20)}</b>
+            <b>${U.esc(task.name)}</b>
           </div>`;
         }
       } else if (meeting) {

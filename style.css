@@ -301,6 +301,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   border-left: 3px solid; transition: transform .1s;
 }
 .ws-event.ws-ev-task { display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.ws-event.ws-ev-task b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ws-event b { font-size: 12px; font-weight: 600; display: block; }
 .ws-event .ev-meta { font-size: 10.5px; color: var(--ink3); margin-top: 1px; font-family: var(--mono); }
 .ws-event:hover { transform: scale(1.02); z-index: 2; }
