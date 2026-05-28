@@ -1590,6 +1590,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         const task = DATA.tasks.find(t => t.id === item.taskId);
         if (task) {
           const cat = task.category || 'deep';
+          const projName = (App.getProj(task.project) || {}).name || '';
           const today = D.today();
           const sch = getEffectiveSchedule(task);
           const isOverdue = sch.end && new Date(sch.end) < today && task.status !== 'done';
@@ -1612,7 +1613,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           const tipText = tipParts.join('\n');
 
           html += `<div class="ws-event ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''} ${item.completed ? 'completed' : ''}"
-            style="top:0;height:50px;"
+            style="top:0;height:44px;"
             ${item.completed ? '' : 'draggable="true"'}
             data-task-id="${task.id}"
             data-from-date="${dateIso}"
@@ -1623,12 +1624,13 @@ App.buildWeekScheduleHtml = function(targetMonday) {
             ${item.completed ? '<span class="done-badge">✓</span>' : item.locked ? '<span class="lock-ico">🔒</span>' : '<span class="drag-handle">⋮⋮</span>'}
             ${isOverdue && !item.completed ? '<span class="overdue-badge">⚠</span>' : ''}
             ${task.synced ? '<span class="sync-badge">🔗</span>' : ''}
+            ${projName ? `<div class="ws-ev-proj">${U.esc(projName)}</div>` : ''}
             <b>${U.esc(task.name).slice(0, 20)}</b>
             <div class="ev-meta">${item.completed ? '✓ 已完成' : (item.totalHours && item.totalHours > 1 ? '提醒 · 共 ' + item.totalHours + 'h' : '1h')}</div>
           </div>`;
         }
       } else if (meeting) {
-        html += `<div class="ws-event meeting" style="top:0;height:50px;" title="${U.esc(meeting.title)}">
+        html += `<div class="ws-event meeting" style="top:0;height:44px;" title="${U.esc(meeting.title)}">
           <b>${U.esc(meeting.title).slice(0, 14)}</b>
           <div class="ev-meta">${meeting.startTime || ''}</div>
         </div>`;
@@ -1639,7 +1641,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           const tip = `${meetingAuto.title}\n${meetingAuto.start}–${meetingAuto.end}\n${meetingAuto.category === 'cleaning' ? '🧹 打掃' : '📅 會議'}（${freqLabel(meetingAuto.frequency)}）`;
           const spanHr = meetingAuto.spanHours || 1;
           // 每格高度 50px + 跨格時加上 row-gap (4px)
-          const cellHeight = spanHr * 50 + (spanHr - 1) * 4;
+          const cellHeight = spanHr * 44 + (spanHr - 1) * 4;
           const cssClass = meetingAuto.category === 'cleaning' ? 'cleaning' : 'auto-meeting';
           const icon = meetingAuto.category === 'cleaning' ? '🧹' : '📅';
           // z-index 1：低於任務（防止視覺覆蓋其他列的任務）
