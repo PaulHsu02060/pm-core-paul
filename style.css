@@ -774,6 +774,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .urgent-row .u-proj { font-size: 10.5px; font-family: var(--mono); background: rgba(196,99,62,.15); padding: 2px 7px; border-radius: 99px; color: var(--terracotta); }
 
 /* ─── PDCA REPORT ─── */
+.pdca-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
 .pdca-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
 .pdca-tab { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; background: var(--surface2); border: 1px solid var(--rule); border-radius: var(--r8); font-size: 13px; color: var(--ink2); cursor: pointer; transition: background .15s; }
 .pdca-tab:hover { background: var(--stone-100); }

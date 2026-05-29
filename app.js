@@ -116,7 +116,7 @@ let DATA = {
   schedule: { week: null, items: [] },
   settings: { ...DEFAULT_SETTINGS },
   weekNotes: {}, // { 'W21-2026': 'note text' }
-  pdcaGroups: {}, // { [projectId]: { [groupName]: { level, recoveryPlan, owner, note } } }
+  pdcaGroups: {}, // { [pid]: { [group]: { level, owner, note, workContent, actualStart, targetDate, delayDaysOverride, delayReason, recoveryMethod, recoveryDate, affectsLaunch } } }
 };
 
 // ─── STORAGE HELPERS ───────────────────────────────────
@@ -390,7 +390,7 @@ function ensurePdcaData(project) {
   if (p.summary === undefined) p.summary = '';
   return project;
 }
-// DATA.pdcaGroups[projectId][groupName] = { level, recoveryPlan, owner, note }
+// DATA.pdcaGroups[projectId][groupName] = { level, owner, note, workContent, actualStart, targetDate, delayDaysOverride, delayReason, recoveryMethod, recoveryDate, affectsLaunch }
 function ensurePdcaGroupsRoot() {
   if (!DATA.pdcaGroups || typeof DATA.pdcaGroups !== 'object') DATA.pdcaGroups = {};
 }
@@ -3885,6 +3885,7 @@ App.renderPdca = function() {
     </button>`).join('');
 
   host.innerHTML = `
+    <div class="pdca-toolbar"><button class="tb-action" onclick="App.exportPdcaReport()">📄 匯出月報</button></div>
     <div class="pdca-tabs">${tabsHtml}</div>
     ${this.buildPdcaPanelHtml(active)}
   `;
@@ -3893,6 +3894,135 @@ App.renderPdca = function() {
 App.selectPdcaProject = function(id) {
   this.pdcaActiveProject = id;
   this.renderPdca();
+};
+
+// ─── PDCA 月報匯出（單頁 HTML，Blob URL 開新分頁；進度/燈號沿用 computePdcaStatus / pdcaGroupLight）───
+App.exportPdcaReport = function() {
+  const projects = DATA.projects || [];
+  const today = D.fmt(D.today(), 'ymd');
+  const esc = U.esc;
+  const pct = v => (v == null) ? '未設定' : Math.round(v) + '%';
+  const diffStr = d => (d == null) ? '未設定' : (d >= 0 ? '+' : '') + Math.round(d) + '%';
+  const dot = l => `<span class="pr-dot pr-dot-${l === '🟢' ? 'g' : l === '🟡' ? 'y' : l === '🔴' ? 'r' : 'w'}"></span>`;
+  const rating = st => {
+    if (st.actual == null || st.expected == null) return '⚪ 未設定 — 時程待補';
+    const x = Math.abs(Math.round(st.diff));
+    if (st.diff >= -5) return '綠燈 — 符合預期';
+    if (st.diff > -20) return '黃燈 — 落後' + x + '%，需加強管控';
+    return '紅燈 — 嚴重落後' + x + '%';
+  };
+
+  // 燈號統計（專案層 computePdcaStatus）
+  let g = 0, y = 0, r = 0, w = 0;
+  projects.forEach(p => { const l = this.computePdcaStatus(p).light; if (l === '🟢') g++; else if (l === '🟡') y++; else if (l === '🔴') r++; else w++; });
+
+  // (a) 專案卡片
+  const cardsHtml = projects.map(p => {
+    const st = this.computePdcaStatus(p), d = p.pdcaData || {};
+    return `<div class="pr-pcard" style="--bar:${p.color}">
+      <div class="pr-pcard-head">${dot(st.light)}<span class="pr-pcard-name">${esc(p.name)}</span></div>
+      <div class="pr-pcard-stats"><span>實際 ${pct(st.actual)}</span><span>預期 ${pct(st.expected)}</span><span>差異 ${diffStr(st.diff)}</span><span>可販日 ${esc(d.targetDate || '—')}</span></div>
+    </div>`;
+  }).join('');
+
+  // (b) 各專案 WBS（大項目表的燈號＝群組層 pdcaGroupLight；排除「(未歸類)」）
+  const wbsHtml = projects.map(p => {
+    const st = this.computePdcaStatus(p), d = p.pdcaData || {};
+    const groups = this.getPdcaGroups(p.id);
+    const names = Object.keys(groups).filter(n => n !== '(未歸類)').sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    const rows = names.map(n => {
+      const meta = this.getPdcaGroupMeta(p.id, n);
+      return `<tr><td>${dot(this.pdcaGroupLight(groups[n]))}</td><td>${esc(n)}</td><td>${esc(meta.owner || '—')}</td><td>${esc(meta.recoveryMethod || '—')}</td></tr>`;
+    }).join('') || `<tr><td colspan="4" class="pr-empty">無大項目</td></tr>`;
+    return `<div class="pr-wbs-proj" style="--bar:${p.color}">
+      <div class="pr-wbs-head"><span class="pr-pcard-name">${esc(p.name)}</span><span class="pr-timeline">${esc(d.startDate || '—')} → ${esc(d.targetDate || '—')}</span></div>
+      <div class="pr-rating">${rating(st)}</div>
+      <div class="pr-summary">${esc(d.summary || '—')}</div>
+      <table class="pr-group-table"><thead><tr><th>燈號</th><th>大項目</th><th>負責</th><th>補回計畫</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join('');
+
+  // (c) 延遲項目（群組層 黃+紅，紅排前；排除「(未歸類)」）
+  const delays = [];
+  projects.forEach(p => {
+    const groups = this.getPdcaGroups(p.id);
+    Object.keys(groups).filter(n => n !== '(未歸類)').forEach(n => {
+      const gl = this.pdcaGroupLight(groups[n]);
+      if (gl === '🟡' || gl === '🔴') delays.push({ p, n, meta: this.getPdcaGroupMeta(p.id, n), light: gl });
+    });
+  });
+  delays.sort((a, b) => (a.light === '🔴' ? 0 : 1) - (b.light === '🔴' ? 0 : 1));
+  const delaysHtml = delays.map(x => {
+    const m = x.meta, dd = this.pdcaDelayDays(m);
+    return `<div class="pr-delay-card ${x.light === '🔴' ? 'pr-red' : 'pr-yellow'}">
+      <div class="pr-delay-head">${dot(x.light)}<b>${esc(x.n)}</b><span class="pr-delay-proj">${esc(x.p.name)}</span></div>
+      <div class="pr-delay-body">
+        <div><label>工作內容</label>${esc(m.workContent || '—')}</div>
+        <div><label>實際開始</label>${esc(m.actualStart || '—')}</div>
+        <div><label>預計完成</label>${esc(m.targetDate || '—')}</div>
+        <div><label>落後天數</label><span class="pr-delay-days">${dd > 0 ? dd + ' 天' : '—'}</span></div>
+        <div><label>影響可販日</label>${m.affectsLaunch ? '<span class="pr-affect">是</span>' : '否'}</div>
+        <div><label>落後原因</label>${esc(m.delayReason || '—')}</div>
+        <div><label>補回計畫</label>${esc(m.recoveryMethod || '—')}${m.recoveryDate ? '（目標 ' + esc(m.recoveryDate) + '）' : ''}</div>
+      </div>
+    </div>`;
+  }).join('') || `<div class="pr-empty">目前沒有黃/紅燈大項目</div>`;
+
+  const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>開發部 PDCA 月報 ${today}</title>
+<style>${this._pdcaReportCss()}</style></head><body>
+<button class="pr-print-btn" onclick="window.print()">🖨 列印 / 存 PDF</button>
+<div class="pr-report">
+  <section class="pr-cover">
+    <h1 class="pr-title">開發部 PDCA 月報</h1>
+    <div class="pr-cover-date">${today}</div>
+    <div class="pr-light-stats">🟢 ${g}　🟡 ${y}　🔴 ${r}${w ? '　⚪ ' + w : ''}</div>
+    <div class="pr-project-cards">${cardsHtml}</div>
+  </section>
+  <section class="pr-wbs"><h2 class="pr-sec-title">專案 WBS</h2>${wbsHtml}</section>
+  <section class="pr-delays"><h2 class="pr-sec-title">延遲項目 · 需補回計畫</h2>${delaysHtml}</section>
+</div></body></html>`;
+
+  window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+};
+
+// 月報樣式（暫時最小版；等使用者提供正式單頁 CSS 後替換此函式回傳值）
+App._pdcaReportCss = function() {
+  return `
+    body { font-family: "Noto Sans TC", system-ui, sans-serif; color: #2b2620; background: #f5f1e8; margin: 0; padding: 24px; }
+    .pr-report { max-width: 960px; margin: 0 auto; }
+    .pr-print-btn { position: fixed; top: 16px; right: 16px; padding: 8px 14px; cursor: pointer; }
+    .pr-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+    .pr-dot-g { background: #4a7c5c; } .pr-dot-y { background: #d6a93c; } .pr-dot-r { background: #c4633e; } .pr-dot-w { background: #bbb; }
+    .pr-title { font-size: 26px; margin: 0 0 4px; }
+    .pr-cover-date { color: #777; margin-bottom: 12px; }
+    .pr-light-stats { font-size: 18px; margin-bottom: 18px; }
+    .pr-project-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .pr-pcard, .pr-wbs-proj { background: #fff; border-left: 5px solid var(--bar, #888); border-radius: 6px; padding: 12px 14px; }
+    .pr-pcard-name { font-weight: 600; }
+    .pr-pcard-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: #555; margin-top: 6px; }
+    .pr-sec-title { font-size: 18px; border-bottom: 2px solid #ddd; padding-bottom: 6px; margin: 28px 0 14px; }
+    .pr-wbs-proj { margin-bottom: 14px; }
+    .pr-wbs-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .pr-timeline { font-family: monospace; font-size: 12px; color: #777; }
+    .pr-rating { font-size: 13px; margin: 6px 0; }
+    .pr-summary { font-size: 13px; color: #555; margin-bottom: 8px; }
+    .pr-group-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .pr-group-table th, .pr-group-table td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; }
+    .pr-empty { color: #999; font-size: 13px; }
+    .pr-delay-card { background: #fff; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; border-left: 5px solid #d6a93c; }
+    .pr-delay-card.pr-red { border-left-color: #c4633e; }
+    .pr-delay-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .pr-delay-proj { color: #777; font-size: 12px; }
+    .pr-delay-body { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 16px; font-size: 13px; }
+    .pr-delay-body label { font-weight: 600; color: #888; margin-right: 6px; }
+    .pr-delay-days, .pr-affect { color: #c4633e; font-weight: 600; }
+    @media print {
+      .pr-print-btn { display: none; }
+      body { background: #fff; padding: 0; }
+      .pr-pcard, .pr-wbs-proj, .pr-delay-card { page-break-inside: avoid; }
+      .pr-wbs, .pr-delays { page-break-before: always; }
+    }
+  `;
 };
 
 App.buildPdcaPanelHtml = function(project) {
@@ -4001,10 +4131,30 @@ App.computePdcaStatus = function(project) {
   return { actual, expected, diff, light };
 };
 
+// 大項目落後天數：override 優先；否則 targetDate 過期才算正數天數，未過期=0
+App.pdcaDelayDays = function(meta) {
+  if (meta.delayDaysOverride != null) return meta.delayDaysOverride;
+  if (!meta.targetDate) return 0;
+  const diff = Math.floor((D.today() - new Date(meta.targetDate)) / 86400000);
+  return diff > 0 ? diff : 0;
+};
+
 // 大項目附加資料（唯讀取值，帶預設；實際寫入走 updatePdcaGroupMeta）
 App.getPdcaGroupMeta = function(projectId, groupName) {
   const m = ((DATA.pdcaGroups || {})[projectId] || {})[groupName] || {};
-  return { level: m.level || 'med', recoveryPlan: m.recoveryPlan || '', owner: m.owner || '', note: m.note || '' };
+  return {
+    level: m.level || 'med',
+    owner: m.owner || '',
+    note: m.note || '',
+    workContent: m.workContent || '',
+    actualStart: m.actualStart || '',
+    targetDate: m.targetDate || '',
+    delayDaysOverride: (m.delayDaysOverride != null ? m.delayDaysOverride : null),
+    delayReason: m.delayReason || '',
+    recoveryMethod: m.recoveryMethod || m.recoveryPlan || '',   // fallback 舊欄位 recoveryPlan
+    recoveryDate: m.recoveryDate || '',
+    affectsLaunch: m.affectsLaunch === true,
+  };
 };
 
 App.updatePdcaGroupMeta = function(el, field) {
@@ -4013,7 +4163,12 @@ App.updatePdcaGroupMeta = function(el, field) {
   ensurePdcaGroupsRoot();
   if (!DATA.pdcaGroups[projectId]) DATA.pdcaGroups[projectId] = {};
   const g = DATA.pdcaGroups[projectId][groupName] ||
-    (DATA.pdcaGroups[projectId][groupName] = { level: 'med', recoveryPlan: '', owner: '', note: '' });
+    (DATA.pdcaGroups[projectId][groupName] = {
+      level: 'med', owner: '', note: '',
+      workContent: '', actualStart: '', targetDate: '',
+      delayDaysOverride: null, delayReason: '',
+      recoveryMethod: '', recoveryDate: '', affectsLaunch: false,
+    });
   g[field] = el.value;
   Storage.save();
 };
@@ -4085,7 +4240,7 @@ App.buildPdcaGroupCard = function(project, name, tasks) {
         <input type="text" value="${U.esc(meta.owner)}" ${gAttr} onchange="App.updatePdcaGroupMeta(this, 'owner')">
       </label>
       <label class="pgm-recovery">補回計畫
-        <textarea rows="2" ${gAttr} onchange="App.updatePdcaGroupMeta(this, 'recoveryPlan')">${U.esc(meta.recoveryPlan)}</textarea>
+        <textarea rows="2" ${gAttr} onchange="App.updatePdcaGroupMeta(this, 'recoveryMethod')">${U.esc(meta.recoveryMethod)}</textarea>
       </label>
     </div>`;
   }
