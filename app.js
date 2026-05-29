@@ -2501,7 +2501,7 @@ App.openTaskModal = function(id) {
         <div style="font-size:12px; color:var(--ink3); margin-bottom:12px; padding:8px 12px; background:var(--sage-50); border-radius:8px;">
           此任務由 Google Sheet 同步。<b>時程可在此調整</b>（不寫回 Sheet）。
         </div>
-        <div class="form-field"><label>所屬專案</label><div style="padding:8px 0; font-size:13px;">${U.esc(proj?.name || '')}</div></div>
+        <div class="form-field"><label>所屬專案</label><div style="padding:8px 0; font-size:13px; display:flex; align-items:center; gap:7px;">${proj?.color ? `<span style="width:10px;height:10px;border-radius:3px;background:${proj.color};display:inline-block;flex-shrink:0;"></span>` : ''}${U.esc(proj?.name || '—')}</div></div>
         <div class="form-field"><label>WBS 編號</label><div style="padding:8px 0; font-family:var(--mono);">${U.esc(t.syncRef || '')}</div></div>
         <div class="form-field"><label>說明</label><div style="padding:8px 0;">${U.esc(t.desc || '—')}</div></div>
         <div class="form-row">
@@ -2540,9 +2540,7 @@ App.openTaskModal = function(id) {
 
   // Editable task
   const sch = getEffectiveSchedule(t);
-  const projectOptions = DATA.projects.filter(p => !p.synced).map(p =>
-    `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`
-  ).join('');
+  const proj = this.getProj(t.project);
 
   // 當前所在週次標示（紅色 ⁂ 表示未結案）
   const currentWeekBadge = t.currentWeek && t.status !== 'done'
@@ -2604,7 +2602,7 @@ App.openTaskModal = function(id) {
       </div>
       <div class="form-field">
         <label>所屬專案</label>
-        <select id="tf-project">${projectOptions}</select>
+        <div style="padding:8px 0; font-size:13px; display:flex; align-items:center; gap:7px;">${proj && proj.color ? `<span style="width:10px;height:10px;border-radius:3px;background:${proj.color};display:inline-block;flex-shrink:0;"></span>` : ''}${U.esc(proj ? proj.name : '—')}</div>
       </div>
       <div class="form-row">
         <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(t.owner || '')}"></div>
@@ -2679,7 +2677,6 @@ App.saveTask = function(id) {
 
   t.name      = name;
   t.desc      = document.getElementById('tf-desc').value.trim();
-  t.project   = document.getElementById('tf-project').value;
   t.owner     = document.getElementById('tf-owner').value.trim();
   t.category  = document.getElementById('tf-category').value;
   t.urgency   = document.getElementById('tf-urgency').value;
