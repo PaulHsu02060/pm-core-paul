@@ -179,6 +179,7 @@ const Storage = {
       ensurePdcaGroupsRoot();
       DATA.projects.forEach(ensurePdcaData);
       DATA.tasks.forEach(ensureTaskPdcaGroup);
+      runMigrations();
     } catch(e) { console.error('Load failed', e); }
   },
   save() {
@@ -402,6 +403,48 @@ function ensureAllPdcaData() {
   ensurePdcaGroupsRoot();
   (DATA.projects || []).forEach(ensurePdcaData);
   (DATA.tasks || []).forEach(ensureTaskPdcaGroup);
+}
+
+// ─── 一次性資料 migration（_migrations 記錄已跑過的 key；存在性檢查 → 重複跑安全）───
+function runMigrations() {
+  DATA.settings._migrations = DATA.settings._migrations || {};
+  const M = DATA.settings._migrations;
+  let changed = false;
+
+  // pdcaCleanup_v1：移除重複/不用的空殼專案 + 新增「物料標準共用化」
+  if (!M.pdcaCleanup_v1) {
+    const taskCount = pid => DATA.tasks.filter(t => t.project === pid && !t._deleted).length;
+    const removeProject = (pid, alsoTasks) => {
+      DATA.projects = DATA.projects.filter(p => p.id !== pid);
+      if (alsoTasks) DATA.tasks = DATA.tasks.filter(t => t.project !== pid);
+      if (DATA.pdcaGroups) delete DATA.pdcaGroups[pid];
+    };
+
+    // 1 & 2：有空格的重複空殼專案，僅在 task 數 0 時刪
+    ['10L 嵌入式除濕機', '70/156L 熱泵'].forEach(nm => {
+      const p = DATA.projects.find(x => x.name === nm);
+      if (p && taskCount(p.id) === 0) removeProject(p.id, false);
+    });
+
+    // 3：美國向G2 → 連同其下任務一起刪
+    const g2 = DATA.projects.find(x => x.name === '美國向G2');
+    if (g2) removeProject(g2.id, true);
+
+    // 4：沒有「物料標準共用化」才新增（color 取既有未用到的）
+    if (!DATA.projects.some(x => x.name === '物料標準共用化')) {
+      const used = new Set(DATA.projects.map(p => p.color));
+      const palette = ['#5DCAA5', '#7F77DD', '#E0729B', '#54A0C7', '#C99A3C'];
+      const color = palette.find(c => !used.has(c)) || '#5DCAA5';
+      const np = { id: U.id(), name: '物料標準共用化', color, note: '', synced: false, createdAt: new Date().toISOString() };
+      ensurePdcaData(np);
+      DATA.projects.push(np);
+    }
+
+    M.pdcaCleanup_v1 = true;
+    changed = true;
+  }
+
+  if (changed) Storage.save();
 }
 
 // ─── 判斷一個定期事件是否發生在指定日期 ───
