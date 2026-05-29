@@ -1247,7 +1247,8 @@ const App = {
       btn.classList.add('active');
     }
 
-    // Render the active page
+    // Render the active page（進甘特頁重設專案篩選＝全選；切週 ganttShift 不重設）
+    if (name === 'gantt') this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
     this.renderPage(name);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
@@ -2969,6 +2970,7 @@ App.cancelOCR = function() {
 // ═══════════════════════════════════════════════════════
 App.renderGantt = function() {
   if (!this.ganttStart) this.ganttStart = D.monday();
+  if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
   const start = this.ganttStart;
   const days = [];
   for (let i = 0; i < 14; i++) days.push(D.addDays(start, i));
@@ -2987,8 +2989,10 @@ App.renderGantt = function() {
   }
 
   // Collect tasks to display (active + recently done, with dates)
+  const projFilter = this.ganttProjectFilter;
   const tasks = DATA.tasks.filter(t => {
     if (t._deleted) return false;
+    if (!projFilter.has(t.project)) return false;
     if (t.status === 'hold') return false;
     const sch = getEffectiveSchedule(t);
     if (!sch.start && !sch.end) return false;
@@ -3002,10 +3006,11 @@ App.renderGantt = function() {
     document.getElementById('page-gantt').innerHTML = `
       <div class="gantt-card">
         ${this.buildGanttHeaderHtml(days)}
+        ${this.buildGanttFilterHtml()}
         <div class="empty-task-list" style="grid-column: 1 / -1;">
           <div class="empty-task-list-icon">📊</div>
-          目前沒有有日期的任務可顯示<br>
-          <span style="font-size:11px;">為任務設定「預計開始」「預計完成」後會出現在這裡</span>
+          目前篩選沒有任務<br>
+          <span style="font-size:11px;">請勾選至少一個專案</span>
         </div>
       </div>`;
     return;
@@ -3025,6 +3030,7 @@ App.renderGantt = function() {
   document.getElementById('page-gantt').innerHTML = `
     <div class="gantt-card">
       ${this.buildGanttHeaderHtml(days)}
+      ${this.buildGanttFilterHtml()}
       <div class="gantt">
         ${headerHtml}
         ${rowsHtml}
@@ -3058,6 +3064,26 @@ App.ganttShift = function(days) {
 };
 App.ganttToday = function() {
   this.ganttStart = D.monday();
+  this.renderGantt();
+};
+
+App.buildGanttFilterHtml = function() {
+  const f = this.ganttProjectFilter || new Set();
+  return `<div class="gantt-filter-row">
+    <span class="gantt-filter-label">by 專案</span>
+    ${DATA.projects.map(p => `
+      <label class="gantt-filter-item">
+        <input type="checkbox" ${f.has(p.id) ? 'checked' : ''} onchange="App.toggleGanttProject('${p.id}')">
+        <span class="gantt-filter-sw" style="background:${p.color}"></span>${U.esc(p.name)}${p.synced ? ' 🔗' : ''}
+      </label>
+    `).join('')}
+  </div>`;
+};
+
+App.toggleGanttProject = function(id) {
+  if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
+  if (this.ganttProjectFilter.has(id)) this.ganttProjectFilter.delete(id);
+  else this.ganttProjectFilter.add(id);
   this.renderGantt();
 };
 
