@@ -2517,6 +2517,11 @@ App.openTaskModal = function(id) {
           <div class="form-field"><label>實際完成</label><div style="padding:8px 0; font-family:var(--mono); color:var(--sage-700); font-weight:600;">${t.actualEnd ? D.fmt(t.actualEnd, 'ymdShort') : '—'}</div></div>
         </div>` : ''}
         <div class="form-field"><label>狀態</label><div style="padding:8px 0;">${LABELS.status[t.status] || t.status}${t.actualEnd ? ' ✓（依實際完成日判定）' : t.actualStart ? '（依實際開始日判定）' : ''}</div></div>
+        <div class="form-field">
+          <label>PDCA 大項目</label>
+          <input type="text" id="tf-pdcaGroup" list="tf-pdcaGroup-list" value="${U.esc(t.pdcaGroup || '')}" placeholder="輸入或選擇大項目（空＝未歸類，僅本地、不寫回 Sheet）">
+          <datalist id="tf-pdcaGroup-list">${this.pdcaGroupDatalistOptions(t.project)}</datalist>
+        </div>
       `,
       footer: `
         ${hasOverride ? `<button class="tb-action ghost" onclick="App.resetJOverride('${t.id}')" style="margin-right:auto;">↺ 重置為 Sheet 原值</button>` : '<div style="flex:1"></div>'}
@@ -2645,6 +2650,11 @@ App.openTaskModal = function(id) {
           可切分（≥4h 任務拆成多天）
         </label>
       </div>
+      <div class="form-field">
+        <label>PDCA 大項目</label>
+        <input type="text" id="tf-pdcaGroup" list="tf-pdcaGroup-list" value="${U.esc(t.pdcaGroup || '')}" placeholder="輸入或選擇大項目（空＝未歸類）">
+        <datalist id="tf-pdcaGroup-list">${this.pdcaGroupDatalistOptions(t.project)}</datalist>
+      </div>
       ${historyHtml}
     `,
     footer: `
@@ -2675,6 +2685,8 @@ App.saveTask = function(id) {
   t.method    = document.getElementById('tf-method').value.trim();
   t.note      = document.getElementById('tf-note').value.trim();
   t.canSplit  = document.getElementById('tf-split').checked;
+  const pgEl = document.getElementById('tf-pdcaGroup');
+  if (pgEl) t.pdcaGroup = pgEl.value.trim();
 
   let newStatus = document.getElementById('tf-status').value;
   // 自動邏輯：實際完成日有填 → 強制標為已完成
@@ -2706,6 +2718,9 @@ App.saveJSchedule = function(id) {
   } else {
     setJOverride(id, { start, end });
   }
+  const pgEl = document.getElementById('tf-pdcaGroup');
+  if (pgEl) t.pdcaGroup = pgEl.value.trim();
+  Storage.save();
   this.closeModal();
   this.refreshAll();
   U.toast('✓ 時程已更新');
@@ -3915,6 +3930,16 @@ App.togglePdcaSubtasks = function(btn) {
   if (!list) return;
   const open = list.classList.toggle('open');
   btn.textContent = open ? '▴ 收合子任務' : '▾ 展開子任務';
+};
+
+// 任務 modal 的 PDCA 大項目 datalist：該專案既有的大項目（pdcaGroups key ∪ 任務實際用到的）
+App.pdcaGroupDatalistOptions = function(projectId) {
+  const set = new Set();
+  Object.keys((DATA.pdcaGroups || {})[projectId] || {}).forEach(g => set.add(g));
+  (DATA.tasks || []).forEach(x => {
+    if (x.project === projectId && !x._deleted && typeof x.pdcaGroup === 'string' && x.pdcaGroup.trim()) set.add(x.pdcaGroup);
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant')).map(g => `<option value="${U.esc(g)}"></option>`).join('');
 };
 
 App.buildPdcaGroupsHtml = function(project) {
