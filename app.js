@@ -179,6 +179,7 @@ const Storage = {
       ensurePdcaGroupsRoot();
       DATA.projects.forEach(ensurePdcaData);
       DATA.tasks.forEach(ensureTaskPdcaGroup);
+      runMigrations();
     } catch(e) { console.error('Load failed', e); }
   },
   save() {
@@ -310,6 +311,8 @@ const CloudSync = {
       localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
       localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
       localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
+      // 雲端覆蓋後再跑一次 migration（否則 load 時跑的會被雲端蓋掉）；其內 Storage.save 會把結果上傳回雲端
+      runMigrations();
 
       this._refreshSyncStatus();
       if (!silent) U.toast('☁ 已從雲端載入最新資料', 'success');
@@ -402,6 +405,58 @@ function ensureAllPdcaData() {
   ensurePdcaGroupsRoot();
   (DATA.projects || []).forEach(ensurePdcaData);
   (DATA.tasks || []).forEach(ensureTaskPdcaGroup);
+}
+
+// ─── 一次性資料 migration（_migrations 記錄已跑過的 key；存在性檢查 → 重複跑安全）───
+function runMigrations() {
+  DATA.settings._migrations = DATA.settings._migrations || {};
+  const M = DATA.settings._migrations;
+  let changed = false;
+
+  // pdcaMerge_v1：合併重複專案（搬 task + merge 大項目設定）、刪 G2、新增物料標準共用化
+  if (!M.pdcaMerge_v1) {
+    const byName = nm => DATA.projects.find(p => p.name === nm);
+    const moveTasks = (fromId, toId) => DATA.tasks.forEach(t => { if (t.project === fromId) t.project = toId; });
+    // merge 大項目設定：keep 沒有的 group 才補、keep 有的不覆蓋（避免搬走的 task 標籤變孤兒）
+    const mergePdcaGroups = (fromId, toId) => {
+      const from = (DATA.pdcaGroups || {})[fromId];
+      if (!from) return;
+      DATA.pdcaGroups[toId] = DATA.pdcaGroups[toId] || {};
+      Object.keys(from).forEach(g => {
+        if (!(g in DATA.pdcaGroups[toId])) DATA.pdcaGroups[toId][g] = from[g];
+      });
+    };
+    const removeProject = pid => {
+      DATA.projects = DATA.projects.filter(p => p.id !== pid);
+      if (DATA.pdcaGroups) delete DATA.pdcaGroups[pid];
+    };
+
+    // 1. 除濕機合併：10L除濕機 的 task → 10L嵌入式除濕機(保留)，再刪 10L除濕機
+    const dKeep = byName('10L嵌入式除濕機'), dDrop = byName('10L除濕機');
+    if (dKeep && dDrop) { moveTasks(dDrop.id, dKeep.id); mergePdcaGroups(dDrop.id, dKeep.id); removeProject(dDrop.id); }
+
+    // 2. 熱泵合併：'70/156L 熱泵'(半形空格) 的 task → '70/156L熱泵'(無空格,保留)，再刪空格版
+    const hKeep = byName('70/156L熱泵'), hDrop = byName('70/156L 熱泵');
+    if (hKeep && hDrop) { moveTasks(hDrop.id, hKeep.id); mergePdcaGroups(hDrop.id, hKeep.id); removeProject(hDrop.id); }
+
+    // 3. 刪 美國向G2：連同其 task 一起真刪（不 merge）
+    const g2 = byName('美國向G2');
+    if (g2) { DATA.tasks = DATA.tasks.filter(t => t.project !== g2.id); removeProject(g2.id); }
+
+    // 4. 新增 物料標準共用化（id 用 U.id()，與使用者建立的專案同型；取未用色 + ensurePdcaData 空殼）
+    if (!DATA.projects.some(p => p.name === '物料標準共用化')) {
+      const used = new Set(DATA.projects.map(p => p.color));
+      const color = ['#5DCAA5', '#7F77DD', '#E0729B', '#54A0C7', '#C99A3C'].find(c => !used.has(c)) || '#5DCAA5';
+      const np = { id: U.id(), name: '物料標準共用化', color, note: '', synced: false, createdAt: new Date().toISOString() };
+      ensurePdcaData(np);
+      DATA.projects.push(np);
+    }
+
+    M.pdcaMerge_v1 = true;
+    changed = true;
+  }
+
+  if (changed) Storage.save();
 }
 
 // ─── 判斷一個定期事件是否發生在指定日期 ───
