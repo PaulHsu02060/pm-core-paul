@@ -1267,6 +1267,7 @@ const App = {
       gantt:     '甘特圖 · 跨專案時程',
       month:     '月曆視圖',
       report:    '專案週報',
+      pdca:      'PDCA 報告',
       settings:  '設定',
     };
     document.getElementById('pageTitle').textContent = titles[name] || name;
@@ -1295,6 +1296,7 @@ const App = {
       case 'gantt':     this.renderGantt();     break;
       case 'month':     this.renderMonth();     break;
       case 'report':    this.renderReport();    break;
+      case 'pdca':      this.renderPdca();      break;
       case 'settings':  this.renderSettings();  break;
     }
   },
@@ -3782,6 +3784,82 @@ App.exportReportExcel = async function(weekKey, opts) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   U.toast(`✓ 已下載 ${filename}`);
+};
+
+// ═══════════════════════════════════════════════════════
+//  PAGE: PDCA 報告（方式 1 — 任務聚合）
+// ═══════════════════════════════════════════════════════
+App.renderPdca = function() {
+  ensureAllPdcaData();
+  const host = document.getElementById('page-pdca');
+  if (!host) return;
+  const projects = DATA.projects || [];
+  if (projects.length === 0) {
+    host.innerHTML = `<div class="empty-task-list"><div class="empty-task-list-icon">📊</div>尚無專案<br><span style="font-size:11px;">先到側欄「＋ 新增專案」建立</span></div>`;
+    return;
+  }
+  // active project（session 狀態，不存 localStorage）
+  if (!this.pdcaActiveProject || !projects.some(p => p.id === this.pdcaActiveProject)) {
+    this.pdcaActiveProject = projects[0].id;
+  }
+  const active = projects.find(p => p.id === this.pdcaActiveProject);
+
+  const tabsHtml = projects.map(p => `
+    <button class="pdca-tab ${p.id === active.id ? 'active' : ''}" onclick="App.selectPdcaProject('${p.id}')">
+      <span class="pdca-tab-dot" style="background:${p.color}"></span>
+      <span class="pdca-tab-name">${U.esc(p.name)}${p.synced ? ' 🔗' : ''}</span>
+      <span class="pdca-tab-light">⚪</span>
+    </button>`).join('');
+
+  host.innerHTML = `
+    <div class="pdca-tabs">${tabsHtml}</div>
+    ${this.buildPdcaPanelHtml(active)}
+  `;
+};
+
+App.selectPdcaProject = function(id) {
+  this.pdcaActiveProject = id;
+  this.renderPdca();
+};
+
+App.buildPdcaPanelHtml = function(project) {
+  const d = project.pdcaData || {};
+  return `
+    <div class="pdca-panel">
+      <div class="pdca-timeline">
+        <div class="pdca-field"><label>開始日</label><input type="date" value="${d.startDate || ''}" onchange="App.updatePdcaDate('start', this.value)"></div>
+        <div class="pdca-field"><label>可販日</label><input type="date" value="${d.targetDate || ''}" onchange="App.updatePdcaDate('target', this.value)"></div>
+      </div>
+      <div class="stats-row pdca-stats">
+        <div class="stat"><div class="stat-num">未設定</div><div class="stat-label">實際進度</div></div>
+        <div class="stat"><div class="stat-num">未設定</div><div class="stat-label">預期進度</div></div>
+        <div class="stat"><div class="stat-num">未設定</div><div class="stat-label">差異</div></div>
+        <div class="stat"><div class="stat-num">⚪</div><div class="stat-label">燈號</div></div>
+      </div>
+      <div class="pdca-summary">
+        <label>整體摘要</label>
+        <textarea rows="2" placeholder="整體狀態說明，例：進入手工機收尾、性試 DVT 啟動" onchange="App.updatePdcaSummary(this.value)">${U.esc(d.summary || '')}</textarea>
+      </div>
+    </div>
+  `;
+};
+
+App.updatePdcaDate = function(which, val) {
+  const p = (DATA.projects || []).find(x => x.id === this.pdcaActiveProject);
+  if (!p) return;
+  ensurePdcaData(p);
+  if (which === 'start') p.pdcaData.startDate = val;
+  else p.pdcaData.targetDate = val;
+  Storage.save();
+  this.renderPdca();
+};
+
+App.updatePdcaSummary = function(val) {
+  const p = (DATA.projects || []).find(x => x.id === this.pdcaActiveProject);
+  if (!p) return;
+  ensurePdcaData(p);
+  p.pdcaData.summary = val;
+  Storage.save();
 };
 
 // ═══════════════════════════════════════════════════════
