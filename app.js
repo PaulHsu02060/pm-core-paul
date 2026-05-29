@@ -51,6 +51,7 @@ const STORE = {
   password: `pmw::${PATH_KEY}::password`,
   syncLog:  `pmw::${PATH_KEY}::synclog`,
   weekNotes: `pmw::${PATH_KEY}::weeknotes`,
+  pdcaGroups: `pmw::${PATH_KEY}::pdcagroups`,
 };
 
 // ─── DEFAULT SETTINGS ──────────────────────────────────
@@ -115,6 +116,7 @@ let DATA = {
   schedule: { week: null, items: [] },
   settings: { ...DEFAULT_SETTINGS },
   weekNotes: {}, // { 'W21-2026': 'note text' }
+  pdcaGroups: {}, // { [projectId]: { [groupName]: { level, recoveryPlan, owner, note } } }
 };
 
 // ─── STORAGE HELPERS ───────────────────────────────────
@@ -128,6 +130,7 @@ const Storage = {
       DATA.schedule  = JSON.parse(localStorage.getItem(STORE.schedule)  || '{"week":null,"items":[]}');
       DATA.settings  = { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(STORE.settings) || '{}')) };
       DATA.weekNotes = JSON.parse(localStorage.getItem(STORE.weekNotes) || '{}');
+      DATA.pdcaGroups = JSON.parse(localStorage.getItem(STORE.pdcaGroups) || '{}');
 
       // ─── 清掉「找不到任務」的 schedule 殘留 ───
       if (DATA.schedule && Array.isArray(DATA.schedule.items)) {
@@ -172,6 +175,10 @@ const Storage = {
           console.log('Settings migrated: added cleaning defaults + new fields');
         }
       }
+      // PDCA：確保資料結構（DATA.pdcaGroups / project.pdcaData / task.pdcaGroup）
+      ensurePdcaGroupsRoot();
+      DATA.projects.forEach(ensurePdcaData);
+      DATA.tasks.forEach(ensureTaskPdcaGroup);
     } catch(e) { console.error('Load failed', e); }
   },
   save() {
@@ -182,6 +189,7 @@ const Storage = {
     localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
     localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
     localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
+    localStorage.setItem(STORE.pdcaGroups, JSON.stringify(DATA.pdcaGroups || {}));
 
     // ─── 雲端自動同步（debounced，避免頻繁上傳）───
     if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudAutoSync && DATA.settings.cloudSyncUrl) {
@@ -368,6 +376,27 @@ const D = {
     return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
   },
 };
+
+// ─── PDCA 報告：資料模型（方式 1 — 任務掛 pdcaGroup，大項目動態聚合）───
+// project.pdcaData：整個專案的時間軸 + 摘要（不含 milestones/delays array）
+function ensurePdcaData(project) {
+  if (!project) return project;
+  const p = project.pdcaData || (project.pdcaData = {});
+  if (p.startDate === undefined) p.startDate = '';
+  if (p.targetDate === undefined) p.targetDate = '';
+  if (p.summary === undefined) p.summary = '';
+  return project;
+}
+// DATA.pdcaGroups[projectId][groupName] = { level, recoveryPlan, owner, note }
+function ensurePdcaGroupsRoot() {
+  if (!DATA.pdcaGroups || typeof DATA.pdcaGroups !== 'object') DATA.pdcaGroups = {};
+}
+// task.pdcaGroup：歸屬的大項目名稱（""＝未歸類）
+function ensureTaskPdcaGroup(task) {
+  if (!task) return task;
+  if (typeof task.pdcaGroup !== 'string') task.pdcaGroup = '';
+  return task;
+}
 
 // ─── 判斷一個定期事件是否發生在指定日期 ───
 // event: { category, frequency, day, startDate, endDate, enabled }
@@ -1073,6 +1102,7 @@ const App = {
       synced: false,
       createdAt: new Date().toISOString(),
     };
+    ensurePdcaData(otherProj);
     DATA.projects.push(otherProj);
     Storage.save();
   },
@@ -2777,6 +2807,7 @@ App.saveProject = function(id) {
     if (p && !p.synced) { p.name = name; p.color = color; p.note = note; }
   } else {
     const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
+    ensurePdcaData(np);
     DATA.projects.push(np);
     this.currentProjectId = np.id;
   }
