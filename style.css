@@ -296,6 +296,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   font-size: 11px; line-height: 1.2;
   overflow: hidden; cursor: pointer;
   border-left: 3px solid; transition: transform .1s;
+  z-index: 1;
 }
 .ws-event.ws-ev-task { display: flex; align-items: flex-start; padding: 5px 8px; }
 .ws-event.ws-ev-task b { display: inline; padding-left: 0; }
