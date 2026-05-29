@@ -397,6 +397,12 @@ function ensureTaskPdcaGroup(task) {
   if (typeof task.pdcaGroup !== 'string') task.pdcaGroup = '';
   return task;
 }
+// 一次確保全部 PDCA 結構（renderPdca 進頁保險用，涵蓋 J/cloud 後來才進來的專案）
+function ensureAllPdcaData() {
+  ensurePdcaGroupsRoot();
+  (DATA.projects || []).forEach(ensurePdcaData);
+  (DATA.tasks || []).forEach(ensureTaskPdcaGroup);
+}
 
 // ─── 判斷一個定期事件是否發生在指定日期 ───
 // event: { category, frequency, day, startDate, endDate, enabled }
