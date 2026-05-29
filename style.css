@@ -790,6 +790,33 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .pdca-summary label { display: block; font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; }
 .pdca-summary textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--rule); border-radius: var(--r6); padding: 8px 10px; font-size: 13px; font-family: var(--sans); color: var(--ink); resize: vertical; outline: none; line-height: 1.5; }
 .pdca-summary textarea:focus { border-color: var(--sage-500); }
+.pdca-groups { margin-top: 20px; }
+.pdca-groups-head { font-size: 13px; font-weight: 600; color: var(--ink2); margin-bottom: 10px; }
+.pdca-no-groups { font-size: 12px; color: var(--ink3); }
+.pdca-group { border: 1px solid var(--rule); border-radius: var(--r8); padding: 12px 14px; margin-bottom: 10px; background: var(--surface2); }
+.pdca-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.pdca-group-light { font-size: 15px; }
+.pdca-group-name { font-weight: 600; font-size: 14px; color: var(--ink); flex: 1; min-width: 0; }
+.pdca-group-progress { font-family: var(--mono); font-size: 12px; color: var(--ink2); background: var(--surface); padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.pdca-group-hint { font-size: 11.5px; color: var(--ink3); padding: 2px 0 8px; }
+.pdca-group-meta { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 8px; }
+.pdca-group-meta label { display: flex; flex-direction: column; font-size: 11px; font-weight: 600; color: var(--ink2); gap: 4px; }
+.pdca-group-meta .pgm-recovery { flex: 1 1 100%; }
+.pdca-group-meta select, .pdca-group-meta input, .pdca-group-meta textarea { font-size: 12px; font-weight: 400; border: 1px solid var(--rule); border-radius: var(--r6); padding: 5px 8px; font-family: var(--sans); color: var(--ink); background: var(--surface); outline: none; box-sizing: border-box; }
+.pdca-group-meta input { min-width: 130px; }
+.pdca-group-meta textarea { resize: vertical; width: 100%; line-height: 1.4; }
+.pdca-group-meta select:focus, .pdca-group-meta input:focus, .pdca-group-meta textarea:focus { border-color: var(--sage-500); }
+.pdca-expand-btn { font-size: 11.5px; color: var(--sage-700); background: none; border: none; cursor: pointer; padding: 2px 0; }
+.pdca-expand-btn:hover { text-decoration: underline; }
+.pdca-subtasks { display: none; margin-top: 8px; border-top: 1px solid var(--rule); padding-top: 8px; }
+.pdca-subtasks.open { display: block; }
+.pdca-subtask { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.pst-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ink); }
+.pst-deadline { font-family: var(--mono); font-size: 11px; color: var(--ink3); min-width: 84px; text-align: right; }
+.pst-deadline.overdue { color: var(--terracotta); font-weight: 600; }
+.pst-status { font-size: 11px; color: var(--ink2); min-width: 48px; }
+.pst-owner { font-size: 11px; color: var(--ink3); min-width: 52px; }
+.pst-empty { font-size: 11px; color: var(--ink3); }
 
 /* ─── TOAST ─── */
 .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 600; display: flex; flex-direction: column; gap: 8px; }

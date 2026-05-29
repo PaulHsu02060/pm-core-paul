@@ -3840,6 +3840,10 @@ App.buildPdcaPanelHtml = function(project) {
         <label>整體摘要</label>
         <textarea rows="2" placeholder="整體狀態說明，例：進入手工機收尾、性試 DVT 啟動" onchange="App.updatePdcaSummary(this.value)">${U.esc(d.summary || '')}</textarea>
       </div>
+      <div class="pdca-groups">
+        <div class="pdca-groups-head">大項目</div>
+        ${this.buildPdcaGroupsHtml(project)}
+      </div>
     </div>
   `;
 };
@@ -3860,6 +3864,122 @@ App.updatePdcaSummary = function(val) {
   ensurePdcaData(p);
   p.pdcaData.summary = val;
   Storage.save();
+};
+
+// 把專案任務依 pdcaGroup 動態聚合成大項目（""＝(未歸類)）
+App.getPdcaGroups = function(projectId) {
+  const out = {};
+  (DATA.tasks || []).forEach(t => {
+    if (t.project !== projectId || t._deleted) return;
+    const g = (typeof t.pdcaGroup === 'string' && t.pdcaGroup.trim()) ? t.pdcaGroup : '(未歸類)';
+    (out[g] || (out[g] = [])).push(t);
+  });
+  return out;
+};
+
+// 大項目燈號：任一過期未完成→🔴；完成率>50%→🟢；其餘→🟡；無任務→⚪
+App.pdcaGroupLight = function(tasks) {
+  if (!tasks || tasks.length === 0) return '⚪';
+  const today = D.today();
+  const overdue = tasks.some(t => {
+    if (t.status === 'done') return false;
+    const end = getEffectiveSchedule(t).end;
+    return end && new Date(end) < today;
+  });
+  if (overdue) return '🔴';
+  const done = tasks.filter(t => t.status === 'done').length;
+  return (done / tasks.length > 0.5) ? '🟢' : '🟡';
+};
+
+// 大項目附加資料（唯讀取值，帶預設；實際寫入走 updatePdcaGroupMeta）
+App.getPdcaGroupMeta = function(projectId, groupName) {
+  const m = ((DATA.pdcaGroups || {})[projectId] || {})[groupName] || {};
+  return { level: m.level || 'med', recoveryPlan: m.recoveryPlan || '', owner: m.owner || '', note: m.note || '' };
+};
+
+App.updatePdcaGroupMeta = function(el, field) {
+  const projectId = el.dataset.pproj, groupName = el.dataset.pgroup;
+  if (!projectId || groupName === undefined) return;
+  ensurePdcaGroupsRoot();
+  if (!DATA.pdcaGroups[projectId]) DATA.pdcaGroups[projectId] = {};
+  const g = DATA.pdcaGroups[projectId][groupName] ||
+    (DATA.pdcaGroups[projectId][groupName] = { level: 'med', recoveryPlan: '', owner: '', note: '' });
+  g[field] = el.value;
+  Storage.save();
+};
+
+App.togglePdcaSubtasks = function(btn) {
+  const card = btn.closest('.pdca-group');
+  if (!card) return;
+  const list = card.querySelector('.pdca-subtasks');
+  if (!list) return;
+  const open = list.classList.toggle('open');
+  btn.textContent = open ? '▴ 收合子任務' : '▾ 展開子任務';
+};
+
+App.buildPdcaGroupsHtml = function(project) {
+  const groups = this.getPdcaGroups(project.id);
+  const names = Object.keys(groups);
+  if (names.length === 0) return `<div class="pdca-no-groups">此專案尚無任務</div>`;
+  names.sort((a, b) => {
+    if (a === '(未歸類)') return 1;
+    if (b === '(未歸類)') return -1;
+    return a.localeCompare(b, 'zh-Hant');
+  });
+  return names.map(name => this.buildPdcaGroupCard(project, name, groups[name])).join('');
+};
+
+App.buildPdcaGroupCard = function(project, name, tasks) {
+  const total = tasks.length;
+  const done = tasks.filter(t => t.status === 'done').length;
+  const light = this.pdcaGroupLight(tasks);
+  const isUnclassified = (name === '(未歸類)');
+  const today = D.today();
+
+  const subtasks = tasks.map(t => {
+    const end = getEffectiveSchedule(t).end;
+    const overdue = end && new Date(end) < today && t.status !== 'done';
+    return `<div class="pdca-subtask">
+      <span class="pst-name">${U.esc(t.name)}</span>
+      <span class="pst-deadline ${overdue ? 'overdue' : ''}">${end ? D.fmt(end, 'ymdShort') : '—'}</span>
+      <span class="pst-status">${LABELS.status[t.status] || t.status || ''}</span>
+      <span class="pst-owner">${U.esc(t.owner || '')}</span>
+    </div>`;
+  }).join('');
+
+  let metaHtml;
+  if (isUnclassified) {
+    metaHtml = `<div class="pdca-group-hint">這些任務尚未歸類到大項目 — 到任務編輯設定「PDCA 大項目」</div>`;
+  } else {
+    const meta = this.getPdcaGroupMeta(project.id, name);
+    const gAttr = `data-pproj="${project.id}" data-pgroup="${U.esc(name)}"`;
+    metaHtml = `<div class="pdca-group-meta">
+      <label class="pgm-level">等級
+        <select ${gAttr} onchange="App.updatePdcaGroupMeta(this, 'level')">
+          <option value="high" ${meta.level==='high'?'selected':''}>🔴 high</option>
+          <option value="med" ${meta.level==='med'?'selected':''}>🟠 med</option>
+          <option value="low" ${meta.level==='low'?'selected':''}>🟡 low</option>
+        </select>
+      </label>
+      <label class="pgm-owner">負責人
+        <input type="text" value="${U.esc(meta.owner)}" ${gAttr} onchange="App.updatePdcaGroupMeta(this, 'owner')">
+      </label>
+      <label class="pgm-recovery">補回計畫
+        <textarea rows="2" ${gAttr} onchange="App.updatePdcaGroupMeta(this, 'recoveryPlan')">${U.esc(meta.recoveryPlan)}</textarea>
+      </label>
+    </div>`;
+  }
+
+  return `<div class="pdca-group">
+    <div class="pdca-group-head">
+      <span class="pdca-group-light">${light}</span>
+      <span class="pdca-group-name">${U.esc(name)}</span>
+      <span class="pdca-group-progress">${done}/${total} 完成</span>
+    </div>
+    ${metaHtml}
+    <button class="pdca-expand-btn" onclick="App.togglePdcaSubtasks(this)">▾ 展開子任務</button>
+    <div class="pdca-subtasks">${subtasks || '<div class="pst-empty">無子任務</div>'}</div>
+  </div>`;
 };
 
 // ═══════════════════════════════════════════════════════
