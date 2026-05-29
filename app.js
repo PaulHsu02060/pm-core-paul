@@ -456,6 +456,146 @@ function runMigrations() {
     changed = true;
   }
 
+  // pdcaInitialData_v1：補六專案 pdcaData/group seed + 依關鍵字自動歸類 task。
+  // 只填空、不蓋已有值；group 已有 owner/recoveryMethod 則整組跳過；已歸類的 task 不重歸。
+  // → 雲端覆蓋後二次執行沿用同套，不會洗掉使用者手動修改。
+  if (!M.pdcaInitialData_v1) {
+    const norm = s => (s || '').replace(/\s+/g, '');            // 正規化比對（保險：去空白）
+    const findProj = nm => DATA.projects.find(p => norm(p.name) === norm(nm));
+    const emptyGroupMeta = () => ({
+      level: 'med', owner: '', note: '',
+      workContent: '', actualStart: '', targetDate: '',
+      delayDaysOverride: null, delayReason: '',
+      recoveryMethod: '', recoveryDate: '', affectsLaunch: false,
+    });
+
+    // ── 六專案 INIT：pdcaData（時間軸/摘要）+ 要 seed 的 group meta ──
+    const INIT = {
+      'J系列WBS': {
+        startDate: '2025-11-03', targetDate: '2027-01-30',
+        summary: '手工機收尾、進入性試階段，長材備料三流程同步進行，2.2kW 另案開發待壓縮機與航嘉電控盒交期確認（預計 6/15 評估）',
+        groups: {
+          '航嘉EMI測試報告': { level: 'high', owner: '航嘉、Paul', recoveryMethod: '待提供後才能更換EMI商檢機物料和送樣' },
+          '性試DVT': { level: 'high', owner: 'Paul', recoveryMethod: '5/27內部DR討論，6/5召開服務DR' },
+          '電控盒散熱器開模': { level: 'high', owner: '龍哥、航嘉', recoveryMethod: '5/29提供3D圖檔給航嘉，1週內完成DFM並報價' },
+          'S/R機隔板線路連接板開模': { level: 'high', owner: '龍哥', recoveryMethod: '7/30完成開模，8/6流C上線' },
+        },
+      },
+      '10L嵌入式除濕機': {
+        startDate: '2025-12-15', targetDate: '2026-09-01',
+        summary: '面板模具修復完畢。ETC要求規格資料跟催中。預計取得強制性認證，9/1 上市',
+        groups: {
+          '商檢認證': { level: 'high', owner: '彥斌、家銘', recoveryMethod: '跟催廠商提供規格書和樣品照片' },
+          '模具與部品': { level: 'low', owner: '堂哥', recoveryMethod: '面板模具已修復完畢' },
+          '量產移行會前會': { level: 'med', owner: '英洲', recoveryMethod: '' },
+          '量產組立': { level: 'low', owner: '營業', recoveryMethod: '按7/1量產組立排程執行' },
+        },
+      },
+      '70/156L熱泵': {
+        startDate: '', targetDate: '',
+        summary: '量試70/156L各10台備料中。整體時程目標待補。',
+        groups: {
+          '量試備料': { level: 'med', owner: 'Paul', recoveryMethod: '水桶、線材、板金樣購，5/30前備料完成', recoveryDate: '2026-05-30' },
+          '馬達線長修正': { level: 'med', owner: 'Paul', recoveryMethod: '馬達線長度規格修正' },
+        },
+      },
+      '三菱電梯冷氣': {
+        startDate: '', targetDate: '',
+        summary: '等OST提供新版線控軟體+客戶測試樣品5/29交付',
+        groups: {
+          'OST線控軟體更新': { level: 'high', owner: 'Paul、OST Jeff', recoveryMethod: 'OST 5/29應提供未提供，5/30再催，6/2未到升級處理', recoveryDate: '2026-06-02' },
+          '客戶測試': { level: 'med', owner: 'OST Jeff', recoveryMethod: '5/29前提供測試樣品給客戶' },
+        },
+      },
+      'VRF專案': {
+        startDate: '', targetDate: '2026-04-30',
+        summary: '技術文件初稿4月初提供，商檢需求文件陸續更新中',
+        groups: {
+          '技術文件': { level: 'med', owner: 'Paul、王惠美', recoveryMethod: '技術手冊依進度持續更新' },
+          '商檢認證': { level: 'med', owner: '王惠美、蔡育豪', recoveryMethod: '4/30可販前完成商檢需求文件', recoveryDate: '2026-04-30' },
+        },
+      },
+      '物料標準共用化': {
+        startDate: '', targetDate: '',
+        summary: '冷凝器規格整併+螺絲規格整併立案，5/29預計完成變更通知書',
+        groups: {
+          '設變檢討書輸出': { level: 'med', owner: '許勝堯、陳龍生', recoveryMethod: '原1/30推遲到5/29，目標5/29完成變更通知書', recoveryDate: '2026-05-29' },
+          '回覽變更通知導入': { level: 'med', owner: '許勝堯', recoveryMethod: 'Q66+AC69區段執行回覽' },
+          '效益分析下一輪': { level: 'low', owner: '許勝堯', recoveryMethod: '未完成項目資料收集與檢討（目標26/9）', recoveryDate: '2026-09-30' },
+        },
+      },
+    };
+
+    // ── 關鍵字歸類表：每專案陣列「由上到下＝優先序」，先對先設後 break；沒對到留 '' ──
+    const KEYWORDS = {
+      'J系列WBS': [
+        ['電控盒散熱器開模', ['散熱器', '開模', '採購付款']],
+        ['航嘉EMI測試報告', ['航嘉', 'EMI', '電控盒樣品', '一條龍', '圖面', 'DFM', 'PCB', '射出外殼']],
+        ['性試DVT', ['性試', '性能試', '手工機DR', 'DVT', '溫昇', '噪音', '安規', '移行', '性能試驗']],
+        ['S/R機隔板線路連接板開模', ['隔板', '線路連接板', '冰點', '試模']],
+      ],
+      '10L嵌入式除濕機': [
+        ['量產移行會前會', ['移行', '會前會']],
+        ['商檢認證', ['商檢', '認證', '規格書', '樣品照片', '強制性', 'MIT', '能效']],
+        ['模具與部品', ['模具', '部品', '面板']],
+        ['量產組立', ['量產', '組立']],
+      ],
+      '70/156L熱泵': [
+        ['量試備料', ['備料', '樣購', '水桶', '線材', '板金', 'IQC']],
+        ['馬達線長修正', ['馬達線長', '線長', '投資損益', '瑞智', 'DR討論', 'BOM跟催', '規格書']],
+      ],
+      '三菱電梯冷氣': [
+        ['OST線控軟體更新', ['線控', '軟體', 'OST', '設計DR']],
+        ['客戶測試', ['客戶測試', '測試樣品']],
+      ],
+      'VRF專案': [
+        ['技術文件', ['技術', '手冊', '文件']],
+        ['商檢認證', ['商檢', '認證']],
+      ],
+      // 物料標準共用化：task 數 0，無歸類表
+    };
+
+    Object.keys(INIT).forEach(name => {
+      const proj = findProj(name);
+      if (!proj) return;                                          // 專案不在（被刪/未建）→ 跳過
+      const cfg = INIT[name];
+
+      // 1. pdcaData：只填空、不蓋已有值
+      ensurePdcaData(proj);
+      if (!proj.pdcaData.startDate  && cfg.startDate)  proj.pdcaData.startDate  = cfg.startDate;
+      if (!proj.pdcaData.targetDate && cfg.targetDate) proj.pdcaData.targetDate = cfg.targetDate;
+      if (!proj.pdcaData.summary    && cfg.summary)    proj.pdcaData.summary    = cfg.summary;
+
+      // 2. group meta：已存在且 owner 或 recoveryMethod 非空 → 整組跳過；新建用 seed，舊的只填空欄
+      DATA.pdcaGroups[proj.id] = DATA.pdcaGroups[proj.id] || {};
+      Object.keys(cfg.groups || {}).forEach(gName => {
+        const existing = DATA.pdcaGroups[proj.id][gName];
+        if (existing && (existing.owner || existing.recoveryMethod)) return;
+        const seed = cfg.groups[gName];
+        if (!existing) {
+          DATA.pdcaGroups[proj.id][gName] = { ...emptyGroupMeta(), ...seed };
+        } else {
+          Object.keys(seed).forEach(k => { if (!existing[k]) existing[k] = seed[k]; });
+        }
+      });
+
+      // 3. 自動歸類 task：只動尚未歸類（pdcaGroup=''）的；先對先設後 break；沒對到留 ''
+      const table = KEYWORDS[name];
+      if (table) {
+        DATA.tasks.forEach(t => {
+          if (t.project !== proj.id || t.pdcaGroup) return;       // 別的專案 / 已歸類 → 不動
+          const nm = t.name || '';
+          for (const [gName, kws] of table) {
+            if (kws.some(kw => nm.includes(kw))) { t.pdcaGroup = gName; break; }
+          }
+        });
+      }
+    });
+
+    M.pdcaInitialData_v1 = true;
+    changed = true;
+  }
+
   if (changed) Storage.save();
 }
 
@@ -3988,40 +4128,76 @@ App.exportPdcaReport = function() {
 // 月報樣式（暫時最小版；等使用者提供正式單頁 CSS 後替換此函式回傳值）
 App._pdcaReportCss = function() {
   return `
-    body { font-family: "Noto Sans TC", system-ui, sans-serif; color: #2b2620; background: #f5f1e8; margin: 0; padding: 24px; }
-    .pr-report { max-width: 960px; margin: 0 auto; }
-    .pr-print-btn { position: fixed; top: 16px; right: 16px; padding: 8px 14px; cursor: pointer; }
-    .pr-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
-    .pr-dot-g { background: #4a7c5c; } .pr-dot-y { background: #d6a93c; } .pr-dot-r { background: #c4633e; } .pr-dot-w { background: #bbb; }
-    .pr-title { font-size: 26px; margin: 0 0 4px; }
-    .pr-cover-date { color: #777; margin-bottom: 12px; }
-    .pr-light-stats { font-size: 18px; margin-bottom: 18px; }
-    .pr-project-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .pr-pcard, .pr-wbs-proj { background: #fff; border-left: 5px solid var(--bar, #888); border-radius: 6px; padding: 12px 14px; }
-    .pr-pcard-name { font-weight: 600; }
-    .pr-pcard-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: #555; margin-top: 6px; }
-    .pr-sec-title { font-size: 18px; border-bottom: 2px solid #ddd; padding-bottom: 6px; margin: 28px 0 14px; }
-    .pr-wbs-proj { margin-bottom: 14px; }
-    .pr-wbs-head { display: flex; justify-content: space-between; align-items: baseline; }
-    .pr-timeline { font-family: monospace; font-size: 12px; color: #777; }
-    .pr-rating { font-size: 13px; margin: 6px 0; }
-    .pr-summary { font-size: 13px; color: #555; margin-bottom: 8px; }
-    .pr-group-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .pr-group-table th, .pr-group-table td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; }
-    .pr-empty { color: #999; font-size: 13px; }
-    .pr-delay-card { background: #fff; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; border-left: 5px solid #d6a93c; }
-    .pr-delay-card.pr-red { border-left-color: #c4633e; }
-    .pr-delay-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .pr-delay-proj { color: #777; font-size: 12px; }
-    .pr-delay-body { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 16px; font-size: 13px; }
-    .pr-delay-body label { font-weight: 600; color: #888; margin-right: 6px; }
-    .pr-delay-days, .pr-affect { color: #c4633e; font-weight: 600; }
-    @media print {
-      .pr-print-btn { display: none; }
-      body { background: #fff; padding: 0; }
-      .pr-pcard, .pr-wbs-proj, .pr-delay-card { page-break-inside: avoid; }
-      .pr-wbs, .pr-delays { page-break-before: always; }
-    }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft JhengHei","PingFang TC",-apple-system,sans-serif;color:#2B2B28;background:#EDE9E0;line-height:1.5;padding:32px 16px}
+.pr-report{max-width:880px;margin:0 auto}
+
+/* 列印按鈕 */
+.pr-print-btn{position:fixed;top:20px;right:20px;z-index:10;background:#3A7D5C;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.pr-print-btn:hover{background:#2F6B4D}
+
+/* 區塊標題 */
+.pr-sec-title{font-size:18px;font-weight:600;margin:28px 0 14px;padding-bottom:6px;border-bottom:2px solid #D8D2C4;color:#2B2B28}
+
+/* 封面 */
+.pr-cover{background:#fff;border:1px solid #E2DDD0;border-radius:12px;padding:28px 30px;margin-bottom:8px}
+.pr-title{font-size:26px;font-weight:700;letter-spacing:.5px}
+.pr-cover-date{font-size:13px;color:#8A8577;margin-top:4px}
+.pr-light-stats{font-size:14px;color:#5C5849;margin-top:14px;display:flex;gap:18px;align-items:center}
+
+/* 燈號點 */
+.pr-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle;flex:none}
+.pr-dot-g{background:#1D9E75}
+.pr-dot-y{background:#EF9F27}
+.pr-dot-r{background:#E24B4A}
+.pr-dot-w{background:#C9C4B6}
+
+/* 專案進度卡片 grid */
+.pr-project-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px}
+.pr-pcard{background:#fff;border:1px solid #E2DDD0;border-left:3px solid var(--bar,#C9C4B6);border-radius:0 10px 10px 0;padding:14px 16px}
+.pr-pcard-head{display:flex;align-items:center;font-weight:600;font-size:15px;margin-bottom:9px}
+.pr-pcard-name{vertical-align:middle}
+.pr-pcard-stats{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:#5C5849}
+.pr-pcard-stats span{white-space:nowrap}
+
+/* 專案 WBS */
+.pr-wbs-proj{background:#fff;border:1px solid #E2DDD0;border-left:3px solid var(--bar,#C9C4B6);border-radius:0 10px 10px 0;padding:18px 20px;margin-bottom:14px}
+.pr-wbs-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.pr-wbs-head .pr-pcard-name{font-size:17px;font-weight:600}
+.pr-timeline{font-size:12px;color:#8A8577}
+.pr-rating{font-size:13px;color:#5C5849;margin:4px 0 10px}
+.pr-summary{font-size:13px;color:#5C5849;background:#F6F3EC;padding:9px 12px;border-radius:8px;margin-bottom:14px;line-height:1.6}
+.pr-group-table{width:100%;border-collapse:collapse;font-size:13px}
+.pr-group-table th{text-align:left;font-weight:600;color:#6B665A;padding:7px 8px;border-bottom:1px solid #D8D2C4;font-size:12px}
+.pr-group-table td{padding:8px;border-bottom:1px solid #EEEAE0;color:#3D3A32;vertical-align:top}
+.pr-group-table tr:last-child td{border-bottom:none}
+.pr-empty{color:#A8A293;font-style:italic}
+
+/* 延遲項目卡片 */
+.pr-delays{margin-bottom:20px}
+.pr-delay-card{background:#fff;border:1px solid #E2DDD0;border-left:3px solid #C9C4B6;border-radius:0 10px 10px 0;padding:14px 18px;margin-bottom:10px}
+.pr-delay-card.pr-red{border-left-color:#E24B4A;background:#FCEFEF}
+.pr-delay-card.pr-yellow{border-left-color:#EF9F27;background:#FBF4E6}
+.pr-delay-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:10px}
+.pr-delay-head b{font-size:15px;font-weight:600}
+.pr-delay-proj{font-size:11px;color:#8A8577;white-space:nowrap}
+.pr-delay-body{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;align-items:baseline}
+.pr-delay-body>div{display:contents}
+.pr-delay-body label{color:#8A8577;font-size:12px;white-space:nowrap}
+.pr-delay-days{font-weight:600;color:#C0392B}
+.pr-affect{font-weight:600;color:#C0392B}
+
+/* 列印 */
+@media print{
+  @page{margin:14mm}
+  body{background:#fff;padding:0;color:#000}
+  .pr-print-btn{display:none}
+  .pr-report{max-width:none}
+  .pr-cover,.pr-pcard,.pr-wbs-proj,.pr-delay-card{box-shadow:none;border-color:#ccc;break-inside:avoid;page-break-inside:avoid}
+  .pr-wbs,.pr-delays{page-break-before:always}
+  .pr-delay-card.pr-red,.pr-delay-card.pr-yellow{background:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pr-dot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
   `;
 };
 
