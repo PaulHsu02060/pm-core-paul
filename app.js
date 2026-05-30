@@ -4052,18 +4052,27 @@ App.exportPdcaReport = function() {
     return '紅燈 — 嚴重落後' + x + '%';
   };
 
-  // 燈號統計（專案層 computePdcaStatus）
-  let g = 0, y = 0, r = 0, w = 0;
-  projects.forEach(p => { const l = this.computePdcaStatus(p).light; if (l === '🟢') g++; else if (l === '🟡') y++; else if (l === '🔴') r++; else w++; });
+  // 燈號分組收集（專案層 computePdcaStatus；計數用 groups.x.length 取得）
+  const groups = { r: [], y: [], g: [], w: [] };
+  projects.forEach(p => {
+    const l = this.computePdcaStatus(p).light;
+    if (l === '🔴') groups.r.push(p);
+    else if (l === '🟡') groups.y.push(p);
+    else if (l === '🟢') groups.g.push(p);
+    else groups.w.push(p);
+  });
 
-  // (a) 專案卡片
-  const cardsHtml = projects.map(p => {
+  // (a) 專案卡片（函式化，給分組重用）
+  const cardOf = p => {
     const st = this.computePdcaStatus(p), d = p.pdcaData || {};
     return `<div class="pr-pcard" style="--bar:${p.color}">
       <div class="pr-pcard-head">${dot(st.light)}<span class="pr-pcard-name">${esc(p.name)}</span></div>
       <div class="pr-pcard-stats"><span>實際 ${pct(st.actual)}</span><span>預期 ${pct(st.expected)}</span><span>差異 ${diffStr(st.diff)}</span><span>可販日 ${esc(d.targetDate || '—')}</span></div>
     </div>`;
-  }).join('');
+  };
+  const groupSection = (dotIcon, title, arr) => arr.length ? `
+    <div class="pr-group-label">${dot(dotIcon)}<span>${title}</span><span class="pr-group-count">${arr.length} 項</span></div>
+    <div class="pr-project-cards">${arr.map(cardOf).join('')}</div>` : '';
 
   // (b) 各專案 WBS（大項目表的燈號＝群組層 pdcaGroupLight；排除「(未歸類)」）
   const wbsHtml = projects.map(p => {
@@ -4115,8 +4124,16 @@ App.exportPdcaReport = function() {
   <section class="pr-cover">
     <h1 class="pr-title">開發部 PDCA 月報</h1>
     <div class="pr-cover-date">${today}</div>
-    <div class="pr-light-stats">🟢 ${g}　🟡 ${y}　🔴 ${r}${w ? '　⚪ ' + w : ''}</div>
-    <div class="pr-project-cards">${cardsHtml}</div>
+    <div class="pr-legend">
+      <span>${dot('🟢')}符合預期(差異≥−5%)</span>
+      <span>${dot('🟡')}落後(−20%~−5%)</span>
+      <span>${dot('🔴')}嚴重落後(≤−20%)</span>
+      <span>${dot('⚪')}未設定</span>
+    </div>
+    ${groupSection('🔴', '嚴重落後 · 需優先處理', groups.r)}
+    ${groupSection('🟡', '落後 · 需加強管控', groups.y)}
+    ${groupSection('🟢', '符合預期', groups.g)}
+    ${groupSection('⚪', '時程未設定', groups.w)}
   </section>
   <section class="pr-wbs"><h2 class="pr-sec-title">專案 WBS</h2>${wbsHtml}</section>
   <section class="pr-delays"><h2 class="pr-sec-title">延遲項目 · 需補回計畫</h2>${delaysHtml}</section>
@@ -4143,7 +4160,10 @@ body{font-family:"Microsoft JhengHei","PingFang TC",-apple-system,sans-serif;col
 .pr-cover{background:#fff;border:1px solid #E2DDD0;border-radius:12px;padding:28px 30px;margin-bottom:8px}
 .pr-title{font-size:26px;font-weight:700;letter-spacing:.5px}
 .pr-cover-date{font-size:13px;color:#8A8577;margin-top:4px}
-.pr-light-stats{font-size:14px;color:#5C5849;margin-top:14px;display:flex;gap:18px;align-items:center}
+.pr-legend{font-size:12px;color:#8A8577;margin:14px 0 4px;padding-bottom:12px;border-bottom:1px solid #EEEAE0;display:flex;flex-wrap:wrap;gap:6px 16px}
+.pr-legend span{white-space:nowrap}
+.pr-group-label{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:14px;font-weight:600}
+.pr-group-count{font-size:12px;color:#8A8577;font-weight:400}
 
 /* 燈號點 */
 .pr-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle;flex:none}
