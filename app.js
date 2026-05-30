@@ -68,6 +68,8 @@ const DEFAULT_SETTINGS = {
   splitThreshold: 4,
   doneRetentionDays: 30,
   previewWeeks: 2,
+  // 【需求 A】手動釘選到本週的 task id；釘選後不因 plannedStart 在未來被排程踢出
+  pinnedWeekTaskIds: [],
   jSheetUrl: '',
   syncTimes: ['09:00', '14:00'],
   autoSyncEnabled: false,
@@ -1966,6 +1968,28 @@ App.handleScheduleDrop = function(e, toDate, toStart) {
   Storage.save();
   this.renderDashboard();
   U.toast('✓ 已調整並鎖定');
+};
+
+// 【需求 A】釘選 / 取消釘選「本週」：只動 DATA.settings.pinnedWeekTaskIds（不碰 task、不碰 J 同步）
+App.pinTaskToWeek = function(taskId) {
+  if (!taskId) return;
+  const s = DATA.settings;
+  if (!Array.isArray(s.pinnedWeekTaskIds)) s.pinnedWeekTaskIds = [];
+  if (!s.pinnedWeekTaskIds.includes(taskId)) s.pinnedWeekTaskIds.push(taskId);
+  Storage.save();
+  generateSchedule();      // 重排：釘選的 task 經篩選守門（需求 A 第二塊）後會被納入本週
+  this.renderDashboard();
+  U.toast('📌 已釘選到本週');
+};
+
+App.unpinTaskFromWeek = function(taskId) {
+  if (!taskId) return;
+  const s = DATA.settings;
+  s.pinnedWeekTaskIds = (s.pinnedWeekTaskIds || []).filter(id => id !== taskId);
+  Storage.save();
+  generateSchedule();
+  this.renderDashboard();
+  U.toast('已取消釘選');
 };
 
 App.buildMemoListHtml = function() {
