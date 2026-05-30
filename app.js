@@ -4252,6 +4252,7 @@ App.exportPdcaReport = function() {
       <span>${dot('🔴')}嚴重落後(≤−20%)</span>
       <span>${dot('⚪')}未設定</span>
     </div>
+    <div class="pr-formula">計算方式 ｜ 實際% = 各大項目完成率平均×100（完成率=done÷總任務，排除未歸類） ｜ 預期% = (今天−開始日)÷(可販日−開始日)，限 0~100% ｜ 差異 = 實際% − 預期%</div>
     ${groupSection('🔴', '嚴重落後 · 需優先處理', groups.r)}
     ${groupSection('🟡', '落後 · 需加強管控', groups.y)}
     ${groupSection('🟢', '符合預期', groups.g)}
@@ -4283,6 +4284,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",-apple-system,sans-serif;col
 .pr-cover-date{font-size:13px;color:#8A8577;margin-top:4px}
 .pr-legend{font-size:12px;color:#8A8577;margin:14px 0 4px;padding-bottom:12px;border-bottom:1px solid #EEEAE0;display:flex;flex-wrap:wrap;gap:6px 16px}
 .pr-legend span{white-space:nowrap}
+.pr-formula{font-size:11px;color:#6B665A;margin:10px 0 4px;line-height:1.6;padding:8px 11px;background:#F6F3EC;border-radius:8px}
 .pr-group-label{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:14px;font-weight:600}
 .pr-group-count{font-size:12px;color:#8A8577;font-weight:400}
 
@@ -4353,9 +4355,9 @@ App.buildPdcaPanelHtml = function(project) {
         <div class="pdca-field"><label>可販日</label><input type="date" value="${d.targetDate || ''}" onchange="App.updatePdcaDate('target', this.value)"></div>
       </div>
       <div class="stats-row pdca-stats">
-        <div class="stat"><div class="stat-num">${pct(st.actual)}</div><div class="stat-label">實際進度</div></div>
-        <div class="stat"><div class="stat-num">${pct(st.expected)}</div><div class="stat-label">預期進度</div></div>
-        <div class="stat"><div class="stat-num">${diffStr}</div><div class="stat-label">差異</div></div>
+        <div class="stat" title="實際% = 各大項目完成率平均 ×100（完成率=done÷總任務，排除未歸類）"><div class="stat-num">${pct(st.actual)}</div><div class="stat-label">實際進度</div><div class="stat-formula">各項完成率平均×100</div></div>
+        <div class="stat" title="預期% = (今天−開始日)÷(可販日−開始日)，限 0~100%"><div class="stat-num">${pct(st.expected)}</div><div class="stat-label">預期進度</div><div class="stat-formula">(今天−開始)÷(可販−開始)</div></div>
+        <div class="stat" title="差異 = 實際% − 預期%"><div class="stat-num">${diffStr}</div><div class="stat-label">差異</div><div class="stat-formula">實際−預期</div></div>
         <div class="stat"><div class="stat-num">${st.light}</div><div class="stat-label">燈號</div></div>
       </div>
       <div class="pdca-summary">
