@@ -420,7 +420,6 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .nwt-more > summary::-webkit-details-marker, .nwt-far > summary::-webkit-details-marker { display: none; }
 .nwt-more > summary::before, .nwt-far > summary::before { content: '▸ '; }
 .nwt-more[open] > summary::before, .nwt-far[open] > summary::before { content: '▾ '; }
-.nwt-scroll { max-height: 160px; overflow-y: auto; padding-right: 4px; }
 .nwt-far { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--rule); }
 .nwt-far-body { padding-top: 4px; }
 
