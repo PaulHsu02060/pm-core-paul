@@ -413,6 +413,16 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .nwt-unpin:hover { background: var(--surface2); }
 .nwt-row.nwt-pinned { background: var(--sage-50); border-radius: var(--r6); padding: 5px 8px; border-bottom: none; margin-bottom: 3px; }
 .nwt-empty { font-size: 11.5px; color: var(--ink3); font-style: italic; padding: 4px 0; }
+.nwt-proj-group { margin-bottom: 8px; }
+.nwt-proj-title { font-size: 12px; font-weight: 600; color: var(--ink); margin: 6px 0 4px; }
+.nwt-proj-count { font-size: 10.5px; font-weight: 400; color: var(--ink3); }
+.nwt-more > summary, .nwt-far > summary { cursor: pointer; font-size: 11px; color: var(--sage-700); padding: 3px 0; list-style: none; }
+.nwt-more > summary::-webkit-details-marker, .nwt-far > summary::-webkit-details-marker { display: none; }
+.nwt-more > summary::before, .nwt-far > summary::before { content: '▸ '; }
+.nwt-more[open] > summary::before, .nwt-far[open] > summary::before { content: '▾ '; }
+.nwt-scroll { max-height: 160px; overflow-y: auto; padding-right: 4px; }
+.nwt-far { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--rule); }
+.nwt-far-body { padding-top: 4px; }
 
 /* ─── MEMO ─── */
 .memo-board {

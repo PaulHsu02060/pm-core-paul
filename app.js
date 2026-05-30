@@ -1998,30 +1998,63 @@ App.unpinTaskFromWeek = function(taskId) {
   U.toast('已取消釘選');
 };
 
-// 【需求 A】下週待辦：列出被守門擋掉（預計開始日在本週之後、未釘選）的未來 task + 已釘選清單
+// 【需求 A】下週待辦：分專案顯示，一週內 top5+捲軸；更遠的另開摺疊；最後已釘選清單
 App.buildNextWeekTodoHtml = function() {
-  const sunday = D.addDays(D.monday(), 6);
+  const sunday = D.addDays(D.monday(), 6);             // 本週日（沿用現法，不碰日期函式本體）
+  const weekAfter = D.addDays(sunday, 7);              // 一週內上界：sunday < plannedStart <= sunday+7
   const pinnedIds = DATA.settings.pinnedWeekTaskIds || [];
   const projName = id => { const p = DATA.projects.find(x => x.id === id); return p ? p.name : ''; };
 
-  // 被守門擋掉、尚未釘選的未來 task（與 generateSchedule 守門條件對齊）
-  const future = DATA.tasks
-    .filter(t => !t._deleted && t.status !== 'done' && t.status !== 'hold'
-      && t.plannedStart && new Date(t.plannedStart) > sunday
-      && !pinnedIds.includes(t.id))
-    .sort((a, b) => new Date(a.plannedStart) - new Date(b.plannedStart));
+  // 基礎候選：未刪除·非done/hold·未釘選·預計開始日在本週之後（與守門條件對齊）
+  const base = DATA.tasks.filter(t => !t._deleted && t.status !== 'done' && t.status !== 'hold'
+    && t.plannedStart && new Date(t.plannedStart) > sunday
+    && !pinnedIds.includes(t.id));
+  const inWeek = t => new Date(t.plannedStart) <= weekAfter;
 
-  // 已釘選且仍存在的 task
-  const pinned = DATA.tasks.filter(t => !t._deleted && pinnedIds.includes(t.id));
+  // 依現有專案清單順序分組，組內 scoreTask 降冪（只呼叫，不改）
+  const groupBy = pred => DATA.projects.map(p => ({
+    proj: p,
+    tasks: base.filter(t => t.project === p.id && pred(t)).sort((a, b) => scoreTask(b) - scoreTask(a)),
+  })).filter(g => g.tasks.length > 0);
+  const weekGroups = groupBy(inWeek);
+  const farGroups  = groupBy(t => !inWeek(t));
 
-  const futureRows = future.map(t => `
+  const rowOf = t => `
     <div class="nwt-row">
       <span class="nwt-name">${U.esc(t.name)}</span>
-      <span class="nwt-proj">${U.esc(projName(t.project))}</span>
       <span class="nwt-date">${D.fmt(t.plannedStart, 'ymdShort')}</span>
       <button class="nwt-pin" data-edit onclick="App.pinTaskToWeek('${t.id}')">📌 釘選本週</button>
-    </div>`).join('') || '<div class="nwt-empty">本週無被延後的待辦</div>';
+    </div>`;
 
+  // 一週內：每專案 top5 常駐 + 其餘收進捲軸
+  const weekBlock = weekGroups.map(g => {
+    const top = g.tasks.slice(0, 5), rest = g.tasks.slice(5);
+    const restHtml = rest.length ? `
+      <details class="nwt-more">
+        <summary>展開其餘 ${rest.length} 項</summary>
+        <div class="nwt-scroll">${rest.map(rowOf).join('')}</div>
+      </details>` : '';
+    return `<div class="nwt-proj-group">
+      <div class="nwt-proj-title">${U.esc(g.proj.name)} <span class="nwt-proj-count">${g.tasks.length} 項</span></div>
+      ${top.map(rowOf).join('')}
+      ${restHtml}
+    </div>`;
+  }).join('') || '<div class="nwt-empty">本週無一週內的待辦</div>';
+
+  // 更遠（> 一週）：分專案、scoreTask 降冪、整塊預設收合
+  const farCount = farGroups.reduce((n, g) => n + g.tasks.length, 0);
+  const farBlock = farCount ? `
+    <details class="nwt-far">
+      <summary>📦 更遠的待辦（${farCount} 項，預計開始日 ${D.fmt(D.addDays(weekAfter, 1), 'md')} 以後）</summary>
+      <div class="nwt-far-body">${farGroups.map(g => `
+        <div class="nwt-proj-group">
+          <div class="nwt-proj-title">${U.esc(g.proj.name)} <span class="nwt-proj-count">${g.tasks.length} 項</span></div>
+          <div class="nwt-scroll">${g.tasks.map(rowOf).join('')}</div>
+        </div>`).join('')}</div>
+    </details>` : '';
+
+  // 已釘選清單（維持現狀，保留每列專案名）
+  const pinned = DATA.tasks.filter(t => !t._deleted && pinnedIds.includes(t.id));
   const pinnedBlock = pinned.length ? `
     <div class="nwt-subtitle">📌 已釘選本週（${pinned.length}）</div>
     ${pinned.map(t => `
@@ -2033,8 +2066,9 @@ App.buildNextWeekTodoHtml = function() {
     </div>`).join('')}` : '';
 
   return `<div class="next-week-todo">
-    <div class="nwt-head">📅 下週待辦 <span class="nwt-hint">（預計開始日在本週之後，未自動排入本週）</span></div>
-    ${futureRows}
+    <div class="nwt-head">📅 下週待辦 <span class="nwt-hint">（一週內 ${D.fmt(D.addDays(sunday, 1), 'md')}–${D.fmt(weekAfter, 'md')}）</span></div>
+    ${weekBlock}
+    ${farBlock}
     ${pinnedBlock}
   </div>`;
 };
