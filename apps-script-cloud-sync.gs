@@ -1,11 +1,11 @@
 /**
- * PM-Workspace · Cloud Sync API (v1.0)
+ * PM-Core · Cloud Sync API (v1.0)
  * ─────────────────────────────────────────────────────────
- * 跨裝置同步：把 PM-Workspace 全部資料存在一個 Google Sheet 裡，
+ * 跨裝置同步：把 PM-Core 全部資料存在一個 Google Sheet 裡，
  * 任何一台裝置都可以 GET / POST 同步。
  *
  * 使用方式：
- *   1. 新建一個 Google Sheet（命名隨意，例如 "PM-Workspace 雲端同步"）
+ *   1. 新建一個 Google Sheet（命名隨意，例如 "PM-Core 雲端同步"）
  *   2. 開啟「擴充功能」→「Apps Script」
  *   3. 把這段程式碼貼到 Code.gs（全選刪除原本內容）
  *   4. 替換下方 SHEET_ID 為你新建 Sheet 的 ID（從網址抓）
@@ -13,7 +13,7 @@
  *   5. 部署 → 新部署 → 類型「網頁應用程式」
  *      - 執行身分：我
  *      - 存取對象：任何人（必要，要不然外部不能呼叫）
- *   6. 取得部署 URL，貼到 PM-Workspace 設定頁
+ *   6. 取得部署 URL，貼到 PM-Core 設定頁
  *
  * 安全性說明：
  *   - 部署 URL 看似公開，但 URL 本身夠長（128 個字元），無法被猜到

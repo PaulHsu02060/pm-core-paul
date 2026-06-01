@@ -1,7 +1,7 @@
 /**
- * PM-Workspace · Web App API
+ * PM-Core · Web App API
  * ─────────────────────────────────────────────
- * 這個檔案是給 PM-Workspace 應用程式用的 API。
+ * 這個檔案是給 PM-Core 應用程式用的 API。
  *
  * 設計原則：
  *   - 所有變數、函式都加 PMW_ 前綴，避免和現有 .gs 檔案衝突
@@ -12,7 +12,7 @@
  *   1. 在現有 Apps Script Project 新增此檔案（檔名建議：web_app_pm.gs）
  *   2. Deploy → New deployment → Web app
  *   3. Execute as: Me / Who has access: Anyone
- *   4. 把得到的 Web App URL 設到 PM-Workspace 的「設定」頁
+ *   4. 把得到的 Web App URL 設到 PM-Core 的「設定」頁
  */
 
 // ─── 常數（PMW_ 前綴避免衝突） ───
@@ -20,7 +20,7 @@
 // 前提：本專案內也要有一份 config.gs／config.local 內容提供 APP_CONFIG。
 
 /**
- * GET API：回傳 J 系列 WBS 任務資料（JSON）
+ * GET API：回傳 WBS 任務資料（JSON）
  *
  * 注意：函式名稱必須叫 doGet，這是 Apps Script Web App 的固定入口。
  * 如果你的 Apps Script Project 已經有另一個 doGet，請看本檔案最下方說明。
@@ -135,18 +135,18 @@ function PMW_test() {
    ⚠️ 重要：如果你的 Apps Script Project 已經有 doGet
    ═══════════════════════════════════════════════════════
 
-   你的 J系列_WBS_自動化 Project 已經有 web_app.gs，
+   你的 WBS 自動化 Project 已經有 web_app.gs，
    裡面很可能已經有 doGet 函式。
    Apps Script 一個 Project 只能有「一個」 doGet 函式作為 Web App 入口。
 
    ──────────────────────────────────────────────────────
    做法 1：新建另一個 Apps Script Project（最簡單，推薦）
    ──────────────────────────────────────────────────────
-   1. 開 J系列 WBS 的 Google Sheet
+   1. 開 WBS 的 Google Sheet
    2. Extensions → Apps Script
-   3. 編輯器頂部會顯示「J系列_WBS_自動化」(原 project)
+   3. 編輯器頂部會顯示「你的 WBS 自動化」(原 project)
    4. 然後直接到 https://script.google.com → 點「新增專案」
-      新建一個叫「J系列_WBS_PM_API」的 project
+      新建一個叫「WBS_PM_API」的 project
    5. 用「資源 → 進階 Google 服務」或左側「資料庫」綁定到同一個 Sheet
       （或更簡單：用 SpreadsheetApp.openById('SHEET_ID_HERE') 替換
        SpreadsheetApp.getActiveSpreadsheet()，並把 SHEET_ID 填入）
@@ -165,7 +165,7 @@ function PMW_test() {
    改成：
 
        function doGet(e) {
-         // 用 URL 參數區分：?api=pm 走 PM-Workspace API
+         // 用 URL 參數區分：?api=pm 走 PM-Core API
          if (e && e.parameter && e.parameter.api === 'pm') {
            return PMW_handleGetRequest(e);
          }
@@ -174,6 +174,6 @@ function PMW_test() {
        }
 
    然後本檔案的 doGet 函式要拿掉（讓 PMW_handleGetRequest 從原 doGet 被呼叫）。
-   PM-Workspace 設定的網址要加 ?api=pm，例如：
+   PM-Core 設定的網址要加 ?api=pm，例如：
        https://script.google.com/macros/s/AKfy.../exec?api=pm
 */

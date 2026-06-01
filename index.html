@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PM-Workspace</title>
+<title>PM-Core</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&family=Caveat:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -17,7 +17,7 @@
 <!-- ─── LOGIN OVERLAY ─── -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
-    <div class="login-logo">PM-Workspace</div>
+    <div class="login-logo js-brand-name">PM-Core</div>
     <div class="login-sub">Personal Task Board</div>
 
     <!-- Google login mode (preferred) -->
@@ -51,7 +51,7 @@
 
   <aside class="sidebar">
     <div class="sb-brand">
-      <div class="sb-brand-mark">PM-Workspace</div>
+      <div class="sb-brand-mark js-brand-name">PM-Core</div>
       <div class="sb-brand-sub">Personal Task Board</div>
       <div class="sb-user-badge">
         <div class="sb-user-avatar" id="userAvatar">P</div>
@@ -96,7 +96,7 @@
       <div class="sb-sync-info" id="syncInfo" style="display:none; cursor:pointer;" data-edit onclick="Sync.syncJSeries()" title="點擊立即同步">
         <div class="dot"></div>
         <div style="flex:1; min-width:0;">
-          <div>J系列 已同步</div>
+          <div><span class="js-wbs-label">WBS</span> 已同步</div>
           <div class="sync-time" id="syncTime">尚未同步</div>
         </div>
         <div style="font-size:11px; color:var(--sage-600);">↻</div>
@@ -108,14 +108,14 @@
   <main class="main">
     <div class="topbar">
       <div>
-        <div class="tb-crumb"><span>PM-Workspace</span> / <b id="crumbPage">總儀表板</b></div>
+        <div class="tb-crumb"><span class="js-brand-name">PM-Core</span> / <b id="crumbPage">總儀表板</b></div>
         <div class="tb-title" id="pageTitle">總儀表板</div>
       </div>
       <div class="tb-spacer"></div>
       <div class="tb-meta-info">
         <span id="weekInfo"></span>
       </div>
-      <button class="tb-action ghost" id="topbarJSyncBtn" data-edit onclick="Sync.syncJSeries()" title="從 Google Sheet 同步 J 系列" style="display:none;">
+      <button class="tb-action ghost" id="topbarJSyncBtn" data-edit onclick="Sync.syncJSeries()" title="從 Google Sheet 同步 WBS" style="display:none;">
         🔗 立即同步
       </button>
       <button class="tb-action" data-edit onclick="App.generateGlobalSchedule()" title="針對所有任務產生本週智慧排程">

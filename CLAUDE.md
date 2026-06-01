@@ -1,4 +1,4 @@
-# pm-workspace-app 工作規則
+# PM-Core 工作規則
 
 純靜態單頁應用(no build step):`index.html` + `app.js` + `style.css`,資料存瀏覽器 localStorage,
 報表/匯出皆在 client 端產生。三台機器各自 `clone`,以 Git + GitHub 同步。

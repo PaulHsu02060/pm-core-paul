@@ -5961,6 +5961,14 @@ App.closeModal = function() {
 // ═══════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   App.init();
+  // 套用品牌/標籤（讀 CFG：本機顯真值、模板顯中性值）
+  const _appName = CFG('APP_NAME', 'PM-Core');
+  document.title = _appName;
+  document.querySelectorAll('.js-brand-name').forEach(el => el.textContent = _appName);
+  const _wbsLabel = CFG('WBS_LABEL', 'WBS');
+  document.querySelectorAll('.js-wbs-label').forEach(el => el.textContent = _wbsLabel);
+  const _jSyncBtn = document.getElementById('topbarJSyncBtn');
+  if (_jSyncBtn) _jSyncBtn.title = '從 Google Sheet 同步 ' + _wbsLabel;
   // ESC closes modal
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') App.closeModal();
