@@ -344,6 +344,12 @@ const D = {
     const day = x.getDay(); const diff = day === 0 ? -6 : 1 - day;
     x.setDate(x.getDate() + diff); return x;
   },
+  // 規劃週起算:週日視為「下一週」的開始;週一~週六與 monday() 完全一致
+  weekStart(d = new Date()) {
+    const x = new Date(d); x.setHours(0,0,0,0);
+    const day = x.getDay(); const diff = day === 0 ? 1 : 1 - day;
+    x.setDate(x.getDate() + diff); return x;
+  },
   weekNum(d = new Date()) {
     const target = new Date(d.valueOf());
     const dayNr = (d.getDay() + 6) % 7;
@@ -811,8 +817,8 @@ function dedupeMeetings(arr, sourceLabel) {
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
 function generateSchedule() {
   const { dailyHours, workStart1, workEnd1, workStart2, workEnd2, goldenTime, workDays, splitThreshold } = DATA.settings;
-  const monday = D.monday();
-  const weekKey = D.weekKey();
+  const monday = D.weekStart();
+  const weekKey = D.weekKey(D.weekStart());
 
   // Build available slots for each work day
   const slots = [];
