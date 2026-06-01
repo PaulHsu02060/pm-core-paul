@@ -32,7 +32,11 @@ const CLOUD_SHEET_NAME = 'data'; // 內部分頁名（自動建立）
 // 如不需要，把 ENABLE_TOKEN 改為 false
 // ═══════════════════════════════════════════════════════════════
 const ENABLE_TOKEN = true;
-const CHECK_TOKEN = 'pmw-paul-2026'; // ⚠️ 自訂你的 token
+// 與 app.js 的 cloudSyncToken 成對：改在函式內呼叫 _syncToken() 讀 APP_CONFIG.SYNC_TOKEN，
+// 避開 Apps Script 頂層載入順序問題；未載入時退回模板預設。
+function _syncToken() {
+  return (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.SYNC_TOKEN) || 'CHANGE_THIS_TOKEN';
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 不要動以下程式碼
@@ -42,7 +46,7 @@ function doGet(e) {
   try {
     if (ENABLE_TOKEN) {
       const token = e?.parameter?.token || '';
-      if (token !== CHECK_TOKEN) {
+      if (token !== _syncToken()) {
         return _json({ error: 'Invalid token' });
       }
     }
@@ -63,7 +67,7 @@ function doPost(e) {
     }
 
     if (ENABLE_TOKEN) {
-      if (body.token !== CHECK_TOKEN) {
+      if (body.token !== _syncToken()) {
         return _json({ error: 'Invalid token' });
       }
     }

@@ -16,7 +16,8 @@
  */
 
 // ─── 常數（PMW_ 前綴避免衝突） ───
-const PMW_SHEET_WBS = 'J系列整合WBS';
+// 注意：分頁名改在函式內讀（見 PMW_handleGetRequest），避開 Apps Script 頂層載入順序問題。
+// 前提：本專案內也要有一份 config.gs／config.local 內容提供 APP_CONFIG。
 
 /**
  * GET API：回傳 J 系列 WBS 任務資料（JSON）
@@ -33,6 +34,8 @@ function doGet(e) {
  */
 function PMW_handleGetRequest(e) {
   try {
+    // 函式被呼叫時才讀 APP_CONFIG（此時全域已初始化完畢）；未載入退回模板預設
+    const PMW_SHEET_WBS = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.WBS_SHEET_NAME) || 'WBS主表';
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(PMW_SHEET_WBS);
     if (!sheet) {

@@ -1,33 +1,49 @@
 /* ═══════════════════════════════════════════════════════════════════
- * PM-Workspace · Personal Task Board
+ * PM-Core · Personal Task Board
  * ───────────────────────────────────────────────────────────────────
- *  作者 (Author)        許勝堯 (Hsu Sheng-Yao)
- *  GitHub Username      PaulHsu02060
+ *  作者 (Author)        範例作者
+ *  GitHub Username      your-name
  *  共同開發 (Co-author) Anthropic Claude
- *  專案 Repo            github.com/PaulHsu02060/pm-workspace-app
- *  開發歷程            2026 年 5 月於 BingDian Air Tech 產品開發部
+ *  專案 Repo            github.com/your-name/your-repo
+ *  開發歷程            （公司/單位名稱）
  *                       手動需求 → AI 協作 → iterative refinement
  *  License             個人作品，禁止未經授權的商業使用
- *  簽章 (Build hash)    PMW-PaulHsu02060-2026
+ *  簽章 (Build hash)    PM-Core
  * ───────────────────────────────────────────────────────────────────
- *  本程式為許勝堯與 Claude (Anthropic) 共同開發的個人專案，
+ *  本程式為作者與 Claude (Anthropic) 共同開發的個人專案，
  *  歷經多輪需求設計、架構規劃、功能迭代後完成。
  *  完整開發記錄保存於 GitHub commit history。
  * ═══════════════════════════════════════════════════════════════════ */
 
 const APP_VERSION = '1.5.0';
-const APP_AUTHOR = '許勝堯 (PaulHsu02060)';
-const APP_BUILD_SIGNATURE = 'PMW-PaulHsu02060-2026';
+const APP_AUTHOR = CFG('AUTHOR', 'PM-Core');
+
+// ─── CONFIG READER ─────────────────────────────────────
+// 優先讀 APP_CONFIG（config.js 預設值 + config.local.js 本機覆蓋），
+// 未載入時退回中性 fallback，避免 config 尚未接上時整支壞掉。
+function CFG(key, fallback) {
+  return (typeof APP_CONFIG !== 'undefined' && APP_CONFIG[key] !== undefined)
+    ? APP_CONFIG[key] : fallback;
+}
+
+// 種子資料讀取：SEED_LOCAL（真值，不進 git）優先，否則 SEED_SAMPLE（假值模板）。
+function SEED(key, fallback) {
+  if (typeof SEED_LOCAL !== 'undefined' && SEED_LOCAL[key] !== undefined) return SEED_LOCAL[key];
+  if (typeof SEED_SAMPLE !== 'undefined' && SEED_SAMPLE[key] !== undefined) return SEED_SAMPLE[key];
+  return fallback;
+}
+
+const APP_BUILD_SIGNATURE = CFG('APP_BUILD_SIGNATURE', 'PM-Core');
 
 // ─── ADMIN / DEFAULT OAUTH ─────────────────────────────
-// Admin Gmail 名單：登入後能看到 J 系列同步等管理者功能
-// 非 admin 看不到也用不到（J 系列 Sheet 由公司權限自行管控）
-const ADMIN_EMAILS = ['shengyao1003@gmail.com'];
+// Admin Gmail 名單：登入後能看到 WBS 同步等管理者功能
+// 非 admin 看不到也用不到（WBS Sheet 由公司權限自行管控）
+const ADMIN_EMAILS = CFG('ADMIN_EMAILS', []);
 
 // 預設 OAuth Client ID：hardcode 在這，同事零設定就能 Google 登入
 // 安全性：OAuth Client ID 本來就是公開資訊，配 redirect_uri 白名單防呆
-// 來源：https://console.cloud.google.com/apis/credentials  (paulhsu02060.github.io)
-const DEFAULT_OAUTH_CLIENT_ID = '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com';
+// 來源：https://console.cloud.google.com/apis/credentials  (你的 GitHub Pages 網域)
+const DEFAULT_OAUTH_CLIENT_ID = CFG('OAUTH_CLIENT_ID', 'PASTE_YOUR_OAUTH_CLIENT_ID');
 
 // helper：當前登入的 Gmail 是不是 admin
 function isAdmin() {
@@ -37,7 +53,7 @@ function isAdmin() {
 
 // build hash 用於辨識：把作者名 + 重要常數 hash 起來
 // 任何人移除作者標記都會改變這個 hash → 可比對辨識
-console.log(`%c PM-Workspace v${APP_VERSION} `, 'background:#4A7C5C;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold', `by ${APP_AUTHOR} · build: ${APP_BUILD_SIGNATURE}`);
+console.log(`%c ${CFG('APP_NAME', 'PM-Core')} v${APP_VERSION} `, 'background:#4A7C5C;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold', `by ${APP_AUTHOR} · build: ${APP_BUILD_SIGNATURE}`);
 
 // ─── BRANCH-AWARE STORAGE ──────────────────────────────
 const PATH_KEY = location.pathname.replace(/\/index\.html?$/i, '').replace(/\/$/, '') || 'root';
@@ -74,12 +90,12 @@ const DEFAULT_SETTINGS = {
   syncTimes: ['09:00', '14:00'],
   autoSyncEnabled: false,
   // Google OAuth 白名單（只有這些 Gmail 登入後才能編輯）
-  allowedEmails: ['shengyao1003@gmail.com'],
+  allowedEmails: CFG('ALLOWED_EMAILS', []),
   googleClientId: '', // 由使用者在設定頁填入
 
   // ─── 雲端同步 (Cloud Sync via Google Apps Script) ───
   cloudSyncUrl: '',                      // Apps Script Web App URL
-  cloudSyncToken: 'pmw-paul-2026',       // 對應 Apps Script 的 CHECK_TOKEN
+  cloudSyncToken: CFG('SYNC_TOKEN', 'CHANGE_THIS_TOKEN'),  // = APP_CONFIG.SYNC_TOKEN，與 apps-script-cloud-sync.gs 的 CHECK_TOKEN 成對
   cloudSyncEnabled: true,                // 預設開啟（只要填了 URL 就會自動運作）
   cloudAutoSync: true,                   // 儲存後自動上傳
   cloudLastSync: '',                     // 最後同步時間（ISO）
@@ -91,13 +107,7 @@ const DEFAULT_SETTINGS = {
   // day: 0~6（週日 ~ 週六）— frequency 非 daily/allday 時使用
   // startDate: 開始日期（iso）— 雙週/三週時用來計算「第幾週」
   // endDate: 結束日期（iso，空=永久）
-  recurringMeetings: [
-    { id: 'rm_1', category: 'meeting', frequency: 'weekly', day: 2, start: '07:50', end: '10:00', title: '主管週會', startDate: '', endDate: '', enabled: true },
-    { id: 'rm_2', category: 'meeting', frequency: 'weekly', day: 2, start: '13:00', end: '14:00', title: '品管試驗進度', startDate: '', endDate: '', enabled: true },
-    { id: 'rm_3', category: 'meeting', frequency: 'weekly', day: 3, start: '09:00', end: '10:00', title: 'J系列週會', startDate: '', endDate: '', enabled: true },
-    { id: 'rm_4', category: 'cleaning', frequency: 'biweekly-allday', start: '07:50', end: '08:20', title: '輪值掃地（早）', startDate: '2026-05-25', endDate: '', enabled: true },
-    { id: 'rm_5', category: 'cleaning', frequency: 'biweekly', day: 5, start: '16:30', end: '17:00', title: '輪值掃地（下班前）', startDate: '2026-05-25', endDate: '', enabled: true },
-  ],
+  recurringMeetings: SEED('recurringMeetings', []),
   // 特定日期會議
   specialMeetings: [],
 };
@@ -154,7 +164,7 @@ const Storage = {
           if (!m.frequency) { m.frequency = 'weekly'; migrated = true; }
           if (m.startDate === undefined) { m.startDate = ''; migrated = true; }
           if (m.endDate === undefined) { m.endDate = ''; migrated = true; }
-          // 把舊的「輪值掃地（早）週一」升級為「整週每天」
+          // 把舊的「定期打掃（早）週一」升級為「整週每天」
           if (m.category === 'cleaning' && m.title && m.title.includes('早') && m.frequency === 'biweekly' && m.day === 1) {
             m.frequency = 'biweekly-allday';
             delete m.day; // allday 不需要 day
@@ -166,8 +176,7 @@ const Storage = {
         const hasCleaning = DATA.settings.recurringMeetings.some(m => m.category === 'cleaning');
         if (!hasCleaning) {
           DATA.settings.recurringMeetings.push(
-            { id: 'rm_cl_1', category: 'cleaning', frequency: 'biweekly-allday', start: '07:50', end: '08:20', title: '輪值掃地（早）', startDate: '2026-05-25', endDate: '', enabled: true },
-            { id: 'rm_cl_2', category: 'cleaning', frequency: 'biweekly', day: 5, start: '16:30', end: '17:00', title: '輪值掃地（下班前）', startDate: '2026-05-25', endDate: '', enabled: true }
+            ...SEED('cleaningDefaults', []).map(o => ({ ...o }))
           );
           migrated = true;
         }
@@ -421,7 +430,7 @@ function runMigrations() {
   const M = DATA.settings._migrations;
   let changed = false;
 
-  // pdcaMerge_v1：合併重複專案（搬 task + merge 大項目設定）、刪 G2、新增物料標準共用化
+  // pdcaMerge_v1：合併重複專案（搬 task + merge 大項目設定）、刪除/新增特定專案（規則由 seed 提供）
   if (!M.pdcaMerge_v1) {
     const byName = nm => DATA.projects.find(p => p.name === nm);
     const moveTasks = (fromId, toId) => DATA.tasks.forEach(t => { if (t.project === fromId) t.project = toId; });
@@ -439,26 +448,24 @@ function runMigrations() {
       if (DATA.pdcaGroups) delete DATA.pdcaGroups[pid];
     };
 
-    // 1. 除濕機合併：10L除濕機 的 task → 10L嵌入式除濕機(保留)，再刪 10L除濕機
-    const dKeep = byName('10L嵌入式除濕機'), dDrop = byName('10L除濕機');
-    if (dKeep && dDrop) { moveTasks(dDrop.id, dKeep.id); mergePdcaGroups(dDrop.id, dKeep.id); removeProject(dDrop.id); }
-
-    // 2. 熱泵合併：'70/156L 熱泵'(半形空格) 的 task → '70/156L熱泵'(無空格,保留)，再刪空格版
-    const hKeep = byName('70/156L熱泵'), hDrop = byName('70/156L 熱泵');
-    if (hKeep && hDrop) { moveTasks(hDrop.id, hKeep.id); mergePdcaGroups(hDrop.id, hKeep.id); removeProject(hDrop.id); }
-
-    // 3. 刪 美國向G2：連同其 task 一起真刪（不 merge）
-    const g2 = byName('美國向G2');
-    if (g2) { DATA.tasks = DATA.tasks.filter(t => t.project !== g2.id); removeProject(g2.id); }
-
-    // 4. 新增 物料標準共用化（id 用 U.id()，與使用者建立的專案同型；取未用色 + ensurePdcaData 空殼）
-    if (!DATA.projects.some(p => p.name === '物料標準共用化')) {
-      const used = new Set(DATA.projects.map(p => p.color));
-      const color = ['#5DCAA5', '#7F77DD', '#E0729B', '#54A0C7', '#C99A3C'].find(c => !used.has(c)) || '#5DCAA5';
-      const np = { id: U.id(), name: '物料標準共用化', color, note: '', synced: false, createdAt: new Date().toISOString() };
-      ensurePdcaData(np);
-      DATA.projects.push(np);
-    }
+    // 專案資料修正：合併 / 刪除 / 補建，規則由 seed 提供（projMerges / projDeletes / projEnsure）
+    SEED('projMerges', []).forEach(m => {
+      const keep = byName(m.keep), drop = byName(m.drop);
+      if (keep && drop) { moveTasks(drop.id, keep.id); mergePdcaGroups(drop.id, keep.id); removeProject(drop.id); }
+    });
+    SEED('projDeletes', []).forEach(d => {
+      const p = byName(d.name);
+      if (p) { DATA.tasks = DATA.tasks.filter(t => t.project !== p.id); removeProject(p.id); }
+    });
+    SEED('projEnsure', []).forEach(e => {
+      if (!DATA.projects.some(p => p.name === e.name)) {
+        const used = new Set(DATA.projects.map(p => p.color));
+        const color = (e.colorPool || []).find(c => !used.has(c)) || (e.colorPool && e.colorPool[0]) || '#5DCAA5';
+        const np = { id: U.id(), name: e.name, color, note: '', synced: false, createdAt: new Date().toISOString() };
+        ensurePdcaData(np);
+        DATA.projects.push(np);
+      }
+    });
 
     M.pdcaMerge_v1 = true;
     changed = true;
@@ -478,90 +485,10 @@ function runMigrations() {
     });
 
     // ── 六專案 INIT：pdcaData（時間軸/摘要）+ 要 seed 的 group meta ──
-    const INIT = {
-      'J系列WBS': {
-        startDate: '2025-11-03', targetDate: '2027-01-30',
-        summary: '手工機收尾、進入性試階段，長材備料三流程同步進行，2.2kW 另案開發待壓縮機與航嘉電控盒交期確認（預計 6/15 評估）',
-        groups: {
-          '航嘉EMI測試報告': { level: 'high', owner: '航嘉、Paul', recoveryMethod: '待提供後才能更換EMI商檢機物料和送樣' },
-          '性試DVT': { level: 'high', owner: 'Paul', recoveryMethod: '5/27內部DR討論，6/5召開服務DR' },
-          '電控盒散熱器開模': { level: 'high', owner: '龍哥、航嘉', recoveryMethod: '5/29提供3D圖檔給航嘉，1週內完成DFM並報價' },
-          'S/R機隔板線路連接板開模': { level: 'high', owner: '龍哥', recoveryMethod: '7/30完成開模，8/6流C上線' },
-        },
-      },
-      '10L嵌入式除濕機': {
-        startDate: '2025-12-15', targetDate: '2026-09-01',
-        summary: '面板模具修復完畢。ETC要求規格資料跟催中。預計取得強制性認證，9/1 上市',
-        groups: {
-          '商檢認證': { level: 'high', owner: '彥斌、家銘', recoveryMethod: '跟催廠商提供規格書和樣品照片' },
-          '模具與部品': { level: 'low', owner: '堂哥', recoveryMethod: '面板模具已修復完畢' },
-          '量產移行會前會': { level: 'med', owner: '英洲', recoveryMethod: '' },
-          '量產組立': { level: 'low', owner: '營業', recoveryMethod: '按7/1量產組立排程執行' },
-        },
-      },
-      '70/156L熱泵': {
-        startDate: '', targetDate: '',
-        summary: '量試70/156L各10台備料中。整體時程目標待補。',
-        groups: {
-          '量試備料': { level: 'med', owner: 'Paul', recoveryMethod: '水桶、線材、板金樣購，5/30前備料完成', recoveryDate: '2026-05-30' },
-          '馬達線長修正': { level: 'med', owner: 'Paul', recoveryMethod: '馬達線長度規格修正' },
-        },
-      },
-      '三菱電梯冷氣': {
-        startDate: '', targetDate: '',
-        summary: '等OST提供新版線控軟體+客戶測試樣品5/29交付',
-        groups: {
-          'OST線控軟體更新': { level: 'high', owner: 'Paul、OST Jeff', recoveryMethod: 'OST 5/29應提供未提供，5/30再催，6/2未到升級處理', recoveryDate: '2026-06-02' },
-          '客戶測試': { level: 'med', owner: 'OST Jeff', recoveryMethod: '5/29前提供測試樣品給客戶' },
-        },
-      },
-      'VRF專案': {
-        startDate: '', targetDate: '2026-04-30',
-        summary: '技術文件初稿4月初提供，商檢需求文件陸續更新中',
-        groups: {
-          '技術文件': { level: 'med', owner: 'Paul、王惠美', recoveryMethod: '技術手冊依進度持續更新' },
-          '商檢認證': { level: 'med', owner: '王惠美、蔡育豪', recoveryMethod: '4/30可販前完成商檢需求文件', recoveryDate: '2026-04-30' },
-        },
-      },
-      '物料標準共用化': {
-        startDate: '', targetDate: '',
-        summary: '冷凝器規格整併+螺絲規格整併立案，5/29預計完成變更通知書',
-        groups: {
-          '設變檢討書輸出': { level: 'med', owner: '許勝堯、陳龍生', recoveryMethod: '原1/30推遲到5/29，目標5/29完成變更通知書', recoveryDate: '2026-05-29' },
-          '回覽變更通知導入': { level: 'med', owner: '許勝堯', recoveryMethod: 'Q66+AC69區段執行回覽' },
-          '效益分析下一輪': { level: 'low', owner: '許勝堯', recoveryMethod: '未完成項目資料收集與檢討（目標26/9）', recoveryDate: '2026-09-30' },
-        },
-      },
-    };
+    const INIT = SEED('INIT', {});
 
     // ── 關鍵字歸類表：每專案陣列「由上到下＝優先序」，先對先設後 break；沒對到留 '' ──
-    const KEYWORDS = {
-      'J系列WBS': [
-        ['電控盒散熱器開模', ['散熱器', '開模', '採購付款']],
-        ['航嘉EMI測試報告', ['航嘉', 'EMI', '電控盒樣品', '一條龍', '圖面', 'DFM', 'PCB', '射出外殼']],
-        ['性試DVT', ['性試', '性能試', '手工機DR', 'DVT', '溫昇', '噪音', '安規', '移行', '性能試驗']],
-        ['S/R機隔板線路連接板開模', ['隔板', '線路連接板', '冰點', '試模']],
-      ],
-      '10L嵌入式除濕機': [
-        ['量產移行會前會', ['移行', '會前會']],
-        ['商檢認證', ['商檢', '認證', '規格書', '樣品照片', '強制性', 'MIT', '能效']],
-        ['模具與部品', ['模具', '部品', '面板']],
-        ['量產組立', ['量產', '組立']],
-      ],
-      '70/156L熱泵': [
-        ['量試備料', ['備料', '樣購', '水桶', '線材', '板金', 'IQC']],
-        ['馬達線長修正', ['馬達線長', '線長', '投資損益', '瑞智', 'DR討論', 'BOM跟催', '規格書']],
-      ],
-      '三菱電梯冷氣': [
-        ['OST線控軟體更新', ['線控', '軟體', 'OST', '設計DR']],
-        ['客戶測試', ['客戶測試', '測試樣品']],
-      ],
-      'VRF專案': [
-        ['技術文件', ['技術', '手冊', '文件']],
-        ['商檢認證', ['商檢', '認證']],
-      ],
-      // 物料標準共用化：task 數 0，無歸類表
-    };
+    const KEYWORDS = SEED('KEYWORDS', {});
 
     Object.keys(INIT).forEach(name => {
       const proj = findProj(name);
@@ -635,7 +562,7 @@ function eventOccursOnDate(event, dateIso) {
   }
 
   // ─── biweekly-allday / triweekly-allday: 隔週/隔兩週的「整週每天」 ───
-  // 用途：例如輪值掃地是「我那週的每一天早上」都要做
+  // 用途：例如定期打掃是「我那週的每一天早上」都要做
   // 規則：從 startDate 那週起算，每隔 2 週（或 3 週）的「週一到週五」都觸發
   if (freq === 'biweekly-allday' || freq === 'triweekly-allday') {
     const start = event.startDate ? new Date(event.startDate) : new Date('2026-01-01');
@@ -1032,7 +959,7 @@ function generateSchedule() {
   return { taskCount: candidates.length, scheduledCount: items.length, lockedCount: 0 };
 }
 
-// === J 系列本地時程覆蓋（抽象層） ===
+// === WBS 本地時程覆蓋（抽象層） ===
 const J_OVERRIDE_FIELDS = ['start', 'end'];
 
 function isJTask(task) {
@@ -1112,7 +1039,7 @@ const Sync = {
       return;
     }
     this.syncing = true;
-    if (!silent) U.toast('🔄 正在同步 J 系列...');
+    if (!silent) U.toast('🔄 正在同步 ' + CFG('WBS_LABEL', 'WBS') + '...');
 
     try {
       const res = await fetch(url, { method: 'GET' });
@@ -1120,11 +1047,11 @@ const Sync = {
       const data = await res.json();
       if (!data.tasks || !Array.isArray(data.tasks)) throw new Error('回應格式錯誤');
 
-      // Find or create J系列 project
+      // Find or create WBS project
       let jProj = DATA.projects.find(p => p.synced && p.syncSource === 'jSheet');
       if (!jProj) {
         jProj = {
-          id: U.id(), name: 'J系列 WBS', color: '#4A7C5C',
+          id: U.id(), name: CFG('WBS_PROJECT_NAME', 'WBS 專案'), color: CFG('WBS_PROJECT_COLOR', '#4A7C5C'),
           note: '從 Google Sheet 自動同步',
           synced: true, syncSource: 'jSheet',
           createdAt: new Date().toISOString(),
@@ -1209,7 +1136,7 @@ const Sync = {
 
       Storage.save();
       if (!silent) {
-        U.toast(`✅ J 系列已同步 (${data.tasks.length} 項任務)`, 'success');
+        U.toast(`✅ ${CFG('WBS_LABEL', 'WBS')}已同步 (${data.tasks.length} 項任務)`, 'success');
       }
       App.refreshAll();
     } catch (e) {
@@ -1413,7 +1340,7 @@ const App = {
 
       // 個人獨立模式：所有 Google 登入都進入 editor 模式
       // 資料以 Gmail 區分（透過 localStorage 命名空間），各看各的
-      // J 系列同步等 admin 功能由 isAdmin() 控制，不再依賴白名單擋人
+      // WBS 同步等 admin 功能由 isAdmin() 控制，不再依賴白名單擋人
 
       // 通過 → 編輯模式
       DATA.settings.userName = name;
@@ -1533,7 +1460,7 @@ const App = {
       </button>`;
     }).join('');
 
-    // Update sync info display (僅 admin 顯示 J 系列同步徽章 + 頂部立即同步按鈕)
+    // Update sync info display (僅 admin 顯示 WBS 同步徽章 + 頂部立即同步按鈕)
     const log = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
     const syncInfo = document.getElementById('syncInfo');
     const topbarBtn = document.getElementById('topbarJSyncBtn');
@@ -1694,7 +1621,7 @@ App.renderDashboard = function() {
                 <li>⏰ <b>deadline 逼近度</b>：已逾期 +500 起（每超時 1 天再 +10）· 剩 1 天內 +400 · 3 天內 +250 · 7 天內 +120 · 14 天內 +50；沒有預計完成日 −20</li>
                 <li>🔴 <b>緊急程度</b>：緊急 +300 · 普通 +100 · 不急 +0</li>
                 <li>▶ <b>進行中加分</b>：狀態為「進行中」+80</li>
-                <li>🔗 <b>同步任務微加分</b>：來自 J 系列同步 +5</li>
+                <li>🔗 <b>同步任務微加分</b>：來自 ${CFG('WBS_LABEL', 'WBS')}同步 +5</li>
               </ul>
               <p class="sr-note">附註：分數只決定「誰先排」，不決定「排幾小時」——實際排程時數另看任務的預計工時（estHours）。</p>
             </div>
@@ -3060,10 +2987,10 @@ App.resetJOverride = function(id) {
 App.resetAllJOverrides = function() {
   const list = getAllJOverrides();
   if (list.length === 0) {
-    U.toast('目前沒有本地覆蓋的 J 系列時程');
+    U.toast('目前沒有本地覆蓋的 ' + CFG('WBS_LABEL', 'WBS') + '時程');
     return;
   }
-  if (!confirm(`確定要重置 ${list.length} 筆 J 系列任務的本地時程？此操作不可復原。`)) return;
+  if (!confirm(`確定要重置 ${list.length} 筆 ${CFG('WBS_LABEL', 'WBS')}任務的本地時程？此操作不可復原。`)) return;
   list.forEach(o => {
     const task = DATA.tasks.find(t => t.id === o.id);
     if (task) {
@@ -3075,7 +3002,7 @@ App.resetAllJOverrides = function() {
   });
   Storage.save();
   this.refreshAll();
-  U.toast(`↺ 已重置 ${list.length} 筆 J 系列時程`);
+  U.toast(`↺ 已重置 ${list.length} 筆 ${CFG('WBS_LABEL', 'WBS')}時程`);
 };
 
 App.deleteTask = function(id) {
@@ -3104,7 +3031,7 @@ App.openProjectDialog = function(projId) {
     body: `
       <div class="form-field">
         <label>專案名稱 *</label>
-        <input type="text" id="pf-name" value="${editing ? U.esc(editing.name) : ''}" placeholder="e.g. 熱泵水桶">
+        <input type="text" id="pf-name" value="${editing ? U.esc(editing.name) : ''}" placeholder="e.g. ${CFG('PROJECT_INPUT_EXAMPLE', '範例品項')}">
       </div>
       <div class="form-field">
         <label>顏色</label>
@@ -3983,7 +3910,7 @@ App.exportReportExcel = async function(weekKey, opts) {
 
   // ── 建立 ExcelJS workbook ───────────────────────────────
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = DATA.settings.userName || 'PM-Workspace';
+  workbook.creator = DATA.settings.userName || CFG('APP_NAME', 'PM-Core');
   workbook.created = new Date();
 
   const FONT = { name: '新細明體', size: 12 };
@@ -4510,7 +4437,7 @@ App.togglePdcaSubtasks = function(btn) {
   if (open) this._pdcaOpenGroups.add(key); else this._pdcaOpenGroups.delete(key);
 };
 
-// 子任務改歸類：只寫 task.pdcaGroup（歸類標籤），不碰 name/status/estHours/時程，不碰 J系列同步
+// 子任務改歸類：只寫 task.pdcaGroup（歸類標籤），不碰 name/status/estHours/時程，不碰 WBS 同步
 App.updatePdcaTaskGroup = function(el) {
   const taskId = el.dataset.task;
   const t = (DATA.tasks || []).find(x => x.id === taskId && !x._deleted);
@@ -4637,12 +4564,12 @@ App.renderSettings = function() {
   document.getElementById('page-settings').innerHTML = `
     <div class="settings-grid">
 
-      <!-- Sync (J 系列同步：僅 admin 顯示) -->
+      <!-- Sync (WBS 同步：僅 admin 顯示) -->
       ${isAdmin() ? `
       <div class="settings-section" id="settings-jsync">
-        <div class="ss-title">🔗 J 系列 WBS 同步 <span style="font-size:11px; background:var(--sage-100); color:var(--sage-700); padding:2px 8px; border-radius:10px; margin-left:8px;">👑 ADMIN</span></div>
-        <div class="ss-desc">從公司「J 系列整合 WBS」Sheet 唯讀同步任務（每天 2 次 + 同步後自動執行智慧排程）<br>
-          <span style="color:var(--ink4); font-size:11.5px;">⚠️ 僅限產品開發部使用，需 J 系列 Sheet 的讀取權限</span>
+        <div class="ss-title">🔗 ${CFG('WBS_LABEL', 'WBS')} WBS 同步 <span style="font-size:11px; background:var(--sage-100); color:var(--sage-700); padding:2px 8px; border-radius:10px; margin-left:8px;">👑 ADMIN</span></div>
+        <div class="ss-desc">從公司「${CFG('WBS_LABEL', 'WBS')}整合 WBS」Sheet 唯讀同步任務（每天 2 次 + 同步後自動執行智慧排程）<br>
+          <span style="color:var(--ink4); font-size:11.5px;">⚠️ 僅限${CFG('COMPANY_NAME', 'My Company')}使用，需 ${CFG('WBS_LABEL', 'WBS')} Sheet 的讀取權限</span>
         </div>
 
         ${s.jSheetUrl ? `<div class="sync-status ${syncOk ? '' : 'error'}">
@@ -4654,9 +4581,9 @@ App.renderSettings = function() {
         </div>` : ''}
 
         <div class="ss-field">
-          <label>J 系列 Apps Script URL</label>
+          <label>${CFG('WBS_LABEL', 'WBS')} Apps Script URL</label>
           <div>
-            <input type="text" id="set-url" value="${U.esc(s.jSheetUrl || '')}" placeholder="https://script.google.com/macros/s/.../exec  (J 系列 WBS API)" style="font-family:var(--mono); font-size:11px;">
+            <input type="text" id="set-url" value="${U.esc(s.jSheetUrl || '')}" placeholder="https://script.google.com/macros/s/.../exec  (${CFG('WBS_LABEL', 'WBS')} WBS API)" style="font-family:var(--mono); font-size:11px;">
             <div class="help">由你或 RD 部署 Apps Script 後取得（部署方式見 README）</div>
           </div>
         </div>
@@ -4697,12 +4624,12 @@ App.renderSettings = function() {
 
         <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
           <button class="tb-action" onclick="App.saveAndSync()">↻ 儲存設定並立即同步</button>
-          <button class="tb-action ghost" onclick="App.resetAllJOverrides()">↺ 重置所有 J 系列本地時程</button>
+          <button class="tb-action ghost" onclick="App.resetAllJOverrides()">↺ 重置所有 ${CFG('WBS_LABEL', 'WBS')}本地時程</button>
         </div>
 
         <div class="tip" style="margin-top:14px;">
           <b>同步邏輯說明：</b><br>
-          • J 系列任務在 PM-Workspace 為<b>唯讀</b>，如需修改請至 Google Sheet<br>
+          • ${CFG('WBS_LABEL', 'WBS')}任務在 ${CFG('APP_NAME', 'PM-Core')} 為<b>唯讀</b>，如需修改請至 Google Sheet<br>
           • 衝突原則：<b>以 Sheet 為準</b>，本地修改會被覆蓋<br>
           • 同步完成後<b>自動執行智慧排程</b>，確保資料一致<br>
           • 已完成任務同步進「已完成」區，超過 ${s.doneRetentionDays} 天自動清除
@@ -4790,7 +4717,7 @@ App.renderSettings = function() {
 
         <div class="ss-field">
           <label>部門</label>
-          <div><input type="text" id="set-dept" value="${U.esc(s.department || '')}" placeholder="e.g. 產品開發部"></div>
+          <div><input type="text" id="set-dept" value="${U.esc(s.department || '')}" placeholder="e.g. 研發部"></div>
         </div>
       </div>
 
@@ -4841,14 +4768,14 @@ App.renderSettings = function() {
             <div class="help">
               留空時自動使用內建預設值（同事零設定即可登入）<br>
               如要自訂：到 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--sage-600);">Google Cloud Console</a> 建立 OAuth 2.0 Client ID（Web application 類型）<br>
-              授權的 JavaScript 來源加入：<code style="background:var(--surface2); padding:1px 5px; border-radius:3px;">https://paulhsu02060.github.io</code>
+              授權的 JavaScript 來源加入：<code style="background:var(--surface2); padding:1px 5px; border-radius:3px;">https://your-name.github.io</code>
             </div>
           </div>
         </div>
         ` : `
         <div style="padding:12px 14px; background:var(--surface2); border-radius:6px; font-size:12px; color:var(--ink3); line-height:1.6;">
           💡 你的資料以 Gmail 區分，完全獨立。<br>
-          • 想跨裝置同步：到下方「☁ PM-Workspace 跨裝置同步」設定<br>
+          • 想跨裝置同步：到下方「☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步」設定<br>
           • 想本機備份：到下方「📦 資料管理」下載 JSON 備份
         </div>
         `}
@@ -4874,8 +4801,8 @@ App.renderSettings = function() {
 
       <!-- 雲端同步 -->
       <div class="settings-section">
-        <div class="ss-title">☁ PM-Workspace 跨裝置同步</div>
-        <div class="ss-desc">透過你自己的 Google Sheet + Apps Script，把 PM-Workspace 個人資料同步到多台裝置<br>
+        <div class="ss-title">☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步</div>
+        <div class="ss-desc">透過你自己的 Google Sheet + Apps Script，把 ${CFG('APP_NAME', 'PM-Core')} 個人資料同步到多台裝置<br>
           <span style="color:var(--ink4); font-size:11.5px;">📋 首次使用：你需要建立自己的 Sheet + 部署 Apps Script，每人資料完全獨立</span>
         </div>
 
@@ -4905,7 +4832,7 @@ App.renderSettings = function() {
         <div class="ss-field">
           <label>同步 Token</label>
           <div>
-            <input type="text" id="set-cloud-token" value="${U.esc(s.cloudSyncToken || 'pmw-paul-2026')}" placeholder="pmw-paul-2026" style="font-family:var(--mono); font-size:12px;">
+            <input type="text" id="set-cloud-token" value="${U.esc(s.cloudSyncToken || CFG('SYNC_TOKEN', 'CHANGE_THIS_TOKEN'))}" placeholder="${CFG('SYNC_TOKEN', 'CHANGE_THIS_TOKEN')}" style="font-family:var(--mono); font-size:12px;">
             <div class="help">必須與 Apps Script 內的 CHECK_TOKEN 一致</div>
           </div>
         </div>
@@ -4932,7 +4859,7 @@ App.renderSettings = function() {
           3. 把 <code>apps-script-cloud-sync.gs</code> 內容貼上、修改 SHEET_ID + Token<br>
           4. 部署 → 網頁應用程式（執行身分：我；存取對象：任何人）<br>
           5. 取得 URL 貼到上方欄位，按「啟用」+「儲存所有設定」<br>
-          6. 在第二台裝置打開 PM-Workspace、設定一樣的 URL + Token → 自動同步 ✨
+          6. 在第二台裝置打開 ${CFG('APP_NAME', 'PM-Core')}、設定一樣的 URL + Token → 自動同步 ✨
         </div>
       </div>
 
@@ -4967,9 +4894,9 @@ App.renderSettings = function() {
         </div>
       </div>
 
-      <!-- 關於 PM-Workspace -->
+      <!-- 關於 ${CFG('APP_NAME', 'PM-Core')} -->
       <div class="settings-section">
-        <div class="ss-title">ℹ️ 關於 PM-Workspace</div>
+        <div class="ss-title">ℹ️ 關於 ${CFG('APP_NAME', 'PM-Core')}</div>
         <div style="display:grid; grid-template-columns: 130px 1fr; gap:10px 16px; font-size:13px; line-height:1.7; padding:8px 0;">
           <div style="color:var(--ink3);">版本</div>
           <div><b>v${APP_VERSION}</b> <span style="font-family:var(--mono); font-size:11px; color:var(--ink3); margin-left:8px;">${APP_BUILD_SIGNATURE}</span></div>
@@ -4979,12 +4906,12 @@ App.renderSettings = function() {
           <div>Anthropic Claude (AI 協作)</div>
           <div style="color:var(--ink3);">開發歷程</div>
           <div style="color:var(--ink2); font-size:12.5px; line-height:1.6;">
-            2026 年 5 月於 BingDian Air Tech 產品開發部開發。<br>
+            2026 年 5 月於 ${CFG('COMPANY_NAME', 'My Company')}開發。<br>
             從需求設計、架構規劃到功能迭代，全程由人工主導 + AI 協作完成。<br>
             完整 commit history 保存於 GitHub repo。
           </div>
           <div style="color:var(--ink3);">Repo</div>
-          <div><a href="https://github.com/PaulHsu02060/pm-workspace-app" target="_blank" style="color:var(--sage-700); text-decoration:underline;">github.com/PaulHsu02060/pm-workspace-app</a></div>
+          <div><a href="${CFG('REPO_URL', 'https://github.com/your-name/your-repo')}" target="_blank" style="color:var(--sage-700); text-decoration:underline;">${CFG('REPO_URL', 'https://github.com/your-name/your-repo')}</a></div>
           <div style="color:var(--ink3);">授權</div>
           <div style="color:var(--ink2); font-size:12px;">個人作品，禁止未經授權的商業使用</div>
         </div>
@@ -5195,7 +5122,7 @@ App.openRecurringMeetingDialog = function(id) {
         </div>
         <div class="form-field" style="flex:2;">
           <label>名稱 *</label>
-          <input type="text" id="mtform-title" value="${U.esc(cur.title)}" placeholder="例：J 系列週會 / 輪值掃地">
+          <input type="text" id="mtform-title" value="${U.esc(cur.title)}" placeholder="例：每週會議 / 定期打掃">
         </div>
       </div>
       <div class="form-row">
@@ -5460,16 +5387,16 @@ App.openExcelImport = function() {
         匯入「週會進度」Excel，<b style="color:var(--sage-700);">智慧合併</b>：
         <br>• 同名任務（同專案 + 同議題項目）→ 更新狀態 / 日期 / 延誤理由
         <br>• Excel 新任務 → 自動新增
-        <br>• PM-Workspace 已有但 Excel 沒有的 → <b>保留不動</b>
+        <br>• ${CFG('APP_NAME', 'PM-Core')} 已有但 Excel 沒有的 → <b>保留不動</b>
       </div>
 
       <div style="margin-bottom:14px; padding:10px 14px; background:var(--surface2); border:1px solid var(--rule); border-radius:8px;">
         <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12.5px;">
           <input type="checkbox" id="excelImportSkipJ" style="width:16px; height:16px; cursor:pointer;">
-          <span><b>跳過 J 系列任務</b>（預設：不跳過，全部一起合併）</span>
+          <span><b>跳過 ${CFG('WBS_LABEL', 'WBS')}任務</b>（預設：不跳過，全部一起合併）</span>
         </label>
         <div style="font-size:11px; color:var(--ink3); margin-top:6px; margin-left:24px;">
-          勾起 → J 系列由 Google Sheet 同步管理 / 不勾 → Excel 為準
+          勾起 → ${CFG('WBS_LABEL', 'WBS')}由 Google Sheet 同步管理 / 不勾 → Excel 為準
         </div>
       </div>
 
@@ -5522,7 +5449,7 @@ App.openExcelImport = function() {
           // 重新計算 skipped 旗標
           const skipJ = skipJBox.checked;
           for (const r of App._excelParsedRows) {
-            r.skipped = skipJ && r.projDisplay.includes('J系列');
+            r.skipped = skipJ && r.projDisplay.includes(CFG('WBS_SKIP_KEYWORD', 'WBS'));
           }
           App.renderExcelImportPreview();
         }
@@ -5543,12 +5470,9 @@ App.parseExcelImport = async function(file) {
     function mapProj(name) {
       if (!name) return '';
       const s = String(name).trim().replace(/\s+/g, '').replace(/[（(].*?[）)]/g, '');
-      if (s.includes('J系列')) return 'J系列 WBS';
-      if (s.includes('三菱')) return '三菱電梯冷氣';
-      if (s.includes('10L') || s.includes('除濕')) return '10L除濕機';
-      if (s.includes('熱泵') || s.includes('70') || s.includes('156')) return '70/156L熱泵';
-      if (s.includes('VRF')) return 'VRF專案';
-      if (s.includes('美國') || s.includes('G2')) return '美國向G2';
+      for (const a of SEED('projAliases', [])) {
+        if ((a.includes || []).some(k => s.includes(k))) return a.name;
+      }
       return s;
     }
 
@@ -5621,7 +5545,7 @@ App.parseExcelImport = async function(file) {
           delayReason: delay ? String(delay).trim() : '',
           owner: owner ? String(owner).trim() : '',
           note: note ? String(note).trim() : '',
-          skipped: (document.getElementById('excelImportSkipJ')?.checked && projDisplay.includes('J系列')) || false,
+          skipped: (document.getElementById('excelImportSkipJ')?.checked && projDisplay.includes(CFG('WBS_SKIP_KEYWORD', 'WBS'))) || false,
         });
       }
     }
@@ -5647,7 +5571,7 @@ App.renderExcelImportPreview = function() {
   const projects = new Set(rows.filter(r => !r.skipped).map(r => r.projDisplay));
 
   document.getElementById('excelImportStats').innerHTML =
-    `<b>${App._excelTotalWeeks}</b> 個週次　|　共 <b>${rows.length}</b> 筆　|　<b style="color:var(--sage-700);">${toImport}</b> 將匯入　|　<b style="color:var(--ink4);">${skipped}</b> J系列跳過　|　<b>${projects.size}</b> 個專案`;
+    `<b>${App._excelTotalWeeks}</b> 個週次　|　共 <b>${rows.length}</b> 筆　|　<b style="color:var(--sage-700);">${toImport}</b> 將匯入　|　<b style="color:var(--ink4);">${skipped}</b> ${CFG('WBS_LABEL', 'WBS')}跳過　|　<b>${projects.size}</b> 個專案`;
 
   const tbl = document.getElementById('excelImportTable');
   let html = `<thead style="position:sticky; top:0; background:var(--sage-50);"><tr>
@@ -5697,12 +5621,9 @@ App.performExcelImport = function() {
   for (const p of DATA.projects) projMap[p.name] = p;
 
   function getProjColor(name) {
-    if (name.includes('J系列')) return '#4A7C5C';
-    if (name.includes('三菱')) return '#C4633E';
-    if (name.includes('10L')) return '#5C7A8B';
-    if (name.includes('熱泵')) return '#8B5E73';
-    if (name.includes('VRF')) return '#C4956C';
-    if (name.includes('美國')) return '#B8504D';
+    for (const c of SEED('projColors', [])) {
+      if ((c.includes || []).some(k => name.includes(k))) return c.color;
+    }
     return '#7E796D';
   }
 
@@ -5948,7 +5869,7 @@ App.backupAll = function() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `pm-workspace-backup-${D.fmt(new Date(),'ymd').replace(/\//g,'-')}.json`;
+  a.download = `${CFG('APP_NAME', 'PM-Core').toLowerCase()}-backup-${D.fmt(new Date(),'ymd').replace(/\//g,'-')}.json`;
   a.click();
   URL.revokeObjectURL(url);
   U.toast('✓ 備份已下載');
@@ -5986,7 +5907,7 @@ App.clearAll = function() {
 // ─── ONBOARDING (新使用者第一次登入時的引導) ───
 App.showOnboarding = function() {
   this.openModal({
-    title: '🎉 歡迎使用 PM-Workspace',
+    title: '🎉 歡迎使用 ' + CFG('APP_NAME', 'PM-Core'),
     body: `
       <div style="font-size:13px; line-height:1.7; color:var(--ink2);">
         <p>這是 <b>${U.esc(DATA.settings.userName || '你')}</b> 的個人任務管理工作區。</p>
@@ -5999,7 +5920,7 @@ App.showOnboarding = function() {
             需要建立自己的 Google Sheet 當儲存空間（5 分鐘設定 / 完全免費 / 資料 100% 屬於你）。
           </div>
           <div style="font-size:12px; color:var(--ink4); margin-top:8px;">
-            ⚙ 之後到「設定 → PM-Workspace 跨裝置同步」依步驟設定即可
+            ⚙ 之後到「設定 → ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步」依步驟設定即可
           </div>
         </div>
 
