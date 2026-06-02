@@ -1,0 +1,154 @@
+/**
+ * 工作日計算 — 測試案例（階段2 新核心）
+ * ─────────────────────────────────────────────────────────────
+ * 執行：node docs/test-workday-cases.js
+ * 會逐案印出 PASS / FAIL，最後印總計；全過 exit code 0，有失敗 exit code 1。
+ *
+ * ⚠ 重要：下方 D 物件是 app.js 中 `const D` 的「同步複本」（只含工作日相關 4 個方法 + fmt）。
+ *   app.js 不是 module、且載入時會碰 document/window，node 無法直接 require，
+ *   所以這裡複製一份供獨立驗證。若改了 app.js 的 isWorkday/workdaysBetween/addWorkdays 邏輯，
+ *   請務必同步更新這裡，否則測試會驗到舊邏輯。
+ *
+ * ⚠ 時區：本檔所有日期都用 d('YYYY-MM-DD') 以「本地時間」建構（new Date(y, m-1, day)），
+ *   並把 Date 物件（非字串）餵進函式，避免 new Date('YYYY-MM-DD') 被當 UTC 午夜解析、
+ *   在非 UTC+8 時區 getDay()/getDate() 偏一天的坑。在家裡（UTC+8）跑結果一致。
+ */
+
+// ── 假的 DATA（提供 workDays；預設週一~五，JS getDay() 編號 0=日..6=六） ──
+const DATA = { settings: { workDays: [1, 2, 3, 4, 5] } };
+
+// ── D 物件同步複本（與 app.js 一致） ──────────────────────────────
+const D = {
+  fmt(d, opt = 'md') {
+    if (!d) return '';
+    const dt = d instanceof Date ? d : new Date(d);
+    if (isNaN(dt)) return '';
+    const y = dt.getFullYear(), m = dt.getMonth() + 1, day = dt.getDate();
+    if (opt === 'iso') return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return `${m}/${day}`;
+  },
+  calendar: { holidays: [], supplementWorkDays: [] },
+  isWorkday(date) {
+    const iso = this.fmt(date, 'iso');
+    if (!iso) return false;
+    if (this.calendar.supplementWorkDays.includes(iso)) return true;  // 補班 → 上班
+    if (this.calendar.holidays.includes(iso)) return false;           // 放假 → 不上班
+    const dt = date instanceof Date ? date : new Date(date);
+    const workDays = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.workDays) || [1, 2, 3, 4, 5];
+    return workDays.includes(dt.getDay());
+  },
+  workdaysBetween(start, end) {
+    const s = start instanceof Date ? new Date(start) : new Date(start);
+    const e = end instanceof Date ? new Date(end) : new Date(end);
+    if (isNaN(s) || isNaN(e)) return 0;
+    s.setHours(0, 0, 0, 0);
+    e.setHours(0, 0, 0, 0);
+    if (s > e) return 0;
+    let count = 0;
+    for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+      if (this.isWorkday(d)) count++;
+    }
+    return count;
+  },
+  addWorkdays(date, n) {
+    const d = date instanceof Date ? new Date(date) : new Date(date);
+    if (isNaN(d)) return d;
+    d.setHours(0, 0, 0, 0);
+    if (!n) return d;
+    const step = n > 0 ? 1 : -1;
+    let remaining = Math.abs(n);
+    while (remaining > 0) {
+      d.setDate(d.getDate() + step);
+      if (this.isWorkday(d)) remaining--;
+    }
+    return d;
+  },
+};
+
+// ── 工具 ──────────────────────────────────────────────────────
+// 用「本地時間」建構 Date，避免 UTC 解析時區坑
+function d(s) { const [y, m, day] = s.split('-').map(Number); return new Date(y, m - 1, day); }
+const iso = (x) => D.fmt(x, 'iso');
+
+// ── 注入測試用行事曆 ────────────────────────────────────────────
+// 2026-01-01 元旦（週四）放假；2026-02-07（週六）補班。
+// 註：company 類型（如 2026-01-08 尾牙）後端不會收進任何陣列，故這裡兩個陣列都不含它，
+//     用來驗證「company 事件日照常上班」。
+D.calendar.holidays = ['2026-01-01'];            // 元旦（週四）
+D.calendar.supplementWorkDays = ['2026-02-07'];  // 補班（週六）
+
+// ── 測試框架 ──────────────────────────────────────────────────
+let pass = 0, fail = 0;
+function check(name, got, expected, why) {
+  const ok = String(got) === String(expected);
+  if (ok) pass++; else fail++;
+  const tag = ok ? 'PASS' : 'FAIL';
+  console.log(`[${tag}] ${name}`);
+  console.log(`       got=${got}  expected=${expected}`);
+  console.log(`       why: ${why}`);
+}
+
+console.log('===== 1. isWorkday =====');
+check('平日（2026-01-05 週一）', D.isWorkday(d('2026-01-05')), true,
+  '週一在 workDays，非假日 → 上班');
+check('週末（2026-01-03 週六）', D.isWorkday(d('2026-01-03')), false,
+  '週六不在 workDays，也非補班 → 不上班');
+check('補班的週六（2026-02-07）', D.isWorkday(d('2026-02-07')), true,
+  '在 supplementWorkDays，優先序最高 → 即使週六也上班');
+check('放假的平日（2026-01-01 元旦 週四）', D.isWorkday(d('2026-01-01')), false,
+  '在 holidays → 即使是平日也不上班');
+check('company 事件日（2026-01-08 尾牙 週四）', D.isWorkday(d('2026-01-08')), true,
+  'company 類型不進任何陣列；週四在 workDays → 照常上班');
+
+console.log('\n===== 2. workdaysBetween（含頭含尾） =====');
+check('同一天工作日（01-05~01-05）', D.workdaysBetween(d('2026-01-05'), d('2026-01-05')), 1,
+  '含頭含尾，單一工作日 → 1');
+check('整週一~五（01-05~01-09）', D.workdaysBetween(d('2026-01-05'), d('2026-01-09')), 5,
+  '週一到週五 5 個工作日');
+check('含週末區間（01-05~01-11）', D.workdaysBetween(d('2026-01-05'), d('2026-01-11')), 5,
+  '週一到週日，扣掉六日 → 仍 5');
+check('含國定假日區間（01-01~01-04）', D.workdaysBetween(d('2026-01-01'), d('2026-01-04')), 1,
+  '元旦(四,假)不算、六日不算，只剩 01-02(五) → 1');
+check('含補班週六區間（02-02~02-08）', D.workdaysBetween(d('2026-02-02'), d('2026-02-08')), 6,
+  '02-02~02-06 平日 5 天 + 02-07 補班六 1 天，02-08 週日不算 → 6');
+check('start>end（01-09~01-05）', D.workdaysBetween(d('2026-01-09'), d('2026-01-05')), 0,
+  '無效區間（起>迄）依定義回 0');
+
+console.log('\n===== 3. addWorkdays（起算日不算入 n） =====');
+check('n=0（01-05）', iso(D.addWorkdays(d('2026-01-05'), 0)), '2026-01-05',
+  'n=0 回起算日當天');
+check('n=1 次一工作日（01-05 一 → 01-06 二）', iso(D.addWorkdays(d('2026-01-05'), 1)), '2026-01-06',
+  '週一往後 1 個工作日 = 週二');
+check('跨週末（01-09 五 +1 → 01-12 一）', iso(D.addWorkdays(d('2026-01-09'), 1)), '2026-01-12',
+  '週五往後 1 個工作日要跳過六日 → 下週一');
+check('跨假日（12-31 三 +1 → 01-02 五）', iso(D.addWorkdays(d('2025-12-31'), 1)), '2026-01-02',
+  '隔天 01-01 是元旦假日要跳過 → 01-02 週五');
+check('n 為負往前（01-05 一 -1 → 01-02 五）', iso(D.addWorkdays(d('2026-01-05'), -1)), '2026-01-02',
+  '週一往前 1 個工作日要跳過六日 → 上週五');
+
+console.log('\n===== 4. ⚠ 排程語意（避免 off-by-one） =====');
+// 排程引擎換算：工期 N 天、從 start 開始，end = addWorkdays(start, N-1)。
+// 因為起算日「本身算第 1 天」，所以只要再往後 N-1 個工作日。
+{
+  const start = d('2026-01-05'); // 週一
+  const N = 3;
+  const end = D.addWorkdays(start, N - 1);
+  check('工期3天 週一開始 → 週三（N-1 換算）', iso(end), '2026-01-07',
+    'end=addWorkdays(週一, 3-1=2)=週三；start 當天算第1天，故用 N-1');
+  check('  回算 workdaysBetween 應 = N', D.workdaysBetween(start, end), N,
+    'workdaysBetween(start, addWorkdays(start, N-1)) 必須等於工期 N，兩函式互為反運算');
+}
+{
+  // 跨週末版：工期3天 從週五開始 → 五、一、二
+  const start = d('2026-01-09'); // 週五
+  const N = 3;
+  const end = D.addWorkdays(start, N - 1);
+  check('工期3天 週五開始 → 次週二（跨週末）', iso(end), '2026-01-13',
+    '五(第1天)→一(第2天)→二(第3天)；end=addWorkdays(週五,2)=01-13');
+  check('  回算 workdaysBetween 應 = N', D.workdaysBetween(start, end), N,
+    '跨週末也成立：workdaysBetween(01-09,01-13)=3');
+}
+
+console.log('\n===== 結果 =====');
+console.log(`PASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
+process.exit(fail === 0 ? 0 : 1);

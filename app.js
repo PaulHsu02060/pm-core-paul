@@ -395,6 +395,63 @@ const D = {
     const da = new Date(a), db = new Date(b);
     return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
   },
+
+  // ─── 工作日曆 + 工作日計算（階段2 新核心）──────────────────────
+  // 行事曆資料由後端 API（行事曆分頁）於啟動時填入；預設空陣列，
+  // 無資料時自動退回「只認週末」行為（換 Sheet 沒建分頁也不會壞）。
+  // holidays / supplementWorkDays 皆為 'YYYY-MM-DD' 字串陣列。
+  // 行事曆分頁三欄：日期(YYYY-MM-DD) / 類型(holiday=放假, workday=補班, company=公司事件) / 說明。
+  // company 及任何未知類型不放進這兩個陣列，不影響工作日判斷（照常上班）。
+  calendar: { holidays: [], supplementWorkDays: [] },
+
+  // 是否為工作日。判斷優先序：補班日 > 放假日 > 設定頁 workDays。
+  // workDays 用 JS 原生 getDay() 編號（0=日,1=一,…,6=六；預設 [1,2,3,4,5] 週一~五）。
+  isWorkday(date) {
+    const iso = this.fmt(date, 'iso');
+    if (!iso) return false;
+    // a. 補班日 → 一定上班（即使落在週末）
+    if (this.calendar.supplementWorkDays.includes(iso)) return true;
+    // b. 放假日 → 一定不上班（即使落在平日）
+    if (this.calendar.holidays.includes(iso)) return false;
+    // c. 否則照設定頁 workDays 判斷（無 DATA 時退回週一~五）
+    const dt = date instanceof Date ? date : new Date(date);
+    const workDays = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.workDays) || [1, 2, 3, 4, 5];
+    return workDays.includes(dt.getDay());
+  },
+
+  // 區間工作日數（含頭含尾，逐日 isWorkday 計數）。
+  // 邊界：同一天且為工作日 → 1；start > end → 回 0（無效區間視為 0）；日期無法解析 → 回 0。
+  workdaysBetween(start, end) {
+    const s = start instanceof Date ? new Date(start) : new Date(start);
+    const e = end instanceof Date ? new Date(end) : new Date(end);
+    if (isNaN(s) || isNaN(e)) return 0;
+    s.setHours(0, 0, 0, 0);
+    e.setHours(0, 0, 0, 0);
+    if (s > e) return 0;
+    let count = 0;
+    for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+      if (this.isWorkday(d)) count++;
+    }
+    return count;
+  },
+
+  // 從 date 起算 n 個工作日後的日期（排程引擎用）。
+  // 不把起算日本身算進 n：從次一日起往指定方向找，數到第 n 個工作日為止。
+  // n > 0 往後、n < 0 往前、n = 0 回傳起算日當天（正規化為 00:00，不檢查是否工作日）。
+  // 回傳新的 Date 物件（00:00）。
+  addWorkdays(date, n) {
+    const d = date instanceof Date ? new Date(date) : new Date(date);
+    if (isNaN(d)) return d;
+    d.setHours(0, 0, 0, 0);
+    if (!n) return d;
+    const step = n > 0 ? 1 : -1;
+    let remaining = Math.abs(n);
+    while (remaining > 0) {
+      d.setDate(d.getDate() + step);
+      if (this.isWorkday(d)) remaining--;
+    }
+    return d;
+  },
 };
 
 // ─── PDCA 報告：資料模型（方式 1 — 任務掛 pdcaGroup，大項目動態聚合）───
@@ -739,6 +796,275 @@ function dedupeMeetings(arr, sourceLabel) {
     }
   }
   return Array.from(map.values());
+}
+
+// ═══ 階段2 排程引擎 ═══════════════════════════════════════════════
+// 解析 predecessor 前置任務字串 → [{dep, type, lag}]
+// 支援兩種格式（同一字串可用逗號/分號分隔多個前置，可混用）：
+//   1. 純編號：'5' 或 '5,6'        → {dep:'5', type:'FS', lag:0}
+//   2. 含關係：'5FS+2' / '5SS-1'   → 完整解析 type(FS/SS/FF/SF) + lag(正負整數)
+// 規則：
+//   - 空字串 / null / undefined → []
+//   - type 不分大小寫，統一轉大寫；非 FS/SS/FF/SF 的未知關係 → 退回 'FS'
+//   - lag 可帶 +/-（容忍空白，如 '+ 2'），無 lag → 0；lag 解析失敗 → 0
+//   - dep 一律回字串（task.wbs 可能是數字或字串，實際比對時再正規化）
+//   - 無法解析出 dep（無數字開頭）的片段 → 跳過，不報錯
+function parsePredecessors(str) {
+  if (str === null || str === undefined) return [];
+  const s = String(str).trim();
+  if (!s) return [];
+  const VALID = ['FS', 'SS', 'FF', 'SF'];
+  const out = [];
+  // 以半形/全形逗號或分號分隔多個前置
+  const parts = s.split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    // dep(數字) + 可選 type(2 字母) + 可選 lag(+/- 數字，容忍空白)
+    const m = part.match(/^(\d+)\s*([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
+    if (!m) continue;                          // 無法解析（非數字開頭）→ 跳過
+    const dep = m[1];
+    let type = (m[2] || 'FS').toUpperCase();
+    if (!VALID.includes(type)) type = 'FS';    // 未知關係 → FS
+    let lag = 0;
+    if (m[3]) {
+      const n = parseInt(m[3].replace(/\s+/g, ''), 10);
+      lag = isNaN(n) ? 0 : n;
+    }
+    out.push({ dep, type, lag });
+  }
+  return out;
+}
+
+// 偵測 task 是否被前置任務擋住（甲：衝突偵測地基；只偵測 + 回報，不改任何日期）
+// @param task        要檢查的任務
+// @param allTasksMap 以 wbs 為 key 的查找表（Map 或 plain object 皆可；value = task）
+// @return {blocked:boolean, reasons:[{dep, type, conflict}]}
+//   conflict（固定字串，方便顯示與測試比對）：
+//     '前置不存在' | '前置未完成' | '日期衝突'
+//   同一前置可能同時「未完成」+「日期衝突」→ 產生多筆 reason。
+// 日期衝突依關係類型判定（lag 以工作日計，套在「前置參考日」上後比較）：
+//   FS 本任務 start 不得早於 前置 end  的次一工作日 (+1+lag)  ← 只有 FS 跳一天
+//   SS 本任務 start 不得早於 前置 start(+lag)
+//   FF 本任務 end   不得早於 前置 end  (+lag)
+//   SF 本任務 end   不得早於 前置 start(+lag)
+//   參考日任一為空 → 跳過日期檢查（留待排程引擎推算），不視為衝突。
+function isTaskBlocked(task, allTasksMap) {
+  const result = { blocked: false, reasons: [] };
+  if (!task) return result;
+  const preds = parsePredecessors(task.predecessor);
+  if (preds.length === 0) return result;
+
+  // 同時支援 Map 與 plain object 當查找表
+  const lookup = (key) => {
+    if (!allTasksMap) return undefined;
+    const k = String(key);
+    if (typeof allTasksMap.get === 'function') return allTasksMap.get(k) || allTasksMap.get(key);
+    return allTasksMap[k];
+  };
+
+  for (const p of preds) {
+    const dep = lookup(p.dep);
+    // 1. 前置不存在
+    if (!dep) {
+      result.reasons.push({ dep: p.dep, type: p.type, conflict: '前置不存在' });
+      continue;
+    }
+    // 2. 前置未完成
+    if (dep.status !== 'done') {
+      result.reasons.push({ dep: p.dep, type: p.type, conflict: '前置未完成' });
+    }
+    // 3. 日期衝突（依關係類型；參考日任一為空則跳過）
+    const taskRefStr = (p.type === 'FF' || p.type === 'SF') ? task.end : task.start;
+    const predRefStr = (p.type === 'SS' || p.type === 'SF') ? dep.start : dep.end;
+    if (taskRefStr && predRefStr) {
+      // 只有 FS 是「起點(SOD) ≥ 終點(EOD)」→ 同日不成立，需跳次一工作日(+1)；
+      // SS/FF/SF 端點同層級(SOD≥SOD / EOD≥EOD / EOD≥SOD)當日即成立，不 +1。
+      // 此 fsBump 讓偵測門檻與 computeSchedule 的推算門檻完全同尺。
+      const fsBump = (p.type === 'FS') ? 1 : 0;
+      const predShifted = D.addWorkdays(new Date(predRefStr), p.lag + fsBump);
+      const taskRef = new Date(taskRefStr);
+      // predShifted 晚於 taskRef（正天數）→ 本任務排太早 → 違反
+      if (D.daysBetween(taskRef, predShifted) > 0) {
+        result.reasons.push({ dep: p.dep, type: p.type, conflict: '日期衝突' });
+      }
+    }
+  }
+  result.blocked = result.reasons.length > 0;
+  return result;
+}
+
+// 步驟4 第一段：依賴圖 + 拓撲排序 + 循環偵測（不算日期，computeSchedule 第二段會用）
+// 節點 id = String(task.wbs)；邊 = parsePredecessors(task.predecessor) 的每個 dep → 本任務。
+// @param tasks 任務陣列
+// @return {
+//   order:    [wbs,...]      拓撲順序（前置在前、依賴在後；不含 circular 節點）
+//   circular: [wbs,...]      落在環上的節點（標 error:'circular'，排程時跳過）
+//   nodes:    Map<wbs,task>  節點查找表
+//   edges:    Map<wbs,[{dep,type,lag}...]>  每個節點「已存在於圖中」的前置邊
+// }
+// 三色 DFS：white(未訪) / gray(訪問中，在堆疊上) / black(完成)。
+//   訪問中又遇到 gray 節點 → 有環；直接環 A→B→A 與間接環 A→B→C→A 都會在重遇 gray 時抓到。
+//   只把「環上節點」(gray 重遇點 → 堆疊頂這一段) 標 circular，不誤標單純「依賴環的上游」。
+//   用迭代式 DFS（顯式堆疊）避免大圖遞迴爆堆疊。
+function topoSortTasks(tasks) {
+  const list = (tasks || []).filter(t => t && t.wbs !== '' && t.wbs !== undefined && t.wbs !== null);
+  const nodes = new Map();
+  for (const t of list) nodes.set(String(t.wbs), t);
+
+  // 邊：本任務 → 它的前置；只保留 dep 存在於 nodes 的邊。
+  // 不存在的前置不影響拓撲（由 isTaskBlocked 另報「前置不存在」）。
+  const edges = new Map();
+  for (const t of list) {
+    const preds = parsePredecessors(t.predecessor).filter(p => nodes.has(String(p.dep)));
+    edges.set(String(t.wbs), preds);
+  }
+
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Map();
+  for (const k of nodes.keys()) color.set(k, WHITE);
+  const order = [];
+  const circular = new Set();
+
+  function visit(startKey) {
+    const stack = [{ key: startKey, i: 0 }];   // i = 下一個要處理的前置 index
+    color.set(startKey, GRAY);
+    while (stack.length) {
+      const top = stack[stack.length - 1];
+      const preds = edges.get(top.key) || [];
+      if (top.i < preds.length) {
+        const depKey = String(preds[top.i].dep);
+        top.i++;
+        const c = color.get(depKey);
+        if (c === WHITE) {
+          color.set(depKey, GRAY);
+          stack.push({ key: depKey, i: 0 });
+        } else if (c === GRAY) {
+          // 環：標記 depKey..堆疊頂 這一段（正好是環上節點）
+          let onCycle = false;
+          for (const f of stack) {
+            if (f.key === depKey) onCycle = true;
+            if (onCycle) circular.add(f.key);
+          }
+        }
+        // BLACK：已完成，略過
+      } else {
+        color.set(top.key, BLACK);
+        if (!circular.has(top.key)) order.push(top.key);   // 環上節點不進 order
+        stack.pop();
+      }
+    }
+  }
+
+  for (const k of nodes.keys()) {
+    if (color.get(k) === WHITE) visit(k);
+  }
+
+  return { order, circular: Array.from(circular), nodes, edges };
+}
+
+// 步驟4 第二段：排程本體（中間版，純計算，不寫回 task）
+// 依拓撲順序逐個算「建議 start/end + 警示」，blocked 沿鏈污染傳遞。
+// 日期推算（lag 一律用工作日 D.addWorkdays）：
+//   FS impliedStart = addWorkdays(前置 end,   1 + lag)   // 次一工作日起算，再 +lag
+//   SS impliedStart = addWorkdays(前置 start, lag)
+//   FF impliedEnd   = addWorkdays(前置 end,   lag) → start = addWorkdays(end, -(dur-1))
+//   SF impliedEnd   = addWorkdays(前置 start, lag) → start = addWorkdays(end, -(dur-1))
+//   多前置：各自換算成 impliedStart，取最晚（max）。
+//   end = addWorkdays(start, dur - 1)；dur = durationDays（至少 1）。
+// 優先序：①手填 start（尊重不覆蓋，算 end + isTaskBlocked 警示，不 block）
+//        ②無手填但前置污染（circular / 已 blocked / 待排 / 無日期）→ 本 task 也 blocked，不推算
+//        ③無手填、前置正常 → 依關係推算
+//        ④無手填、無前置 → 標 toSchedule（待排）
+// @return { results:[{wbs,taskId,name,suggestedStart,suggestedEnd,blocked,error,toSchedule,blockedCause,warnings}],
+//           circular:[wbs], hasCircular }
+function computeSchedule(tasks) {
+  const { order, circular, nodes } = topoSortTasks(tasks);
+  const byWbs = new Map();   // wbs -> result（供連鎖污染查前置）
+  const results = [];
+
+  const iso = (d) => D.fmt(d, 'iso');
+  const durOf = (t) => Math.max(1, parseFloat(t.durationDays) || 1);
+  const ident = (t) => ({ wbs: (t.wbs === undefined || t.wbs === null) ? '' : t.wbs, taskId: t.id, name: t.name || '' });
+
+  // 1. 先標 circular 節點（讓下游污染查得到）
+  for (const wbs of circular) {
+    const t = nodes.get(wbs);
+    byWbs.set(wbs, { ...ident(t), suggestedStart: null, suggestedEnd: null,
+      blocked: true, error: 'circular', toSchedule: false, blockedCause: 'circular',
+      warnings: ['循環依賴：此任務在依賴環上，無法排程'] });
+  }
+
+  function processTask(t) {
+    const fullPreds = parsePredecessors(t.predecessor);
+    const preds = fullPreds.filter(p => nodes.has(String(p.dep)));
+    const missingWarn = fullPreds.filter(p => !nodes.has(String(p.dep)))
+      .map(p => `前置 #${p.dep} 不存在`);
+    const dur = durOf(t);
+
+    // ① 手填 start：最高優先，尊重不覆蓋（即使上游有問題也不 block，只警示）
+    if (t.start) {
+      const end = iso(D.addWorkdays(new Date(t.start), dur - 1));
+      const b = isTaskBlocked(t, nodes);
+      const warns = b.reasons.map(r => `前置 #${r.dep}(${r.type}) ${r.conflict}`);
+      return { ...ident(t), suggestedStart: t.start, suggestedEnd: end,
+        blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: warns };
+    }
+
+    // ② 連鎖污染：前置 circular / 已 blocked / 待排 / 無日期 → 本 task 也 blocked
+    const pollutedWarn = [];
+    let pollutedCause = null;
+    for (const p of preds) {
+      const pr = byWbs.get(String(p.dep));
+      if (!pr) continue;
+      if (pr.error === 'circular' || pr.blockedCause === 'circular') {
+        pollutedWarn.push(`前置 #${p.dep} 無法排程（上游循環）`);
+        pollutedCause = 'circular';
+      } else if (pr.blocked || pr.toSchedule || !pr.suggestedStart) {
+        pollutedWarn.push(`前置 #${p.dep} 尚未排程（上游待排）`);
+        if (!pollutedCause) pollutedCause = 'unscheduled';
+      }
+    }
+    if (pollutedWarn.length) {
+      return { ...ident(t), suggestedStart: null, suggestedEnd: null,
+        blocked: true, error: null, toSchedule: false, blockedCause: pollutedCause,
+        warnings: pollutedWarn.concat(missingWarn) };
+    }
+
+    // ③ 無 start、前置正常：依關係換算 impliedStart，取最晚
+    if (preds.length > 0) {
+      let latest = null;
+      for (const p of preds) {
+        const pr = byWbs.get(String(p.dep));
+        const ps = new Date(pr.suggestedStart);
+        const pe = new Date(pr.suggestedEnd);
+        let s;
+        if (p.type === 'SS') s = D.addWorkdays(ps, p.lag);
+        else if (p.type === 'FF') s = D.addWorkdays(D.addWorkdays(pe, p.lag), -(dur - 1));
+        else if (p.type === 'SF') s = D.addWorkdays(D.addWorkdays(ps, p.lag), -(dur - 1));
+        else s = D.addWorkdays(pe, 1 + p.lag);   // FS（parsePredecessors 已把未知關係正規化為 FS）
+        if (latest === null || s > latest) latest = s;
+      }
+      return { ...ident(t), suggestedStart: iso(latest), suggestedEnd: iso(D.addWorkdays(latest, dur - 1)),
+        blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
+    }
+
+    // ④ 無 start、無前置：待排
+    return { ...ident(t), suggestedStart: null, suggestedEnd: null,
+      blocked: false, error: null, toSchedule: true, blockedCause: null,
+      warnings: ['待排：無前置且未填開始日'].concat(missingWarn) };
+  }
+
+  // 2. 圖內節點按拓撲順序處理
+  for (const wbs of order) byWbs.set(wbs, processTask(nodes.get(wbs)));
+
+  // 3. 整理輸出：order → circular → 非圖內任務（無 wbs，例如手填任務）
+  for (const wbs of order) results.push(byWbs.get(wbs));
+  for (const wbs of circular) results.push(byWbs.get(wbs));
+  for (const t of (tasks || [])) {
+    if (!t) continue;
+    if (t.wbs === '' || t.wbs === undefined || t.wbs === null) results.push(processTask(t));
+  }
+
+  return { results, circular: circular.slice(), hasCircular: circular.length > 0 };
 }
 
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
@@ -1108,13 +1434,18 @@ const Sync = {
           name: row.name || `任務 ${row.n}`,
           desc: row.stage ? `${row.stage} / ${row.subgroup || ''}` : (row.subgroup || ''),
           owner: row.owner || '',
+          // ─ 階段2 排程引擎欄位 ─
+          predecessor: row.precedence || '',  // 後端「前置任務」欄；格式解析見 parsePredecessors
+          wbs: row.n,                          // WBS 序號（同步任務以此為 WBS 識別）
+          parentWbsId: '',                     // 子綁父；待 Sheet WBS 階層格式確認後填，先留空不亂猜
           start: effectiveStart,           // 用實際的覆蓋預計
           end: effectiveEnd,                // 用實際的覆蓋預計
           plannedStart: row.plannedStart || '', // 保留預計日期供顯示
           plannedEnd: row.plannedEnd || '',
           actualStart: row.actualStart || '',
           actualEnd: row.actualEnd || '',
-          estHours: parseFloat(row.workdays || 0) * 6 || 4,
+          durationDays: parseFloat(row.workdays) || 0,  // Sheet「工期」欄＝工作天數；排程 end=addWorkdays(start, n-1)
+          estHours: parseFloat(row.workdays || 0) * 6 || 4,  // 暫沿用（工時負荷引擎的小時來源待引擎2再定，今天不動）
           category: row.type === '里程碑' ? 'meeting' : 'deep',
           urgency: deduceUrgency(row),
           status: realStatus,
@@ -2575,6 +2906,9 @@ App.quickAddTask = function(projId, input) {
     category: 'deep',
     estHours: 1,
     canSplit: false,
+    predecessor: '',   // 階段2 排程引擎：前置任務編碼（見 parsePredecessors）
+    wbs: '',           // 階段2：WBS 識別
+    parentWbsId: '',   // 階段2：子綁父
     start: '',
     end: '',
     status: 'pending',
@@ -2689,6 +3023,9 @@ App.saveNewTask = function(projId) {
     start: document.getElementById('tf-start').value,
     end: document.getElementById('tf-end').value,
     estHours: parseFloat(document.getElementById('tf-hours').value) || 1,
+    predecessor: '',   // 階段2 排程引擎：前置任務編碼（見 parsePredecessors）；UI 輸入欄後續再加
+    wbs: '',           // 階段2：WBS 識別
+    parentWbsId: '',   // 階段2：子綁父
     method: document.getElementById('tf-method').value.trim(),
     note: document.getElementById('tf-note').value.trim(),
     canSplit: document.getElementById('tf-split').checked,

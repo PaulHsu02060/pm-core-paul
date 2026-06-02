@@ -80,10 +80,17 @@ function PMW_handleGetRequest(e) {
       });
     }
 
+    // 讀「行事曆」分頁（防呆：分頁不存在 / 空 → 空陣列，不報錯）
+    const calendar = PMW_getCalendar(ss);
+
     return PMW_jsonResponse({
       tasks,
+      holidays: calendar.holidays,                     // YYYY-MM-DD 字串陣列（放假）
+      supplementWorkDays: calendar.supplementWorkDays,  // YYYY-MM-DD 字串陣列（補班）
       meta: {
         sheetName: PMW_SHEET_WBS,
+        calendarSheetName: calendar.sheetName,
+        calendarCount: calendar.holidays.length + calendar.supplementWorkDays.length,
         totalRows: tasks.length,
         syncedAt: new Date().toISOString(),
         version: 'pmw-1.0',
@@ -106,6 +113,57 @@ function PMW_fmtDate(v) {
     return `${y}-${m}-${d}`;
   }
   return String(v);
+}
+
+/**
+ * 讀「行事曆」分頁，整理成 holidays[] / supplementWorkDays[]。
+ *
+ * 行事曆分頁格式（每列一筆，A/B/C 三欄；第 1 列為標題，從第 2 列起讀）：
+ *   A 日期 (YYYY-MM-DD)
+ *   B 類型 (holiday=放假 / workday=補班 / company=公司事件)
+ *   C 說明 (文字，如 元旦、補班、尾牙)
+ *
+ * 分類規則（前端 D.isWorkday 的判斷依據）：
+ *   - holiday            → holidays[]            （放假；isWorkday 回 false）
+ *   - workday            → supplementWorkDays[]  （補班；isWorkday 回 true，即使週末）
+ *   - company 及未知類型 → 都不收進兩個陣列        （不影響工作日判斷，照常上班）
+ *   類型比對前先 trim + 轉小寫，容忍前後空白與大小寫差異。
+ *
+ * 防呆：分頁不存在 / 只有標題列 / 全空 → 回空陣列，不丟錯
+ *      （換公司套新 Sheet、還沒建分頁時也能正常跑）。
+ *
+ * @param {Spreadsheet} ss  目前的試算表物件
+ * @return {{holidays: string[], supplementWorkDays: string[], sheetName: string}}
+ */
+function PMW_getCalendar(ss) {
+  // 分頁名可由 config 覆寫；預設「行事曆」
+  const PMW_SHEET_CAL = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.CALENDAR_SHEET_NAME) || '行事曆';
+  const empty = { holidays: [], supplementWorkDays: [], sheetName: PMW_SHEET_CAL };
+
+  const sheet = ss.getSheetByName(PMW_SHEET_CAL);
+  if (!sheet) return empty;            // 分頁不存在 → 空（不報錯）
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return empty;       // 只有標題列或完全空白 → 空
+
+  // 讀 A2:C{lastRow}（日期 / 類型 / 說明）。多出來的欄不讀，未來加欄不會破壞。
+  const values = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+
+  const holidays = [];
+  const supplementWorkDays = [];
+  for (let i = 0; i < values.length; i++) {
+    const dateStr = PMW_fmtDate(values[i][0]);   // 統一成 YYYY-MM-DD（Date 或字串都吃）
+    if (!dateStr) continue;                       // 沒日期的列略過
+    const type = String(values[i][1] || '').trim().toLowerCase();
+    if (type === 'holiday') {
+      holidays.push(dateStr);
+    } else if (type === 'workday') {
+      supplementWorkDays.push(dateStr);
+    }
+    // company 及任何未知類型：不收（照常上班，不影響工作日判斷）
+  }
+
+  return { holidays: holidays, supplementWorkDays: supplementWorkDays, sheetName: PMW_SHEET_CAL };
 }
 
 /**
