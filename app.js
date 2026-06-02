@@ -1438,8 +1438,14 @@ const Sync = {
           predecessor: row.precedence || '',  // 後端「前置任務」欄；格式解析見 parsePredecessors
           wbs: row.n,                          // WBS 序號（同步任務以此為 WBS 識別）
           parentWbsId: '',                     // 子綁父；待 Sheet WBS 階層格式確認後填，先留空不亂猜
-          start: effectiveStart,           // 用實際的覆蓋預計
-          end: effectiveEnd,                // 用實際的覆蓋預計
+          // ⚠ start = effectiveStart = actualStart||plannedStart，語意是「有效顯示日」(混實際/預計兩義)。
+          //   computeSchedule(行1004)目前讀 t.start 當「手填錨點」→ 語意衝突：
+          //   實際已開工(actualStart有值)的任務 start=實際日，會被誤當錨點不推算，非使用者本意。
+          //   定案：錨點應改判斷 override.start(使用者前端刻意改的,見getEffectiveSchedule行1346)，
+          //         plannedStart(Sheet同步進來92筆都有)不算錨點，才能讓「改一筆下游連動」成立。
+          //   待改 computeSchedule 錨點判斷來源 + 加 scheduledStart/End 收排程結果。回家有node再改+驗。
+          start: effectiveStart,           // 用實際的覆蓋預計（顯示用，勿直接當排程錨點，見上）
+          end: effectiveEnd,                // 用實際的覆蓋預計（顯示用）
           plannedStart: row.plannedStart || '', // 保留預計日期供顯示
           plannedEnd: row.plannedEnd || '',
           actualStart: row.actualStart || '',
