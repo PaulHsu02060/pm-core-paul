@@ -98,7 +98,14 @@ function isTaskBlocked(task, allTasksMap) {
     if (!dep) { result.reasons.push({ dep: p.dep, type: p.type, conflict: '前置不存在' }); continue; }
     if (dep.status !== 'done') result.reasons.push({ dep: p.dep, type: p.type, conflict: '前置未完成' });
     const taskRefStr = (p.type === 'FF' || p.type === 'SF') ? task.end : task.start;
-    const predRefStr = (p.type === 'SS' || p.type === 'SF') ? dep.start : dep.end;
+    const usesPredEnd = !(p.type === 'SS' || p.type === 'SF');  // FS/FF 讀 dep.end；SS/SF 讀 dep.start
+    let predRefStr = usesPredEnd ? dep.end : dep.start;
+    // 窄修：dep.end 為空但 dep.start 有值 → 用 start+工期補算 end（公式同 computeSchedule 的 durOf/end）；
+    //       dep.start 也空則維持空字串，讓下方 guard 自然短路，避免 Invalid Date / NaN。
+    if (usesPredEnd && !predRefStr && dep.start) {
+      const depDur = Math.max(1, parseFloat(dep.durationDays) || 1);
+      predRefStr = D.fmt(D.addWorkdays(new Date(dep.start), depDur - 1), 'iso');
+    }
     if (taskRefStr && predRefStr) {
       const fsBump = (p.type === 'FS') ? 1 : 0;
       const predShifted = D.addWorkdays(new Date(predRefStr), p.lag + fsBump);

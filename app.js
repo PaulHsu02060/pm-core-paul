@@ -874,7 +874,14 @@ function isTaskBlocked(task, allTasksMap) {
     }
     // 3. 日期衝突（依關係類型；參考日任一為空則跳過）
     const taskRefStr = (p.type === 'FF' || p.type === 'SF') ? task.end : task.start;
-    const predRefStr = (p.type === 'SS' || p.type === 'SF') ? dep.start : dep.end;
+    const usesPredEnd = !(p.type === 'SS' || p.type === 'SF');  // FS/FF 讀 dep.end；SS/SF 讀 dep.start
+    let predRefStr = usesPredEnd ? dep.end : dep.start;
+    // 窄修：dep.end 為空但 dep.start 有值 → 用 start+工期補算 end（公式同 computeSchedule 的 durOf/end）；
+    //       dep.start 也空則維持空字串，讓下方 guard 自然短路，避免 Invalid Date / NaN。
+    if (usesPredEnd && !predRefStr && dep.start) {
+      const depDur = Math.max(1, parseFloat(dep.durationDays) || 1);
+      predRefStr = D.fmt(D.addWorkdays(new Date(dep.start), depDur - 1), 'iso');
+    }
     if (taskRefStr && predRefStr) {
       // 只有 FS 是「起點(SOD) ≥ 終點(EOD)」→ 同日不成立，需跳次一工作日(+1)；
       // SS/FF/SF 端點同層級(SOD≥SOD / EOD≥EOD / EOD≥SOD)當日即成立，不 +1。
