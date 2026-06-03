@@ -3726,7 +3726,16 @@ App.renderGantt = function() {
     return aStart - bStart;
   });
 
-  const rowsHtml = sortedTasks.map(t => this.buildGanttRowHtml(t, start, days)).join('');
+  // 唯讀排程快取：每個顯示中的專案算一次 computeSchedule，result 以 taskId 建表供 bar 查（純算不寫回、不 mutate）。
+  // 用「該專案全部任務」算（非只視窗內），前置鏈才解析得到視窗外的上游。
+  const schedById = new Map();
+  new Set(sortedTasks.map(t => t.project)).forEach(pid => {
+    const projTasks = DATA.tasks.filter(t => t.project === pid && !t._deleted);
+    const { results } = computeSchedule(projTasks);
+    results.forEach(r => schedById.set(r.taskId, r));
+  });
+
+  const rowsHtml = sortedTasks.map(t => this.buildGanttRowHtml(t, start, days, schedById)).join('');
 
   document.getElementById('page-gantt').innerHTML = `
     <div class="gantt-card">
@@ -3755,6 +3764,7 @@ App.buildGanttHeaderHtml = function(days) {
       <button onclick="App.ganttShift(-14)">‹‹ 上兩週</button>
       <button onclick="App.ganttToday()">今天</button>
       <button onclick="App.ganttShift(14)">下兩週 ››</button>
+      <button onclick="App.applyGanttSchedule()">⚡ 一鍵套用排程</button>
     </div>
   </div>`;
 };
@@ -3766,6 +3776,28 @@ App.ganttShift = function(days) {
 App.ganttToday = function() {
   this.ganttStart = D.monday();
   this.renderGantt();
+};
+
+// 一鍵套用排程：逐專案跑 applySchedule（wbs 僅專案內唯一，故不可全域套用），落地後存檔重繪
+App.applyGanttSchedule = function() {
+  const lines = [];
+  let totalA = 0, totalS = 0;
+  DATA.projects.forEach(p => {
+    const tasks = DATA.tasks.filter(t => t.project === p.id);
+    if (tasks.length === 0) return;          // 空專案跳過
+    const res = applySchedule(tasks);         // 逐專案：內部mutate task.scheduledStart/End（與DATA.tasks同參考）
+    totalA += res.applied.length;
+    totalS += res.skipped.length;
+    if (res.applied.length || res.skipped.length) {
+      lines.push(`${p.name}：套用${res.applied.length}筆／跳過${res.skipped.length}筆`);
+    }
+  });
+  Storage.save();                             // 持久化（scheduled寫進localStorage）
+  this.renderGantt();                         // 重繪，getEffectiveSchedule自動讀到scheduled層
+  const summary = totalA === 0 && totalS === 0
+    ? '沒有可排程的任務'
+    : `⚡ 套用${totalA}筆、跳過${totalS}筆\n` + lines.join('\n');
+  U.toast(summary, totalA > 0 ? 'success' : 'info');
 };
 
 App.buildGanttFilterHtml = function() {
@@ -3788,7 +3820,18 @@ App.toggleGanttProject = function(id) {
   this.renderGantt();
 };
 
-App.buildGanttRowHtml = function(task, start, days) {
+// ─── 甘特狀態標籤（暫定樣式，集中於此；要改字/調色改這裡，勿散落到渲染中）───
+// 標籤來源 = computeSchedule result 的 anchorSource（manual/override）或「可排」推導出的 scheduled。
+const GANTT_STATUS_LABELS = { manual: '手動', override: '鎖', scheduled: '排程' };
+const GANTT_STATUS_COLORS = {
+  manual:    { bg: '#9CA3AF', fg: '#ffffff' },  // 灰：使用者手填錨點
+  scheduled: { bg: '#5C7A8B', fg: '#ffffff' },  // 藍：引擎連動算出
+  override:  { bg: '#C4956C', fg: '#ffffff' },  // 琥珀：本地鎖定 override
+  warn:      { fg: '#B8504D' },                  // 紅：! 圖示（循環/blocked/待排）
+};
+const GANTT_SOURCE_DESC = { manual: '手動錨點', override: '本地鎖定（override）', scheduled: '機器排程連動' };
+
+App.buildGanttRowHtml = function(task, start, days, schedById) {
   const proj = this.getProj(task.project);
   const colorIdx = proj ? PROJ_COLORS.indexOf(proj.color) : -1;
   const colorClass = ['bar-sage','bar-terracotta','bar-slate','bar-plum','bar-amber','bar-rose','bar-sage','bar-sage'][colorIdx % 8] || 'bar-sage';
@@ -3803,6 +3846,33 @@ App.buildGanttRowHtml = function(task, start, days) {
   const span = endCol - startCol + 1;
 
   if (startCol > 13 || endCol < 0) return '';
+
+  // ─ 狀態標籤 + 警示（唯讀查排程快取；無快取則不標，不影響既有顯示）─
+  const r = schedById && schedById.get(task.id);
+  let statusKey = null;
+  if (r) {
+    if (r.anchorSource === 'manual') statusKey = 'manual';
+    else if (r.anchorSource === 'override') statusKey = 'override';
+    else if (!r.blocked && !r.toSchedule && !r.error && r.suggestedStart) statusKey = 'scheduled';
+  }
+  // ! 只對排程「異常」三態亮（循環/blocked/待排）；warnings 如「前置未完成」是進度狀態，不亮 !
+  const hasIssue = !!(r && (r.error === 'circular' || r.blocked || r.toSchedule));
+  const statusTagHtml = statusKey
+    ? `<span class="gantt-status-tag" style="display:inline-block;font-size:10px;line-height:1.4;padding:0 5px;border-radius:3px;margin-right:4px;background:${GANTT_STATUS_COLORS[statusKey].bg};color:${GANTT_STATUS_COLORS[statusKey].fg};">${GANTT_STATUS_LABELS[statusKey]}</span>`
+    : '';
+  const warnHtml = hasIssue
+    ? `<span class="gantt-warn" style="color:${GANTT_STATUS_COLORS.warn.fg};font-weight:700;margin-right:4px;" title="排程異常">!</span>`
+    : '';
+  // tooltip：來源 + 異常 + warnings（warnings 僅作資訊列出，不亮 !）
+  const titleLines = [];
+  if (statusKey) titleLines.push(`來源：${GANTT_STATUS_LABELS[statusKey]}（${GANTT_SOURCE_DESC[statusKey]}）`);
+  if (r) {
+    if (r.error === 'circular') titleLines.push('⚠ 循環依賴：無法排程');
+    else if (r.blocked) titleLines.push('⚠ 受阻：上游尚未排出');
+    else if (r.toSchedule) titleLines.push('⚠ 待排：無前置且未填開始日');
+    if (r.warnings && r.warnings.length) titleLines.push('提醒：' + r.warnings.join('；'));
+  }
+  const barTitle = titleLines.join('\n');
 
   // Row label
   let html = `<div class="gantt-row-label">
@@ -3822,13 +3892,13 @@ App.buildGanttRowHtml = function(task, start, days) {
 
   if (isMilestone) {
     html += `<div class="gantt-cell" style="position:relative;">
-      <div class="gantt-bar milestone" style="left:50%; transform:translateX(-50%);" onclick="App.openTaskModal('${task.id}')"></div>
+      <div class="gantt-bar milestone" style="left:50%; transform:translateX(-50%);" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}></div>
     </div>`;
   } else {
     html += `<div class="gantt-cell" style="grid-column: span ${span}; position:relative;">
-      <div class="gantt-bar ${colorClass}" style="left:4px; right:4px; ${isPreview ? 'opacity:0.7;' : ''}" onclick="App.openTaskModal('${task.id}')">
+      <div class="gantt-bar ${colorClass}" style="left:4px; right:4px; ${isPreview ? 'opacity:0.7;' : ''}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}>
         ${progress > 0 ? `<div class="progress" style="width:${progress}%;"></div>` : ''}
-        ${U.esc(task.name)} <span class="pill">${progress}%</span>
+        ${statusTagHtml}${warnHtml}${U.esc(task.name)} <span class="pill">${progress}%</span>
       </div>
     </div>`;
     // Fill the rest of the spanned cells (no extra cells needed because of grid-column span)
