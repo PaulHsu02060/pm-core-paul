@@ -215,10 +215,24 @@ function applySchedule(tasks, scope = 'full') {
 6. 擴充 getEffectiveSchedule（改動二），加測試案例 8，跑。
 7. 全綠（應 54+/0、20/20）→ commit [fix/feat] + push。
 
-## 7. 待回家拍板的抉擇（設計稿標 ⚠ 處彙整）
-- A. getEffectiveSchedule override 用 ?? 還是 ||（override 會不會存空字串 ''）。
-- B. applySchedule 錨點任務要不要寫 scheduled（寫=甘特完整 / 不寫=scheduled 純機器層）。
-- C. isJTask/getJOverride 測試複本與生產的介面差異（吃 id vs 吃物件）要不要統一。
-- D. 確認推算分支(②③)沒有別處偷讀 t.start，否則錨點改動不完整。
+## 7. 抉擇彙整（A/D 已定案；B/C 待回家 node 驗）
 
-> 這四點都需要 node 邊驗邊定。設計稿先把選項與取捨寫清楚，回家決定不用重想。
+- **A. ✅ 已定案：getEffectiveSchedule override 用 `||`，不用 `??`。**
+  原因：override 會存空字串。唯一入口 `App.saveJSchedule`(行 3320) 讀 `<input type=date>.value`，
+  使用者清空欄位時 = `''`，且 `setJOverride(id, {start, end})` 整包傳，故會寫成 `task._localStart = ''`；
+  `getJOverride` 判斷 `task[key] !== undefined`，`'' !== undefined` 為 true → 回 `{start: ''}`（空字串視為「有 override」）。
+  用 `??` 時 `override?.start ?? task.start` 不會在 `''` 時 fallback → effectiveStart 變空字串、吃掉 plannedStart 顯示空白。
+  用 `||` 則 `''` 會往下退回。第 3 節 After 的 `dispStart`/`dispEnd` 把開頭的 `override?.start ?? ...` 改成 `override?.start || ...`。
+  **順修現存 bug**：線上 getEffectiveSchedule 行 1351 目前用 `??`，使用者清空日期會顯示空白而非退回預計；
+  第二段擴充時一併改成 `||`。
+
+- B. applySchedule 錨點任務要不要寫 scheduled（寫=甘特完整 / 不寫=scheduled 純機器層）。← 仍待拍板，要 node 驗。
+- C. isJTask/getJOverride 測試複本與生產的介面差異（吃 id vs 吃物件）要不要統一。← 仍待拍板，要 node 驗。
+
+- **D. ✅ 已定案：推算分支 ②③④ 不讀 t.start，錨點來源只改 processTask ① 那一處即可。**
+  已逐行確認：`t.start` 在 processTask 內僅出現在 ① 的判斷(行 1011)與取值(行 1012/1015)；
+  ② 連鎖污染只讀前置的 `pr.error/blocked/toSchedule/suggestedStart`；③ 推算只讀前置 `suggestedStart/End`+關係+dur；④ 純 fallback。
+  皆不碰 t.start → 錨點改動是局部且完整的，無散落讀取。
+  **連帶**：① 內部的判斷(if)與取值(行 1012/1015)都要改用 `anchorStart`，不可「判斷改了、取值沒改」造成不一致（見第 2 節 After）。
+
+> A、D 已定案，回家直接照上面實作。B、C 仍需 node 邊驗邊定，設計稿已寫清選項與取捨。
