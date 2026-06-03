@@ -1007,13 +1007,19 @@ function computeSchedule(tasks) {
       .map(p => `前置 #${p.dep} 不存在`);
     const dur = durOf(t);
 
-    // ① 手填 start：最高優先，尊重不覆蓋（即使上游有問題也不 block，只警示）
-    if (t.start) {
-      const end = iso(D.addWorkdays(new Date(t.start), dur - 1));
+    // ① 錨點：使用者刻意定的開始日，最高優先、不被推算覆蓋（即使上游有問題也不 block，只警示）
+    //   - 同步任務(J task)：錨點 = override._localStart（前端刻意改的），plannedStart 不算錨點
+    //   - 手動任務：錨點 = t.start（使用者建立時真填的）
+    //   這樣同步進來的 92 筆(只有 plannedStart、無 override)不會被當錨點 → 可正常連動
+    const ov = isJTask(t) ? getJOverride(t.id) : null;
+    const anchorStart = ov?.start ?? (isJTask(t) ? '' : t.start);
+    if (anchorStart) {
+      const end = iso(D.addWorkdays(new Date(anchorStart), dur - 1));
       const b = isTaskBlocked(t, nodes);
       const warns = b.reasons.map(r => `前置 #${r.dep}(${r.type}) ${r.conflict}`);
-      return { ...ident(t), suggestedStart: t.start, suggestedEnd: end,
-        blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: warns };
+      return { ...ident(t), suggestedStart: anchorStart, suggestedEnd: end,
+        blocked: false, error: null, toSchedule: false, blockedCause: null,
+        warnings: warns, anchorSource: ov?.start ? 'override' : 'manual' };
     }
 
     // ② 連鎖污染：前置 circular / 已 blocked / 待排 / 無日期 → 本 task 也 blocked
@@ -1072,6 +1078,37 @@ function computeSchedule(tasks) {
   }
 
   return { results, circular: circular.slice(), hasCircular: circular.length > 0 };
+}
+
+// ═══ applySchedule：把 computeSchedule 算出的建議落地到 task.scheduledStart/End ═══
+// scope: 'full' = 整鏈套用（丙，目前唯一模式；乙/甲未來加）
+// 規則（抉擇 B 定案=「不寫」錨點）：循環/blocked/待排 跳過；錨點任務(override/manual)也跳過，
+//   不進機器層 scheduled——顯示靠 getEffectiveSchedule 的 override/actual 層補；其餘連動任務寫入 scheduled。
+function applySchedule(tasks, scope = 'full') {
+  const { results } = computeSchedule(tasks);
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const applied = [];
+  const skipped = [];
+  results.forEach(r => {
+    const task = byId.get(r.taskId);
+    if (!task) return;
+    // 跳過：循環/blocked/待排(無有效建議)
+    if (r.error === 'circular' || r.blocked || r.toSchedule || !r.suggestedStart) {
+      skipped.push({ id: r.taskId, reason: r.error || r.blockedCause || 'unscheduled', warnings: r.warnings });
+      return;
+    }
+    // 跳過：錨點任務(override或手動手填)——人的意志，不進機器層scheduled(B定案=不寫)
+    //   顯示靠 getEffectiveSchedule 的 override/actual 層補
+    if (r.anchorSource === 'override' || r.anchorSource === 'manual') {
+      skipped.push({ id: r.taskId, reason: 'anchor:' + r.anchorSource });
+      return;
+    }
+    // 正常連動任務：寫入排程結果(純機器層)
+    task.scheduledStart = r.suggestedStart;
+    task.scheduledEnd = r.suggestedEnd;
+    applied.push({ id: r.taskId, start: r.suggestedStart, end: r.suggestedEnd });
+  });
+  return { applied, skipped, total: results.length };
 }
 
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
@@ -1349,12 +1386,19 @@ function getAllJOverrides() {
 function getEffectiveSchedule(task) {
   if (!task) return null;
   const override = isJTask(task) ? getJOverride(task.id) : null;
+  // 顯示優先序（甲案）：override(人刻意改) > actual(已開工事實) > scheduled(排程算) > planned(初始預計)
+  // ⚠ 用 || 不用 ??（抉擇A）：override 會存空字串(saveJSchedule清空欄位時)，?? 不會 fallback 空字串 → 吃掉下層顯示空白
+  const dispStart = (override?.start || task.actualStart || task.scheduledStart || task.plannedStart || '');
+  const dispEnd   = (override?.end   || task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || '');
   return {
-    start: override?.start ?? task.start,
-    end: override?.end ?? task.end,
+    start: dispStart,
+    end: dispEnd,
     plannedStart: override?.plannedStart ?? task.plannedStart,
     plannedEnd: override?.plannedEnd ?? task.plannedEnd,
+    scheduledStart: task.scheduledStart || '',
+    scheduledEnd: task.scheduledEnd || '',
     hasOverride: !!override,
+    startSource: override?.start ? 'override' : (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : 'none'))),
   };
 }
 
