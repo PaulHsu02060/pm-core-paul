@@ -1458,13 +1458,16 @@ const Sync = {
           actualStart: row.actualStart || '',
           actualEnd: row.actualEnd || '',
           durationDays: parseFloat(row.workdays) || 0,  // Sheet「工期」欄＝工作天數；排程 end=addWorkdays(start, n-1)
-          estHours: parseFloat(row.workdays || 0) * 6 || 4,  // 暫沿用（工時負荷引擎的小時來源待引擎2再定，今天不動）
+          scheduledStart: '',  // 排程套用結果（applySchedule寫入/getEffectiveSchedule讀），四條建任務路徑一致
+          scheduledEnd: '',
+          estHours: parseFloat(row.workdays || 0) * (DATA.settings.dailyHours || 6) || 4,  // 每日工時讀 settings（使用者可在設定頁自填），settings 無值才 fallback 6。小時來源最終設計待引擎2
           category: row.type === '里程碑' ? 'meeting' : 'deep',
           urgency: deduceUrgency(row),
           status: realStatus,
           progress: realProgress,
           note: row.note || '',
           locked: true,
+          createdAt: new Date().toISOString(),  // 形狀統一：四條建任務路徑都帶 createdAt
           completedAt: realCompletedAt,
         };
         DATA.tasks.push(task);
@@ -2921,6 +2924,9 @@ App.quickAddTask = function(projId, input) {
     canSplit: false,
     predecessor: '',   // 階段2 排程引擎：前置任務編碼（見 parsePredecessors）
     wbs: '',           // 階段2：WBS 識別
+    durationDays: 1,     // 手動新建預設1工作天（完整對話框可填工期，UI往後做）
+    scheduledStart: '',  // 排程套用結果，四條一致
+    scheduledEnd: '',
     parentWbsId: '',   // 階段2：子綁父
     start: '',
     end: '',
@@ -3038,6 +3044,9 @@ App.saveNewTask = function(projId) {
     estHours: parseFloat(document.getElementById('tf-hours').value) || 1,
     predecessor: '',   // 階段2 排程引擎：前置任務編碼（見 parsePredecessors）；UI 輸入欄後續再加
     wbs: '',           // 階段2：WBS 識別
+    durationDays: 1,     // 手動新建預設1工作天（工期UI欄往後加，屆時改讀使用者輸入）
+    scheduledStart: '',  // 排程套用結果，四條一致
+    scheduledEnd: '',
     parentWbsId: '',   // 階段2：子綁父
     method: document.getElementById('tf-method').value.trim(),
     note: document.getElementById('tf-note').value.trim(),
@@ -6105,6 +6114,8 @@ App.performExcelImport = function() {
         synced: false,
         history,
         currentWeek: latest.sheetName,
+        scheduledStart: '',  // 形狀統一；D為週次同步任務不參與PDM排程，故不補predecessor/wbs/durationDays
+        scheduledEnd: '',
         createdAt: new Date().toISOString(),
       });
       added++;
