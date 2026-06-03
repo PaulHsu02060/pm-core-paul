@@ -1484,6 +1484,8 @@ const Sync = {
           syncRef: `WBS#${row.n}`,
           name: row.name || `任務 ${row.n}`,
           desc: row.stage ? `${row.stage} / ${row.subgroup || ''}` : (row.subgroup || ''),
+          stage: row.stage || '',          // PLM 階段（Sheet 第1欄）：一等欄位，供 getProjectStages 分桶
+          subgroup: row.subgroup || '',     // 子群組（Sheet 第2欄）：一併存成欄位，不再只靠 desc 解析
           owner: row.owner || '',
           // ─ 階段2 排程引擎欄位 ─
           predecessor: row.precedence || '',  // 後端「前置任務」欄；格式解析見 parsePredecessors
@@ -4805,6 +4807,33 @@ App.getPdcaGroups = function(projectId) {
     (out[g] || (out[g] = [])).push(t);
   });
   return out;
+};
+
+// 把專案任務依 PLM 階段(task.stage)分桶，算每階段日期範圍 + 數量，依階段名數字前綴排序。供階段下拉用。
+// 日期走 getEffectiveSchedule 顯示優先序(override>actual>scheduled>planned)；.start==='' 的項目排除，不汙染 min/max。
+// 純算：不碰 UI/渲染/引擎/applySchedule。ISO 'YYYY-MM-DD' 字串可直接字典序比較＝時序比較。
+// @return [{ stageId, name, earliestStart, latestEnd, itemCount }]；空階段(無有日期項目) earliest/latest = null
+App.getProjectStages = function(projectId) {
+  const NO_STAGE = '未分階段';
+  const buckets = {};   // { 階段名: [tasks] }
+  (DATA.tasks || []).forEach(t => {
+    if (t.project !== projectId || t._deleted) return;
+    const s = (typeof t.stage === 'string' && t.stage.trim()) ? t.stage.trim() : NO_STAGE;
+    (buckets[s] || (buckets[s] = [])).push(t);
+  });
+  const stages = Object.keys(buckets).map(name => {
+    let earliestStart = null, latestEnd = null;
+    buckets[name].forEach(t => {
+      const sch = getEffectiveSchedule(t);
+      if (sch && sch.start && (!earliestStart || sch.start < earliestStart)) earliestStart = sch.start;
+      if (sch && sch.end   && (!latestEnd   || sch.end   > latestEnd))       latestEnd   = sch.end;
+    });
+    return { stageId: name, name, earliestStart, latestEnd, itemCount: buckets[name].length };
+  });
+  // 排序：階段名數字前綴(parseFloat，"10." 排在 "2." 後)；無前綴(NaN，如「未分階段」)排最後
+  const numOf = st => { const n = parseFloat(st.name); return isNaN(n) ? Infinity : n; };
+  stages.sort((a, b) => numOf(a) - numOf(b) || a.name.localeCompare(b.name));
+  return stages;
 };
 
 // 大項目燈號：任一過期未完成→🔴；完成率>50%→🟢；其餘→🟡；無任務→⚪
