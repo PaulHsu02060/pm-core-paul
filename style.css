@@ -243,6 +243,11 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .stat.stat-urgent .stat-num { color: var(--terracotta); }
 .stat-label { font-family: var(--mono); font-size: 12px; color: var(--ink3); }
 
+/* ─── 專案 KPI 卡片排(專案頁頂部,沿用 .stats-row/.stat)─── */
+.proj-kpi .stat { cursor: help; }                                              /* 有 title tooltip 的提示 */
+.proj-kpi .stat-pct { font-family: var(--mono); font-size: 11px; color: var(--ink3); }  /* 副標:%/降級數字常駐 */
+.proj-kpi .stat.kpi-warn .stat-num { color: var(--terracotta); }               /* 延遲>0 / 已逾期 警示色 */
+
 /* ─── CARDS ─── */
 .card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 18px 20px; margin-bottom: 18px; }
 .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }

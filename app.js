@@ -2595,6 +2595,8 @@ App.renderProject = function() {
       ${!proj.synced ? `<button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>` : ''}
     </div>
 
+    ${this.buildProjKpiHtml(proj)}
+
     <div class="proj-grid">
       <div>
         <!-- Active tasks -->
@@ -2680,6 +2682,81 @@ App.renderProject = function() {
     </div>
   `;
   document.getElementById('page-project').innerHTML = html;
+};
+
+// ─── 專案 KPI 卡片排(圖1 第一塊):純顯示層,讀引擎不寫回 ───
+// 第一原則「資料缺損容忍」:全計數排除 _deleted;分母 0 顯示 —;缺欄位優雅降級,不報錯不出 NaN。
+// 推導理由(混合制):卡片格子小 → 公式+降級說明放原生 title tooltip(pm-core 無 tooltip 元件,先例:PDCA 預期進度卡);
+//                  關鍵降級數字(無日期件數/逾期天數)放卡片副標常駐顯示,不藏 hover。
+App.buildProjKpiHtml = function(proj) {
+  const tasks = DATA.tasks.filter(t => t.project === proj.id && !t._deleted);
+  const total = tasks.length;
+  const today = D.today();
+
+  const done = tasks.filter(t => t.status === 'done').length;
+  const donePct = total > 0 ? Math.round(done / total * 100) : null;   // 分母 0 → null → 顯示 —
+  const wip = tasks.filter(t => t.status === 'wip').length;
+
+  // DELAYED:未完成且有效結束日<今天(不含擱置=刻意凍結非延遲)。
+  // 無日期者不列入(不知 deadline 不能說延遲),另計 noEnd 常駐顯示於副標。
+  // ⚠ 已知核心 bug:getEffectiveSchedule 漏讀手動任務 t.start/t.end → 手動任務 end 恆空、可能漏報(待核心修正)。
+  let delayed = 0, noEnd = 0;
+  tasks.forEach(t => {
+    if (t.status === 'done' || t.status === 'hold') return;
+    const end = getEffectiveSchedule(t).end;
+    if (!end) { noEnd++; return; }
+    if (new Date(end) < today) delayed++;
+  });
+
+  // OVERALL:件數等權(拍板:不用 estHours 加權,粗衍生值不可靠)。
+  // 無 progress 數值 → 以狀態折算(done=100、其餘=0):排除法會讓「整體」變成子集平均、名不符實;
+  // 0 折算保守但誠實,不用 wip=30% 假精度。折算件數進 tooltip 透明化。
+  let folded = 0;
+  const overall = total > 0 ? Math.round(tasks.reduce((s, t) => {
+    if (typeof t.progress === 'number') return s + Math.max(0, Math.min(100, t.progress));
+    folded++;
+    return s + (t.status === 'done' ? 100 : 0);
+  }, 0) / total) : null;
+
+  // WORKDAYS LEFT:終點優先序 可販日(pdcaData.targetDate) > 最晚任務有效結束日 > 未設定。
+  // workdaysBetween 含頭含尾、s>e 回 0 → 逾期須先比日期,逾期天數反向算再 -1(=終點次一工作日起算)。
+  const targetDate = (proj.pdcaData && proj.pdcaData.targetDate) || '';
+  let endDate = targetDate, endSrc = targetDate ? '可販日' : '';
+  if (!endDate) {
+    tasks.forEach(t => { const e = getEffectiveSchedule(t).end; if (e && e > endDate) endDate = e; });
+    if (endDate) endSrc = '最晚任務結束日';
+  }
+  let wdLeft = null, overdueWd = 0;
+  if (endDate) {
+    if (new Date(endDate) < today) { wdLeft = 0; overdueWd = Math.max(0, D.workdaysBetween(endDate, today) - 1); }
+    else wdLeft = D.workdaysBetween(today, endDate);
+  }
+
+  const card = (label, value, sub, tip, warn) => `
+    <div class="stat${warn ? ' kpi-warn' : ''}" title="${tip}">
+      <div class="stat-num">${value}</div>
+      <div class="stat-label">${label}${sub ? ` <span class="stat-pct">${sub}</span>` : ''}</div>
+    </div>`;
+
+  return `<div class="stats-row proj-kpi">
+    ${card('TASKS', total, '',
+      '全部任務件數(排除已刪除)')}
+    ${card('DONE', done, donePct === null ? '—' : donePct + '%',
+      '狀態=完成 的件數;% = 完成 ÷ 總數(總數 0 時顯示 —)')}
+    ${card('IN-PROGRESS', wip, '',
+      '狀態=進行中 的件數(同步任務進度在 0~100 之間自動視為進行中)')}
+    ${card('DELAYED', delayed, noEnd > 0 ? `另${noEnd}件無日期` : '',
+      `未完成且有效結束日<今天(不含擱置)。&#10;無日期任務不列入:本專案 ${noEnd} 件。&#10;⚠ 手動任務有效日期暫未納入(核心 getEffectiveSchedule 待修),可能漏報`,
+      delayed > 0)}
+    ${card('OVERALL', overall === null ? '—' : overall + '%', '',
+      `件數等權:全部任務進度平均(不以工時加權)。&#10;無進度值者以狀態折算(完成=100、其餘=0):本專案 ${folded} 件折算`)}
+    ${card('WORKDAYS LEFT', wdLeft === null ? '—' : wdLeft,
+      wdLeft === null ? '未設定' : (overdueWd > 0 ? `已逾期${overdueWd}工作日` : `至${endDate}`),
+      wdLeft === null
+        ? '未設定:此專案無可販日(可在 PDCA 頁填)且無任務結束日'
+        : `今天至終點的工作日數(含今日,依行事曆扣假日/補班)。&#10;終點來源:${endSrc}(${endDate})${overdueWd > 0 ? '&#10;已逾期:終點次一工作日起算 ' + overdueWd + ' 個工作日' : ''}`,
+      overdueWd > 0)}
+  </div>`;
 };
 
 App.toggleProjectExpanded = function(projId) {
