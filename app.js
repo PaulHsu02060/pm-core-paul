@@ -2721,17 +2721,15 @@ App.buildProjKpiHtml = function(proj) {
 
   // OVERALL:件數等權(拍板:不用 estHours 加權,粗衍生值不可靠)。
   // 進度取值共用 taskDisplayProgress(階段進度卡同口徑):無數值→狀態折算(done=100、其餘=0),
-  // 排除法會讓「整體」變成子集平均、名不符實;0 折算保守但誠實。折算件數進 tooltip 透明化。
-  const folded = tasks.filter(t => typeof t.progress !== 'number').length;
+  // 排除法會讓「整體」變成子集平均、名不符實;0 折算保守但誠實。
   const overall = total > 0 ? Math.round(tasks.reduce((s, t) => s + taskDisplayProgress(t), 0) / total) : null;
 
   // WORKDAYS LEFT:終點優先序 可販日(pdcaData.targetDate) > 最晚任務有效結束日 > 未設定。
   // workdaysBetween 含頭含尾、s>e 回 0 → 逾期須先比日期,逾期天數反向算再 -1(=終點次一工作日起算)。
   const targetDate = (proj.pdcaData && proj.pdcaData.targetDate) || '';
-  let endDate = targetDate, endSrc = targetDate ? '可販日' : '';
+  let endDate = targetDate;
   if (!endDate) {
     tasks.forEach(t => { const e = getEffectiveSchedule(t).end; if (e && e > endDate) endDate = e; });
-    if (endDate) endSrc = '最晚任務結束日';
   }
   let wdLeft = null, overdueWd = 0;
   if (endDate) {
@@ -2739,29 +2737,29 @@ App.buildProjKpiHtml = function(proj) {
     else wdLeft = D.workdaysBetween(today, endDate);
   }
 
-  const card = (label, value, sub, tip, warn) => `
-    <div class="stat${warn ? ' kpi-warn' : ''}" title="${tip}">
+  // dataTip 格式「標題|內文|內文…」走 initTooltip;stack=true 時 sub 改獨立第二行(.stat-sub),非 stack 維持 inline span
+  const card = (label, value, sub, dataTip, warn, stack) => `
+    <div class="stat${warn ? ' kpi-warn' : ''}${stack && sub ? ' kpi-stack' : ''}"${dataTip ? ` data-tip="${U.esc(dataTip)}"` : ''}>
       <div class="stat-num">${value}</div>
-      <div class="stat-label">${label}${sub ? ` <span class="stat-pct">${sub}</span>` : ''}</div>
+      <div class="stat-label">${label}${sub && !stack ? ` <span class="stat-pct">${sub}</span>` : ''}</div>
+      ${stack && sub ? `<div class="stat-sub">${sub}</div>` : ''}
     </div>`;
 
   return `<div class="stats-row proj-kpi">
     ${card('TASKS', total, '',
-      '全部任務件數(排除已刪除)')}
+      '任務總數|這個專案的所有工作項目數(不含已刪除)')}
     ${card('DONE', done, donePct === null ? '—' : donePct + '%',
-      '狀態=完成 的件數;% = 完成 ÷ 總數(總數 0 時顯示 —)')}
+      '完成件數|已完成的工作項目數|完成% = 已完成 ÷ 任務總數', false, true)}
     ${card('IN-PROGRESS', wip, '',
-      '狀態=進行中 的件數(同步任務進度在 0~100 之間自動視為進行中)')}
+      '進行中|正在進行、還沒完成的項目數')}
     ${card('DELAYED', delayed, noEnd > 0 ? `另${noEnd}件無日期` : '',
-      `未完成且有效結束日<今天(不含擱置)。&#10;無日期任務不列入:本專案 ${noEnd} 件。&#10;⚠ 手動任務有效日期暫未納入(核心 getEffectiveSchedule 待修),可能漏報`,
+      '延遲件數|已過結束日但還沒完成的項目數|(暫停的不算;沒設日期的另計)',
       delayed > 0)}
     ${card('OVERALL', overall === null ? '—' : overall + '%', '',
-      `件數等權:全部任務進度平均(不以工時加權)。&#10;無進度值者以狀態折算(完成=100、其餘=0):本專案 ${folded} 件折算`)}
+      '整體完成度|所有項目的平均完成度,每項等重、不看工時')}
     ${card('WORKDAYS LEFT', wdLeft === null ? '—' : wdLeft,
       wdLeft === null ? '未設定' : (overdueWd > 0 ? `已逾期${overdueWd}工作日` : `至${endDate}`),
-      wdLeft === null
-        ? '未設定:此專案無可販日(可在 PDCA 頁填)且無任務結束日'
-        : `今天至終點的工作日數(含今日,依行事曆扣假日/補班)。&#10;終點來源:${endSrc}(${endDate})${overdueWd > 0 ? '&#10;已逾期:終點次一工作日起算 ' + overdueWd + ' 個工作日' : ''}`,
+      '剩餘工作天|到專案結束日還剩幾個上班日(不含週末假日)',
       overdueWd > 0)}
   </div>`;
 };
@@ -2769,7 +2767,7 @@ App.buildProjKpiHtml = function(proj) {
 // ─── 專案階段進度卡(圖1 第二塊):純顯示層,讀 getProjectStages 不改它 ───
 // 完成% = 該階段任務進度平均(件數等權,taskDisplayProgress 與 KPI OVERALL 同口徑)。
 // (b) 案:不動已驗的 getProjectStages,完成%在此 re-filter 自算;回家有 node 後揉回一次收斂(已記待辦)。
-// 推導理由(混合制):卡底常駐公式一行(PDCA pr-formula 模式);每列 title hover 細節(done/總數、日期範圍)。
+// 推導理由(混合制):卡底常駐公式一行(PDCA pr-formula 模式);每列 data-tip hover 白話說明(走 initTooltip)。
 // 2.2KW 另案不做子分區(不寫死 "2.2" 字串),數字前綴排序自然排尾;等真實 Sheet 資料核對後再定。
 App.buildProjStagesHtml = function(proj) {
   const stages = this.getProjectStages(proj.id);
@@ -2789,12 +2787,9 @@ App.buildProjStagesHtml = function(proj) {
     const pct = ts.length > 0
       ? Math.round(ts.reduce((s, t) => s + taskDisplayProgress(t), 0) / ts.length)
       : null;   // 防呆:空桶不出 NaN,顯示 —
-    const doneCnt = ts.filter(t => t.status === 'done').length;
     // 四檔配色:100 綠 / ≥50 深 / >0 琥珀 / 0(或無資料)灰
     const tier = pct === null ? 's0' : (pct >= 100 ? 's100' : (pct >= 50 ? 's50' : (pct > 0 ? 's1' : 's0')));
-    const range = (st.earliestStart || st.latestEnd) ? `${st.earliestStart || '?'} ~ ${st.latestEnd || '?'}` : '無日期';
-    const tip = `${st.name}:完成 ${doneCnt}/${st.itemCount} 件;日期範圍:${range}`;
-    return `<div class="stage-row" title="${U.esc(tip)}">
+    return `<div class="stage-row" data-tip="${U.esc('階段完成度|這個階段所有任務的平均完成度,每項等重計算')}">
       <div class="stage-name">${U.esc(st.name)}</div>
       <div class="stage-bar"><div class="stage-bar-fill ${tier}" style="width:${pct || 0}%"></div></div>
       <div class="stage-pct ${tier}">${pct === null ? '—' : pct + '%'}</div>
@@ -2830,7 +2825,7 @@ App.buildProjDeptHtml = function(proj) {
   const mode = hasSubgroup ? '子群組' : '負責人';
   const today = D.today();
 
-  // 動態去重分組;hold 過期不算 delayed(同 KPI),歸 todo 並另計 holdCnt 供明細
+  // 動態去重分組;hold 過期不算 delayed(同 KPI),歸 todo 並另計 hold(業務統計保留,目前 UI 未顯示)
   const groups = {};
   tasks.forEach(t => {
     const k = hasVal(t[field]) ? t[field].trim() : '未指派';
@@ -2851,8 +2846,7 @@ App.buildProjDeptHtml = function(proj) {
 
   const rows = entries.map(([name, g]) => {
     const seg = (n, cls) => n > 0 ? `<div class="dept-seg ${cls}" style="width:${(n / g.total * 100).toFixed(1)}%"></div>` : '';
-    const tip = `${name}:完成 ${g.done}/進行 ${g.wip}/延遲 ${g.delayed}/待辦 ${g.todo}${g.hold > 0 ? `(含擱置 ${g.hold})` : ''},共 ${g.total} 件`;
-    return `<div class="dept-row" title="${U.esc(tip)}">
+    return `<div class="dept-row" data-tip="${U.esc('部門負荷|依負責部門分組,看每個部門手上的工作量與進度')}">
       <div class="dept-name">${U.esc(name)}</div>
       <div class="dept-bar">${seg(g.done, 'done')}${seg(g.delayed, 'delayed')}${seg(g.wip, 'wip')}${seg(g.todo, 'todo')}</div>
       <div class="dept-cnt">${g.total} 件</div>
@@ -6652,6 +6646,59 @@ App.closeModal = function() {
   document.getElementById('modalOverlay').classList.remove('open');
 };
 
+// ─── Tooltip(data-tip 事件委派):全站單例 DOM,文案格式「標題|內文|內文…」 ───
+// CSS 見 style.css .pm-tooltip;掛載於 DOMContentLoaded(initTooltip() 一行)
+function initTooltip() {
+  const DELAY = 150, GAP = 8, PAD = 8;
+  let el = null, timer = null, current = null;
+
+  const show = (target) => {
+    const raw = target.getAttribute('data-tip');
+    if (!raw) return;
+    if (!el) {   // 單例:全站共用一個 DOM,首次才建
+      el = document.createElement('div');
+      el.className = 'pm-tooltip';
+      document.body.appendChild(el);
+    }
+    const parts = raw.split('|').map(s => s.trim()).filter(Boolean);
+    const title = parts.shift() || '';
+    el.innerHTML = `<div class="pm-tooltip-title">${U.esc(title)}</div>${
+      parts.length ? `<div class="pm-tooltip-body">${U.esc(parts.join('\n'))}</div>` : ''}`;
+    // 定位:預設正上方,頂到天花板翻下方;左右夾在 viewport 內(fixed 用 viewport 座標)
+    const r = target.getBoundingClientRect();
+    let top = r.top - el.offsetHeight - GAP;
+    if (top < PAD) top = r.bottom + GAP;
+    let left = r.left + r.width / 2 - el.offsetWidth / 2;
+    left = Math.max(PAD, Math.min(left, window.innerWidth - el.offsetWidth - PAD));
+    el.style.top = top + 'px';
+    el.style.left = left + 'px';
+    el.classList.add('show');
+  };
+
+  const hide = () => {
+    clearTimeout(timer); timer = null; current = null;
+    if (el) el.classList.remove('show');
+  };
+
+  document.addEventListener('mouseover', e => {
+    const target = e.target.closest('[data-tip]');
+    if (!target) return;
+    if (target === current) return;   // 同目標內子元素間移動,不重啟計時
+    hide();
+    current = target;
+    timer = setTimeout(() => show(target), DELAY);
+  });
+  document.addEventListener('mouseout', e => {
+    const target = e.target.closest('[data-tip]');
+    if (!target) return;
+    if (e.relatedTarget && target.contains(e.relatedTarget)) return;   // 還在目標內,不收
+    hide();
+  });
+  // 保險:點擊或任何容器捲動(capture)都收掉,避免殘影跟錯位
+  document.addEventListener('click', hide);
+  window.addEventListener('scroll', hide, true);
+}
+
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
@@ -6670,4 +6717,5 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') App.closeModal();
     if (e.key === 'Enter' && e.target.id === 'loginPw') App.doLogin();
   });
+  initTooltip();
 });

@@ -253,9 +253,11 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .stat-label { font-family: var(--mono); font-size: 12px; color: var(--ink3); }
 
 /* ─── 專案 KPI 卡片排(專案頁頂部,沿用 .stats-row/.stat)─── */
-.proj-kpi .stat { cursor: help; }                                              /* 有 title tooltip 的提示 */
+.proj-kpi .stat { cursor: help; }                                              /* 有 data-tip tooltip 的提示 */
 .proj-kpi .stat-pct { font-family: var(--mono); font-size: 11px; color: var(--ink3); }  /* 副標:%/降級數字常駐 */
 .proj-kpi .stat.kpi-warn .stat-num { color: var(--terracotta); }               /* 延遲>0 / 已逾期 警示色 */
+.proj-kpi .stat.kpi-stack { flex-wrap: wrap; }                                 /* stack 模式:副標換獨立第二行 */
+.proj-kpi .stat-sub { flex-basis: 100%; font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 1px; }
 
 /* ─── 專案階段進度卡(專案頁,圖1 第二塊)─── */
 .proj-stages-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 14px 16px; margin-bottom: 14px; }
@@ -912,6 +914,12 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .pst-regroup { font-size: 11px; font-family: var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r6); padding: 3px 6px; max-width: 140px; outline: none; cursor: pointer; }
 .pst-regroup:focus { border-color: var(--sage-500); }
 .pst-empty { font-size: 11px; color: var(--ink3); }
+
+/* ─── TOOLTIP(data-tip 委派,JS 見 initTooltip)─── */
+.pm-tooltip { position: fixed; max-width: 320px; padding: 8px 12px; background: var(--sage-800); color: var(--ink-inverse); border-radius: var(--r6); box-shadow: var(--shadow-lg); font-size: 12px; line-height: 1.6; z-index: var(--z-tooltip); pointer-events: none; opacity: 0; transition: opacity .12s ease; }
+.pm-tooltip.show { opacity: 1; }
+.pm-tooltip-title { font-weight: 600; color: var(--sage-200); padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,.18); } /* 分隔線 rgba 為合理例外:變數無法帶 alpha */
+.pm-tooltip-body { white-space: pre-line; }
 
 /* ─── TOAST ─── */
 .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: var(--z-toast); display: flex; flex-direction: column; gap: 8px; }
