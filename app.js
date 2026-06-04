@@ -2599,6 +2599,8 @@ App.renderProject = function() {
 
     ${this.buildProjStagesHtml(proj)}
 
+    ${this.buildProjDeptHtml(proj)}
+
     <div class="proj-grid">
       <div>
         <!-- Active tasks -->
@@ -2804,6 +2806,71 @@ App.buildProjStagesHtml = function(proj) {
     <div class="proj-stages-head">階段進度 <span class="proj-stages-count">${stages.length} 個階段</span></div>
     ${rows}
     <div class="proj-stages-formula">完成% = 該階段任務進度平均(件數等權;無進度值以狀態折算:完成=100、其餘=0)</div>
+  </div>`;
+};
+
+// ─── 專案部門負荷卡(圖1 第三塊):純顯示層 ───
+// 分組三層降級(第一原則:資料缺損容忍):
+//   有任一 subgroup → 依子群組(個別空→「未指派」);全無 subgroup 有 owner → 依負責人(標示於標題);
+//   兩者全無 → 收斂一句話。動態去重,有什麼列什麼——不寫死部門名單(舊系統 deptKeys/HIDDEN/ORDER 不照抄)。
+// owner 不拆頓號多人:拆了一件算多件、總數失真(舊系統有拆,不照抄);公式小字註明依原值分組。
+// 每任務恰好進一段(優先序):done → delayed(同 KPI 口徑:非hold且有效end<today) → wip → todo(=未開始+擱置)。
+App.buildProjDeptHtml = function(proj) {
+  const tasks = DATA.tasks.filter(t => t.project === proj.id && !t._deleted);
+  const hasVal = (v) => typeof v === 'string' && v.trim();
+  const hasSubgroup = tasks.some(t => hasVal(t.subgroup));
+  const hasOwner = tasks.some(t => hasVal(t.owner));
+  if (tasks.length === 0 || (!hasSubgroup && !hasOwner)) {
+    return `<div class="proj-stages-card proj-dept-card">
+      <div class="proj-stages-head">部門負荷</div>
+      <div class="proj-stages-empty">無部門/負責人資料(任務有「子群組」或「負責人」欄位即可顯示)</div>
+    </div>`;
+  }
+  const field = hasSubgroup ? 'subgroup' : 'owner';
+  const mode = hasSubgroup ? '子群組' : '負責人';
+  const today = D.today();
+
+  // 動態去重分組;hold 過期不算 delayed(同 KPI),歸 todo 並另計 holdCnt 供明細
+  const groups = {};
+  tasks.forEach(t => {
+    const k = hasVal(t[field]) ? t[field].trim() : '未指派';
+    const g = groups[k] || (groups[k] = { done: 0, wip: 0, delayed: 0, todo: 0, hold: 0, total: 0 });
+    g.total++;
+    if (t.status === 'done') { g.done++; return; }
+    if (t.status !== 'hold') {
+      const end = getEffectiveSchedule(t).end;
+      if (end && new Date(end) < today) { g.delayed++; return; }
+    }
+    if (t.status === 'wip') g.wip++;
+    else { g.todo++; if (t.status === 'hold') g.hold++; }
+  });
+
+  // 排序:總件數降冪;「未指派」固定最後(無寫死順序名單)
+  const entries = Object.entries(groups).sort((a, b) =>
+    ((a[0] === '未指派') - (b[0] === '未指派')) || (b[1].total - a[1].total));
+
+  const rows = entries.map(([name, g]) => {
+    const seg = (n, cls) => n > 0 ? `<div class="dept-seg ${cls}" style="width:${(n / g.total * 100).toFixed(1)}%"></div>` : '';
+    const tip = `${name}:完成 ${g.done}/進行 ${g.wip}/延遲 ${g.delayed}/待辦 ${g.todo}${g.hold > 0 ? `(含擱置 ${g.hold})` : ''},共 ${g.total} 件`;
+    return `<div class="dept-row" title="${U.esc(tip)}">
+      <div class="dept-name">${U.esc(name)}</div>
+      <div class="dept-bar">${seg(g.done, 'done')}${seg(g.delayed, 'delayed')}${seg(g.wip, 'wip')}${seg(g.todo, 'todo')}</div>
+      <div class="dept-cnt">${g.total} 件</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="proj-stages-card proj-dept-card">
+    <div class="proj-stages-head dept-head">
+      <span>部門負荷${mode === '負責人' ? '(依負責人)' : ''} <span class="proj-stages-count">${entries.length} 個${mode === '負責人' ? '負責人' : '部門'}</span></span>
+      <div class="dept-legend">
+        <span class="dept-legend-item"><span class="dept-legend-dot done"></span>完成</span>
+        <span class="dept-legend-item"><span class="dept-legend-dot delayed"></span>延遲</span>
+        <span class="dept-legend-item"><span class="dept-legend-dot wip"></span>進行中</span>
+        <span class="dept-legend-item"><span class="dept-legend-dot todo"></span>待辦</span>
+      </div>
+    </div>
+    ${rows}
+    <div class="proj-stages-formula">依${mode}分組(動態去重,依欄位原值、不拆多人);延遲口徑同 KPI DELAYED(不含擱置、無日期歸待辦);待辦=未開始+擱置</div>
   </div>`;
 };
 
