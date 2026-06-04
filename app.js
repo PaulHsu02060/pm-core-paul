@@ -2597,6 +2597,8 @@ App.renderProject = function() {
 
     ${this.buildProjKpiHtml(proj)}
 
+    ${this.buildProjStagesHtml(proj)}
+
     <div class="proj-grid">
       <div>
         <!-- Active tasks -->
@@ -2684,6 +2686,13 @@ App.renderProject = function() {
   document.getElementById('page-project').innerHTML = html;
 };
 
+// 顯示用任務進度(Dashboard 口徑,KPI OVERALL 與階段進度卡共用,改必同步兩處呼叫端):
+// 有 progress 數值 → 夾 0~100 用之;無數值 → 狀態折算(done=100、其餘=0),保守不灌水。
+function taskDisplayProgress(t) {
+  if (typeof t.progress === 'number') return Math.max(0, Math.min(100, t.progress));
+  return t.status === 'done' ? 100 : 0;
+}
+
 // ─── 專案 KPI 卡片排(圖1 第一塊):純顯示層,讀引擎不寫回 ───
 // 第一原則「資料缺損容忍」:全計數排除 _deleted;分母 0 顯示 —;缺欄位優雅降級,不報錯不出 NaN。
 // 推導理由(混合制):卡片格子小 → 公式+降級說明放原生 title tooltip(pm-core 無 tooltip 元件,先例:PDCA 預期進度卡);
@@ -2709,14 +2718,10 @@ App.buildProjKpiHtml = function(proj) {
   });
 
   // OVERALL:件數等權(拍板:不用 estHours 加權,粗衍生值不可靠)。
-  // 無 progress 數值 → 以狀態折算(done=100、其餘=0):排除法會讓「整體」變成子集平均、名不符實;
-  // 0 折算保守但誠實,不用 wip=30% 假精度。折算件數進 tooltip 透明化。
-  let folded = 0;
-  const overall = total > 0 ? Math.round(tasks.reduce((s, t) => {
-    if (typeof t.progress === 'number') return s + Math.max(0, Math.min(100, t.progress));
-    folded++;
-    return s + (t.status === 'done' ? 100 : 0);
-  }, 0) / total) : null;
+  // 進度取值共用 taskDisplayProgress(階段進度卡同口徑):無數值→狀態折算(done=100、其餘=0),
+  // 排除法會讓「整體」變成子集平均、名不符實;0 折算保守但誠實。折算件數進 tooltip 透明化。
+  const folded = tasks.filter(t => typeof t.progress !== 'number').length;
+  const overall = total > 0 ? Math.round(tasks.reduce((s, t) => s + taskDisplayProgress(t), 0) / total) : null;
 
   // WORKDAYS LEFT:終點優先序 可販日(pdcaData.targetDate) > 最晚任務有效結束日 > 未設定。
   // workdaysBetween 含頭含尾、s>e 回 0 → 逾期須先比日期,逾期天數反向算再 -1(=終點次一工作日起算)。
@@ -2756,6 +2761,49 @@ App.buildProjKpiHtml = function(proj) {
         ? '未設定:此專案無可販日(可在 PDCA 頁填)且無任務結束日'
         : `今天至終點的工作日數(含今日,依行事曆扣假日/補班)。&#10;終點來源:${endSrc}(${endDate})${overdueWd > 0 ? '&#10;已逾期:終點次一工作日起算 ' + overdueWd + ' 個工作日' : ''}`,
       overdueWd > 0)}
+  </div>`;
+};
+
+// ─── 專案階段進度卡(圖1 第二塊):純顯示層,讀 getProjectStages 不改它 ───
+// 完成% = 該階段任務進度平均(件數等權,taskDisplayProgress 與 KPI OVERALL 同口徑)。
+// (b) 案:不動已驗的 getProjectStages,完成%在此 re-filter 自算;回家有 node 後揉回一次收斂(已記待辦)。
+// 推導理由(混合制):卡底常駐公式一行(PDCA pr-formula 模式);每列 title hover 細節(done/總數、日期範圍)。
+// 2.2KW 另案不做子分區(不寫死 "2.2" 字串),數字前綴排序自然排尾;等真實 Sheet 資料核對後再定。
+App.buildProjStagesHtml = function(proj) {
+  const stages = this.getProjectStages(proj.id);
+  // 第一原則(資料缺損容忍):全無 stage 的簡易專案 → 收斂一句話,不畫空 bar、不報錯
+  if (stages.length === 0 || (stages.length === 1 && stages[0].name === '未分階段')) {
+    return `<div class="proj-stages-card">
+      <div class="proj-stages-head">階段進度</div>
+      <div class="proj-stages-empty">此專案未分階段(同步專案會自動帶入 PLM 階段)</div>
+    </div>`;
+  }
+  // 與 getProjectStages 分桶規則一致(stage.trim() 空→未分階段),改必同步
+  const stageOf = (t) => (typeof t.stage === 'string' && t.stage.trim()) ? t.stage.trim() : '未分階段';
+  const tasks = DATA.tasks.filter(t => t.project === proj.id && !t._deleted);
+
+  const rows = stages.map(st => {
+    const ts = tasks.filter(t => stageOf(t) === st.name);
+    const pct = ts.length > 0
+      ? Math.round(ts.reduce((s, t) => s + taskDisplayProgress(t), 0) / ts.length)
+      : null;   // 防呆:空桶不出 NaN,顯示 —
+    const doneCnt = ts.filter(t => t.status === 'done').length;
+    // 四檔配色:100 綠 / ≥50 深 / >0 琥珀 / 0(或無資料)灰
+    const tier = pct === null ? 's0' : (pct >= 100 ? 's100' : (pct >= 50 ? 's50' : (pct > 0 ? 's1' : 's0')));
+    const range = (st.earliestStart || st.latestEnd) ? `${st.earliestStart || '?'} ~ ${st.latestEnd || '?'}` : '無日期';
+    const tip = `${st.name}:完成 ${doneCnt}/${st.itemCount} 件;日期範圍:${range}`;
+    return `<div class="stage-row" title="${U.esc(tip)}">
+      <div class="stage-name">${U.esc(st.name)}</div>
+      <div class="stage-bar"><div class="stage-bar-fill ${tier}" style="width:${pct || 0}%"></div></div>
+      <div class="stage-pct ${tier}">${pct === null ? '—' : pct + '%'}</div>
+      <div class="stage-cnt">${st.itemCount} 件</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="proj-stages-card">
+    <div class="proj-stages-head">階段進度 <span class="proj-stages-count">${stages.length} 個階段</span></div>
+    ${rows}
+    <div class="proj-stages-formula">完成% = 該階段任務進度平均(件數等權;無進度值以狀態折算:完成=100、其餘=0)</div>
   </div>`;
 };
 
