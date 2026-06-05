@@ -847,6 +847,7 @@ function parsePredecessors(str) {
 //   FF 本任務 end   不得早於 前置 end  (+lag)
 //   SF 本任務 end   不得早於 前置 start(+lag)
 //   參考日任一為空 → 跳過日期檢查（留待排程引擎推算），不視為衝突。
+// ── [CORE] 純計算層：查找表由參數注入、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function isTaskBlocked(task, allTasksMap) {
   const result = { blocked: false, reasons: [] };
   if (!task) return result;
@@ -983,6 +984,7 @@ function topoSortTasks(tasks) {
 //        ④無手填、無前置 → 標 toSchedule（待排）
 // @return { results:[{wbs,taskId,name,suggestedStart,suggestedEnd,blocked,error,toSchedule,blockedCause,warnings}],
 //           circular:[wbs], hasCircular }
+// ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function computeSchedule(tasks) {
   const { order, circular, nodes } = topoSortTasks(tasks);
   const byWbs = new Map();   // wbs -> result（供連鎖污染查前置）
@@ -1338,6 +1340,7 @@ function isJTask(task) {
   return proj ? proj.syncSource === 'jSheet' : false;
 }
 
+// ── [CORE] 純計算層：只讀 DATA.tasks、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function getJOverride(taskId) {
   const task = DATA.tasks.find(t => t.id === taskId);
   if (!task) return null;
@@ -1383,6 +1386,7 @@ function getAllJOverrides() {
     .map(t => ({ id: t.id, name: t.name, override: getJOverride(t.id) }));
 }
 
+// ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function getEffectiveSchedule(task) {
   if (!task) return null;
   const override = isJTask(task) ? getJOverride(task.id) : null;
@@ -4999,6 +5003,7 @@ App.getPdcaGroups = function(projectId) {
 // 日期走 getEffectiveSchedule 顯示優先序(override>actual>scheduled>planned)；.start==='' 的項目排除，不汙染 min/max。
 // 純算：不碰 UI/渲染/引擎/applySchedule。ISO 'YYYY-MM-DD' 字串可直接字典序比較＝時序比較。
 // @return [{ stageId, name, earliestStart, latestEnd, itemCount }]；空階段(無有日期項目) earliest/latest = null
+// ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 App.getProjectStages = function(projectId) {
   const NO_STAGE = '未分階段';
   const buckets = {};   // { 階段名: [tasks] }
