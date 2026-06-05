@@ -13,15 +13,15 @@ openWbsImport() → parseWbsExcel(file) → performWbsImport()
 - const wb = XLSX.read(buffer, {type:'array', cellDates:true})
 - 讀兩張 sheet（按名直取）：
   - const wsWbs = wb.Sheets['J系列整合WBS']（取不到報錯）
-  - const wsInfo = wb.Sheets['專案資訊']（取不到→專案資訊用預設，不報錯）
+  - const wsInfo = wb.Sheets['專案資訊']（僅讀專案名稱；取不到→用預設專案名，不報錯）
 - const rows = XLSX.utils.sheet_to_json(wsWbs, {header:1, defval:null, raw:false, dateNF:'yyyy-mm-dd'})
 - for (let i=1; i<rows.length; i++) 逐列：D欄(idx 3)任務名空→skip；否則照 22 欄解析（見 wbs-import-spec.md 對應表）暫存進 App._wbsParsedRows
-- 解析專案資訊分頁（key-value 形式）：性試/量試/量產結束日、另案開發
+- 解析專案資訊分頁：只取專案名稱（單一專案 J 系列）。日期不在此讀——infobar 即時算（乙案，見 project-infobar-spec.md），匯入器不灌日期
 - renderWbsImportPreview()：填統計（幾筆有效、幾筆 skip）+ 預覽表 + enable「確定匯入」鈕
 
 ## 3. performWbsImport()（確認執行）
 - 取 App._wbsParsedRows
-- 找/建專案：照 :6313-6339，但只建一個專案（J系列），填入專案資訊分頁的日期到 pdcaData(targetDate 等)
+- 找/建專案：照 :6313-6339，但只建一個專案（J系列，名稱來自專案資訊分頁）
 - 清舊（甲案）：清掉此專案既有任務後重灌（DATA.tasks 過濾掉該 project 的）
 - 逐列建 task：
   - 模板照同步版（:1484-1522）改：id 走 U.id()（:666，不要 inline 拼）、synced:false、不要 locked、加 wbs 欄存 N 序號、predecessor 原樣存序號字串
@@ -39,7 +39,7 @@ openWbsImport() → parseWbsExcel(file) → performWbsImport()
 - 前置抽查：2FS+2 連到 wbs===2、118,119 連到 118/119（computeSchedule 算得出依賴）
 - 階段/子群組/類型（里程碑畫菱形）正確
 - 風險議題(Q欄)有進 riskIssue、交付(O/P)正確
-- 專案資訊分頁日期填進資訊條
+- 資訊條驗證：匯入後 getProjectStages 算得出性試/量試/量產階段 latestEnd、任務名含可販的完成日，infobar 即時顯示（不靠匯入灌日期）
 - 重複匯入：再匯一次→清舊重灌、不重複
 
 ## 注意
