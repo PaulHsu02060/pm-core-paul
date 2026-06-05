@@ -1,3 +1,8 @@
 # 本機真值，不進 git（各裝置自行維護）
 config.local.js
 seed.local.js
+
+# Node 本機依賴（xlsx 探測/驗證用，前端走 CDN 不依賴此）
+node_modules/
+package.json
+package-lock.json
