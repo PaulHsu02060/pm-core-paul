@@ -5578,11 +5578,13 @@ App.renderSettings = function() {
           <button class="tb-action ghost" onclick="document.getElementById('restoreInput').click()">📥 上傳還原</button>
           <input type="file" id="restoreInput" accept=".json" style="display:none" onchange="App.restoreAll(this.files[0])">
           <button class="tb-action ghost" onclick="App.openExcelImport()">📊 匯入週報 Excel</button>
+          <button class="tb-action ghost" onclick="App.openWbsImport()">📥 匯入 WBS Excel</button>
           <button class="tb-action ghost" onclick="App.dedupeTasks()">🧹 清除重複任務</button>
           <button class="tb-action danger" onclick="App.clearAll()" style="margin-left:auto;">🗑 清除所有資料</button>
         </div>
         <div class="help" style="margin-top:8px;">
           💡「匯入週報 Excel」智慧合併：同名任務更新狀態/日期，新任務新增，PM 既有但 Excel 沒有的保留<br>
+          💡「匯入 WBS Excel」清空舊 J 系列任務整批重灌（甲案），匯入後資訊條即時算階段時程，不灌日期<br>
           💡「清除重複任務」把同專案 + 同任務名的舊紀錄合併到「歷史紀錄」中，只保留一筆主任務
         </div>
       </div>
@@ -6152,6 +6154,251 @@ App.openExcelImport = function() {
 };
 
 App._excelParsedRows = [];
+
+// Date → 'YYYY-MM-DD'；空值/非 Date → ''
+function wbsDateStr(v) {
+  if (!v) return '';
+  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+  // 防呆：raw:false 已是字串時直接用；其餘嘗試 new Date
+  const d = new Date(v);
+  return isNaN(d) ? '' : d.toISOString().slice(0, 10);
+}
+
+// 讀 J系列_WBS_主檔.xlsx，解析 J系列整合WBS sheet 的 93 筆有效列
+// 回傳 { ok, rows, projectName, errors }，不灌日期、不碰 DOM、不存 Storage
+async function parseWbsExcel(file) {
+  try {
+    const buffer = await file.arrayBuffer();   // house style：與 App.parseExcelImport 一致
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+
+    // 按名直取（第一張是「專案資訊」，不是資料表）
+    const wsMain = wb.Sheets['J系列整合WBS'];
+    if (!wsMain) {
+      return { ok: false, rows: [], projectName: '', errors: ['找不到「J系列整合WBS」分頁'] };
+    }
+
+    // 專案名：專案資訊頁是 key-value 直式，掃 A 欄＝「專案名稱」那列取 B（不寫死列號）
+    let projectName = '';
+    const wsInfo = wb.Sheets['專案資訊'];
+    if (wsInfo) {
+      const infoRows = XLSX.utils.sheet_to_json(wsInfo, { header: 'A', range: 0 });
+      const hit = infoRows.find(r => String(r.A || '').trim() === '專案名稱');
+      projectName = hit ? String(hit.B || '').trim() : '';
+    }
+    if (!projectName) projectName = 'J系列專案';
+
+    const raw = XLSX.utils.sheet_to_json(wsMain, { header: 'A', range: 1 });
+    const rows = [];
+    const errors = [];
+
+    raw.forEach((r) => {
+      // D 欄（任務名）空 → skip
+      const name = r.D != null && String(r.D).trim() !== '' ? String(r.D).trim() : '';
+      if (!name) return;
+
+      rows.push({
+        wbs: r.A != null ? String(r.A).trim() : '',
+        stage: r.B != null ? String(r.B).trim() : '',
+        subgroup: r.C != null ? String(r.C).trim() : '',
+        name: name,
+        category: String(r.E || '').includes('里程碑') ? 'meeting' : 'deep',
+        predecessor: r.F != null ? String(r.F).trim() : '',      // 原樣序號字串
+        durationDays: typeof r.G === 'number' ? r.G : (parseFloat(r.G) || 0),
+        owner: r.H != null ? String(r.H).trim() : '',
+        plannedStart: wbsDateStr(r.I),
+        plannedEnd: wbsDateStr(r.J),
+        actualStart: wbsDateStr(r.K),
+        actualEnd: wbsDateStr(r.L),
+        progress: typeof r.M === 'number' ? Math.round(r.M * 100) : 0,  // 0~1 → 0~100
+        status: r.N != null ? String(r.N).trim() : '',
+        mustDeliver: r.O === '✓' || r.O === true || String(r.O).trim() === '✓',
+        deliverable: r.P != null ? String(r.P).trim() : '',
+        riskIssue: r.Q != null ? String(r.Q).trim() : '',
+        note: r.R != null ? String(r.R).trim() : '',
+        delivered: r.U != null ? String(r.U).trim() : '',
+        deliverableLink: r.V != null ? String(r.V).trim() : '',
+      });
+    });
+
+    return { ok: true, rows, projectName, errors };
+  } catch (err) {
+    return { ok: false, rows: [], projectName: '', errors: ['解析失敗：' + err.message] };
+  }
+}
+
+// 找/建 J 系列專案 → 清空舊 J 任務（甲案整批重灌）→ 逐列建 task → save + refresh
+function performWbsImport(parsed) {
+  const { rows, projectName } = parsed;
+
+  // 找/建專案（形狀補齊既有：:521/:3671；color 沿用既有 WBS 常數）
+  let proj = DATA.projects.find(p => p.name === projectName);
+  if (!proj) {
+    proj = { id: U.id(), name: projectName, color: CFG('WBS_PROJECT_COLOR', '#4A7C5C'), note: '', synced: false, createdAt: new Date().toISOString() };
+    DATA.projects.push(proj);
+  }
+  const projId = proj.id;
+
+  // 甲案：清空該專案舊任務整批重灌（用 project，不是 projectId）
+  DATA.tasks = DATA.tasks.filter(t => t.project !== projId);
+
+  // 逐列建 task — 形狀對齊 :1485 同步版 / :3270 手動版交集
+  rows.forEach(row => {
+    let status;
+    if (row.actualEnd) status = 'done';
+    else if (row.actualStart) status = 'wip';
+    else status = mapStatus(row.status, row.progress);   // progress 已是 0~100
+
+    DATA.tasks.push({
+      id: U.id(),                    // 走 U.id()，不要 inline 't_'+Date.now() 拼
+      project: projId,               // 改點：欄名 project（非 projectId）
+      wbs: row.wbs,                  // N 序號
+      parentWbsId: '',               // 照同步版照搬
+      name: row.name,
+      desc: row.stage ? `${row.stage} / ${row.subgroup || ''}` : (row.subgroup || ''),  // 照同步版公式
+      category: row.category,
+      predecessor: row.predecessor,  // 原樣序號字串
+      durationDays: row.durationDays,
+      owner: row.owner,
+      start: '',                     // 形狀一致防 getEffectiveSchedule fallback，不灌真日期
+      end: '',
+      plannedStart: row.plannedStart,
+      plannedEnd: row.plannedEnd,
+      actualStart: row.actualStart,
+      actualEnd: row.actualEnd,
+      progress: row.progress,        // 0~100
+      status: status,
+      urgency: 'med',                // 固定預設（row 形狀不合 deduceUrgency）
+      estHours: parseFloat(row.durationDays || 0) * (DATA.settings.dailyHours || 6) || 4,  // 照同步版公式
+      method: '',                    // 手動版多的欄，匯入版預設
+      canSplit: false,               // 同上
+      completedAt: status === 'done' ? new Date().toISOString() : null,
+      createdAt: new Date().toISOString(),  // 形狀統一：四條建任務路徑都帶
+      scheduledStart: '',            // 四路徑一致，留空
+      scheduledEnd: '',
+      synced: false,                 // 改點：不要 locked: true
+      stage: row.stage,
+      subgroup: row.subgroup,
+      mustDeliver: row.mustDeliver,
+      deliverable: row.deliverable,
+      riskIssue: row.riskIssue,
+      delivered: row.delivered,
+      deliverableLink: row.deliverableLink,
+      note: row.note,
+    });
+  });
+
+  Storage.save();
+  App.refreshAll();
+  return { imported: rows.length, projectId: projId };
+}
+
+App.openWbsImport = function() {
+  this.openModal({
+    title: '📥 匯入 WBS Excel',
+    body: `
+      <div style="font-size:12.5px; line-height:1.6; color:var(--ink2); margin-bottom:14px;">
+        匯入「J 系列整合 WBS」Excel，<b style="color:var(--sage-700);">整批重灌</b>：
+        <br>• <b>清空該專案既有 J 系列任務</b>，以 Excel 為唯一真值重新建立
+        <br>• 匯入後任務為<b>可編輯</b>（非唯讀、非 synced），資料主權歸 ${CFG('APP_NAME', 'PM-Core')}
+        <br>• 階段時程（性試/量試/量產）由資訊條即時計算，匯入器不灌日期
+      </div>
+
+      <div id="wbsImportZone" style="border:2px dashed var(--rule); border-radius:10px; padding:32px; text-align:center; cursor:pointer; background:var(--surface2); transition:all .15s;">
+        <div style="font-size:32px; margin-bottom:8px;">📥</div>
+        <div style="font-size:13px; font-weight:500;">點擊或拖曳 J系列_WBS_主檔.xlsx</div>
+        <div style="font-size:11px; color:var(--ink3); margin-top:4px;">讀「J系列整合WBS」分頁，任務名非空者匯入</div>
+        <input type="file" id="wbsImportFile" accept=".xlsx,.xls" style="display:none;">
+      </div>
+
+      <div id="wbsImportPreview" style="display:none; margin-top:14px;">
+        <div id="wbsImportStats" style="padding:10px 14px; background:var(--sage-50); border-radius:8px; font-size:12px; margin-bottom:10px;"></div>
+        <div style="max-height:280px; overflow-y:auto; border:1px solid var(--rule); border-radius:8px;">
+          <table id="wbsImportTable" style="width:100%; border-collapse:collapse; font-size:11.5px;"></table>
+        </div>
+      </div>
+
+      <div id="wbsImportLog" style="display:none; margin-top:14px; padding:10px 14px; background:var(--surface2); color:var(--ink2); border:1px solid var(--rule); border-radius:8px; font-family:var(--mono); font-size:11px; max-height:160px; overflow-y:auto;"></div>
+    `,
+    footer: `
+      <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+      <button class="tb-action" id="wbsImportBtn" disabled style="opacity:.5;">確定匯入（清舊重灌）</button>
+    `,
+  });
+
+  // 綁事件 + parsed 閉包（confirm 鈕 onclick 字串傳不了物件，故用 addEventListener）
+  setTimeout(() => {
+    const zone = document.getElementById('wbsImportZone');
+    const fileInput = document.getElementById('wbsImportFile');
+    const btn = document.getElementById('wbsImportBtn');
+    if (!zone || !fileInput) return;
+    let parsed = null;
+
+    const handleFile = async (file) => {
+      const log = document.getElementById('wbsImportLog');
+      parsed = await parseWbsExcel(file);
+      if (!parsed || !parsed.ok) {
+        if (log) {
+          log.style.display = 'block';
+          log.textContent = '⚠ ' + ((parsed && parsed.errors && parsed.errors.join('；')) || '解析失敗');
+        }
+        btn.disabled = true; btn.style.opacity = '.5';
+        return;
+      }
+      // 統計 + 前 8 筆預覽
+      const stats = document.getElementById('wbsImportStats');
+      const table = document.getElementById('wbsImportTable');
+      const done = parsed.rows.filter(r => r.progress === 100).length;
+      const wip = parsed.rows.filter(r => r.progress > 0 && r.progress < 100).length;
+      if (stats) {
+        stats.innerHTML = `專案：<b>${U.esc(parsed.projectName)}</b>　|　共 <b style="color:var(--sage-700);">${parsed.rows.length}</b> 筆有效` +
+          `　|　完成 <b>${done}</b>　進行中 <b>${wip}</b>　|　<b style="color:var(--ink3);">確定後將清空舊 J 任務重灌</b>`;
+      }
+      if (table) {
+        const head = `<thead><tr style="background:var(--surface2); text-align:left;">` +
+          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">N</th>` +
+          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">任務名</th>` +
+          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">前置</th>` +
+          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">進度</th>` +
+          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">狀態</th></tr></thead>`;
+        const body = parsed.rows.slice(0, 8).map(r =>
+          `<tr><td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono);">${U.esc(r.wbs)}</td>` +
+          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${U.esc(r.name)}</td>` +
+          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono);">${U.esc(r.predecessor)}</td>` +
+          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${r.progress}%</td>` +
+          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${U.esc(r.status)}</td></tr>`).join('');
+        const more = parsed.rows.length > 8 ? `<tr><td colspan="5" style="padding:6px 8px; color:var(--ink3);">…還有 ${parsed.rows.length - 8} 筆</td></tr>` : '';
+        table.innerHTML = head + '<tbody>' + body + more + '</tbody>';
+      }
+      document.getElementById('wbsImportPreview').style.display = 'block';
+      btn.disabled = false; btn.style.opacity = '1';
+    };
+
+    zone.addEventListener('click', () => fileInput.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.background = 'var(--sage-50)'; zone.style.borderColor = 'var(--sage-500)'; });
+    zone.addEventListener('dragleave', () => { zone.style.background = 'var(--surface2)'; zone.style.borderColor = 'var(--rule)'; });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.style.background = 'var(--surface2)';
+      zone.style.borderColor = 'var(--rule)';
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    btn.addEventListener('click', () => {
+      if (!parsed || !parsed.ok) return;
+      const res = performWbsImport(parsed);
+      const log = document.getElementById('wbsImportLog');
+      if (log) {
+        log.style.display = 'block';
+        log.textContent = `✅ 已匯入 ${res.imported} 筆任務到「${parsed.projectName}」（舊 J 任務已清空重灌）`;
+      }
+      btn.disabled = true; btn.style.opacity = '.5';
+      U.toast(`✅ ${CFG('WBS_LABEL', 'WBS')} 已匯入 ${res.imported} 筆`, 'success');
+    });
+  }, 50);
+};
 
 App.parseExcelImport = async function(file) {
   try {
