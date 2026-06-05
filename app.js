@@ -1392,8 +1392,8 @@ function getEffectiveSchedule(task) {
   const override = isJTask(task) ? getJOverride(task.id) : null;
   // 顯示優先序（甲案）：override(人刻意改) > actual(已開工事實) > scheduled(排程算) > planned(初始預計)
   // ⚠ 用 || 不用 ??（抉擇A）：override 會存空字串(saveJSchedule清空欄位時)，?? 不會 fallback 空字串 → 吃掉下層顯示空白
-  const dispStart = (override?.start || task.actualStart || task.scheduledStart || task.plannedStart || '');
-  const dispEnd   = (override?.end   || task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || '');
+  const dispStart = (override?.start || task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
+  const dispEnd   = (override?.end   || task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
   return {
     start: dispStart,
     end: dispEnd,
@@ -1402,7 +1402,7 @@ function getEffectiveSchedule(task) {
     scheduledStart: task.scheduledStart || '',
     scheduledEnd: task.scheduledEnd || '',
     hasOverride: !!override,
-    startSource: override?.start ? 'override' : (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : 'none'))),
+    startSource: override?.start ? 'override' : (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
   };
 }
 

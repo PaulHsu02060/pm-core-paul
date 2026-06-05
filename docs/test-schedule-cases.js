@@ -293,8 +293,8 @@ function getEffectiveSchedule(task) {
   const override = isJTask(task) ? getJOverride(task) : null;   // ⚠ 測試版吃 task 物件（生產吃 task.id）
   // 顯示優先序（甲案）：override(人刻意改) > actual(已開工事實) > scheduled(排程算) > planned(初始預計)
   // ⚠ 用 || 不用 ??（抉擇A）：override 會存空字串(saveJSchedule清空欄位時)，?? 不會 fallback 空字串 → 吃掉下層顯示空白
-  const dispStart = (override?.start || task.actualStart || task.scheduledStart || task.plannedStart || '');
-  const dispEnd   = (override?.end   || task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || '');
+  const dispStart = (override?.start || task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
+  const dispEnd   = (override?.end   || task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
   return {
     start: dispStart,
     end: dispEnd,
@@ -303,7 +303,7 @@ function getEffectiveSchedule(task) {
     scheduledStart: task.scheduledStart || '',
     scheduledEnd: task.scheduledEnd || '',
     hasOverride: !!override,
-    startSource: override?.start ? 'override' : (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : 'none'))),
+    startSource: override?.start ? 'override' : (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
   };
 }
 
@@ -646,6 +646,28 @@ console.log('\n===== 9. getEffectiveSchedule 優先序 =====');
     `a=${a.start}/${a.startSource} b=${b.start}/${b.startSource} c=${c.start}/${c.startSource} d=${d.start}/${d.startSource}`,
     'a=2026-01-05/planned b=2026-01-08/scheduled c=2026-01-06/actual d=2026-01-15/override',
     '(a)只planned→planned；(b)加scheduled→壓planned；(c)加actual→壓scheduled；(d)J加override(_localStart)→壓全部');
+}
+
+// ════ 10. getEffectiveSchedule — 手動任務 t.start/t.end 鏈尾 fallback（修 KPI DELAYED 漏報） ═══
+console.log('\n===== 10. getEffectiveSchedule 手動 fallback =====');
+// 案例A：純手動任務（四層 override/actual/scheduled/planned 全空，只有 t.start/t.end）
+//   修正前 end 恆空 → 過期手動任務被歸「無日期」漏報；修正後顯示層讀得到、startSource=manual
+{
+  const task = mk({ wbs: '901', start: '2026-05-01', end: '2026-05-10' });
+  const r = getEffectiveSchedule(task);
+  check('案例A 手動任務 t.start/t.end 進顯示層（end 不再恆空）',
+    `start=${r.start} end=${r.end} src=${r.startSource}`,
+    'start=2026-05-01 end=2026-05-10 src=manual',
+    '四層全空→鏈尾fallback讀t.start/t.end；過期手動任務自此可被DELAYED計到');
+}
+// 案例B（迴歸）：有 planned 層的任務同時帶 t.start/t.end → planned 優先，fallback 不搶位
+{
+  const task = mk({ wbs: '902', plannedStart: '2026-04-01', plannedEnd: '2026-04-20', start: '2026-01-01', end: '2026-01-15' });
+  const r = getEffectiveSchedule(task);
+  check('案例B planned 層存在時 t.start/t.end 不搶位（迴歸）',
+    `start=${r.start} end=${r.end} src=${r.startSource}`,
+    'start=2026-04-01 end=2026-04-20 src=planned',
+    't.start/t.end只在四層全空時兜底；既有任務(同步/匯入帶planned)取值與來源標記不變');
 }
 
 console.log('\n===== 結果 =====');
