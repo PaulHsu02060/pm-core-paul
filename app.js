@@ -2828,12 +2828,15 @@ App.buildProjDeptHtml = function(proj) {
   }
   const field = hasDept ? 'dept' : (hasSubgroup ? 'subgroup' : 'owner');
   const mode = hasDept ? '部門' : (hasSubgroup ? '子群組' : '負責人');
+  // D-2b：dept 模式下 task.dept 存 id，建「id→部門名」表供顯示（未指派/查無→保留字面）
+  const idToName = {};
+  (proj.depts || []).forEach(d => { idToName[d.id] = d.name; });
   const today = D.today();
 
   // 動態去重分組;hold 過期不算 delayed(同 KPI),歸 todo 並另計 hold(業務統計保留,目前 UI 未顯示)
   const groups = {};
   tasks.forEach(t => {
-    const k = hasVal(t[field]) ? t[field].trim() : '未指派';
+    const k = hasDept ? (idToName[t.dept] || t.dept || '未指派') : (hasVal(t[field]) ? t[field].trim() : '未指派');
     const g = groups[k] || (groups[k] = { done: 0, wip: 0, delayed: 0, todo: 0, hold: 0, total: 0 });
     g.total++;
     if (t.status === 'done') { g.done++; return; }
@@ -6298,6 +6301,10 @@ function performWbsImport(parsed) {
   const projId = proj.id;
   proj.depts = parsed.depts || [];   // D-2a：部門表存進 proj（if/else 外→重匯也覆寫跟著 Excel 更新）
 
+  // D-2b：建「部門名→id」反查表，task.dept 改存部門 id（「未指派」查無→保留字面）
+  const nameToId = {};
+  (proj.depts || []).forEach(d => { nameToId[d.name] = d.id; });
+
   // 甲案：清空該專案舊任務整批重灌（用 project，不是 projectId）
   DATA.tasks = DATA.tasks.filter(t => t.project !== projId);
 
@@ -6319,7 +6326,7 @@ function performWbsImport(parsed) {
       predecessor: row.predecessor,  // 原樣序號字串
       durationDays: row.durationDays,
       owner: row.owner,
-      dept: row.dept,                // 主責部門（D-1：單值；D-3 改 depts 陣列）
+      dept: nameToId[row.dept] || row.dept,   // D-2b：存部門 id（未指派/查無→保留字面字串）
       start: '',                     // 形狀一致防 getEffectiveSchedule fallback，不灌真日期
       end: '',
       plannedStart: row.plannedStart,
