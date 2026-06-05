@@ -2817,16 +2817,17 @@ App.buildProjStagesHtml = function(proj) {
 App.buildProjDeptHtml = function(proj) {
   const tasks = DATA.tasks.filter(t => t.project === proj.id && !t._deleted);
   const hasVal = (v) => typeof v === 'string' && v.trim();
+  const hasDept = tasks.some(t => hasVal(t.dept));
   const hasSubgroup = tasks.some(t => hasVal(t.subgroup));
   const hasOwner = tasks.some(t => hasVal(t.owner));
-  if (tasks.length === 0 || (!hasSubgroup && !hasOwner)) {
+  if (tasks.length === 0 || (!hasDept && !hasSubgroup && !hasOwner)) {
     return `<div class="proj-stages-card proj-dept-card">
       <div class="proj-stages-head">部門負荷</div>
       <div class="proj-stages-empty">無部門/負責人資料(任務有「子群組」或「負責人」欄位即可顯示)</div>
     </div>`;
   }
-  const field = hasSubgroup ? 'subgroup' : 'owner';
-  const mode = hasSubgroup ? '子群組' : '負責人';
+  const field = hasDept ? 'dept' : (hasSubgroup ? 'subgroup' : 'owner');
+  const mode = hasDept ? '部門' : (hasSubgroup ? '子群組' : '負責人');
   const today = D.today();
 
   // 動態去重分組;hold 過期不算 delayed(同 KPI),歸 todo 並另計 hold(業務統計保留,目前 UI 未顯示)
@@ -6164,6 +6165,42 @@ function wbsDateStr(v) {
   return isNaN(d) ? '' : d.toISOString().slice(0, 10);
 }
 
+// 讀專案資訊頁部門表（列12表頭，列13起對應），建「成員→部門」反查 map
+// B欄空(品保/採購/生管)→用A部門名當成員；部門名自己也當key(H欄可能直接填'PM')
+function buildMemberToDept(wsInfo) {
+  const map = {};
+  if (!wsInfo) return map;
+  const info = XLSX.utils.sheet_to_json(wsInfo, { header: 'A', range: 0 });
+  // 找表頭「部門」那列，往下到空白為止
+  let headerIdx = info.findIndex(r => String(r.A || '').trim() === '部門'
+                                   && String(r.B || '').trim() === '專案成員');
+  if (headerIdx < 0) return map;
+  for (let i = headerIdx + 1; i < info.length; i++) {
+    const dept = String(info[i].A || '').trim();
+    if (!dept) break;            // 遇空白列停止
+    map[dept] = dept;            // 部門名自己當 key（H欄可能直接填部門名）
+    const members = String(info[i].B || '').trim();
+    if (members) {
+      // 成員一格多人用頓號分隔
+      members.split(/[、,，]/).map(s => s.trim()).filter(Boolean)
+             .forEach(m => { map[m] = dept; });
+    }
+    // B欄空(品保/採購/生管)：上面 map[dept]=dept 已涵蓋，部門名自己就是成員
+  }
+  return map;
+}
+
+// H欄負責人→主責部門。split三種分隔符取第一個人名查map，查不到/髒值歸未指派
+function ownerToDept(ownerStr, memberToDept) {
+  const raw = String(ownerStr || '').trim();
+  // 髒值過濾：空、破折號、表頭殘留
+  if (!raw || raw === '—' || raw === '-' || raw === '負責人') return '未指派';
+  // 三種分隔符：、 / ＋(全形) +(半形)，取第一個
+  const first = raw.split(/[、,，\/／＋+]/)[0].trim();
+  if (!first) return '未指派';
+  return memberToDept[first] || '未指派';   // 查不到(如航嘉)歸未指派
+}
+
 // 讀 J系列_WBS_主檔.xlsx，解析 J系列整合WBS sheet 的 93 筆有效列
 // 回傳 { ok, rows, projectName, errors }，不灌日期、不碰 DOM、不存 Storage
 async function parseWbsExcel(file) {
@@ -6187,6 +6224,9 @@ async function parseWbsExcel(file) {
     }
     if (!projectName) projectName = 'J系列專案';
 
+    // 部門翻譯：建「成員→部門」反查 map（重用上面已取的 wsInfo，免重複 lookup）
+    const memberToDept = buildMemberToDept(wsInfo);
+
     const raw = XLSX.utils.sheet_to_json(wsMain, { header: 'A', range: 1 });
     const rows = [];
     const errors = [];
@@ -6205,6 +6245,7 @@ async function parseWbsExcel(file) {
         predecessor: r.F != null ? String(r.F).trim() : '',      // 原樣序號字串
         durationDays: typeof r.G === 'number' ? r.G : (parseFloat(r.G) || 0),
         owner: r.H != null ? String(r.H).trim() : '',
+        dept: ownerToDept(r.H, memberToDept),   // 主責部門（取H欄第一人查map）；owner 維持原樣
         plannedStart: wbsDateStr(r.I),
         plannedEnd: wbsDateStr(r.J),
         actualStart: wbsDateStr(r.K),
@@ -6259,6 +6300,7 @@ function performWbsImport(parsed) {
       predecessor: row.predecessor,  // 原樣序號字串
       durationDays: row.durationDays,
       owner: row.owner,
+      dept: row.dept,                // 主責部門（D-1：單值；D-3 改 depts 陣列）
       start: '',                     // 形狀一致防 getEffectiveSchedule fallback，不灌真日期
       end: '',
       plannedStart: row.plannedStart,
