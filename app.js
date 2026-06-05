@@ -6201,6 +6201,24 @@ function ownerToDept(ownerStr, memberToDept) {
   return memberToDept[first] || '未指派';   // 查不到(如航嘉)歸未指派
 }
 
+// 讀專案資訊頁部門表，建 id 結構 [{id,name,members:[{id,name}]}]（D-2a：存進 project.depts，暫未被消費）
+function buildDepts(wsInfo) {
+  const depts = [];
+  if (!wsInfo) return depts;
+  const info = XLSX.utils.sheet_to_json(wsInfo, { header:'A', range:0 });
+  const h = info.findIndex(r => String(r.A||'').trim()==='部門' && String(r.B||'').trim()==='專案成員');
+  if (h<0) return depts;
+  for (let i=h+1; i<info.length; i++) {
+    const name = String(info[i].A||'').trim();
+    if (!name) break;
+    const members = String(info[i].B||'').trim()
+      ? String(info[i].B).split(/[、,，]/).map(s=>s.trim()).filter(Boolean).map(n=>({id:U.id(), name:n}))
+      : [];
+    depts.push({ id: U.id(), name, members });
+  }
+  return depts;
+}
+
 // 讀 J系列_WBS_主檔.xlsx，解析 J系列整合WBS sheet 的 93 筆有效列
 // 回傳 { ok, rows, projectName, errors }，不灌日期、不碰 DOM、不存 Storage
 async function parseWbsExcel(file) {
@@ -6261,7 +6279,7 @@ async function parseWbsExcel(file) {
       });
     });
 
-    return { ok: true, rows, projectName, errors };
+    return { ok: true, rows, projectName, errors, depts: buildDepts(wsInfo) };
   } catch (err) {
     return { ok: false, rows: [], projectName: '', errors: ['解析失敗：' + err.message] };
   }
@@ -6278,6 +6296,7 @@ function performWbsImport(parsed) {
     DATA.projects.push(proj);
   }
   const projId = proj.id;
+  proj.depts = parsed.depts || [];   // D-2a：部門表存進 proj（if/else 外→重匯也覆寫跟著 Excel 更新）
 
   // 甲案：清空該專案舊任務整批重灌（用 project，不是 projectId）
   DATA.tasks = DATA.tasks.filter(t => t.project !== projId);
