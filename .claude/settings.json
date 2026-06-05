@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git reset*)",
+      "Bash(git checkout*)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(*&&*git commit*)",
+      "Bash(*; git commit*)",
+      "Bash(*&&*git push*)",
+      "Bash(*; git push*)",
+      "Bash(git add* && git commit*)",
+      "Read(./config.local.js)",
+      "Read(./seed.local.js)"
+    ]
+  }
+}
