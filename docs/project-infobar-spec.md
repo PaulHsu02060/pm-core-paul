@@ -1,36 +1,44 @@
-# 專案頁頂部資訊條規格（M3，建議與 M1 一起做）
+# 專案頁頂部資訊條規格（M3）
 
-## 顯示內容（五格）
-性試結束日 / 量試結束日 / 量產結束日 / 預計可販日 / 另案開發說明
-- 前四格是日期，第五格是文字（截圖第5格是說明性內容，如「2.2kW 待壓縮機與航嘉電控盒交期確認，預計6/15評估」）
+## 視覺定案（款式 C 進度時間軸）
+- 版型：一條水平進度線串四個里程碑點（性試 DVT → 量試 PVT → 量產 MP → 預計可販）
+- 里程碑點狀態：已過的日期=實心點、未來=空心點（白底+邊框）、可販日=終點強調點（較大）
+- 進度線：已過區段用較深色、未來區段用 border-tertiary 淺色
+- 日期格式：YYYY / MM / DD（完整年月日，空格分隔）
+- 可販格下方加「距今 N 工作天」（D.workdaysBetween 算）
+
+## 字體大小（均衡比例，weight 兩級：400/500）
+- 里程碑日期：16px / weight 500
+- 階段標籤（性試 DVT 等）：13px / weight 400
+- 副字（距今 N 工作天）：12px / weight 400 / text-tertiary
+（原則：日期與標籤落差控制在 3px 內，不要讓日期過度搶眼）
+
+## 配色（全走 :root 變數，禁止寫死 hex）
+- 里程碑點配色呼應「階段進度條」既有階段色：性試/量試/量產各取對應階段色變數，可販用主強調色變數
+- 回家實作時用真實 :root 階段色變數套上，在真實畫面微調
+- 未到的里程碑（空心點）用 border-secondary
 
 ## 位置
 插在 proj-header（:2600）之後、buildProjKpiHtml（:2602）之前，當第四塊放最前，不動 header 內部結構。新函式 buildProjInfoBarHtml(proj)。
 
-## 資料欄位（收進 project.pdcaData 同一層，不另開頂層）
-ensurePdcaData（:462-466）加四行 if undefined：
-- targetDate（既有）= 預計可販日，直接複用，不新增（PDCA 頁與資訊條自動同源）
-- dvtEndDate（新增）：性試結束日 ISO
-- pvtEndDate（新增）：量試結束日 ISO
-- mpEndDate（新增）：量產結束日 ISO
-- sideProject（新增）：另案開發說明文字
-migration runMigrations（:557-559）/ ensureAllPdcaData（:478）會自動涵蓋舊專案。
-
-## M1 灌入點（一處）
-匯入器建/找到 J 專案後：Object.assign(proj.pdcaData, {dvtEndDate, pvtEndDate, mpEndDate, sideProject})，值來自「專案資訊」分頁。所以 M1 和資訊條一起做。
+## 資料來源（乙案：全 WBS 衍生，零手填）
+- 性試/量試/量產結束日：getProjectStages 對應階段的 latestEnd（階段名比對：含「性試」/「量試」/「量產」）
+- 預計可販日：任務名含「可販」的任務完成日
+- 另案開發：本次移除，未來可選擴充
+- 與 M1 的關係：匯入後 getProjectStages 自然有資料、資訊條即時算，匯入器不需特別灌日期
 
 ## 實作（複用現成）
-- 卡片產生器：照 buildProjKpiHtml 的 card(label,value,sub,dataTip,warn,stack) closure（:2745-2750）寫 buildProjInfoBarHtml，五格同 KPI 六卡同構
-- 日期格式化：D.fmt(date,'iso' 或 'md')（:349）
-- 剩餘工作天（若某格要顯示「距量產還 N 工作日」）：D.workdaysBetween（:2740）
+- 新函式 buildProjInfoBarHtml(proj)：時間軸版型自建 .proj-info-bar 新 class（款式 C 是進度線+里程碑點，非卡片排，不沿用 .stats-row）
+- 階段日期：getProjectStages（:5007）回傳 stages[] 的 latestEnd；可販日：掃該專案任務名含「可販」取其有效完成日（getEffectiveSchedule）
+- 日期格式化：D.fmt（:349），顯示 YYYY / MM / DD
+- 距今工作天：D.workdaysBetween（:2740 用法）
 - tooltip：data-tip + initTooltip（:6656）
-- CSS：複用 .stats-row + .stat/.stat-num/.stat-label（:245-260），開個 .proj-info-bar 變體 class 同款（含 kpi-warn 警示紅 :265 適期日可用、.stat-sub 第二行 :267）
-- 顏色走 :root 變數，不寫死 hex
+- 顏色/字級全走 :root 變數（階段色變數、border-secondary/tertiary、text-tertiary），不寫死 hex
 
 ## 缺損容忍
-- 某格日期空 → 顯示「—」或「未設定」，不報錯
-- 整條資訊條：五格全空（簡易專案）→ 整條不顯示，或顯示「未設定階段日期」，不破版
+- 某點日期算不出（無對應階段或階段內無日期任務）→ 該點顯示「—」空心點，不報錯
+- 四點全空（簡易專案）→ 整條不顯示，或顯示「未設定階段日期」，不破版
 
 ## 驗收
-- J 系列匯入後，資訊條顯示性試 2026-08-24 / 量試 2026-11-20 / 量產 2027-01-28 / 可販 2027-01-30 / 另案 2.2kW 說明（對照舊系統截圖）
+- J 系列匯入後，資訊條顯示性試 2026-08-24 / 量試 2026-11-20 / 量產 2027-01-28 / 可販 2027-01-30（全由 WBS 衍生即時算，對照舊系統截圖）
 - 簡易專案（無這些日期）資訊條優雅降級不破版
