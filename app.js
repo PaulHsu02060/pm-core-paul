@@ -3645,6 +3645,24 @@ App.openProjectDialog = function(projId) {
         <label>備註</label>
         <input type="text" id="pf-note" value="${editing ? U.esc(editing.note || '') : ''}" placeholder="簡短描述">
       </div>
+        ${isEdit ? `
+        <div class="form-field">
+          <label>部門擔當</label>
+          <div class="dept-edit-list">
+            ${(editing.depts || []).map(d => `
+              <div class="dept-edit-row">
+                <input class="dept-edit-name" value="${U.esc(d.name)}" onchange="App.deptEdit.renameDept('${projId}','${d.id}',this.value)">
+                <button class="tb-action ghost dept-edit-del" onclick="App.deptEdit.removeDept('${projId}','${d.id}')">刪部門</button>
+                <div class="dept-edit-members">
+                  ${(d.members || []).map(m => `<span class="dept-member-chip">${U.esc(m.name)}<button onclick="App.deptEdit.removeMember('${projId}','${d.id}','${m.id}')">×</button></span>`).join('')}
+                  <button class="dept-member-add" onclick="App.deptEdit.addMember('${projId}','${d.id}')">＋成員</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <button class="tb-action ghost dept-add-btn" onclick="App.deptEdit.addDept('${projId}')">＋ 新增部門</button>
+        </div>
+        ` : ''}
     `,
     footer: `
       ${isEdit ? `<button class="tb-action danger" onclick="App.deleteProject('${projId}')" style="margin-right:auto;">刪除專案</button>` : ''}
