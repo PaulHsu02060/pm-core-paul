@@ -3283,6 +3283,10 @@ App.buildTaskFormHtml = function(task, mode) {
       </div>
     </div>
     <div class="form-row">
+      <div class="form-field"><label>前置任務</label><input type="text" id="tf-predecessor" value="${U.esc(v(t.predecessor))}" placeholder="例：1FF,2FS+2（WBS編號+關係+lag）"></div>
+      <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
+    </div>
+    <div class="form-row">
       <div class="form-field"><label>預計開始</label><input type="date" id="tf-start" value="${v(t.start)}"></div>
       <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(t.end)}"></div>
     </div>
@@ -3345,9 +3349,9 @@ App.saveNewTask = function(projId) {
     start: document.getElementById('tf-start').value,
     end: document.getElementById('tf-end').value,
     estHours: parseFloat(document.getElementById('tf-hours').value) || 1,
-    predecessor: '',   // 階段2 排程引擎：前置任務編碼（見 parsePredecessors）；UI 輸入欄後續再加
+    predecessor: document.getElementById('tf-predecessor').value.trim(),  // M2-2：前置任務編碼原樣字串（解析容錯在 parsePredecessors）
     wbs: '',           // 階段2：WBS 識別
-    durationDays: 1,     // 手動新建預設1工作天（工期UI欄往後加，屆時改讀使用者輸入）
+    durationDays: parseFloat(document.getElementById('tf-duration').value) || 1,  // M2-2：工期(工作天)，最小1（0工期語意由 taskType=milestone 表達）
     scheduledStart: '',  // 排程套用結果，四條一致
     scheduledEnd: '',
     parentWbsId: '',   // 階段2：子綁父
@@ -3523,6 +3527,8 @@ App.saveTask = function(id) {
   t.taskType  = document.getElementById('tf-taskType').value;  // M2-T4：編輯送出同步類型
   t.stage     = document.getElementById('tf-stage').value.trim();     // M2-2a：與同步/匯入同欄位，trim 同收集口徑
   t.subgroup  = document.getElementById('tf-subgroup').value.trim();
+  t.predecessor  = document.getElementById('tf-predecessor').value.trim();  // M2-2：編輯送出同步前置/工期（原本編輯不碰這兩欄）
+  t.durationDays = parseFloat(document.getElementById('tf-duration').value) || 1;
   t.urgency   = document.getElementById('tf-urgency').value;
   t.start     = document.getElementById('tf-start').value;
   t.end       = document.getElementById('tf-end').value;
