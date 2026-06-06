@@ -605,6 +605,26 @@ function runMigrations() {
     changed = true;
   }
 
+  // taskTypeBackfill_v1：存量任務 category==='meeting'(里程碑) → taskType='milestone'
+  // 只轉 WBS 匯入里程碑(wbs 非空)；手動真會議 wbs='' 落不動側，避免誤標 milestone
+  // category='meeting' 有兩種來源：(A)手動表單建的真會議 task，wbs 寫死 ''；
+  //   (B)WBS 匯入被 lossy 壓進 category 的里程碑，wbs 是 A 欄序號非空。
+  //   兩邊 wbs 都程式寫死＝結構性區分訊號，可靠。
+  //   排程跳會議讀的是獨立 store(DATA.meetings/recurringMeetings/specialMeetings)、不讀 task.category，
+  //   故本 migration 不影響排程；加 t.wbs 是為語意正確(避免手動真會議被誤標 milestone 害甘特畫菱形)。
+  // 同步任務(!t.synced 排除)A-1 已帶正確值不需轉
+  // 注意：ensureTaskType(193) 在本 migration(194) 前跑，存量 taskType 已被補成 'task'，
+  //       故用 category 判斷直接改寫，不能用「taskType 缺席」當條件
+  // group 不處理：存量資料無「群組」痕跡可辨識，group 只從 M2-T1 後新同步/匯入產生
+  if (!M.taskTypeBackfill_v1) {
+    DATA.tasks.forEach(t => {
+      if (t.synced) return;                    // 同步任務跳過
+      if (t.wbs && t.category === 'meeting') t.taskType = 'milestone';
+    });
+    M.taskTypeBackfill_v1 = true;
+    changed = true;
+  }
+
   if (changed) Storage.save();
 }
 
