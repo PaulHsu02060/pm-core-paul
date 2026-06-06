@@ -3247,6 +3247,15 @@ App.buildTaskFormHtml = function(task, mode) {
       </div>
     </div>
     <div class="form-row">
+      <div class="form-field"><label>類型</label>
+        <select id="tf-taskType">
+          <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
+          <option value="milestone" ${t.taskType === 'milestone' ? 'selected' : ''}>◆ 里程碑</option>
+          <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
       <div class="form-field"><label>緊急程度</label>
         <select id="tf-urgency">
           <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
@@ -3318,6 +3327,7 @@ App.saveNewTask = function(projId) {
     desc: document.getElementById('tf-desc').value.trim(),
     owner: document.getElementById('tf-owner').value.trim(),
     category: document.getElementById('tf-category').value,
+    taskType: document.getElementById('tf-taskType').value,  // M2-T4：使用者顯式選擇（非 hardcode 預設，quickAdd 仍靠 ensureTaskType 兜底）
     urgency: document.getElementById('tf-urgency').value,
     status,
     start: document.getElementById('tf-start').value,
@@ -3498,6 +3508,7 @@ App.saveTask = function(id) {
   t.desc      = document.getElementById('tf-desc').value.trim();
   t.owner     = document.getElementById('tf-owner').value.trim();
   t.category  = document.getElementById('tf-category').value;
+  t.taskType  = document.getElementById('tf-taskType').value;  // M2-T4：編輯送出同步類型
   t.urgency   = document.getElementById('tf-urgency').value;
   t.start     = document.getElementById('tf-start').value;
   t.end       = document.getElementById('tf-end').value;
