@@ -2639,9 +2639,10 @@ App.renderProject = function() {
 
     ${this.buildProjKpiHtml(proj)}
 
-    ${this.buildProjStagesHtml(proj)}
-
-    ${this.buildProjDeptHtml(proj)}
+    <div class="proj-dash-grid">
+      ${this.buildProjStagesHtml(proj)}
+      ${this.buildProjDeptHtml(proj)}
+    </div>
 
     <div class="proj-grid">
       <div>
