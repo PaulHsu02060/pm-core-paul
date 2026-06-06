@@ -3218,6 +3218,15 @@ App.buildTaskFormHtml = function(task, mode) {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
   return `
+    ${mode === 'new' ? `
+    <div class="form-field">
+      <label>專案</label>
+      <select id="tf-project">${DATA.projects.filter(p => !p.synced).map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
+    </div>` : `
+    <div class="form-field">
+      <label>專案</label>
+      <div class="task-proj-readonly">${U.esc((DATA.projects.find(p => p.id === t.project) || {}).name || '')}</div>
+    </div>`}
     <div class="form-field">
       <label>任務名稱 *</label>
       <input type="text" id="tf-name" value="${U.esc(v(t.name))}" placeholder="例：完成 BOM 表 6 型壁掛機">
@@ -3226,19 +3235,8 @@ App.buildTaskFormHtml = function(task, mode) {
       <label>說明</label>
       <textarea id="tf-desc" placeholder="任務詳細說明（選填）">${U.esc(v(t.desc))}</textarea>
     </div>
-    ${mode === 'new' ? `
-    <div class="form-field">
-      <label>所屬專案</label>
-      <select id="tf-project">${DATA.projects.filter(p => !p.synced).map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
-    </div>` : `
-    <div class="form-field">
-      <label>所屬專案</label>
-      <div class="task-proj-readonly">${U.esc((DATA.projects.find(p => p.id === t.project) || {}).name || '')}</div>
-    </div>`}
     <div class="form-row">
       <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
-    </div>
-    <div class="form-row">
       <div class="form-field"><label>類型</label>
         <select id="tf-taskType">
           <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
@@ -3246,12 +3244,12 @@ App.buildTaskFormHtml = function(task, mode) {
           <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
         </select>
       </div>
-      <div class="form-field"><label>PLM 階段</label>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>階段</label>
         <input type="text" id="tf-stage" list="tf-stage-list" value="${U.esc(v(t.stage))}" placeholder="輸入或選擇階段">
         <datalist id="tf-stage-list">${this.stageDatalistOptions(t.project)}</datalist>
       </div>
-    </div>
-    <div class="form-row">
       <div class="form-field"><label>子群組</label>
         <input type="text" id="tf-subgroup" list="tf-subgroup-list" value="${U.esc(v(t.subgroup))}" placeholder="輸入或選擇子群組">
         <datalist id="tf-subgroup-list">${this.subgroupDatalistOptions(t.project)}</datalist>
@@ -3321,8 +3319,14 @@ App.openNewTaskDialog = function(projId) {
 };
 
 App.saveNewTask = function(projId) {
+  // M2 表單改造：必填檢查（專案/名稱/擔當/類型/階段/預計開始；house style：toast warning + return）
+  if (!(document.getElementById('tf-project').value || '').trim()) { U.toast('⚠ 請選擇專案', 'warning'); return; }
   const name = document.getElementById('tf-name').value.trim();
   if (!name) { U.toast('⚠ 請填任務名稱', 'warning'); return; }
+  if (!document.getElementById('tf-owner').value.trim()) { U.toast('⚠ 請填擔當', 'warning'); return; }
+  if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
+  if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
+  if (!document.getElementById('tf-start').value.trim()) { U.toast('⚠ 請填預計開始', 'warning'); return; }
 
   const status = document.getElementById('tf-status').value;
   const task = {
@@ -3508,8 +3512,13 @@ App.openTaskModal = function(id) {
 App.saveTask = function(id) {
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
+  // M2 表單改造：必填檢查（名稱/擔當/類型/階段/預計開始；編輯版專案是唯讀 div 無 tf-project，不檢查）
   const name = document.getElementById('tf-name').value.trim();
   if (!name) { U.toast('⚠ 請填任務名稱', 'warning'); return; }
+  if (!document.getElementById('tf-owner').value.trim()) { U.toast('⚠ 請填擔當', 'warning'); return; }
+  if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
+  if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
+  if (!document.getElementById('tf-start').value.trim()) { U.toast('⚠ 請填預計開始', 'warning'); return; }
 
   t.name      = name;
   t.desc      = document.getElementById('tf-desc').value.trim();
