@@ -3237,14 +3237,6 @@ App.buildTaskFormHtml = function(task, mode) {
     </div>`}
     <div class="form-row">
       <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
-      <div class="form-field"><label>分類</label>
-        <select id="tf-category">
-          <option value="deep" ${t.category === 'deep' ? 'selected' : ''}>🌲 深度工作</option>
-          <option value="admin" ${t.category === 'admin' ? 'selected' : ''}>📋 雜事零碎</option>
-          <option value="meeting" ${t.category === 'meeting' ? 'selected' : ''}>📅 會議</option>
-          <option value="other" ${t.category === 'other' ? 'selected' : ''}>· 其他</option>
-        </select>
-      </div>
     </div>
     <div class="form-row">
       <div class="form-field"><label>類型</label>
@@ -3297,7 +3289,6 @@ App.buildTaskFormHtml = function(task, mode) {
     </div>` : ''}
     <div class="form-row">
       <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
-      <div class="form-field"><label>處理方式</label><input type="text" id="tf-method" value="${U.esc(v(t.method))}" placeholder="會議/郵件/現場"></div>
     </div>
     <div class="form-field">
       <label>備註</label>
@@ -3340,7 +3331,7 @@ App.saveNewTask = function(projId) {
     name,
     desc: document.getElementById('tf-desc').value.trim(),
     owner: document.getElementById('tf-owner').value.trim(),
-    category: document.getElementById('tf-category').value,
+    category: 'deep',  // M2 表單改造：分類欄 UI 已移除，資料層保留、新任務一律 deep（工作性質維度後續另議）
     taskType: document.getElementById('tf-taskType').value,  // M2-T4：使用者顯式選擇（非 hardcode 預設，quickAdd 仍靠 ensureTaskType 兜底）
     stage: document.getElementById('tf-stage').value.trim(),       // M2-2a：與同步/匯入同欄位，trim 同收集口徑
     subgroup: document.getElementById('tf-subgroup').value.trim(),
@@ -3355,7 +3346,7 @@ App.saveNewTask = function(projId) {
     scheduledStart: '',  // 排程套用結果，四條一致
     scheduledEnd: '',
     parentWbsId: '',   // 階段2：子綁父
-    method: document.getElementById('tf-method').value.trim(),
+    method: '',        // M2 表單改造：處理方式欄 UI 已移除，新任務存空字串
     note: document.getElementById('tf-note').value.trim(),
     canSplit: document.getElementById('tf-split').checked,
     completedAt: status === 'done' ? new Date().toISOString() : null,
@@ -3523,7 +3514,7 @@ App.saveTask = function(id) {
   t.name      = name;
   t.desc      = document.getElementById('tf-desc').value.trim();
   t.owner     = document.getElementById('tf-owner').value.trim();
-  t.category  = document.getElementById('tf-category').value;
+  // M2 表單改造：分類/處理方式欄 UI 已移除——t.category / t.method 保留原值不覆蓋
   t.taskType  = document.getElementById('tf-taskType').value;  // M2-T4：編輯送出同步類型
   t.stage     = document.getElementById('tf-stage').value.trim();     // M2-2a：與同步/匯入同欄位，trim 同收集口徑
   t.subgroup  = document.getElementById('tf-subgroup').value.trim();
@@ -3535,7 +3526,6 @@ App.saveTask = function(id) {
   t.actualStart = document.getElementById('tf-actualStart').value;
   t.actualEnd   = document.getElementById('tf-actualEnd').value;
   t.estHours  = parseFloat(document.getElementById('tf-hours').value) || 1;
-  t.method    = document.getElementById('tf-method').value.trim();
   t.note      = document.getElementById('tf-note').value.trim();
   t.canSplit  = document.getElementById('tf-split').checked;
 
