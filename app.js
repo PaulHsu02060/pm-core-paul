@@ -3684,6 +3684,60 @@ App.saveProject = function(id) {
   if (!id) this.showPage('project', null);
 };
 
+App.deptEdit = {
+  _getProj(projId) {
+    return DATA.projects.find(p => p.id === projId);
+  },
+  _commit(projId) {
+    // 即時生效（D-2c 走 A 案）：存檔 + 重繪整個編輯專案 modal
+    Storage.save();
+    App.openProjectDialog(projId);
+  },
+  addDept(projId) {
+    const p = this._getProj(projId);
+    if (!p) return;
+    if (!p.depts) p.depts = [];
+    p.depts.push({ id: U.id(), name: '新部門', members: [] });
+    this._commit(projId);
+  },
+  renameDept(projId, deptId, newName) {
+    const p = this._getProj(projId);
+    if (!p || !p.depts) return;
+    const d = p.depts.find(x => x.id === deptId);
+    if (!d) return;
+    const v = (newName || '').trim();
+    if (!v) { U.toast('部門名不可空白'); return; }
+    d.name = v;
+    this._commit(projId);
+  },
+  removeDept(projId, deptId) {
+    const p = this._getProj(projId);
+    if (!p || !p.depts) return;
+    const n = DATA.tasks.filter(t => t.dept === deptId).length;
+    if (!confirm(n + ' 個任務會變未指派，確定刪除此部門？')) return;
+    DATA.tasks.forEach(t => { if (t.dept === deptId) t.dept = '未指派'; });
+    p.depts = p.depts.filter(x => x.id !== deptId);
+    this._commit(projId);
+  },
+  addMember(projId, deptId) {
+    const p = this._getProj(projId);
+    if (!p || !p.depts) return;
+    const d = p.depts.find(x => x.id === deptId);
+    if (!d) return;
+    if (!d.members) d.members = [];
+    d.members.push({ id: U.id(), name: '新成員' });
+    this._commit(projId);
+  },
+  removeMember(projId, deptId, memberId) {
+    const p = this._getProj(projId);
+    if (!p || !p.depts) return;
+    const d = p.depts.find(x => x.id === deptId);
+    if (!d || !d.members) return;
+    d.members = d.members.filter(m => m.id !== memberId);
+    this._commit(projId);
+  }
+};
+
 App.deleteProject = function(id) {
   const p = this.getProj(id);
   if (!p) return;
