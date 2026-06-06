@@ -3237,7 +3237,7 @@ App.buildTaskFormHtml = function(task, mode) {
     </div>
     <div class="form-row">
       <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
-      <div class="form-field"><label>類型</label>
+      <div class="form-field"><label>類型 <span title="任務＝有工期、要排程的實際工作項目；里程碑＝時間點標記（工期0），如審查、交付節點；群組＝純分類母項，不參與排程" style="cursor:help;">?</span></label>
         <select id="tf-taskType">
           <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
           <option value="milestone" ${t.taskType === 'milestone' ? 'selected' : ''}>◆ 里程碑</option>
@@ -3256,7 +3256,7 @@ App.buildTaskFormHtml = function(task, mode) {
       </div>
     </div>
     <div class="form-row">
-      <div class="form-field"><label>緊急程度</label>
+      <div class="form-field"><label>緊急程度 <span title="系統依 deadline 自動計算緊急度，可手動覆蓋" style="cursor:help;">?</span></label>
         <select id="tf-urgency">
           <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
           <option value="medium" ${t.urgency === 'medium' || !t.urgency ? 'selected' : ''}>🟡 普通</option>
