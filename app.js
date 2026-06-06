@@ -190,6 +190,7 @@ const Storage = {
       ensurePdcaGroupsRoot();
       DATA.projects.forEach(ensurePdcaData);
       DATA.tasks.forEach(ensureTaskPdcaGroup);
+      DATA.tasks.forEach(ensureTaskType);
       runMigrations();
     } catch(e) { console.error('Load failed', e); }
   },
@@ -479,6 +480,22 @@ function ensureAllPdcaData() {
   ensurePdcaGroupsRoot();
   (DATA.projects || []).forEach(ensurePdcaData);
   (DATA.tasks || []).forEach(ensureTaskPdcaGroup);
+}
+
+// M2-T：Sheet/Excel 類型欄原字串 → taskType 正典值（task=排甘特 / milestone=節點工期0 / group=母項不執行）
+// 未知字串與空值一律退回 'task'（同 parsePredecessors 未知關係退 FS 的容錯先例）
+function mapTaskType(rawType) {
+  const s = (rawType == null ? '' : String(rawType)).trim();
+  if (s === '里程碑') return 'milestone';
+  if (s === '群組') return 'group';
+  return 'task';
+}
+// M2-T：taskType 形狀保險（照 ensureTaskPdcaGroup 模式，每次 load 跑、只補缺不蓋值）。
+// 單一兜底點：手動建任務三路徑（quickAdd/saveNew/excelImport）刻意不各寫預設，避免多份各自演化。
+function ensureTaskType(task) {
+  if (!task) return task;
+  if (typeof task.taskType !== 'string' || !task.taskType) task.taskType = 'task';
+  return task;
 }
 
 // ─── 一次性資料 migration（_migrations 記錄已跑過的 key；存在性檢查 → 重複跑安全）───
@@ -1512,6 +1529,7 @@ const Sync = {
           scheduledEnd: '',
           estHours: parseFloat(row.workdays || 0) * (DATA.settings.dailyHours || 6) || 4,  // 每日工時讀 settings（使用者可在設定頁自填），settings 無值才 fallback 6。小時來源最終設計待引擎2
           category: row.type === '里程碑' ? 'meeting' : 'deep',
+          taskType: mapTaskType(row.type),  // M2-T：類型正本（task/milestone/group）；上行 lossy 映射待消費點全改完後拔除
           urgency: deduceUrgency(row),
           status: realStatus,
           progress: realProgress,
@@ -6330,6 +6348,7 @@ async function parseWbsExcel(file) {
         subgroup: r.C != null ? String(r.C).trim() : '',
         name: name,
         category: String(r.E || '').includes('里程碑') ? 'meeting' : 'deep',
+        taskType: mapTaskType(r.E),   // M2-T：類型正本（E欄原字串→task/milestone/group）；上行 lossy 映射待消費點全改完後拔除
         predecessor: r.F != null ? String(r.F).trim() : '',      // 原樣序號字串
         durationDays: typeof r.G === 'number' ? r.G : (parseFloat(r.G) || 0),
         owner: r.H != null ? String(r.H).trim() : '',
@@ -6390,6 +6409,7 @@ function performWbsImport(parsed) {
       name: row.name,
       desc: row.stage ? `${row.stage} / ${row.subgroup || ''}` : (row.subgroup || ''),  // 照同步版公式
       category: row.category,
+      taskType: row.taskType,        // M2-T：類型正本（parseWbsExcel 已映射）
       predecessor: row.predecessor,  // 原樣序號字串
       durationDays: row.durationDays,
       owner: row.owner,
