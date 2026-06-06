@@ -3254,6 +3254,16 @@ App.buildTaskFormHtml = function(task, mode) {
           <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
         </select>
       </div>
+      <div class="form-field"><label>PLM 階段</label>
+        <input type="text" id="tf-stage" list="tf-stage-list" value="${U.esc(v(t.stage))}" placeholder="輸入或選擇階段">
+        <datalist id="tf-stage-list">${this.stageDatalistOptions(t.project)}</datalist>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>子群組</label>
+        <input type="text" id="tf-subgroup" list="tf-subgroup-list" value="${U.esc(v(t.subgroup))}" placeholder="輸入或選擇子群組">
+        <datalist id="tf-subgroup-list">${this.subgroupDatalistOptions(t.project)}</datalist>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-field"><label>緊急程度</label>
@@ -3328,6 +3338,8 @@ App.saveNewTask = function(projId) {
     owner: document.getElementById('tf-owner').value.trim(),
     category: document.getElementById('tf-category').value,
     taskType: document.getElementById('tf-taskType').value,  // M2-T4：使用者顯式選擇（非 hardcode 預設，quickAdd 仍靠 ensureTaskType 兜底）
+    stage: document.getElementById('tf-stage').value.trim(),       // M2-2a：與同步/匯入同欄位，trim 同收集口徑
+    subgroup: document.getElementById('tf-subgroup').value.trim(),
     urgency: document.getElementById('tf-urgency').value,
     status,
     start: document.getElementById('tf-start').value,
@@ -3509,6 +3521,8 @@ App.saveTask = function(id) {
   t.owner     = document.getElementById('tf-owner').value.trim();
   t.category  = document.getElementById('tf-category').value;
   t.taskType  = document.getElementById('tf-taskType').value;  // M2-T4：編輯送出同步類型
+  t.stage     = document.getElementById('tf-stage').value.trim();     // M2-2a：與同步/匯入同欄位，trim 同收集口徑
+  t.subgroup  = document.getElementById('tf-subgroup').value.trim();
   t.urgency   = document.getElementById('tf-urgency').value;
   t.start     = document.getElementById('tf-start').value;
   t.end       = document.getElementById('tf-end').value;
@@ -5271,6 +5285,19 @@ App.pdcaGroupDatalistOptions = function(projectId) {
   });
   return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant')).map(g => `<option value="${U.esc(g)}"></option>`).join('');
 };
+
+// M2-2a：任務表單 stage/subgroup datalist——掃該專案任務既有值（trim 非空才收，收 trim 後值統一口徑）。
+// 「未分階段」是 getProjectStages 顯示層分桶代稱、task.stage 不存此字面值，故 trim 過濾即足、不特判
+// （特判反而會吞掉使用者真打的同名值）。共用核心+薄包裝：兩欄只差欄位名，不重複原則。
+function taskFieldDatalistOptions(projectId, field) {
+  const set = new Set();
+  (DATA.tasks || []).forEach(x => {
+    if (x.project === projectId && !x._deleted && typeof x[field] === 'string' && x[field].trim()) set.add(x[field].trim());
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant')).map(s => `<option value="${U.esc(s)}"></option>`).join('');
+}
+App.stageDatalistOptions = function(projectId) { return taskFieldDatalistOptions(projectId, 'stage'); };
+App.subgroupDatalistOptions = function(projectId) { return taskFieldDatalistOptions(projectId, 'subgroup'); };
 
 App.buildPdcaGroupsHtml = function(project) {
   const groups = this.getPdcaGroups(project.id);
