@@ -956,3 +956,44 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   .dash-grid, .proj-grid { grid-template-columns: 1fr; }
   .report-summary { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── D-2c-3 部門擔當表 ───────────────── */
+.dept-edit-list { display: flex; flex-direction: column; gap: var(--r8); }
+
+.dept-edit-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--r6);
+  padding: var(--r8); border: 1px solid var(--rule);
+  border-radius: var(--r8); background: var(--surface2);
+}
+
+.dept-edit-name {
+  flex: 1 1 160px; padding: var(--r4) var(--r6);
+  border: 1px solid var(--rule2); border-radius: var(--r4);
+  background: var(--surface); color: var(--ink); font: inherit;
+}
+
+.dept-edit-members {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--r6);
+  flex: 2 1 240px;
+}
+
+.dept-member-chip {
+  display: inline-flex; align-items: center; gap: var(--r4);
+  padding: var(--r4) var(--r8); border-radius: 99px;
+  background: var(--surface); border: 1px solid var(--rule);
+  color: var(--ink2); font-size: 13px;
+}
+.dept-member-chip button {
+  border: none; background: none; cursor: pointer;
+  color: var(--ink4); padding: 0; line-height: 1; font-size: 14px;
+}
+.dept-member-chip button:hover { color: var(--rose); }
+
+.dept-member-add {
+  padding: var(--r4) var(--r8); border-radius: 99px;
+  border: 1px dashed var(--rule2); background: none;
+  color: var(--ink3); cursor: pointer; font-size: 13px;
+}
+.dept-member-add:hover { border-color: var(--sage-400); color: var(--sage-600); }
+
+.dept-edit-del:hover { color: var(--rose); }
