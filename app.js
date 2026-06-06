@@ -3725,10 +3725,16 @@ App.deptEdit = {
     const p = this._getProj(projId);
     if (!p || !p.depts) return;
     const n = DATA.tasks.filter(t => t.dept === deptId).length;
-    if (!confirm(n + ' 個任務會變未指派，確定刪除此部門？')) return;
-    DATA.tasks.forEach(t => { if (t.dept === deptId) t.dept = '未指派'; });
-    p.depts = p.depts.filter(x => x.id !== deptId);
-    this._commit(projId);
+    if (n === 0) {
+      // 空部門:輕量 confirm 後直接刪
+      const d0 = p.depts.find(x => x.id === deptId);
+      if (!confirm('確定刪除部門「' + (d0 ? d0.name : deptId) + '」?')) return;
+      p.depts = p.depts.filter(x => x.id !== deptId);
+      this._commit(projId);
+      return;
+    }
+    // n>0:開批次改派彈窗(不在此寫資料)
+    App.openDeptReassign(projId, deptId);
   },
   addMember(projId, deptId) {
     const p = this._getProj(projId);
@@ -3747,6 +3753,62 @@ App.deptEdit = {
     d.members = d.members.filter(m => m.id !== memberId);
     this._commit(projId);
   }
+};
+
+App.openDeptReassign = function(projId, deptId) {
+  const p = App.getProj(projId);
+  if (!p || !p.depts) return;
+  const delDept = p.depts.find(x => x.id === deptId);
+  const affected = DATA.tasks.filter(t => t.dept === deptId);
+  // 下拉選項:其他部門 + 未指派
+  const optDepts = p.depts.filter(x => x.id !== deptId);
+  const rows = affected.map(t => {
+    const label = (t.wbs !== undefined && t.wbs !== null && String(t.wbs).trim() !== '')
+      ? (U.esc(String(t.wbs)) + ' ' + U.esc(t.name || ''))
+      : U.esc(t.name || '');
+    const opts = ['<option value="">— 請選擇 —</option>']
+      .concat(optDepts.map(d => '<option value="' + d.id + '">' + U.esc(d.name) + '</option>'))
+      .concat(['<option value="__UNASSIGN__">未指派</option>'])
+      .join('');
+    return '<div class="reassign-row" data-task-id="' + t.id + '">'
+      + '<span class="reassign-task">' + label + '</span>'
+      + '<select class="reassign-select" onchange="App.checkReassignReady()">' + opts + '</select>'
+      + '</div>';
+  }).join('');
+  const body = '<div class="reassign-list">' + rows + '</div>';
+  const footer = '<button class="tb-action ghost" onclick="App.openProjectDialog(\'' + projId + '\')">取消</button>'
+    + '<button id="reassign-del-btn" class="tb-action danger" disabled '
+    + 'onclick="App.confirmDeptReassign(\'' + projId + '\',\'' + deptId + '\')">刪除部門</button>';
+  App.openModal({
+    title: '刪除部門「' + (delDept ? U.esc(delDept.name) : deptId) + '」— 改派 ' + affected.length + ' 個任務',
+    body: body,
+    footer: footer
+  });
+};
+
+App.checkReassignReady = function() {
+  const sels = document.querySelectorAll('.reassign-select');
+  const btn = document.getElementById('reassign-del-btn');
+  if (!btn) return;
+  const allChosen = Array.from(sels).every(s => s.value !== '');
+  btn.disabled = !allChosen;
+};
+
+App.confirmDeptReassign = function(projId, deptId) {
+  const p = App.getProj(projId);
+  if (!p || !p.depts) return;
+  const rows = Array.from(document.querySelectorAll('.reassign-row'));
+  // 防呆:全部 select 有值才執行(防繞過 disabled 造成半套寫入)
+  if (!rows.every(r => { const s = r.querySelector('.reassign-select'); return s && s.value !== ''; })) return;
+  rows.forEach(r => {
+    const taskId = r.getAttribute('data-task-id');
+    const val = r.querySelector('.reassign-select').value;
+    const t = DATA.tasks.find(x => x.id === taskId);
+    if (!t) return;
+    t.dept = (val === '__UNASSIGN__') ? '未指派' : val;
+  });
+  p.depts = p.depts.filter(x => x.id !== deptId);
+  App.deptEdit._commit(projId);   // = Storage.save() + openProjectDialog(重繪回編輯專案 modal)
 };
 
 App.deleteProject = function(id) {
