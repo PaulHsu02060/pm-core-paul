@@ -717,8 +717,8 @@ const U = {
 const LABELS = {
   urgency:  { high: '緊急', medium: '普通', low: '不急' },
   status:   { pending: '未開始', wip: '進行中', done: '已完成', hold: '擱置中' },
-  category: { deep: '深度', admin: '雜事', meeting: '會議', other: '其他' },
-  categoryClass: { deep: 'tag-deep', admin: 'tag-admin', meeting: 'tag-meeting', other: 'tag-other' },
+  category: { deep: '深度', admin: '雜事', meeting: '會議', other: '其他', milestone: '◆ 里程碑' },  // milestone 鍵供 taskType 顯示用（M2-T3），非 category 值域
+  categoryClass: { deep: 'tag-deep', admin: 'tag-admin', meeting: 'tag-meeting', other: 'tag-other', milestone: 'tag-milestone' },
 };
 
 // ─── TASK SCORING (priority sort) ──────────────────────
@@ -2221,7 +2221,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
       if (item) {
         const task = DATA.tasks.find(t => t.id === item.taskId);
         if (task) {
-          const cat = task.category || 'deep';
+          const cat = task.taskType === 'milestone' ? 'milestone' : (task.category || 'deep');  // M2-T3：milestone 優先於 category，修 WBS 里程碑週卡片誤披會議藍
           const proj = App.getProj(task.project);
           const projName = proj ? proj.name : '';
           const projColor = (proj && proj.color) ? proj.color : '#3a3a3a';
@@ -2952,7 +2952,7 @@ App.cleanExpiredDeletedTasks = function() {
 
 App.buildTaskRowHtml = function(t) {
   const sch = getEffectiveSchedule(t);
-  const cat = t.category || 'deep';
+  const cat = t.taskType === 'milestone' ? 'milestone' : (t.category || 'deep');  // M2-T3：milestone 優先於 category，修 WBS 里程碑誤顯「會議」tag
   const isPreview = !DATA.settings.previewWeeks ? false : (
     sch.end && D.daysBetween(D.today(), new Date(sch.end)) > 7 && D.daysBetween(D.today(), new Date(sch.end)) <= (DATA.settings.previewWeeks * 7)
   );
@@ -4137,9 +4137,11 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
   const colorIdx = proj ? PROJ_COLORS.indexOf(proj.color) : -1;
   const colorClass = ['bar-sage','bar-terracotta','bar-slate','bar-plum','bar-amber','bar-rose','bar-sage','bar-sage'][colorIdx % 8] || 'bar-sage';
   const sch = getEffectiveSchedule(task);
-  const isMilestone = task.category === 'meeting' && sch.start === sch.end;
+  const isMilestone = task.taskType === 'milestone';  // M2-T3：類型正本，不再靠 category==='meeting' 啟發式誤判
   const tsDate = new Date(sch.start || sch.end);
-  const teDate = new Date(sch.end || sch.start);
+  // 里程碑=節點(工期0)：強制 te=ts 單格錨在 start(start 空退 end)，日期跨度視為髒資料不畫長條；
+  // 亦保證 startCol===endCol → 前後空格迴圈恰好補滿 14 格，格線不塌
+  const teDate = isMilestone ? tsDate : new Date(sch.end || sch.start);
   const tsIdx = D.daysBetween(start, tsDate);
   const teIdx = D.daysBetween(start, teDate);
   const startCol = Math.max(0, tsIdx);

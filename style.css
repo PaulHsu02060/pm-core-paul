@@ -403,6 +403,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .ws-event.auto-meeting .ev-meta, .ws-event.cleaning .ev-meta { padding-left: 0; }
 .ws-event.auto-meeting:hover, .ws-event.cleaning:hover { transform: none; }
 .ws-event.other { background: var(--stone-100); border-color: var(--stone-300); color: var(--stone-600); }
+.ws-event.milestone { background: var(--terracotta-l); border-color: var(--terracotta); color: var(--terracotta-ink); }  /* M2-T3：taskType 里程碑週卡，同甘特菱形 terracotta */
 .ws-event.locked { border-left-style: double; border-left-width: 5px; }
 .ws-event.overdue { box-shadow: 0 0 0 1.5px var(--terracotta); }
 .ws-event.completed {
@@ -569,6 +570,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .tag-admin { background: var(--amber-l); color: var(--amber-ink); }
 .tag-meeting { background: var(--slate-l); color: var(--slate-ink); }
 .tag-other { background: var(--stone-100); color: var(--stone-600); }
+.tag-milestone { background: var(--terracotta-l); color: var(--terracotta-ink); }  /* M2-T3：taskType 里程碑 tag，同甘特菱形 terracotta */
 .task-urg { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
 .task-urg.high { background: var(--terracotta); }
 .task-urg.medium { background: var(--amber); }
