@@ -2613,6 +2613,7 @@ App.renderProject = function() {
             <span class="tlc-title">待辦任務</span>
             <span class="tlc-count">${activeTasks.length}</span>
             <span style="font-size:11px; color:var(--ink3); margin-left:auto;">延遲 → 進行中 → 未開始</span>
+            <button class="tb-action" data-edit onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:10px;">＋ 新增任務</button>
           </div>
           <div id="activeTaskList">
             ${visibleActive.length === 0 ?
@@ -2678,14 +2679,6 @@ App.renderProject = function() {
 
       <div>
         ${this.buildMeetingPanelHtml()}
-        ${this.buildGeneratePanelHtml()}
-        <div class="tip">
-          <b>💡 排程邏輯</b><br>
-          • 每日 ${DATA.settings.dailyHours}h、${DATA.settings.goldenTime === 'morning' ? '上午' : DATA.settings.goldenTime === 'afternoon' ? '下午' : ''}深度時段優先<br>
-          • 緊急 × Deadline 計算順序<br>
-          • ≥${DATA.settings.splitThreshold}h 任務自動切分多天<br>
-          • 鎖定 🔒 任務不會被覆蓋
-        </div>
       </div>
     </div>
   `;
