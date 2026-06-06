@@ -222,6 +222,12 @@ button { cursor: pointer; }
 .tb-action.ghost:hover { background: var(--surface2); }
 .tb-action.danger { background: var(--terracotta); }
 .tb-action.danger:hover { background: var(--terracotta-d); }
+.tb-action:disabled,
+.tb-action:disabled:hover {
+  background: var(--stone-200);
+  color: var(--stone-400);
+  cursor: not-allowed;
+}
 
 .tabs { display: inline-flex; padding: 3px; background: var(--surface2); border-radius: var(--r8); gap: 1px; }
 .tab-btn { padding: 5px 14px; border: none; background: none; border-radius: var(--r6); font-size: 12px; color: var(--ink3); transition: all .15s; font-weight: 500; }
@@ -997,3 +1003,21 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .dept-member-add:hover { border-color: var(--sage-400); color: var(--sage-600); }
 
 .dept-edit-del:hover { color: var(--rose); }
+
+/* ── D-2d-3 刪部門改派彈窗 ───────────── */
+.reassign-list {
+  display: flex; flex-direction: column; gap: var(--r6);
+  max-height: 50vh; overflow-y: auto;
+}
+.reassign-row {
+  display: flex; align-items: center; gap: var(--r8);
+  padding: var(--r6) var(--r8); border-radius: var(--r6);
+  background: var(--surface2);
+}
+.reassign-task { flex: 1 1 auto; font-size: 14px; color: var(--ink); }
+.reassign-select {
+  flex: 0 0 auto; min-width: 120px;
+  padding: var(--r4) var(--r6);
+  border: 1px solid var(--rule2); border-radius: var(--r4);
+  background: var(--surface); color: var(--ink); font: inherit;
+}
