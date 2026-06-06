@@ -3176,76 +3176,86 @@ App.quickAddTask = function(projId, input) {
   U.toast(`✓ 已新增「${name}」`);
 };
 
+App.buildTaskFormHtml = function(task, mode) {
+  const t = task || {};
+  const v = (x) => (x == null ? '' : x);
+  return `
+    <div class="form-field">
+      <label>任務名稱 *</label>
+      <input type="text" id="tf-name" value="${U.esc(v(t.name))}" placeholder="例：完成 BOM 表 6 型壁掛機">
+    </div>
+    <div class="form-field">
+      <label>說明</label>
+      <textarea id="tf-desc" placeholder="任務詳細說明（選填）">${U.esc(v(t.desc))}</textarea>
+    </div>
+    ${mode === 'new' ? `
+    <div class="form-field">
+      <label>所屬專案</label>
+      <select id="tf-project">${DATA.projects.filter(p => !p.synced).map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
+    </div>` : `
+    <div class="form-field">
+      <label>所屬專案</label>
+      <div class="task-proj-readonly">${U.esc((DATA.projects.find(p => p.id === t.project) || {}).name || '')}</div>
+    </div>`}
+    <div class="form-row">
+      <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
+      <div class="form-field"><label>分類</label>
+        <select id="tf-category">
+          <option value="deep" ${t.category === 'deep' ? 'selected' : ''}>🌲 深度工作</option>
+          <option value="admin" ${t.category === 'admin' ? 'selected' : ''}>📋 雜事零碎</option>
+          <option value="meeting" ${t.category === 'meeting' ? 'selected' : ''}>📅 會議</option>
+          <option value="other" ${t.category === 'other' ? 'selected' : ''}>· 其他</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>緊急程度</label>
+        <select id="tf-urgency">
+          <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
+          <option value="medium" ${t.urgency === 'medium' || !t.urgency ? 'selected' : ''}>🟡 普通</option>
+          <option value="low" ${t.urgency === 'low' ? 'selected' : ''}>🟢 不急</option>
+        </select>
+      </div>
+      <div class="form-field"><label>狀態</label>
+        <select id="tf-status">
+          <option value="pending" ${t.status === 'pending' || !t.status ? 'selected' : ''}>未開始</option>
+          <option value="wip" ${t.status === 'wip' ? 'selected' : ''}>進行中</option>
+          <option value="done" ${t.status === 'done' ? 'selected' : ''}>已完成</option>
+          <option value="hold" ${t.status === 'hold' ? 'selected' : ''}>擱置中</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>預計開始</label><input type="date" id="tf-start" value="${v(t.start)}"></div>
+      <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(t.end)}"></div>
+    </div>
+    ${mode === 'edit' ? `
+    <div class="form-row">
+      <div class="form-field"><label>實際開始</label><input type="date" id="tf-actualStart" value="${v(t.actualStart)}"></div>
+      <div class="form-field"><label>實際完成</label><input type="date" id="tf-actualEnd" value="${v(t.actualEnd)}"></div>
+    </div>` : ''}
+    <div class="form-row">
+      <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
+      <div class="form-field"><label>處理方式</label><input type="text" id="tf-method" value="${U.esc(v(t.method))}" placeholder="會議/郵件/現場"></div>
+    </div>
+    <div class="form-field">
+      <label>備註</label>
+      <input type="text" id="tf-note" value="${U.esc(v(t.note))}">
+    </div>
+    <div class="form-field">
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="tf-split" ${t.canSplit !== false ? 'checked' : ''} style="width:auto;">
+        可切分（≥4h 任務拆成多天）
+      </label>
+    </div>
+  `;
+};
+
 // 完整新增任務對話框（含日期、緊急度等所有欄位）
 App.openNewTaskDialog = function(projId) {
-  const projectOptions = DATA.projects.filter(p => !p.synced).map(p =>
-    `<option value="${p.id}" ${projId === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`
-  ).join('');
-
-  const today = D.fmt(D.today(), 'iso');
-
   this.openModal({
     title: '新增任務',
-    body: `
-      <div class="form-field">
-        <label>任務名稱 *</label>
-        <input type="text" id="tf-name" placeholder="例：完成 BOM 表 6 型壁掛機">
-      </div>
-      <div class="form-field">
-        <label>說明</label>
-        <textarea id="tf-desc" placeholder="任務詳細說明（選填）"></textarea>
-      </div>
-      <div class="form-field">
-        <label>所屬專案</label>
-        <select id="tf-project">${projectOptions}</select>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(DATA.settings.userName || '')}"></div>
-        <div class="form-field"><label>分類</label>
-          <select id="tf-category">
-            <option value="deep" selected>🌳 深度工作</option>
-            <option value="admin">📋 雜事零碎</option>
-            <option value="meeting">📅 會議</option>
-            <option value="other">·  其他</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>緊急程度</label>
-          <select id="tf-urgency">
-            <option value="high">🔴 緊急</option>
-            <option value="medium" selected>🟡 普通</option>
-            <option value="low">🟢 不急</option>
-          </select>
-        </div>
-        <div class="form-field"><label>狀態</label>
-          <select id="tf-status">
-            <option value="pending" selected>未開始</option>
-            <option value="wip">進行中</option>
-            <option value="done">已完成</option>
-            <option value="hold">擱置中</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>預計開始</label><input type="date" id="tf-start" value="${today}"></div>
-        <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="1" min="0.5" step="0.5"></div>
-        <div class="form-field"><label>處理方式</label><input type="text" id="tf-method" placeholder="會議/郵件/現場"></div>
-      </div>
-      <div class="form-field">
-        <label>備註</label>
-        <input type="text" id="tf-note">
-      </div>
-      <div class="form-field">
-        <label style="display:flex; align-items:center; gap:6px;">
-          <input type="checkbox" id="tf-split" checked style="width:auto;">
-          可切分（≥4h 任務拆成多天）
-        </label>
-      </div>
-    `,
+    body: App.buildTaskFormHtml({ project: projId, start: D.fmt(D.today(), 'iso') }, 'new'),
     footer: `
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
       <button class="tb-action" onclick="App.saveNewTask('${projId}')">建立任務</button>
@@ -3430,76 +3440,8 @@ App.openTaskModal = function(id) {
 
   this.openModal({
     title: `編輯任務 ${currentWeekBadge}`,
-    body: `
-      <div class="form-field">
-        <label>任務名稱 *</label>
-        <input type="text" id="tf-name" value="${U.esc(t.name)}">
-      </div>
-      <div class="form-field">
-        <label>說明</label>
-        <textarea id="tf-desc">${U.esc(t.desc || '')}</textarea>
-      </div>
-      <div class="form-field">
-        <label>所屬專案</label>
-        <div style="padding:8px 0; font-size:13px; display:flex; align-items:center; gap:7px;">${proj && proj.color ? `<span style="width:10px;height:10px;border-radius:3px;background:${proj.color};display:inline-block;flex-shrink:0;"></span>` : ''}${U.esc(proj ? proj.name : '—')}</div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(t.owner || '')}"></div>
-        <div class="form-field"><label>分類</label>
-          <select id="tf-category">
-            <option value="deep" ${t.category === 'deep' ? 'selected' : ''}>🌳 深度工作</option>
-            <option value="admin" ${t.category === 'admin' ? 'selected' : ''}>📋 雜事零碎</option>
-            <option value="meeting" ${t.category === 'meeting' ? 'selected' : ''}>📅 會議</option>
-            <option value="other" ${t.category === 'other' ? 'selected' : ''}>·  其他</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>緊急程度</label>
-          <select id="tf-urgency">
-            <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
-            <option value="medium" ${t.urgency === 'medium' ? 'selected' : ''}>🟡 普通</option>
-            <option value="low" ${t.urgency === 'low' ? 'selected' : ''}>🟢 不急</option>
-          </select>
-        </div>
-        <div class="form-field"><label>狀態</label>
-          <select id="tf-status">
-            <option value="pending" ${t.status === 'pending' ? 'selected' : ''}>未開始</option>
-            <option value="wip" ${t.status === 'wip' ? 'selected' : ''}>進行中</option>
-            <option value="done" ${t.status === 'done' ? 'selected' : ''}>已完成</option>
-            <option value="hold" ${t.status === 'hold' ? 'selected' : ''}>擱置中</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>預計開始</label><input type="date" id="tf-start" value="${sch.start || ''}"></div>
-        <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${sch.end || ''}"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>實際開始</label><input type="date" id="tf-actualStart" value="${t.actualStart || ''}"></div>
-        <div class="form-field"><label>實際完成（填了自動標已完成）</label><input type="date" id="tf-actualEnd" value="${t.actualEnd || ''}"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${t.estHours || 1}" min="0.5" step="0.5"></div>
-        <div class="form-field"><label>處理方式</label><input type="text" id="tf-method" value="${U.esc(t.method || '')}" placeholder="會議/郵件/現場"></div>
-      </div>
-      <div class="form-field">
-        <label>備註</label>
-        <input type="text" id="tf-note" value="${U.esc(t.note || '')}">
-      </div>
-      <div class="form-field">
-        <label style="display:flex; align-items:center; gap:6px;">
-          <input type="checkbox" id="tf-split" ${t.canSplit !== false ? 'checked' : ''} style="width:auto;">
-          可切分（≥4h 任務拆成多天）
-        </label>
-      </div>
-      <div class="form-field">
-        <label>PDCA 大項目</label>
-        <input type="text" id="tf-pdcaGroup" list="tf-pdcaGroup-list" value="${U.esc(t.pdcaGroup || '')}" placeholder="輸入或選擇大項目（空＝未歸類）">
-        <datalist id="tf-pdcaGroup-list">${this.pdcaGroupDatalistOptions(t.project)}</datalist>
-      </div>
-      ${historyHtml}
-    `,
+    body: App.buildTaskFormHtml({ ...t, start: sch.start, end: sch.end }, 'edit')
+      + `${historyHtml}`,
     footer: `
       <button class="tb-action danger" onclick="App.deleteTask('${t.id}')" style="margin-right:auto;">刪除任務</button>
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
@@ -3527,8 +3469,6 @@ App.saveTask = function(id) {
   t.method    = document.getElementById('tf-method').value.trim();
   t.note      = document.getElementById('tf-note').value.trim();
   t.canSplit  = document.getElementById('tf-split').checked;
-  const pgEl = document.getElementById('tf-pdcaGroup');
-  if (pgEl) t.pdcaGroup = pgEl.value.trim();
 
   let newStatus = document.getElementById('tf-status').value;
   // 自動邏輯：實際完成日有填 → 強制標為已完成
