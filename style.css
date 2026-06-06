@@ -272,6 +272,21 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .proj-kpi .stat.kpi-stack { flex-wrap: wrap; }                                 /* stack 模式:副標換獨立第二行 */
 .proj-kpi .stat-sub { flex-basis: 100%; font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 1px; }
 
+/* ─── M2 視覺對齊:KPI 改獨立小卡(PM-Core 卡片語言 surface/rule/r10/shadow-sm;只 override .proj-kpi 作用域,不動通用 .stats-row/.stat) ─── */
+.stats-row.proj-kpi { background: none; border: none; overflow: visible; gap: 10px; }   /* 長條容器→透明,卡距用 gap */
+.proj-kpi .stat {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r10);
+  box-shadow: var(--shadow-sm);
+  padding: 12px 14px;
+  flex-direction: column; align-items: flex-start; gap: 2px;   /* 直排:標題上、大數字、說明下 */
+  border-left: 3px solid var(--rule);                          /* 左彩條:預設中性,warn 覆蓋 */
+}
+.proj-kpi .stat.kpi-warn { border-left-color: var(--terracotta); }
+/* DOM 序是 num→label→sub,用 order 反轉成 label→num→sub,不動 app.js */
+.proj-kpi .stat-label { order: 1; }
+.proj-kpi .stat-num { order: 2; }
+.proj-kpi .stat-sub { order: 3; flex-basis: auto; }
+
 /* ─── 專案階段進度卡(專案頁,圖1 第二塊)─── */
 .proj-stages-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 14px 16px; margin-bottom: 14px; }
 .proj-stages-head { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
