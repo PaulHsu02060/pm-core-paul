@@ -3280,13 +3280,38 @@ App.buildTaskFormHtml = function(task, mode) {
       <div class="form-field"><label>預計開始</label><input type="date" id="tf-start" value="${v(t.start)}"></div>
       <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(t.end)}"></div>
     </div>
-    ${mode === 'edit' ? `
-    <div class="form-row">
-      <div class="form-field"><label>實際開始</label><input type="date" id="tf-actualStart" value="${v(t.actualStart)}"></div>
-      <div class="form-field"><label>實際完成</label><input type="date" id="tf-actualEnd" value="${v(t.actualEnd)}"></div>
-    </div>` : ''}
+    <div class="form-collapse ${mode === 'edit' ? 'open' : ''}" id="tf-actualSection">
+      <div class="form-collapse-head" onclick="document.getElementById('tf-actualSection').classList.toggle('open')">
+        <span class="form-collapse-chevron">▸</span> 實際執行
+      </div>
+      <div class="collapse-body">
+        <div class="form-row">
+          <div class="form-field"><label>實際開始</label><input type="date" id="tf-actualStart" value="${v(t.actualStart)}"></div>
+          <div class="form-field"><label>實際完成</label><input type="date" id="tf-actualEnd" value="${v(t.actualEnd)}"></div>
+        </div>
+        <div class="form-field">
+          <label>交付物</label>
+          <textarea id="tf-deliverable" placeholder="交付物說明（選填）">${U.esc(v(t.deliverable))}</textarea>
+        </div>
+        <div class="form-field">
+          <label>交付物連結</label>
+          <input type="text" id="tf-deliverableLink" value="${U.esc(v(t.deliverableLink))}" placeholder="貼雲端連結（Drive 等）">
+        </div>
+      </div>
+    </div>
     <div class="form-row">
       <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
+    </div>
+    <div class="form-field">
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="tf-riskHL" ${t.riskHL ? 'checked' : ''} style="width:auto;">
+        需拉高層 (HL)
+        <span title="勾選表示此風險需升級到高層關注" style="cursor:help;">?</span>
+      </label>
+    </div>
+    <div class="form-field">
+      <label>風險內容</label>
+      <textarea id="tf-riskIssue" placeholder="描述風險內容…">${U.esc(v(t.riskIssue))}</textarea>
     </div>
     <div class="form-field">
       <label>備註</label>
@@ -3351,6 +3376,10 @@ App.saveNewTask = function(projId) {
     scheduledEnd: '',
     parentWbsId: '',   // 階段2：子綁父
     method: '',        // M2 表單改造：處理方式欄 UI 已移除，新任務存空字串
+    riskHL: document.getElementById('tf-riskHL').checked,                       // M2 表單改造：HL+交付物四欄（與 WBS 匯入同欄位）
+    riskIssue: document.getElementById('tf-riskIssue').value.trim(),
+    deliverable: document.getElementById('tf-deliverable').value.trim(),
+    deliverableLink: document.getElementById('tf-deliverableLink').value.trim(),
     note: document.getElementById('tf-note').value.trim(),
     canSplit: document.getElementById('tf-split').checked,
     completedAt: status === 'done' ? new Date().toISOString() : null,
@@ -3535,6 +3564,10 @@ App.saveTask = function(id) {
   t.actualStart = document.getElementById('tf-actualStart').value;
   t.actualEnd   = document.getElementById('tf-actualEnd').value;
   t.estHours  = parseFloat(document.getElementById('tf-hours').value) || 1;
+  t.riskHL    = document.getElementById('tf-riskHL').checked;                   // M2 表單改造：HL+交付物四欄（與 WBS 匯入同欄位）
+  t.riskIssue = document.getElementById('tf-riskIssue').value.trim();
+  t.deliverable = document.getElementById('tf-deliverable').value.trim();
+  t.deliverableLink = document.getElementById('tf-deliverableLink').value.trim();
   t.note      = document.getElementById('tf-note').value.trim();
   t.canSplit  = document.getElementById('tf-split').checked;
 

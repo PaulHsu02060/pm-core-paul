@@ -865,6 +865,13 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--sage-500); background: var(--surface); box-shadow: 0 0 0 3px rgba(74,124,92,.1); }
 .form-field textarea { resize: vertical; min-height: 60px; font-family: var(--sans); line-height: 1.6; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* M2 表單改造：實際執行反向摺疊（DOM 永在、CSS 收合；new 預設收起、edit 預設展開） */
+.form-collapse { border: 1px solid var(--rule); border-radius: var(--r8); margin-bottom: 12px; }
+.form-collapse-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; font-size: 11px; color: var(--ink3); font-family: var(--mono); letter-spacing: .04em; text-transform: uppercase; font-weight: 500; user-select: none; }
+.form-collapse-chevron { display: inline-block; transition: transform .15s; }
+.form-collapse.open .form-collapse-chevron { transform: rotate(90deg); }
+.form-collapse .collapse-body { display: none; padding: 0 10px 4px; }
+.form-collapse.open .collapse-body { display: block; }
 
 /* Color picker */
 .color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
