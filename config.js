@@ -18,7 +18,7 @@ var APP_CONFIG = {
   WBS_SHEET_NAME: 'WBS主表',
   ADMIN_EMAILS: [],
   ALLOWED_EMAILS: [],
-  OAUTH_CLIENT_ID: 'PASTE_YOUR_OAUTH_CLIENT_ID',
+  OAUTH_CLIENT_ID: '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com',
   SYNC_TOKEN: 'CHANGE_THIS_TOKEN',
   COMPANY_NAME: 'My Company',
   APP_BUILD_SIGNATURE: 'PM-Core',
@@ -26,7 +26,7 @@ var APP_CONFIG = {
   // ─── 應用 / 署名 ───
   APP_NAME: 'PM-Core',                 // 產品名（UI/console/備份檔名等）
   AUTHOR: 'PM-Core',                   // 關於頁顯示作者
-  REPO_URL: 'https://github.com/your-name/your-repo',
+  REPO_URL: 'https://github.com/PaulHsu02060/pm-core-paul',
 
   // ─── WBS 同步專案（對應外部 WBS Sheet）───
   WBS_PROJECT_NAME: 'WBS 專案',        // 同步建立的專案顯示名
