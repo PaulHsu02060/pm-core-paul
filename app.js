@@ -1632,6 +1632,7 @@ function mapStatus(status, progress) {
 const App = {
   currentPage: 'dashboard',
   currentProjectId: null,
+  currentView: 'dashboard', // B-1 雙視圖:dashboard|gantt|month,範圍由所在頁決定
   reportWeekKey: null, // for report page
 
   init() {
@@ -1834,6 +1835,7 @@ const App = {
   // ─── PAGE NAV ───
   showPage(name, btn) {
     this.currentPage = name;
+    if (name === 'dashboard') this.currentView = 'dashboard';
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
 
@@ -1860,6 +1862,14 @@ const App = {
     // Render the active page（進甘特頁重設專案篩選＝全選；切週 ganttShift 不重設）
     if (name === 'gantt') this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
     this.renderPage(name);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+
+  switchView(view) {
+    this.currentView = view;
+    if (view === 'gantt') { this.showPage('gantt', document.querySelector('[data-page=gantt]')); return; }
+    if (view === 'month') { this.showPage('month', document.querySelector('[data-page=month]')); return; }
+    this.renderDashboard();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
@@ -2035,9 +2045,9 @@ App.renderDashboard = function() {
               ${this.dashboardWeekOffset !== 0 ? `<button class="rw-arrow" onclick="App.dashboardWeekOffset=0; App.renderDashboard();" title="回到本週" style="background: var(--sage-50); color: var(--sage-700);">今</button>` : ''}
             </div>
             <div class="tabs" style="margin-left:auto">
-              <button class="tab-btn active">週視圖</button>
-              <button class="tab-btn" onclick="App.showPage('gantt', document.querySelector('[data-page=gantt]'))">甘特圖</button>
-              <button class="tab-btn" onclick="App.showPage('month', document.querySelector('[data-page=month]'))">月曆</button>
+              <button class="tab-btn ${this.currentView === 'dashboard' ? 'active' : ''}" onclick="App.switchView('dashboard')">儀表板</button>
+              <button class="tab-btn ${this.currentView === 'gantt' ? 'active' : ''}" onclick="App.switchView('gantt')">甘特圖</button>
+              <button class="tab-btn ${this.currentView === 'month' ? 'active' : ''}" onclick="App.switchView('month')">月曆</button>
             </div>
           </div>
           ${scheduleHtml}
@@ -4082,7 +4092,7 @@ App.cancelOCR = function() {
 // ═══════════════════════════════════════════════════════
 //  PAGE: GANTT
 // ═══════════════════════════════════════════════════════
-App.renderGantt = function() {
+App.renderGantt = function(targetId = 'page-gantt') {
   if (!this.ganttStart) this.ganttStart = D.monday();
   if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
   const start = this.ganttStart;
@@ -4117,7 +4127,7 @@ App.renderGantt = function() {
   });
 
   if (tasks.length === 0) {
-    document.getElementById('page-gantt').innerHTML = `
+    document.getElementById(targetId).innerHTML = `
       <div class="gantt-card">
         ${this.buildGanttHeaderHtml(days)}
         ${this.buildGanttFilterHtml()}
@@ -4150,7 +4160,7 @@ App.renderGantt = function() {
 
   const rowsHtml = sortedTasks.map(t => this.buildGanttRowHtml(t, start, days, schedById)).join('');
 
-  document.getElementById('page-gantt').innerHTML = `
+  document.getElementById(targetId).innerHTML = `
     <div class="gantt-card">
       ${this.buildGanttHeaderHtml(days)}
       ${this.buildGanttFilterHtml()}
