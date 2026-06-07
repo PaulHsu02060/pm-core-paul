@@ -2807,36 +2807,69 @@ App.buildProjKpiHtml = function(proj) {
 // 2.2KW 另案不做子分區(不寫死 "2.2" 字串),數字前綴排序自然排尾;等真實 Sheet 資料核對後再定。
 App.buildProjStagesHtml = function(proj) {
   const stages = this.getProjectStages(proj.id);
-  // 第一原則(資料缺損容忍):全無 stage 的簡易專案 → 收斂一句話,不畫空 bar、不報錯
   if (stages.length === 0 || (stages.length === 1 && stages[0].name === '未分階段')) {
     return `<div class="proj-stages-card">
       <div class="proj-stages-head">階段進度</div>
       <div class="proj-stages-empty">此專案未分階段(同步專案會自動帶入 PLM 階段)</div>
     </div>`;
   }
-  // 與 getProjectStages 分桶規則一致(stage.trim() 空→未分階段),改必同步
   const stageOf = (t) => (typeof t.stage === 'string' && t.stage.trim()) ? t.stage.trim() : '未分階段';
   const tasks = DATA.tasks.filter(t => t.project === proj.id && !t._deleted);
 
-  const rows = stages.map(st => {
+  // 日期區間：同年省年(2026/06/12 – 08/24)、跨年補年；空值顯 –
+  const ymd = (iso) => D.fmt(iso, 'ymd');               // 2026/08/24
+  const mdPad = (iso) => { const s = ymd(iso); return s.slice(5); };  // 08/24
+  const rangeStr = (s, e) => {
+    if (!s && !e) return '–';
+    const sStr = s ? ymd(s) : '–';
+    if (!e) return sStr;
+    const sameYear = s && e && s.slice(0,4) === e.slice(0,4);
+    return `${s ? ymd(s) : '–'} – ${sameYear ? mdPad(e) : ymd(e)}`;
+  };
+
+  // 膠囊標題：前端寫死顯示文字（純顯示層，不存後端）；分組鍵來自計算層 group
+  const GROUP_TITLE = { main: '2.9 ~ 7.3 kW', alt: '2.2 kW（另案）' };
+
+  const rowHtml = (st) => {
     const ts = tasks.filter(t => stageOf(t) === st.name);
     const pct = ts.length > 0
       ? Math.round(ts.reduce((s, t) => s + taskDisplayProgress(t), 0) / ts.length)
-      : null;   // 防呆:空桶不出 NaN,顯示 —
-    // 四檔配色:100 綠 / ≥50 深 / >0 琥珀 / 0(或無資料)灰
+      : null;
     const tier = pct === null ? 's0' : (pct >= 100 ? 's100' : (pct >= 50 ? 's50' : (pct > 0 ? 's1' : 's0')));
-    return `<div class="stage-row" data-tip="${U.esc('階段完成度|這個階段所有任務的平均完成度,每項等重計算')}">
-      <div class="stage-name">${U.esc(st.name)}</div>
+    const dateStr = rangeStr(st.earliestStart, st.latestEnd);
+    const dateCls = (st.earliestStart || st.latestEnd) ? '' : ' stage-date-empty';
+    return `<div class="stage-row" data-tip="${U.esc('階段完成度|完成%=該階段任務進度平均(件數等權);件數=已完成/總數;日期=最早開始～最晚結束')}">
+      <div class="stage-name">
+        <div class="stage-name-txt">${U.esc(st.name)}</div>
+        <div class="stage-date${dateCls}">${dateStr}</div>
+      </div>
       <div class="stage-bar"><div class="stage-bar-fill ${tier}" style="width:${pct || 0}%"></div></div>
       <div class="stage-pct ${tier}">${pct === null ? '—' : pct + '%'}</div>
-      <div class="stage-cnt">${st.itemCount} 件</div>
+      <div class="stage-cnt">${st.doneCount}/${st.itemCount}</div>
     </div>`;
+  };
+
+  const colHead = `<div class="stage-colhead">
+      <div class="stage-name"></div><div class="stage-bar-spacer"></div>
+      <div class="stage-pct-h">完成</div><div class="stage-cnt-h">完成/件數</div>
+    </div>`;
+
+  // 動態分組：計算層回傳幾組就畫幾組（無 alt 桶 → 只畫 main，連膠囊都不出）
+  const groupOrder = ['main', 'alt'];
+  const blocks = groupOrder.map(gk => {
+    const gs = stages.filter(st => st.group === gk);
+    if (gs.length === 0) return '';
+    const onlyMain = stages.every(st => st.group === 'main');
+    // 只有 main 一組時不畫膠囊標題（退化成單組樣式）
+    const cap = onlyMain ? '' :
+      `<div class="stage-group-cap"><span class="stage-cap-pill ${gk}">${GROUP_TITLE[gk]}</span><span class="stage-cap-rule"></span></div>`;
+    return cap + colHead + gs.map(rowHtml).join('');
   }).join('');
 
   return `<div class="proj-stages-card">
     <div class="proj-stages-head">階段進度 <span class="proj-stages-count">${stages.length} 個階段</span></div>
-    ${rows}
-    <div class="proj-stages-formula">完成% = 該階段任務進度平均(件數等權;無進度值以狀態折算:完成=100、其餘=0)</div>
+    ${blocks}
+    <div class="proj-stages-formula">完成% = 該階段任務進度平均(件數等權;無進度值以狀態折算:完成=100、其餘=0) · 件數 = 已完成 / 總數 · 日期 = 最早開始 ～ 最晚結束</div>
   </div>`;
 };
 
@@ -5187,14 +5220,17 @@ App.getProjectStages = function(projectId) {
     const s = (typeof t.stage === 'string' && t.stage.trim()) ? t.stage.trim() : NO_STAGE;
     (buckets[s] || (buckets[s] = [])).push(t);
   });
+  const isAlt = (nm) => /\([\d.]+\)\s*$/.test(nm);
   const stages = Object.keys(buckets).map(name => {
-    let earliestStart = null, latestEnd = null;
+    let earliestStart = null, latestEnd = null, doneCount = 0;
     buckets[name].forEach(t => {
+      if (t.status === 'done') doneCount++;
       const sch = getEffectiveSchedule(t);
       if (sch && sch.start && (!earliestStart || sch.start < earliestStart)) earliestStart = sch.start;
       if (sch && sch.end   && (!latestEnd   || sch.end   > latestEnd))       latestEnd   = sch.end;
     });
-    return { stageId: name, name, earliestStart, latestEnd, itemCount: buckets[name].length };
+    return { stageId: name, name, earliestStart, latestEnd,
+             itemCount: buckets[name].length, doneCount, group: isAlt(name) ? 'alt' : 'main' };
   });
   // 排序：階段名數字前綴(parseFloat，"10." 排在 "2." 後)；無前綴(NaN，如「未分階段」)排最後
   const numOf = st => { const n = parseFloat(st.name); return isNaN(n) ? Infinity : n; };

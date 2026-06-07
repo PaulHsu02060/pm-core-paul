@@ -289,21 +289,40 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 
 /* ─── 專案階段進度卡(專案頁,圖1 第二塊)─── */
 .proj-stages-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 14px 16px; margin-bottom: 14px; }
-.proj-stages-head { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
-.proj-stages-count { font-family: var(--mono); font-size: 10.5px; color: var(--ink4); margin-left: 6px; }
-.stage-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; cursor: help; }
-.stage-name { width: 150px; flex-shrink: 0; font-size: 12px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stage-bar { flex: 1; height: 8px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+.proj-stages-head { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 12px; }
+.proj-stages-count { font-family: var(--mono); font-size: 12px; color: var(--ink4); margin-left: 6px; }
+
+/* 分組膠囊標題 + 分隔線 */
+.stage-group-cap { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
+.stage-group-cap:first-of-type { margin-top: 2px; }
+.stage-cap-pill { font-size: 12.5px; font-weight: 500; padding: 3px 12px; border-radius: 99px; }
+.stage-cap-pill.main { color: var(--sage-700); background: var(--sage-50); border: 1px solid var(--sage-100); }
+.stage-cap-pill.alt  { color: var(--khaki-ink); background: var(--khaki-bg); border: 1px solid var(--khaki); }
+.stage-cap-rule { flex: 1; height: 0; border-top: 1px solid var(--rule); }
+
+/* 表頭小字 */
+.stage-colhead { display: flex; align-items: center; gap: 10px; padding: 2px 0 4px; }
+.stage-bar-spacer { flex: 1; }
+.stage-pct-h { width: 46px; text-align: right; font-size: 10.5px; color: var(--ink4); }
+.stage-cnt-h { width: 64px; text-align: right; font-size: 10.5px; color: var(--ink4); }
+
+/* 資料列（兩行高：階段名 + 日期） */
+.stage-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; cursor: help; border-top: 1px solid var(--surface2); }
+.stage-name { width: 118px; flex-shrink: 0; }
+.stage-name-txt { font-size: 13.5px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-date { font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 2px; }
+.stage-date-empty { color: var(--ink4); }
+.stage-bar { flex: 1; height: 9px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
 .stage-bar-fill { height: 100%; border-radius: 99px; }
-.stage-bar-fill.s100 { background: var(--sage-500); }   /* 100%:綠 */
-.stage-bar-fill.s50  { background: var(--slate); }      /* ≥50%:深 */
-.stage-bar-fill.s1   { background: var(--amber); }      /* >0%:琥珀 */
-.stage-bar-fill.s0   { background: var(--rule2); }      /* 0%/無資料:灰(寬0時僅 pct 字呈灰) */
-.stage-pct { width: 44px; text-align: right; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink2); }
+.stage-bar-fill.s100 { background: var(--sage-500); }
+.stage-bar-fill.s50  { background: var(--slate); }
+.stage-bar-fill.s1   { background: var(--amber); }
+.stage-bar-fill.s0   { background: var(--rule2); }
+.stage-pct { width: 46px; text-align: right; font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--ink2); }
 .stage-pct.s0 { color: var(--ink4); }
-.stage-cnt { width: 48px; text-align: right; font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+.stage-cnt { width: 64px; text-align: right; font-family: var(--mono); font-size: 12.5px; color: var(--ink3); }
 .proj-stages-empty { font-size: 12px; color: var(--ink3); padding: 6px 0; }
-.proj-stages-formula { font-size: 9.5px; color: var(--ink3); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--rule); line-height: 1.3; }
+.proj-stages-formula { font-size: 11px; color: var(--ink3); margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--rule); line-height: 1.4; }
 
 /* ─── 專案部門負荷卡(專案頁,圖1 第三塊;卡框/標題/公式複用 .proj-stages-*)─── */
 .dept-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; cursor: help; }
