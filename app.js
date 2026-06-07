@@ -1943,6 +1943,14 @@ App.buildViewTabsHtml = function() {
     </div>`;
 };
 
+App.buildReportTabsHtml = function() {
+  return `
+    <div class="tabs">
+      <button class="tab-btn ${this.currentPage === 'report' ? 'active' : ''}" onclick="App.showPage('report')">專案週報</button>
+      <button class="tab-btn ${this.currentPage === 'pdca' ? 'active' : ''}" onclick="App.showPage('pdca')">PDCA</button>
+    </div>`;
+};
+
 App.renderDashboard = function() {
   // Week offset: 0 = 本週, -1 = 上週, +1 = 下週...
   if (typeof this.dashboardWeekOffset !== 'number') this.dashboardWeekOffset = 0;
@@ -4686,7 +4694,7 @@ App.renderReport = function() {
       </div>
     </div>
   `;
-  document.getElementById('page-report').innerHTML = html;
+  document.getElementById('page-report').innerHTML = '<div class="view-tabs-bar">' + this.buildReportTabsHtml() + '</div>' + html;
 };
 
 App.reportWeekShift = function(weeks) {
@@ -4965,7 +4973,7 @@ App.renderPdca = function() {
   if (!host) return;
   const projects = DATA.projects || [];
   if (projects.length === 0) {
-    host.innerHTML = `<div class="empty-task-list"><div class="empty-task-list-icon">📊</div>尚無專案<br><span style="font-size:11px;">先到側欄「＋ 新增專案」建立</span></div>`;
+    host.innerHTML = `<div class="view-tabs-bar">${this.buildReportTabsHtml()}</div><div class="empty-task-list"><div class="empty-task-list-icon">📊</div>尚無專案<br><span style="font-size:11px;">先到側欄「＋ 新增專案」建立</span></div>`;
     return;
   }
   // active project（session 狀態，不存 localStorage）
@@ -4982,6 +4990,7 @@ App.renderPdca = function() {
     </button>`).join('');
 
   host.innerHTML = `
+    <div class="view-tabs-bar">${this.buildReportTabsHtml()}</div>
     <div class="pdca-toolbar"><button class="tb-action" onclick="App.exportPdcaReport()">📄 匯出月報</button></div>
     <div class="pdca-tabs">${tabsHtml}</div>
     ${this.buildPdcaPanelHtml(active)}

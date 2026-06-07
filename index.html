@@ -63,25 +63,10 @@
     </div>
 
     <div class="sb-section">
-      <div class="sb-label">主要</div>
+      <div class="sb-label">總儀表板</div>
       <div class="sb-nav">
         <button class="sb-item active" data-page="dashboard" onclick="App.showPage('dashboard', this)">
           <span class="ico">▦</span> 總儀表板
-        </button>
-        <button class="sb-item" data-page="gantt" onclick="App.showPage('gantt', this)">
-          <span class="ico">▤</span> 甘特圖
-        </button>
-        <button class="sb-item" data-page="month" onclick="App.showPage('month', this)">
-          <span class="ico">▥</span> 月曆視圖
-        </button>
-        <button class="sb-item" data-page="report" onclick="App.showPage('report', this)">
-          <span class="ico">📋</span> 專案週報
-        </button>
-        <button class="sb-item" data-page="pdca" onclick="App.showPage('pdca', this)">
-          <span class="ico">📊</span> PDCA 報告
-        </button>
-        <button class="sb-item" data-page="settings" onclick="App.showPage('settings', this)">
-          <span class="ico">⚙</span> 設定
         </button>
       </div>
     </div>
@@ -90,6 +75,18 @@
       <div class="sb-label">專案</div>
       <div class="sb-proj-list" id="projectList"></div>
       <button class="sb-add-proj" data-edit onclick="App.openProjectDialog()">＋ 新增專案</button>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">其他</div>
+      <div class="sb-nav">
+        <button class="sb-item" data-page="report" onclick="App.showPage('report', this)">
+          <span class="ico">📋</span> 報告
+        </button>
+        <button class="sb-item" data-page="settings" onclick="App.showPage('settings', this)">
+          <span class="ico">⚙</span> 設定
+        </button>
+      </div>
     </div>
 
     <div class="sb-bottom">
@@ -156,6 +153,6 @@
 <script src="config.local.js?v=20260605-1"></script>
 <script src="seed.sample.js?v=20260605-1"></script>
 <script src="seed.local.js?v=20260605-1"></script>
-<script src="app.js?v=20260607-7"></script>
+<script src="app.js?v=20260608-1"></script>
 </body>
 </html>
