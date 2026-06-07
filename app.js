@@ -1867,9 +1867,11 @@ const App = {
 
   switchView(view) {
     this.currentView = view;
-    if (view === 'gantt') { this.showPage('gantt', document.querySelector('[data-page=gantt]')); return; }
-    if (view === 'month') { this.showPage('month', document.querySelector('[data-page=month]')); return; }
-    this.renderDashboard();
+    if (view === 'dashboard') { this.renderDashboard(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (view === 'gantt') this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
+    document.getElementById('page-dashboard').innerHTML = `<div class="view-tabs-bar">${this.buildViewTabsHtml()}</div><div id="view-body"></div>`;
+    if (view === 'gantt') this.renderGantt('view-body');
+    if (view === 'month') this.renderMonth('view-body');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
@@ -1932,6 +1934,15 @@ const App = {
 // ═══════════════════════════════════════════════════════
 //  PAGE: DASHBOARD
 // ═══════════════════════════════════════════════════════
+App.buildViewTabsHtml = function() {
+  return `
+    <div class="tabs">
+      <button class="tab-btn ${this.currentView === 'dashboard' ? 'active' : ''}" onclick="App.switchView('dashboard')">儀表板</button>
+      <button class="tab-btn ${this.currentView === 'gantt' ? 'active' : ''}" onclick="App.switchView('gantt')">甘特圖</button>
+      <button class="tab-btn ${this.currentView === 'month' ? 'active' : ''}" onclick="App.switchView('month')">月曆</button>
+    </div>`;
+};
+
 App.renderDashboard = function() {
   // Week offset: 0 = 本週, -1 = 上週, +1 = 下週...
   if (typeof this.dashboardWeekOffset !== 'number') this.dashboardWeekOffset = 0;
@@ -2031,6 +2042,7 @@ App.renderDashboard = function() {
 
   document.getElementById('page-dashboard').innerHTML = `
     ${statsHtml}
+    <div class="view-tabs-bar">${this.buildViewTabsHtml()}</div>
     <div class="dash-grid">
       <div>
         <div class="card" style="padding-bottom:14px;">
@@ -2043,11 +2055,6 @@ App.renderDashboard = function() {
               </select>
               <button class="rw-arrow" onclick="App.dashboardWeekShift(1)" title="下一週">›</button>
               ${this.dashboardWeekOffset !== 0 ? `<button class="rw-arrow" onclick="App.dashboardWeekOffset=0; App.renderDashboard();" title="回到本週" style="background: var(--sage-50); color: var(--sage-700);">今</button>` : ''}
-            </div>
-            <div class="tabs" style="margin-left:auto">
-              <button class="tab-btn ${this.currentView === 'dashboard' ? 'active' : ''}" onclick="App.switchView('dashboard')">儀表板</button>
-              <button class="tab-btn ${this.currentView === 'gantt' ? 'active' : ''}" onclick="App.switchView('gantt')">甘特圖</button>
-              <button class="tab-btn ${this.currentView === 'month' ? 'active' : ''}" onclick="App.switchView('month')">月曆</button>
             </div>
           </div>
           ${scheduleHtml}
@@ -4341,7 +4348,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
 // ═══════════════════════════════════════════════════════
 //  PAGE: MONTH
 // ═══════════════════════════════════════════════════════
-App.renderMonth = function() {
+App.renderMonth = function(targetId = 'page-month') {
   if (!this.monthCursor) {
     const today = D.today();
     this.monthCursor = { year: today.getFullYear(), month: today.getMonth() };
@@ -4405,7 +4412,7 @@ App.renderMonth = function() {
     </div>`;
   }).join('');
 
-  document.getElementById('page-month').innerHTML = `
+  document.getElementById(targetId).innerHTML = `
     <div class="month-card">
       <div class="month-head-row" style="position:relative;">
         <button class="month-title-btn" onclick="App.toggleYMPicker(event)">
