@@ -2861,7 +2861,7 @@ App.buildProjStagesHtml = function(proj) {
     const onlyMain = stages.every(st => st.group === 'main');
     // 只有 main 一組時不畫膠囊標題（退化成單組樣式）
     const cap = onlyMain ? '' :
-      `<div class="stage-group-cap"><span class="stage-cap-pill ${gk}">${GROUP_TITLE[gk]}</span><span class="stage-cap-rule"></span></div>`;
+      `<div class="stage-group-cap"><span class="stage-cap-pill cap-${gk}">${GROUP_TITLE[gk]}</span><span class="stage-cap-rule"></span></div>`;
     return cap + colHead + gs.map(rowHtml).join('');
   }).join('');
 
