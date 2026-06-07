@@ -1,5 +1,12 @@
 # PM-Core — Claude Code 開工須讀
 
+## Session 啟動鐵則（每次開檔第一步）
+
+開始任何工作前，先跑 `git remote -v` 確認 remote 指向 `PaulHsu02060/pm-core-paul`。
+若 remote 不是 pm-core-paul（例如跑到 wbs-webapp 或其他專案），**立即停止**，
+告訴使用者「目前不在 pm-core-paul repo，請確認 Claude Code 的開啟目錄」，不要在錯的專案動工。
+確認在 pm-core-paul 後，`git log -3` 確認 HEAD 與 origin/main 一致，不一致先 pull。
+
 每次 session 開始，動任何 code 前，**先讀以下兩份文件並遵守**：
 
 1. `docs/AGENT_GATE.md` — 執行閘門（commit-gate、一次一件、貼原文等硬性規則，每步必守）
