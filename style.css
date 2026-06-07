@@ -295,7 +295,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 /* 分組膠囊標題 + 分隔線 */
 .stage-group-cap { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
 .stage-group-cap:first-of-type { margin-top: 2px; }
-.stage-cap-pill { font-size: 12.5px; font-weight: 500; padding: 3px 12px; border-radius: 99px; }
+.stage-cap-pill { font-size: 12.5px; font-weight: 500; padding: 3px 12px; border-radius: 99px; align-self: center; flex: none; }
 .stage-cap-pill.main { color: var(--sage-700); background: var(--sage-50); border: 1px solid var(--sage-100); }
 .stage-cap-pill.alt  { color: var(--khaki-ink); background: var(--khaki-bg); border: 1px solid var(--khaki); }
 .stage-cap-rule { flex: 1; height: 0; border-top: 1px solid var(--rule); }
