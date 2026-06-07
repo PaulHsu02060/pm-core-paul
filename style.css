@@ -206,6 +206,7 @@ button { cursor: pointer; }
   background: var(--bg);
   position: sticky; top: 0; z-index: var(--z-sticky);
 }
+.topbar.topbar-hidden { display: none; }
 .tb-crumb { font-family: var(--mono); font-size: 11px; color: var(--ink3); letter-spacing: .04em; }
 .tb-crumb b { color: var(--ink2); font-weight: 500; }
 .tb-title { font-family: var(--sans); font-weight: 600; font-size: 22px; letter-spacing: -.01em; margin-top: 2px; }

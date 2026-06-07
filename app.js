@@ -1849,6 +1849,9 @@ const App = {
     document.getElementById('pageTitle').textContent = titles[name] || name;
     document.getElementById('crumbPage').textContent = titles[name] || name;
 
+    const tb = document.querySelector('.main > .topbar');
+    if (tb) tb.classList.toggle('topbar-hidden', name === 'project');
+
     if (btn) {
       document.querySelectorAll('.sb-item, .sb-proj').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
@@ -2627,10 +2630,6 @@ App.renderProject = function() {
         <div class="proj-name">
           ${U.esc(proj.name)}
           ${proj.synced ? '<span class="proj-sync-badge">🔗 從 Google Sheet 同步</span>' : ''}
-        </div>
-        <div class="proj-meta">
-          ${tasks.length} 個任務 · ${tasks.filter(t=>t.status==='wip').length} 進行中
-          ${proj.synced && proj.lastSync ? ' · 同步：' + D.fmt(new Date(proj.lastSync), 'ymd') + ' ' + new Date(proj.lastSync).toTimeString().slice(0,5) : ''}
         </div>
       </div>
       ${proj.synced ? `<button class="tb-action ghost" data-edit onclick="Sync.syncJSeries()">↻ 立即同步</button>` : ''}
