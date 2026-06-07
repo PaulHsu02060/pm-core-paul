@@ -309,9 +309,10 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 
 /* 資料列（兩行高：階段名 + 日期） */
 .stage-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; cursor: help; border-top: 1px solid var(--surface2); }
-.stage-name { width: 118px; flex-shrink: 0; }
+.stage-name { width: 150px; flex-shrink: 0; }
 .stage-name-txt { font-size: 13.5px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage-date { font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 2px; }
+.stage-date-lbl { color: var(--ink4); margin-right: 3px; }
 .stage-date-empty { color: var(--ink4); }
 .stage-bar { flex: 1; height: 9px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
 .stage-bar-fill { height: 100%; border-radius: 99px; }
@@ -340,6 +341,18 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .dept-legend { display: flex; align-items: center; gap: 10px; }
 .dept-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink3); font-weight: 400; }
 .dept-legend-dot { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+
+/* 部門卡逾期迷你清單(buildProjDeptHtml overdueHtml) */
+.dept-overdue { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.dept-overdue-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.dept-overdue-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.dept-overdue-count { font-family: var(--mono); font-size: 11px; color: var(--surface); background: var(--terracotta); padding: 1px 7px; border-radius: 99px; }
+.dept-overdue-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--surface2); cursor: pointer; }
+.dept-overdue-row:hover { background: var(--surface2); }
+.dept-overdue-name { flex: 1; min-width: 0; }
+.dept-overdue-name > div:first-child { font-size: 12.5px; color: var(--ink2); }
+.dept-overdue-sub { font-size: 10.5px; color: var(--ink3); margin-top: 1px; }
+.dept-overdue-days { font-family: var(--mono); font-size: 11px; color: var(--terracotta); flex-shrink: 0; }
 
 /* ─── CARDS ─── */
 .card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 18px 20px; margin-bottom: 18px; }
@@ -563,11 +576,12 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   color: var(--sage-700); border-radius: 99px; font-weight: 500; margin-left: 8px;
 }
 
-.proj-grid { display: grid; grid-template-columns: 1fr 340px; gap: 22px; }
+.proj-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
 
 .proj-dash-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: var(--r16);
   margin-bottom: 14px;
 }

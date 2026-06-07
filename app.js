@@ -2714,10 +2714,6 @@ App.renderProject = function() {
           </div>
         </div>` : ''}
       </div>
-
-      <div>
-        ${this.buildMeetingPanelHtml()}
-      </div>
     </div>
   `;
   document.getElementById('page-project').innerHTML = html;
@@ -2815,15 +2811,11 @@ App.buildProjStagesHtml = function(proj) {
   const stageOf = (t) => (typeof t.stage === 'string' && t.stage.trim()) ? t.stage.trim() : '未分階段';
   const tasks = DATA.tasks.filter(t => t.project === proj.id && !t._deleted);
 
-  // 日期區間：同年省年(2026/06/12 – 08/24)、跨年補年；空值顯 –
-  const ymd = (iso) => D.fmt(iso, 'ymd');               // 2026/08/24
-  const mdPad = (iso) => { const s = ymd(iso); return s.slice(5); };  // 08/24
+  // 日期區間：起迄兩行標籤、完整 YYYY/MM/DD；空值顯 –
   const rangeStr = (s, e) => {
-    if (!s && !e) return '–';
-    const sStr = s ? ymd(s) : '–';
-    if (!e) return sStr;
-    const sameYear = s && e && s.slice(0,4) === e.slice(0,4);
-    return `${s ? ymd(s) : '–'} – ${sameYear ? mdPad(e) : ymd(e)}`;
+    const sLine = s ? `<span class="stage-date-lbl">起</span> ${D.fmt(s, 'ymd')}` : '<span class="stage-date-lbl">起</span> –';
+    const eLine = e ? `<span class="stage-date-lbl">迄</span> ${D.fmt(e, 'ymd')}` : '<span class="stage-date-lbl">迄</span> –';
+    return `${sLine}<br>${eLine}`;
   };
 
   // 膠囊標題：前端寫死顯示文字（純顯示層，不存後端）；分組鍵來自計算層 group
@@ -2925,6 +2917,29 @@ App.buildProjDeptHtml = function(proj) {
     </div>`;
   }).join('');
 
+  // 逾期迷你清單:口徑同上方 delayed(非hold、有效迄日<today、非done),前5筆逾期天數降冪
+  const overdue = tasks.filter(t => {
+    if (t.status === 'done' || t.status === 'hold') return false;
+    const end = getEffectiveSchedule(t).end;
+    return end && new Date(end) < today;
+  }).map(t => ({ t, days: -D.daysBetween(today, new Date(getEffectiveSchedule(t).end)) }))
+    .sort((a,b) => b.days - a.days).slice(0, 5);
+  const overdueHtml = overdue.length === 0 ? '' : `
+    <div class="dept-overdue">
+      <div class="dept-overdue-head">
+        <span class="dept-overdue-title">逾期任務</span>
+        <span class="dept-overdue-count">${overdue.length}</span>
+      </div>
+      ${overdue.map(({t, days}) => `
+        <div class="dept-overdue-row" onclick="App.openTaskModal('${t.id}')">
+          <div class="dept-overdue-name">
+            <div>${U.esc(t.name)}</div>
+            <div class="dept-overdue-sub">${U.esc(t.stage || '')} ${t.subgroup ? '/ ' + U.esc(t.subgroup) : ''}</div>
+          </div>
+          <div class="dept-overdue-days">逾期 ${days} 天</div>
+        </div>`).join('')}
+    </div>`;
+
   return `<div class="proj-stages-card proj-dept-card">
     <div class="proj-stages-head dept-head">
       <span>部門負荷${mode === '負責人' ? '(依負責人)' : ''} <span class="proj-stages-count">${entries.length} 個${mode === '負責人' ? '負責人' : '部門'}</span></span>
@@ -2937,6 +2952,7 @@ App.buildProjDeptHtml = function(proj) {
     </div>
     ${rows}
     <div class="proj-stages-formula">依${mode}分組(動態去重,依欄位原值、不拆多人);延遲口徑同 KPI DELAYED(不含擱置、無日期歸待辦);待辦=未開始+擱置</div>
+    ${overdueHtml}
   </div>`;
 };
 
