@@ -329,7 +329,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 
 /* ─── 專案部門負荷卡(專案頁,圖1 第三塊;卡框/標題/公式複用 .proj-stages-*)─── */
 .dept-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; cursor: help; }
-.dept-name { width: 150px; flex-shrink: 0; font-size: 12px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dept-name { width: 150px; flex-shrink: 0; font-size: 13.5px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dept-bar { flex: 1; height: 14px; background: var(--surface2); border-radius: var(--r6); overflow: hidden; display: flex; }
 .dept-seg { height: 100%; }
 /* 色票共選擇器:堆疊條段與標題列圖例同源,改色只改一處 */
@@ -337,7 +337,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .dept-seg.delayed, .dept-legend-dot.delayed { background: var(--terracotta); }  /* 延遲:紅 */
 .dept-seg.wip,     .dept-legend-dot.wip     { background: var(--slate); }       /* 進行中:藍灰 */
 .dept-seg.todo,    .dept-legend-dot.todo    { background: var(--rule2); }       /* 待辦(未開始+擱置):灰 */
-.dept-cnt { width: 48px; text-align: right; font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+.dept-cnt { width: 48px; text-align: right; font-family: var(--mono); font-size: 12.5px; color: var(--ink3); }
 .dept-head { display: flex; align-items: center; justify-content: space-between; }  /* 只掛在部門負荷標題列,不污染共用 .proj-stages-head */
 .dept-legend { display: flex; align-items: center; gap: 10px; }
 .dept-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink3); font-weight: 400; }
@@ -351,8 +351,8 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .dept-overdue-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--surface2); cursor: pointer; }
 .dept-overdue-row:hover { background: var(--surface2); }
 .dept-overdue-name { flex: 1; min-width: 0; }
-.dept-overdue-name > div:first-child { font-size: 12.5px; color: var(--ink2); }
-.dept-overdue-sub { font-size: 10.5px; color: var(--ink3); margin-top: 1px; }
+.dept-overdue-name > div:first-child { font-size: 13.5px; color: var(--ink2); }
+.dept-overdue-sub { font-size: 12px; color: var(--ink3); margin-top: 1px; }
 .dept-overdue-days { font-family: var(--mono); font-size: 11px; color: var(--terracotta); flex-shrink: 0; }
 
 /* ─── CARDS ─── */
