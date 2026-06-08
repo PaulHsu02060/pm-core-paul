@@ -1632,7 +1632,8 @@ function mapStatus(status, progress) {
 const App = {
   currentPage: 'dashboard',
   currentProjectId: null,
-  currentView: 'dashboard', // B-1 雙視圖:dashboard|gantt|month,範圍由所在頁決定
+  currentView: 'dashboard', // B-1 總儀表板視圖:dashboard|gantt|month(全專案範圍)
+  projectView: 'dashboard', // B-2 專案頁視圖:dashboard|gantt|month(單專案範圍,獨立於 currentView)
   reportWeekKey: null, // for report page
 
   init() {
@@ -1836,6 +1837,7 @@ const App = {
   showPage(name, btn) {
     this.currentPage = name;
     if (name === 'dashboard') this.currentView = 'dashboard';
+    if (name === 'project') this.projectView = 'dashboard';
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
 
@@ -1872,6 +1874,16 @@ const App = {
     document.getElementById('page-dashboard').innerHTML = `<div class="view-tabs-bar">${this.buildViewTabsHtml()}</div><div id="view-body"></div>`;
     if (view === 'gantt') this.renderGantt('view-body');
     if (view === 'month') this.renderMonth('view-body');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+
+  switchProjectView(view) {
+    this.projectView = view;
+    if (view === 'dashboard') { this.renderProject(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (view === 'gantt') this.ganttProjectFilter = new Set([this.currentProjectId]);
+    document.getElementById('page-project').innerHTML = '<div class="view-tabs-bar">' + this.buildProjectViewTabsHtml() + '</div><div id="proj-view-body"></div>';
+    if (view === 'gantt') this.renderGantt('proj-view-body', true);
+    if (view === 'month') document.getElementById('proj-view-body').innerHTML = '<div class="empty-task-list"><div class="empty-task-list-icon">📅</div>月曆視圖建置中</div>';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
@@ -1940,6 +1952,15 @@ App.buildViewTabsHtml = function() {
       <button class="tab-btn ${this.currentView === 'dashboard' ? 'active' : ''}" onclick="App.switchView('dashboard')">儀表板</button>
       <button class="tab-btn ${this.currentView === 'gantt' ? 'active' : ''}" onclick="App.switchView('gantt')">甘特圖</button>
       <button class="tab-btn ${this.currentView === 'month' ? 'active' : ''}" onclick="App.switchView('month')">月曆</button>
+    </div>`;
+};
+
+App.buildProjectViewTabsHtml = function() {
+  return `
+    <div class="tabs">
+      <button class="tab-btn ${this.projectView === 'dashboard' ? 'active' : ''}" onclick="App.switchProjectView('dashboard')">儀表板</button>
+      <button class="tab-btn ${this.projectView === 'gantt' ? 'active' : ''}" onclick="App.switchProjectView('gantt')">甘特圖</button>
+      <button class="tab-btn ${this.projectView === 'month' ? 'active' : ''}" onclick="App.switchProjectView('month')">月曆</button>
     </div>`;
 };
 
@@ -2649,6 +2670,7 @@ App.renderProject = function() {
   const tasks = allTasks; // for backward compat below
 
   const html = `
+    <div class="view-tabs-bar">${this.buildProjectViewTabsHtml()}</div>
     <div class="proj-header">
       <div class="proj-color" style="background:${proj.color}"></div>
       <div style="flex:1; min-width:0;">
@@ -4107,7 +4129,7 @@ App.cancelOCR = function() {
 // ═══════════════════════════════════════════════════════
 //  PAGE: GANTT
 // ═══════════════════════════════════════════════════════
-App.renderGantt = function(targetId = 'page-gantt') {
+App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
   if (!this.ganttStart) this.ganttStart = D.monday();
   if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
   const start = this.ganttStart;
@@ -4145,11 +4167,10 @@ App.renderGantt = function(targetId = 'page-gantt') {
     document.getElementById(targetId).innerHTML = `
       <div class="gantt-card">
         ${this.buildGanttHeaderHtml(days)}
-        ${this.buildGanttFilterHtml()}
+        ${singleProject ? '' : this.buildGanttFilterHtml()}
         <div class="empty-task-list" style="grid-column: 1 / -1;">
           <div class="empty-task-list-icon">📊</div>
-          目前篩選沒有任務<br>
-          <span style="font-size:11px;">請勾選至少一個專案</span>
+          ${singleProject ? '此專案目前沒有任務' : '目前篩選沒有任務<br><span style="font-size:11px;">請勾選至少一個專案</span>'}
         </div>
       </div>`;
     return;
@@ -4178,7 +4199,7 @@ App.renderGantt = function(targetId = 'page-gantt') {
   document.getElementById(targetId).innerHTML = `
     <div class="gantt-card">
       ${this.buildGanttHeaderHtml(days)}
-      ${this.buildGanttFilterHtml()}
+      ${singleProject ? '' : this.buildGanttFilterHtml()}
       <div class="gantt">
         ${headerHtml}
         ${rowsHtml}
