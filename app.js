@@ -4131,6 +4131,7 @@ App.cancelOCR = function() {
 // ═══════════════════════════════════════════════════════
 App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
   this.ganttScope = { targetId, singleProject };
+  if (this.ganttFilterOpen === undefined) this.ganttFilterOpen = false;
   if (!this.ganttStart) this.ganttStart = D.monday();
   if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
   const start = this.ganttStart;
@@ -4262,15 +4263,28 @@ App.applyGanttSchedule = function() {
 
 App.buildGanttFilterHtml = function() {
   const f = this.ganttProjectFilter || new Set();
-  return `<div class="gantt-filter-row">
-    <span class="gantt-filter-label">by 專案</span>
+  const open = this.ganttFilterOpen;
+  const menuHtml = open ? `<div class="gantt-filter-menu">
     ${DATA.projects.map(p => `
       <label class="gantt-filter-item">
         <input type="checkbox" ${f.has(p.id) ? 'checked' : ''} onchange="App.toggleGanttProject('${p.id}')">
         <span class="gantt-filter-sw" style="background:${p.color}"></span>${U.esc(p.name)}${p.synced ? ' 🔗' : ''}
       </label>
     `).join('')}
+  </div>` : '';
+  return `<div class="gantt-filter">
+    <button class="gantt-filter-field ${open ? 'open' : ''}" onclick="App.toggleGanttFilterOpen()">
+      <span class="gantt-filter-label">by 專案</span>
+      <span class="gantt-filter-summary">已選 ${f.size} 個專案</span>
+      <span class="gantt-filter-chevron">▼</span>
+    </button>
+    ${menuHtml}
   </div>`;
+};
+
+App.toggleGanttFilterOpen = function() {
+  this.ganttFilterOpen = !this.ganttFilterOpen;
+  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
 };
 
 App.toggleGanttProject = function(id) {
