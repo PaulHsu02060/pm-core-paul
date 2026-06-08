@@ -3466,13 +3466,12 @@ App.buildTaskFormHtml = function(task, mode) {
     </div>
     <div class="form-row">
       <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
-      <div class="form-field"><label>類型</label>
+      <div class="form-field"><label>類型 <span data-tip="類型|任務=要排程的工作；里程碑=時間點標記（工期0）；群組=純分類母項，不排程" style="cursor:help;">?</span></label>
         <select id="tf-taskType">
           <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
           <option value="milestone" ${t.taskType === 'milestone' ? 'selected' : ''}>◆ 里程碑</option>
           <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
         </select>
-        <div class="field-hint">任務＝要排程的工作；里程碑＝時間點標記（工期 0）；群組＝純分類母項，不排程。</div>
       </div>
     </div>
     <div class="form-row">
@@ -3486,22 +3485,20 @@ App.buildTaskFormHtml = function(task, mode) {
       </div>
     </div>
     <div class="form-row">
-      <div class="form-field"><label>緊急程度</label>
+      <div class="form-field"><label>緊急程度 <span data-tip="緊急程度|系統自動推算，可手動覆蓋" style="cursor:help;">?</span></label>
         <select id="tf-urgency">
           <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
           <option value="medium" ${t.urgency === 'medium' || !t.urgency ? 'selected' : ''}>🟡 普通</option>
           <option value="low" ${t.urgency === 'low' ? 'selected' : ''}>🟢 不急</option>
         </select>
-        <div class="field-hint">系統自動推算，可手動覆蓋。</div>
       </div>
-      <div class="form-field"><label>狀態</label>
+      <div class="form-field"><label>狀態 <span data-tip="狀態|依實際開始/完成日自動推導" style="cursor:help;">?</span></label>
         <select id="tf-status">
           <option value="pending" ${t.status === 'pending' || !t.status ? 'selected' : ''}>未開始</option>
           <option value="wip" ${t.status === 'wip' ? 'selected' : ''}>進行中</option>
           <option value="done" ${t.status === 'done' ? 'selected' : ''}>已完成</option>
           <option value="hold" ${t.status === 'hold' ? 'selected' : ''}>擱置中</option>
         </select>
-        <div class="field-hint">依實際開始／完成日自動推導。</div>
       </div>
     </div>
     <div class="form-field">
@@ -3557,7 +3554,7 @@ App.buildTaskFormHtml = function(task, mode) {
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="tf-riskHL" ${t.riskHL ? 'checked' : ''} style="width:auto;">
         需拉高層 (HL)
-        <span title="勾選表示此風險需升級到高層關注" style="cursor:help;">?</span>
+        <span data-tip="需拉高層 HL|勾選表示此風險需升級到高層關注" style="cursor:help;">?</span>
       </label>
     </div>
     <div class="form-field">
