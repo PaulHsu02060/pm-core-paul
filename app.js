@@ -3317,10 +3317,10 @@ App.quickAddTask = function(projId, input) {
 
 // 關係白話 ↔ 引擎代碼（單一定義）
 App.PRED_RELATIONS = [
-  { code: 'FS', label: '完成才能開始' },
-  { code: 'SS', label: '同時開始' },
-  { code: 'FF', label: '同時完成' },
-  { code: 'SF', label: '開始才能完成' },
+  { code: 'FS', label: '等它完成後，本任務才開始（最常用）' },
+  { code: 'SS', label: '跟它同一天開始' },
+  { code: 'FF', label: '跟它同一天完成' },
+  { code: 'SF', label: '它開始後，本任務才能完成' },
 ];
 
 // 候選任務（本專案、有 wbs、排除自己）→ [{wbs, name}]
@@ -3335,18 +3335,28 @@ App._predRowHtml = function(pred, candidates) {
   const dep  = pred ? String(pred.dep) : '';
   const type = pred ? pred.type : 'FS';
   const lag  = pred ? pred.lag : 0;
-  const lagShown = !!(pred && pred.lag);   // 有 lag 才預先展開（編輯模式不藏既有 lag）
   const cand = dep ? (candidates || []).find(c => c.wbs === dep) : null;
   const searchVal = dep ? (dep + ' · ' + (cand ? cand.name : '')).trim() : '';
   const rels = App.PRED_RELATIONS.map(r =>
     `<option value="${r.code}" ${type === r.code ? 'selected' : ''}>${U.esc(r.label)}</option>`).join('');
   return `
       <div class="pred-row">
-        <input type="text" class="pred-search" list="tf-pred-candidates" value="${U.esc(searchVal)}" placeholder="搜尋任務（編號或名稱）">
-        <select class="pred-rel">${rels}</select>
-        <button type="button" class="pred-lag-toggle" onclick="App.togglePredLag(this)">＋延遲</button>
-        <input type="number" class="pred-lag" value="${lag}" step="1"${lagShown ? '' : ' style="display:none"'}>
-        <button type="button" class="pred-del" onclick="App.removePredRow(this)" title="刪除這條前置">✕</button>
+        <div class="pred-field">
+          <label class="pred-field-label">🔗 要接在這個任務之後</label>
+          <div class="pred-field-line">
+            <input type="text" class="pred-search" list="tf-pred-candidates" value="${U.esc(searchVal)}" placeholder="搜尋任務（編號或名稱）">
+            <button type="button" class="pred-del" onclick="App.removePredRow(this)" title="刪除這條前置">✕</button>
+          </div>
+        </div>
+        <div class="pred-field">
+          <label class="pred-field-label">🔀 兩者的銜接方式</label>
+          <select class="pred-rel">${rels}</select>
+        </div>
+        <div class="pred-field">
+          <label class="pred-field-label">⏳ 中間留幾天緩衝</label>
+          <input type="number" class="pred-lag" value="${lag}" step="1" min="0">
+          <div class="field-hint">前置完成後想多等幾天再開始（等材料、簽核）才需要填，不需要則維持 0。</div>
+        </div>
       </div>`;
 };
 
@@ -3359,9 +3369,11 @@ App.buildPredListHtml = function(t) {
     ? preds.map(p => App._predRowHtml(p, cands)).join('')
     : App._predRowHtml(null, cands);   // 沒有前置時給一條空白列起手
   return `
+      <div class="field-hint pred-intro">設定這個任務接在哪個任務之後，系統會自動排好開始日期。</div>
       <datalist id="tf-pred-candidates">${opts}</datalist>
       <div id="tf-pred-list">${rows}</div>
-      <button type="button" class="pred-add" onclick="App.addPredRow()">＋ 加一條前置</button>`;
+      <button type="button" class="pred-add" onclick="App.addPredRow()">＋ 加一條前置</button>
+      <div class="tip pred-example">想成『這件事要排在誰後面』。例如本任務要等『#16 模具開發』做完、再隔 2 天材料到位才動工 → 選 #16、選『完成後才開始』、緩衝填 2。</div>`;
 };
 
 // 序列化：DOM 列 → task.predecessor 字串（兩存檔點共用，單一真實來源）
@@ -3401,17 +3413,6 @@ App.removePredRow = function(btn) {
   if (!list.querySelector('.pred-row')) App.addPredRow();
 };
 
-// 切換 lag 輸入顯示（收起時歸零，避免隱藏值殘留進序列化）
-App.togglePredLag = function(btn) {
-  const row = btn.closest('.pred-row');
-  if (!row) return;
-  const lag = row.querySelector('.pred-lag');
-  if (!lag) return;
-  const show = lag.style.display === 'none';
-  lag.style.display = show ? '' : 'none';
-  if (!show) lag.value = 0;
-};
-
 App.buildTaskFormHtml = function(task, mode) {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
@@ -3435,12 +3436,13 @@ App.buildTaskFormHtml = function(task, mode) {
     </div>
     <div class="form-row">
       <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
-      <div class="form-field"><label>類型 <span title="任務＝有工期、要排程的實際工作項目；里程碑＝時間點標記（工期0），如審查、交付節點；群組＝純分類母項，不參與排程" style="cursor:help;">?</span></label>
+      <div class="form-field"><label>類型</label>
         <select id="tf-taskType">
           <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
           <option value="milestone" ${t.taskType === 'milestone' ? 'selected' : ''}>◆ 里程碑</option>
           <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
         </select>
+        <div class="field-hint">任務＝要排程的工作；里程碑＝時間點標記（工期 0）；群組＝純分類母項，不排程。</div>
       </div>
     </div>
     <div class="form-row">
@@ -3454,12 +3456,13 @@ App.buildTaskFormHtml = function(task, mode) {
       </div>
     </div>
     <div class="form-row">
-      <div class="form-field"><label>緊急程度 <span title="系統依 deadline 自動計算緊急度，可手動覆蓋" style="cursor:help;">?</span></label>
+      <div class="form-field"><label>緊急程度</label>
         <select id="tf-urgency">
           <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
           <option value="medium" ${t.urgency === 'medium' || !t.urgency ? 'selected' : ''}>🟡 普通</option>
           <option value="low" ${t.urgency === 'low' ? 'selected' : ''}>🟢 不急</option>
         </select>
+        <div class="field-hint">系統自動推算，可手動覆蓋。</div>
       </div>
       <div class="form-field"><label>狀態</label>
         <select id="tf-status">
@@ -3468,10 +3471,11 @@ App.buildTaskFormHtml = function(task, mode) {
           <option value="done" ${t.status === 'done' ? 'selected' : ''}>已完成</option>
           <option value="hold" ${t.status === 'hold' ? 'selected' : ''}>擱置中</option>
         </select>
+        <div class="field-hint">依實際開始／完成日自動推導。</div>
       </div>
     </div>
     <div class="form-field">
-      <label>前置任務 <span title="選任務 + 關係決定相依：完成才能開始(FS)＝等該任務完成才開始；同時開始(SS)；同時完成(FF)；開始才能完成(SF)。＋延遲填工作天，如 FS＋2＝完成後再隔 2 個工作天。候選只列本專案、有編號的任務。" style="cursor:help;">?</span></label>
+      <label>前置任務</label>
       ${App.buildPredListHtml(t)}
     </div>
     <div class="form-row">

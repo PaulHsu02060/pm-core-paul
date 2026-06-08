@@ -936,22 +936,25 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .form-collapse .collapse-body { display: none; padding: 0 10px 4px; }
 .form-collapse.open .collapse-body { display: block; }
 
-/* M2-§6.4：前置任務結構化（一列一條：搜尋 + 關係 + lag + 刪除） */
-#tf-pred-list { display: flex; flex-direction: column; gap: var(--r6); }
-.pred-row { display: flex; align-items: center; gap: var(--r6); }
-.pred-row .pred-search { flex: 1 1 auto; min-width: 0; }
-.pred-row .pred-rel { flex: 0 0 auto; }
-.pred-row .pred-lag { flex: 0 0 64px; }
+/* M2-§6.4：前置任務結構化（每條 = 三欄垂直堆疊卡片：接在誰後 / 銜接方式 / 緩衝天數） */
+#tf-pred-list { display: flex; flex-direction: column; gap: var(--r8); }
+.pred-row { display: flex; flex-direction: column; gap: var(--r8); padding: var(--r10); border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface); }
+.pred-field { display: flex; flex-direction: column; gap: var(--r4); }
+/* 彩色 label（info 色族，比照 .tip 的 --slate-ink）+ 行內 emoji icon */
+.pred-field-label { font-size: 12px; font-weight: 500; color: var(--slate-ink); }
+.pred-field-line { display: flex; align-items: center; gap: var(--r6); }
+.pred-field-line .pred-search { flex: 1 1 auto; min-width: 0; }
 .pred-row .pred-search, .pred-row .pred-rel, .pred-row .pred-lag { height: 36px; padding: 0 var(--r8); }
-/* +延遲切換：ghost 小鈕（比照既有 .tb-action.ghost 變數用色） */
-.pred-lag-toggle { flex: 0 0 auto; height: 36px; padding: 0 var(--r8); border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface2); color: var(--ink3); font-size: 12px; white-space: nowrap; cursor: pointer; transition: all .15s; }
-.pred-lag-toggle:hover { border-color: var(--sage-500); color: var(--sage-700); }
+.pred-row .pred-lag { width: 96px; }
 /* 刪鈕：比照 .dept-member-chip button（無框/透明/ink4，hover rose） */
 .pred-del { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--ink4); font-size: 14px; line-height: 1; padding: 0 var(--r4); }
 .pred-del:hover { color: var(--rose); }
 /* 加列：text-link（比照 .pdca-expand-btn 慣例） */
 .pred-add { margin-top: var(--r6); border: none; background: none; cursor: pointer; color: var(--sage-700); font-size: 12px; padding: 2px 0; }
 .pred-add:hover { text-decoration: underline; }
+/* 常駐說明小字（前置欄三 / 總說明 / 類型·緊急·狀態 共用，單一定義） */
+.field-hint { font-size: 11px; color: var(--ink3); line-height: 1.5; }
+.pred-intro { margin-bottom: var(--r4); }
 
 /* Color picker */
 .color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
