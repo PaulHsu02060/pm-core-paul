@@ -1883,7 +1883,7 @@ const App = {
     if (view === 'gantt') this.ganttProjectFilter = new Set([this.currentProjectId]);
     document.getElementById('page-project').innerHTML = '<div class="view-tabs-bar">' + this.buildProjectViewTabsHtml() + '</div><div id="proj-view-body"></div>';
     if (view === 'gantt') this.renderGantt('proj-view-body', true);
-    if (view === 'month') document.getElementById('proj-view-body').innerHTML = '<div class="empty-task-list"><div class="empty-task-list-icon">📅</div>月曆視圖建置中</div>';
+    if (view === 'month') this.renderMonth('proj-view-body', this.currentProjectId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
@@ -4377,7 +4377,8 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
 // ═══════════════════════════════════════════════════════
 //  PAGE: MONTH
 // ═══════════════════════════════════════════════════════
-App.renderMonth = function(targetId = 'page-month') {
+App.renderMonth = function(targetId = 'page-month', pid = null) {
+  this.monthScope = { targetId, pid };
   if (!this.monthCursor) {
     const today = D.today();
     this.monthCursor = { year: today.getFullYear(), month: today.getMonth() };
@@ -4414,7 +4415,7 @@ App.renderMonth = function(targetId = 'page-month') {
 
     // Find events on this day
     const meetings = DATA.meetings.filter(m => m.date === dateIso);
-    const taskDeadlines = DATA.tasks.filter(t => !t._deleted && getEffectiveSchedule(t).end === dateIso && t.status !== 'done' && t.status !== 'hold');
+    const taskDeadlines = DATA.tasks.filter(t => !t._deleted && (!pid || t.project === pid) && getEffectiveSchedule(t).end === dateIso && t.status !== 'done' && t.status !== 'hold');
 
     const dayEvents = [];
     // Meetings
@@ -4498,25 +4499,25 @@ App.monthShift = function(n) {
   this.monthCursor.month += n;
   if (this.monthCursor.month < 0) { this.monthCursor.month = 11; this.monthCursor.year--; }
   if (this.monthCursor.month > 11) { this.monthCursor.month = 0; this.monthCursor.year++; }
-  this.renderMonth();
+  this.renderMonth(this.monthScope.targetId, this.monthScope.pid);
 };
 App.monthToday = function() {
   const today = D.today();
   this.monthCursor = { year: today.getFullYear(), month: today.getMonth() };
-  this.renderMonth();
+  this.renderMonth(this.monthScope.targetId, this.monthScope.pid);
 };
 App.monthYearShift = function(n) {
   this.monthCursor.year += n;
-  this.renderMonth();
+  this.renderMonth(this.monthScope.targetId, this.monthScope.pid);
 };
 App.monthYearSelect = function(y) {
   this.monthCursor.year = parseInt(y);
-  this.renderMonth();
+  this.renderMonth(this.monthScope.targetId, this.monthScope.pid);
 };
 App.monthPick = function(m) {
   this.monthCursor.month = m;
   document.getElementById('ymPicker').classList.remove('open');
-  this.renderMonth();
+  this.renderMonth(this.monthScope.targetId, this.monthScope.pid);
 };
 
 // Click outside to close year/month picker
