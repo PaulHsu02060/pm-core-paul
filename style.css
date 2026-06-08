@@ -742,7 +742,13 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 /* ─── GANTT ─── */
 .gantt-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 20px; overflow-x: auto; }
 .gantt-header-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.gantt-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 12px; margin-bottom: 14px; background: var(--surface2); border-radius: var(--r6); }
+.gantt-filter { position: relative; display: inline-block; margin-bottom: 14px; }
+.gantt-filter-field { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--rule); border-radius: var(--r6); color: var(--ink2); font-size: 12px; cursor: pointer; }
+.gantt-filter-field:hover { background: var(--stone-100); }
+.gantt-filter-summary { font-size: 12px; color: var(--ink3); }
+.gantt-filter-chevron { font-size: 10px; color: var(--ink3); transition: transform .15s; }
+.gantt-filter-field.open .gantt-filter-chevron { transform: rotate(180deg); }
+.gantt-filter-menu { position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 200px; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r8); box-shadow: var(--shadow-lg); z-index: var(--z-dropdown); }
 .gantt-filter-label { font-size: 12px; font-weight: 600; color: var(--ink2); margin-right: 2px; }
 .gantt-filter-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink2); cursor: pointer; }
 .gantt-filter-item input { width: auto; cursor: pointer; }
