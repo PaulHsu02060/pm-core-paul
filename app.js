@@ -3310,6 +3310,108 @@ App.quickAddTask = function(projId, input) {
   U.toast(`✓ 已新增「${name}」`);
 };
 
+// ── M2-§6.4：前置任務結構化（自由文字 → 一列一條）────────────────────────
+// 資料格式不變：序列化回 task.predecessor 字串（16FS / 16FS+2 / 16SS），引擎 parsePredecessors 照吃。
+// 候選：同專案(t.project) 且有 wbs 編號的任務（手動無編號暫不可當前置），排除自己。
+// 單一真實來源：序列化 serializePredecessors() 兩存檔點共用；反序列化走既有 parsePredecessors。
+
+// 關係白話 ↔ 引擎代碼（單一定義）
+App.PRED_RELATIONS = [
+  { code: 'FS', label: '完成才能開始' },
+  { code: 'SS', label: '同時開始' },
+  { code: 'FF', label: '同時完成' },
+  { code: 'SF', label: '開始才能完成' },
+];
+
+// 候選任務（本專案、有 wbs、排除自己）→ [{wbs, name}]
+App.predCandidates = function(projId, selfId) {
+  return (DATA.tasks || [])
+    .filter(t => t.project === projId && String(t.wbs == null ? '' : t.wbs).trim() && t.id !== selfId)
+    .map(t => ({ wbs: String(t.wbs).trim(), name: t.name || '' }));
+};
+
+// 單列 HTML（pred = {dep,type,lag} 或 null=空白列；candidates 用來把 dep 還原成「編號 · 名稱」顯示）
+App._predRowHtml = function(pred, candidates) {
+  const dep  = pred ? String(pred.dep) : '';
+  const type = pred ? pred.type : 'FS';
+  const lag  = pred ? pred.lag : 0;
+  const lagShown = !!(pred && pred.lag);   // 有 lag 才預先展開（編輯模式不藏既有 lag）
+  const cand = dep ? (candidates || []).find(c => c.wbs === dep) : null;
+  const searchVal = dep ? (dep + ' · ' + (cand ? cand.name : '')).trim() : '';
+  const rels = App.PRED_RELATIONS.map(r =>
+    `<option value="${r.code}" ${type === r.code ? 'selected' : ''}>${U.esc(r.label)}</option>`).join('');
+  return `
+      <div class="pred-row">
+        <input type="text" class="pred-search" list="tf-pred-candidates" value="${U.esc(searchVal)}" placeholder="搜尋任務（編號或名稱）">
+        <select class="pred-rel">${rels}</select>
+        <button type="button" class="pred-lag-toggle" onclick="App.togglePredLag(this)">＋延遲</button>
+        <input type="number" class="pred-lag" value="${lag}" step="1"${lagShown ? '' : ' style="display:none"'}>
+        <button type="button" class="pred-del" onclick="App.removePredRow(this)" title="刪除這條前置">✕</button>
+      </div>`;
+};
+
+// 整個前置欄內容（datalist 候選 + 既有列 + 加列鈕）；反序列化走 parsePredecessors（字串→陣列）
+App.buildPredListHtml = function(t) {
+  const cands = App.predCandidates(t.project, t.id);
+  const opts = cands.map(c => `<option value="${U.esc(c.wbs + ' · ' + c.name)}"></option>`).join('');
+  const preds = parsePredecessors(t.predecessor);
+  const rows = preds.length
+    ? preds.map(p => App._predRowHtml(p, cands)).join('')
+    : App._predRowHtml(null, cands);   // 沒有前置時給一條空白列起手
+  return `
+      <datalist id="tf-pred-candidates">${opts}</datalist>
+      <div id="tf-pred-list">${rows}</div>
+      <button type="button" class="pred-add" onclick="App.addPredRow()">＋ 加一條前置</button>`;
+};
+
+// 序列化：DOM 列 → task.predecessor 字串（兩存檔點共用，單一真實來源）
+App.serializePredecessors = function() {
+  const rows = Array.from(document.querySelectorAll('#tf-pred-list .pred-row'));
+  const parts = [];
+  for (const row of rows) {
+    const raw = (row.querySelector('.pred-search') || {}).value || '';
+    const m = raw.trim().match(/^(\d+)/);   // 取開頭 wbs 編號（容「16」或「16 · 名稱」）
+    if (!m) continue;                        // 沒選到有效任務 → 跳過該列
+    const dep = m[1];
+    const type = (row.querySelector('.pred-rel') || {}).value || 'FS';
+    const lagEl = row.querySelector('.pred-lag');
+    const lagVisible = lagEl && lagEl.style.display !== 'none';
+    const lag = lagVisible ? (parseInt(lagEl.value, 10) || 0) : 0;
+    let token = dep + type;                  // 明確寫出 FS/SS/FF/SF（parsePredecessors 看得懂）
+    if (lag > 0) token += '+' + lag;
+    else if (lag < 0) token += lag;          // 負 lag 自帶 '-'
+    parts.push(token);
+  }
+  return parts.join(',');
+};
+
+// 加一條空白列
+App.addPredRow = function() {
+  const list = document.getElementById('tf-pred-list');
+  if (!list) return;
+  list.insertAdjacentHTML('beforeend', App._predRowHtml(null, null));
+};
+
+// 刪一條列（刪到空則補一條空白列，維持起手姿態）
+App.removePredRow = function(btn) {
+  const list = document.getElementById('tf-pred-list');
+  const row = btn.closest('.pred-row');
+  if (!list || !row) return;
+  row.remove();
+  if (!list.querySelector('.pred-row')) App.addPredRow();
+};
+
+// 切換 lag 輸入顯示（收起時歸零，避免隱藏值殘留進序列化）
+App.togglePredLag = function(btn) {
+  const row = btn.closest('.pred-row');
+  if (!row) return;
+  const lag = row.querySelector('.pred-lag');
+  if (!lag) return;
+  const show = lag.style.display === 'none';
+  lag.style.display = show ? '' : 'none';
+  if (!show) lag.value = 0;
+};
+
 App.buildTaskFormHtml = function(task, mode) {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
@@ -3368,8 +3470,11 @@ App.buildTaskFormHtml = function(task, mode) {
         </select>
       </div>
     </div>
+    <div class="form-field">
+      <label>前置任務 <span title="選任務 + 關係決定相依：完成才能開始(FS)＝等該任務完成才開始；同時開始(SS)；同時完成(FF)；開始才能完成(SF)。＋延遲填工作天，如 FS＋2＝完成後再隔 2 個工作天。候選只列本專案、有編號的任務。" style="cursor:help;">?</span></label>
+      ${App.buildPredListHtml(t)}
+    </div>
     <div class="form-row">
-      <div class="form-field"><label>前置任務</label><input type="text" id="tf-predecessor" value="${U.esc(v(t.predecessor))}" placeholder="例：1FF,2FS+2（WBS編號+關係+lag）"></div>
       <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
     </div>
     <div class="form-row">
@@ -3465,7 +3570,7 @@ App.saveNewTask = function(projId) {
     start: document.getElementById('tf-start').value,
     end: document.getElementById('tf-end').value,
     estHours: parseFloat(document.getElementById('tf-hours').value) || 1,
-    predecessor: document.getElementById('tf-predecessor').value.trim(),  // M2-2：前置任務編碼原樣字串（解析容錯在 parsePredecessors）
+    predecessor: App.serializePredecessors(),  // M2-§6.4：結構化列序列化回字串（取代 #tf-predecessor 自由文字；格式同 parsePredecessors）
     wbs: '',           // 階段2：WBS 識別
     durationDays: parseFloat(document.getElementById('tf-duration').value) || 1,  // M2-2：工期(工作天)，最小1（0工期語意由 taskType=milestone 表達）
     scheduledStart: '',  // 排程套用結果，四條一致
@@ -3652,7 +3757,7 @@ App.saveTask = function(id) {
   t.taskType  = document.getElementById('tf-taskType').value;  // M2-T4：編輯送出同步類型
   t.stage     = document.getElementById('tf-stage').value.trim();     // M2-2a：與同步/匯入同欄位，trim 同收集口徑
   t.subgroup  = document.getElementById('tf-subgroup').value.trim();
-  t.predecessor  = document.getElementById('tf-predecessor').value.trim();  // M2-2：編輯送出同步前置/工期（原本編輯不碰這兩欄）
+  t.predecessor  = App.serializePredecessors();  // M2-§6.4：結構化列序列化回字串（與 saveNewTask 共用同一函式，單一真實來源）
   t.durationDays = parseFloat(document.getElementById('tf-duration').value) || 1;
   t.urgency   = document.getElementById('tf-urgency').value;
   t.start     = document.getElementById('tf-start').value;
