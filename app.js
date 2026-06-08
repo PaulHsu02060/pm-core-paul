@@ -3413,9 +3413,39 @@ App.removePredRow = function(btn) {
   if (!list.querySelector('.pred-row')) App.addPredRow();
 };
 
+// ── 2-A：預計開始「自動／手動」雙態（startMode 純 UI 意圖記憶；引擎錨點機制不動）──
+// 判定當前態：顯式 startMode 優先；舊任務無此欄位 → t.start 有值當 manual、空當 auto（一次性相容）
+App.startModeOf = function(t) {
+  if (t && (t.startMode === 'manual' || t.startMode === 'auto')) return t.startMode;
+  return (t && t.start && String(t.start).trim()) ? 'manual' : 'auto';
+};
+
+// 切換雙態：改 #tf-start-block 的 data-mode（CSS 據此顯示對應子區塊）；切到手動且空白時預填今天
+App.setStartMode = function(m) {
+  const block = document.getElementById('tf-start-block');
+  if (!block) return;
+  block.dataset.mode = m;
+  if (m === 'manual') {
+    const inp = document.getElementById('tf-start');
+    if (inp) { if (!inp.value) inp.value = D.fmt(D.today(), 'iso'); inp.focus(); }
+  }
+};
+
+// 讀預計開始雙態 → {start, startMode}（saveNewTask / saveTask 共用，單一真實來源）
+//   手動態：startMode='manual'，start = #tf-start 值（引擎據此當錨點）
+//   自動態：startMode='auto'，start = ''（清空，引擎視為非錨點、由前置推算）
+App.readStartField = function() {
+  const block = document.getElementById('tf-start-block');
+  const mode = (block && block.dataset.mode === 'manual') ? 'manual' : 'auto';
+  const val = (document.getElementById('tf-start') || {}).value || '';
+  return { startMode: mode, start: mode === 'manual' ? val : '' };
+};
+
 App.buildTaskFormHtml = function(task, mode) {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
+  const startMode = (mode === 'new') ? 'auto' : App.startModeOf(t);   // 2-A：新任務一律 auto；編輯讀 startMode（含舊任務相容）
+  const autoStartDisplay = (mode !== 'new' && t.start && String(t.start).trim()) ? D.fmt(t.start, 'ymd') : '待排程引擎推算';
   return `
     ${mode === 'new' ? `
     <div class="form-field">
@@ -3481,8 +3511,24 @@ App.buildTaskFormHtml = function(task, mode) {
     <div class="form-row">
       <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
     </div>
+    <div class="form-field">
+      <label>預計開始</label>
+      <div id="tf-start-block" class="startmode" data-mode="${startMode}">
+        <div class="startmode-auto">
+          <div class="startmode-display"><span class="startmode-badge">自動</span><span class="startmode-value">${U.esc(autoStartDisplay)}</span></div>
+          <button type="button" class="startmode-switch" onclick="App.setStartMode('manual')">改用手動指定日期</button>
+          <div class="field-hint">由前置任務推算，會隨前置調整自動更新。</div>
+        </div>
+        <div class="startmode-manual">
+          <div class="startmode-manual-line">
+            <input type="date" id="tf-start" value="${v(t.start)}">
+            <button type="button" class="startmode-switch" onclick="App.setStartMode('auto')">改回自動排</button>
+          </div>
+          <div class="field-hint">這天固定不動，不受前置推算影響。</div>
+        </div>
+      </div>
+    </div>
     <div class="form-row">
-      <div class="form-field"><label>預計開始</label><input type="date" id="tf-start" value="${v(t.start)}"></div>
       <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(t.end)}"></div>
     </div>
     <div class="form-collapse ${mode === 'edit' ? 'open' : ''}" id="tf-actualSection">
@@ -3556,9 +3602,9 @@ App.saveNewTask = function(projId) {
   if (!document.getElementById('tf-owner').value.trim()) { U.toast('⚠ 請填擔當', 'warning'); return; }
   if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
   if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
-  if (!document.getElementById('tf-start').value.trim()) { U.toast('⚠ 請填預計開始', 'warning'); return; }
 
   const status = document.getElementById('tf-status').value;
+  const startField = App.readStartField();   // 2-A：預計開始雙態 → {start, startMode}（與 saveTask 共用）
   const task = {
     id: U.id(),
     project: document.getElementById('tf-project').value || projId,
@@ -3571,7 +3617,8 @@ App.saveNewTask = function(projId) {
     subgroup: document.getElementById('tf-subgroup').value.trim(),
     urgency: document.getElementById('tf-urgency').value,
     status,
-    start: document.getElementById('tf-start').value,
+    start: startField.start,           // 2-A：手動態存值、自動態存 ''（共用 readStartField）
+    startMode: startField.startMode,   // 2-A：純 UI 意圖記憶（auto/manual）
     end: document.getElementById('tf-end').value,
     estHours: parseFloat(document.getElementById('tf-hours').value) || 1,
     predecessor: App.serializePredecessors(),  // M2-§6.4：結構化列序列化回字串（取代 #tf-predecessor 自由文字；格式同 parsePredecessors）
@@ -3752,7 +3799,6 @@ App.saveTask = function(id) {
   if (!document.getElementById('tf-owner').value.trim()) { U.toast('⚠ 請填擔當', 'warning'); return; }
   if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
   if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
-  if (!document.getElementById('tf-start').value.trim()) { U.toast('⚠ 請填預計開始', 'warning'); return; }
 
   t.name      = name;
   t.desc      = document.getElementById('tf-desc').value.trim();
@@ -3764,7 +3810,9 @@ App.saveTask = function(id) {
   t.predecessor  = App.serializePredecessors();  // M2-§6.4：結構化列序列化回字串（與 saveNewTask 共用同一函式，單一真實來源）
   t.durationDays = parseFloat(document.getElementById('tf-duration').value) || 1;
   t.urgency   = document.getElementById('tf-urgency').value;
-  t.start     = document.getElementById('tf-start').value;
+  const startField = App.readStartField();   // 2-A：預計開始雙態（與 saveNewTask 共用同一取值邏輯）
+  t.start     = startField.start;            // 手動態存值、自動態存 ''
+  t.startMode = startField.startMode;
   t.end       = document.getElementById('tf-end').value;
   t.actualStart = document.getElementById('tf-actualStart').value;
   t.actualEnd   = document.getElementById('tf-actualEnd').value;
