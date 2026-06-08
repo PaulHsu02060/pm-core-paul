@@ -345,7 +345,7 @@ Sidebar
 - ✅ B-2 專案頁接分段鈕（`9247b37`，待家裡桌機驗）：專案頁頂分段鈕（儀表板｜甘特圖｜月曆，單專案範圍）；renderGantt 加 singleProject 參數隱藏單專案篩選 chips；月曆頁簽留白待 B-3。
 
 **第一優先：B 系列收尾（地基，低風險）**
-1. B-3 `renderMonth` 月曆解耦：單專案範圍的 task/meeting 篩選。B-2 月曆視圖需要。
+1. ✅ B-3 `renderMonth` 月曆解耦（完成 `91086f8`）：單專案範圍的 task/meeting 篩選。B-2 月曆視圖需要。
 
 **第二優先：核心大功能（要先出設計文件）**
 2. 專案 Task By Stage 三視圖（看板/Gantt/清單，參考舊版 WBS）：依 stage 分組，三種呈現切換（看板拖卡 / Gantt 時間軸 / 清單表格）。依賴 B-2 分段鈕框架落地。動工前須先產獨立設計文件（三視圖呈現規格、By Stage 分組邏輯、與現有 renderGantt 共用方式）。
@@ -358,9 +358,9 @@ Sidebar
 5. 設定頁 v2 重規劃：選項雜亂，盤點分類；側欄預設收合。
 
 **Gantt 相關另案（B-2 衍生，依優先序）**
-1. B-1 遺留：renderGantt 無參數重繪丟 targetId/singleProject — toggleGanttProject/切週/拖曳呼叫 renderGantt() 不帶參數，重繪跑回 page-gantt，內嵌甘特畫面不更新。會壞功能，最優先。
+1. ✅ B-1 遺留（完成 `4c50190`）：renderGantt 無參數重繪丟 targetId/singleProject — toggleGanttProject/切週/拖曳呼叫 renderGantt() 不帶參數，重繪跑回 page-gantt，內嵌甘特畫面不更新。會壞功能，最優先。
 2. 專案頁 Gantt 任務依賴連接線（FS/SS/FF/SF 箭頭線）— 大功能，需獨立規劃。
-3. 總儀表板 Gantt 篩選 chips 改下拉選單 — 小 UI 美化，碰 CSS 需先出 mockup，順位最後（除非順手可快速解決）。
+3. ✅ 總儀表板 Gantt 篩選 chips 改下拉選單（完成 `d20cf75` + `ed8fb3d`）— 小 UI 美化，碰 CSS 需先出 mockup，順位最後（除非順手可快速解決）。
 
 **雙視圖原架構遺留項（§2 雙視圖模型相關，待雙視圖完整推進時處理）**
 - 新增「排入行事曆」欄位 + 分流邏輯
@@ -430,3 +430,13 @@ Sidebar
 - `e40931c` HL 風險勾選 + 交付物 + 實際執行反向摺疊
 - `5eaa1f9` docs：M2 任務表單設計文件
 - 基準 HEAD：`5eaa1f9`，引擎 56/56 PASS
+
+## 附錄：今日（2026-06-08）完成的 commit
+- 91086f8 B-3 renderMonth 月曆解耦：加 monthScope，修換月/換年重繪丟範圍跳回總月曆
+- 4c50190 B-1 renderGantt scope 修復：加 ganttScope，修切週/切篩選重繪丟範圍跳回總甘特
+- d20cf75 甘特專案篩選 chips 改多選下拉 JS 骨架（ganttFilterOpen 維持展開不被重繪沖掉）
+- ed8fb3d 甘特篩選下拉 CSS 樣式 + style.css 版本號 20260608-5
+- 198450d 專案頁標題垂直置中（proj-name 移除吊空 margin）
+- 097c206 專案頁右欄部門負荷/逾期字級對齊左欄 + style.css 版本號 20260608-6
+- 全部 [unverified] 待實機驗證
+- 資料：6/1 週報 4 小專案 6 task 經 Console 注入線上（J系列未動）
