@@ -4130,6 +4130,7 @@ App.cancelOCR = function() {
 //  PAGE: GANTT
 // ═══════════════════════════════════════════════════════
 App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
+  this.ganttScope = { targetId, singleProject };
   if (!this.ganttStart) this.ganttStart = D.monday();
   if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
   const start = this.ganttStart;
@@ -4230,11 +4231,11 @@ App.buildGanttHeaderHtml = function(days) {
 
 App.ganttShift = function(days) {
   this.ganttStart = D.addDays(this.ganttStart || D.monday(), days);
-  this.renderGantt();
+  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
 };
 App.ganttToday = function() {
   this.ganttStart = D.monday();
-  this.renderGantt();
+  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
 };
 
 // 一鍵套用排程：逐專案跑 applySchedule（wbs 僅專案內唯一，故不可全域套用），落地後存檔重繪
@@ -4252,7 +4253,7 @@ App.applyGanttSchedule = function() {
     }
   });
   Storage.save();                             // 持久化（scheduled寫進localStorage）
-  this.renderGantt();                         // 重繪，getEffectiveSchedule自動讀到scheduled層
+  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);  // 重繪，getEffectiveSchedule自動讀到scheduled層
   const summary = totalA === 0 && totalS === 0
     ? '沒有可排程的任務'
     : `⚡ 套用${totalA}筆、跳過${totalS}筆\n` + lines.join('\n');
@@ -4276,7 +4277,7 @@ App.toggleGanttProject = function(id) {
   if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
   if (this.ganttProjectFilter.has(id)) this.ganttProjectFilter.delete(id);
   else this.ganttProjectFilter.add(id);
-  this.renderGantt();
+  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
 };
 
 // ─── 甘特狀態標籤（暫定樣式，集中於此；要改字/調色改這裡，勿散落到渲染中）───
