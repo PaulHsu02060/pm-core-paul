@@ -3063,11 +3063,22 @@ App.buildTaskRowHtml = function(t) {
     else                 { dlText = D.fmt(new Date(sch.end), 'md'); }
   }
 
+  // 開始→完成 區間（純顯示，讀 sch.start/sch.end；任一空顯示 '—'。日期格式沿用 D.fmt(date,'md')）
+  const rangeText = (sch.start && sch.end)
+    ? `${D.fmt(new Date(sch.start), 'md')} → ${D.fmt(new Date(sch.end), 'md')}`
+    : '—';
+  // 來源中文標籤（讀 getEffectiveSchedule 的 startSource；'none' 留空不顯示）
+  const SRC_LABELS = { planned: '預計（未排程）', scheduled: '排程算出', override: '手釘錨點', actual: '實際', manual: '手填' };
+  const srcLabel = SRC_LABELS[sch.startSource] || '';
+
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
     <div class="task-check ${t.status === 'done' ? 'done' : ''} ${t.locked ? 'locked' : ''}"
          data-edit onclick="event.stopPropagation(); App.toggleTaskDone('${t.id}')">
       ${t.status === 'done' ? '✓' : ''}
     </div>
+    <span class="task-anchor" data-edit title="設為錨點"
+          style="cursor:pointer; user-select:none; text-align:center;"
+          onclick="event.stopPropagation(); App.setAnchor('${t.id}')">📌</span>
     <div class="task-info">
       <div class="task-name">
         ${U.esc(t.name)}
@@ -3078,7 +3089,10 @@ App.buildTaskRowHtml = function(t) {
     </div>
     <span class="task-tag ${LABELS.categoryClass[cat]}">${LABELS.category[cat]}</span>
     <span class="task-urg ${t.urgency || 'medium'}" title="${LABELS.urgency[t.urgency || 'medium']}"></span>
-    <span class="task-deadline ${dlClass}">${dlText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
+    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+      <span class="task-deadline ${dlClass}">${rangeText}${dlClass ? ` · ${dlText}` : ''}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
+      ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
+    </div>
   </div>`;
 };
 
@@ -3839,6 +3853,13 @@ App.saveTask = function(id) {
   this.closeModal();
   this.refreshAll();
   U.toast('✓ 任務已儲存');
+};
+
+// 錨點釘子（綜觀清單 task-row 📌）接口 — 目前空殼，下一階段接排程引擎
+App.setAnchor = function(id) {
+  U.toast('錨點功能開發中，下一階段接排程引擎', 'info');
+  // TODO 回家做：override 通用化（解除 isJTask 限制）→ setJOverride 寫 start
+  //   → computeSchedule 錨點改讀 override → 觸發下游級聯重算 → 寫回 scheduled cache
 };
 
 App.saveJSchedule = function(id) {
