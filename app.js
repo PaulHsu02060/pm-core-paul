@@ -2720,9 +2720,9 @@ App.renderProject = function() {
             <span style="text-align:center;">負責人</span>
             <span style="text-align:center;">緊急程度</span>
             <span style="text-align:center;">狀態</span>
-            <span style="text-align:right;">預計時程（開始→結束）</span>
+            <span style="text-align:left;">預計時程（開始→結束）</span>
             <span style="text-align:center;">餘裕（天）</span>
-            <span style="text-align:right;">截止日</span>
+            <span style="text-align:center;">截止日</span>
           </div>
           <div id="activeTaskList">
             ${visibleActive.length === 0 ?
@@ -3127,12 +3127,12 @@ App.buildTaskRowHtml = function(t) {
     <span style="font-size:12px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
     <span style="display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; color:var(--ink2);"><span class="task-urg ${t.urgency || 'medium'}"></span>${URGENCY_LABELS_ZH[t.urgency] || URGENCY_LABELS_ZH.medium}</span>
     <span class="rp-status ${statusCls}" style="text-align:center;">${statusTxt}</span>
-    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+    <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
       <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
       ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
     </div>
     <span style="font-size:12px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
-    <span class="task-deadline ${dlClass}" style="text-align:right; font-size:12px;">${dlText}</span>
+    <span class="task-deadline ${dlClass}" style="text-align:center; font-size:12px;">${dlText}</span>
   </div>`;
 };
 
