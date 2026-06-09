@@ -2090,8 +2090,8 @@ App.renderDashboard = function() {
           <div class="legend-row">
             <span class="legend-item"><span class="legend-sw" style="background:var(--sage-500)"></span>深度工作</span>
             <span class="legend-item"><span class="legend-sw" style="background:var(--amber)"></span>雜事零碎</span>
-            <span class="legend-item"><span class="legend-sw" style="background:#4A6B85"></span>📅 會議</span>
-            <span class="legend-item"><span class="legend-sw" style="background:#8B7355"></span>🧹 打掃</span>
+            <span class="legend-item"><span class="legend-sw" style="background:var(--navy)"></span>📅 會議</span>
+            <span class="legend-item"><span class="legend-sw" style="background:var(--clay)"></span>🧹 打掃</span>
             <span class="legend-item"><span style="color:var(--terracotta);">⚠</span> 延遲</span>
             <span class="legend-item"><span style="color:var(--sage-600);">🔗</span> 同步</span>
             <span style="margin-left:auto; font-size:10.5px;">⋮⋮ 拖曳調整 · 🔒 已鎖定</span>
@@ -3730,7 +3730,7 @@ App.openTaskModal = function(id) {
 
   // 當前所在週次標示（紅色 ⁂ 表示未結案）
   const currentWeekBadge = t.currentWeek && t.status !== 'done'
-    ? `<span style="display:inline-block; margin-left:8px; padding:2px 8px; background:var(--terracotta-l); color:var(--terracotta); border-radius:10px; font-size:11px; font-weight:600;">${U.esc(t.currentWeek)} <span style="color:#C4633E;">⁂</span></span>`
+    ? `<span style="display:inline-block; margin-left:8px; padding:2px 8px; background:var(--terracotta-l); color:var(--terracotta); border-radius:10px; font-size:11px; font-weight:600;">${U.esc(t.currentWeek)} <span style="color:var(--terracotta);">⁂</span></span>`
     : (t.currentWeek
         ? `<span style="display:inline-block; margin-left:8px; padding:2px 8px; background:var(--sage-50); color:var(--sage-700); border-radius:10px; font-size:11px; font-weight:600;">${U.esc(t.currentWeek)} ✓</span>`
         : '');
@@ -6566,7 +6566,7 @@ App.openExcelImport = function() {
         </div>
       </div>
 
-      <div id="excelImportLog" style="display:none; margin-top:14px; padding:10px 14px; background:#1E3326; color:#DCE6D2; border-radius:8px; font-family:var(--mono); font-size:11px; max-height:160px; overflow-y:auto;"></div>
+      <div id="excelImportLog" style="display:none; margin-top:14px; padding:10px 14px; background:var(--sage-800); color:var(--sage-100); border-radius:8px; font-family:var(--mono); font-size:11px; max-height:160px; overflow-y:auto;"></div>
     `,
     footer: `
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
