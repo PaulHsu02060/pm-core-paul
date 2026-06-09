@@ -2654,17 +2654,18 @@ App.renderProject = function() {
 
   const allTasks = this.getTasksOf(proj.id);
   const today = D.today();
-  // 排序：延遲 > 進行中 > 未開始（同類依日期）
+  // 排序：按 wbs 流水排（純顯示，不動 task.wbs 值）。段權重 + 段內序：1→…→25→A母項→A1→A2→…→手動任務最後
+  const wbsKey = (t) => {
+    const s = String(t.wbs || '').trim();
+    if (s === '') return [9999, 0];                            // 手動任務（無 wbs）排最後
+    if (/^\d+$/.test(s)) return [0, parseInt(s, 10)];          // 純數字（如 "26"）
+    if (/^[A-Za-z]+$/.test(s)) return [s.charCodeAt(0), -1];   // 光禿字母（群組母項）→ 段內序 -1，排該段最前
+    if (/^[A-Za-z]/.test(s)) return [s.charCodeAt(0), parseInt(s.slice(1), 10) || 0]; // 字母+數字（如 "A1"）
+    return [0, 0];                                             // 其他解析不出
+  };
   const activeTasks = allTasks.filter(t => t.status !== 'done' && !t._deleted).sort((a, b) => {
-    const aSch = getEffectiveSchedule(a);
-    const bSch = getEffectiveSchedule(b);
-    const overdueA = aSch.end && new Date(aSch.end) < today ? 0 : 1;
-    const overdueB = bSch.end && new Date(bSch.end) < today ? 0 : 1;
-    if (overdueA !== overdueB) return overdueA - overdueB;
-    const statusOrder = { wip: 0, pending: 1, hold: 2 };
-    const so = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
-    if (so !== 0) return so;
-    return (aSch.end || '9999').localeCompare(bSch.end || '9999');
+    const ka = wbsKey(a), kb = wbsKey(b);
+    return ka[0] - kb[0] || ka[1] - kb[1];   // 先比段權重，相等再比段內序
   });
   const doneTasks = allTasks.filter(t => t.status === 'done' && !t._deleted).sort((a,b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
   const deletedTasks = allTasks.filter(t => t._deleted).sort((a, b) => (b._deletedAt || '').localeCompare(a._deletedAt || ''));
