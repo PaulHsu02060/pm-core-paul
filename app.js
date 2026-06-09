@@ -721,6 +721,11 @@ const LABELS = {
   categoryClass: { deep: 'tag-deep', admin: 'tag-admin', meeting: 'tag-meeting', other: 'tag-other', milestone: 'tag-milestone' },
 };
 
+// 狀態中文標籤：刻意獨立於 LABELS.status，供未來語系切換時狀態標籤可各自切換；綜觀清單 row 讀此（非 LABELS.status）
+const STATUS_LABELS_ZH = { pending: '未開始', wip: '進行中', done: '已完成', hold: '擱置中' };
+// 緊急程度中文標籤：同上獨立於 LABELS.urgency（緊急/普通/不急），綜觀清單用「高/中/低」短字；供語系切換各自切換
+const URGENCY_LABELS_ZH = { high: '高', medium: '中', low: '低' };
+
 // ─── TASK SCORING (priority sort) ──────────────────────
 function scoreTask(t) {
   if (t.status === 'done')  return -9999;
@@ -3056,10 +3061,10 @@ App.buildTaskRowHtml = function(t) {
   let dlClass = '';
   if (sch.end) {
     const days = D.daysBetween(D.today(), new Date(sch.end));
-    if (days < 0)      { dlText = `逾期 ${-days} 天`; dlClass = 'overdue'; }
+    if (days < 0)      { dlText = `逾${-days}`; dlClass = 'overdue'; }      // 短格式（截止欄窄）：逾41 / 今日 / 明日 / 2天 / 7/10
     else if (days === 0) { dlText = '今日'; dlClass = 'near'; }
     else if (days === 1) { dlText = '明日'; dlClass = 'near'; }
-    else if (days <= 3)  { dlText = `${days} 天後`; dlClass = 'near'; }
+    else if (days <= 3)  { dlText = `${days}天`; dlClass = 'near'; }
     else                 { dlText = D.fmt(new Date(sch.end), 'md'); }
   }
 
@@ -3071,28 +3076,44 @@ App.buildTaskRowHtml = function(t) {
   const SRC_LABELS = { planned: '預計（未排程）', scheduled: '排程算出', override: '手釘錨點', actual: '實際', manual: '手填' };
   const srcLabel = SRC_LABELS[sch.startSource] || '';
 
+  // 進度：taskDisplayProgress 回 0-100；100% 成功色、其餘次要色（2 態，不用階段卡 s0/s1/s50/s100 四階）
+  const pct = taskDisplayProgress(t);
+  const barColor = pct >= 100 ? 'var(--sage-500)' : 'var(--ink4)';
+
+  // 狀態徽章：延遲（overdue 且非 done/非 hold）優先於 status；其餘讀 STATUS_LABELS_ZH。色用現成 .rp-status 修飾
+  const isDelayed = dlClass === 'overdue' && t.status !== 'done' && t.status !== 'hold';
+  const statusCls = isDelayed ? 'late' : (t.status === 'done' ? 'done' : (t.status === 'wip' ? 'wip' : ''));
+  const statusTxt = isDelayed ? '延遲' : (STATUS_LABELS_ZH[t.status] || t.status || '');
+
+  // 餘裕欄佔位：真值待引擎（deadline − plannedEnd），已完成顯示 '—'
+  const slackTxt = t.status === 'done' ? '—' : '待引擎';
+
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
-    <div class="task-check ${t.status === 'done' ? 'done' : ''} ${t.locked ? 'locked' : ''}"
-         data-edit onclick="event.stopPropagation(); App.toggleTaskDone('${t.id}')">
-      ${t.status === 'done' ? '✓' : ''}
-    </div>
+    <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${t.wbs || '—'}</span>
     <span class="task-anchor" data-edit title="設為錨點"
           style="cursor:pointer; user-select:none; text-align:center;"
           onclick="event.stopPropagation(); App.setAnchor('${t.id}')">📌</span>
     <div class="task-info">
-      <div class="task-name">
+      <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
         ${U.esc(t.name)}
         ${t.synced ? `<span class="sync-tag">🔗 ${U.esc(t.syncRef || '')}</span>` : ''}
         ${isPreview ? '<span class="preview-tag">📅 兩週預告</span>' : ''}
       </div>
       ${t.desc ? `<div class="task-desc">${U.esc(t.desc)}</div>` : ''}
     </div>
-    <span class="task-tag ${LABELS.categoryClass[cat]}">${LABELS.category[cat]}</span>
-    <span class="task-urg ${t.urgency || 'medium'}" title="${LABELS.urgency[t.urgency || 'medium']}"></span>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div class="stage-bar" style="border:1px solid var(--rule2);"><div class="stage-bar-fill" style="width:${pct}%; background:${barColor};"></div></div>
+      <span style="font-family:var(--mono); font-size:10.5px; color:var(--ink3); min-width:30px; text-align:right;">${pct}%</span>
+    </div>
+    <span style="font-size:11.5px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
+    <span style="display:flex; align-items:center; justify-content:center; gap:4px; font-size:11px; color:var(--ink2);"><span class="task-urg ${t.urgency || 'medium'}"></span>${URGENCY_LABELS_ZH[t.urgency] || URGENCY_LABELS_ZH.medium}</span>
+    <span class="rp-status ${statusCls}" style="text-align:center;">${statusTxt}</span>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-      <span class="task-deadline ${dlClass}">${rangeText}${dlClass ? ` · ${dlText}` : ''}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
+      <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
       ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
     </div>
+    <span style="font-size:10.5px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
+    <span class="task-deadline ${dlClass}">${dlText}</span>
   </div>`;
 };
 
