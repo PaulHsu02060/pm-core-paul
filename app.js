@@ -2705,6 +2705,19 @@ App.renderProject = function() {
             <span style="font-size:11px; color:var(--ink3); margin-left:auto;">延遲 → 進行中 → 未開始</span>
             <button class="tb-action" data-edit onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:10px;">＋ 新增任務</button>
           </div>
+          <div class="task-row-header">
+            <span style="text-align:center;">序</span>
+            <span></span>
+            <span style="text-align:left;">任務／階段</span>
+            <span style="text-align:left;">進度%</span>
+            <span style="text-align:center;">負責人</span>
+            <span style="text-align:center;">緊急程度</span>
+            <span style="text-align:center;">狀態</span>
+            <span></span>
+            <span style="text-align:right;">預計時程（開始→結束）</span>
+            <span style="text-align:center;">餘裕（天）</span>
+            <span style="text-align:right;">截止日</span>
+          </div>
           <div id="activeTaskList">
             ${visibleActive.length === 0 ?
               '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>' :
@@ -3108,6 +3121,7 @@ App.buildTaskRowHtml = function(t) {
     <span style="font-size:11.5px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
     <span style="display:flex; align-items:center; justify-content:center; gap:4px; font-size:11px; color:var(--ink2);"><span class="task-urg ${t.urgency || 'medium'}"></span>${URGENCY_LABELS_ZH[t.urgency] || URGENCY_LABELS_ZH.medium}</span>
     <span class="rp-status ${statusCls}" style="text-align:center;">${statusTxt}</span>
+    <span></span>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
       <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
       ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
