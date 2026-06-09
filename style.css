@@ -594,7 +594,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
-  display: grid; grid-template-columns: 34px 24px minmax(220px, 480px) 96px 42px 56px 56px minmax(0, 1fr) auto 56px 56px;
+  display: grid; grid-template-columns: 34px 24px minmax(240px, 3fr) minmax(80px, 1fr) 48px 64px 64px minmax(120px, 1.5fr) 64px 56px;
   gap: 12px; align-items: center; padding: 11px 16px;
 }
 .task-row {
