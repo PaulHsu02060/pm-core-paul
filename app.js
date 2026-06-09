@@ -235,6 +235,10 @@ const CloudSync = {
     if (!silent) U.toast('☁ 上傳中...', 'info');
 
     try {
+      // ★安全：上傳前剝掉機密/PII，避免「公開讀」時雲端 blob 外洩。
+      //   cloudSyncToken 仍以 payload.token 帶出做寫入驗證，但不可進 data.settings（否則任何人 download 就讀到 token → 寫入防線破功）。
+      //   _loggedInEmail/_loggedInPicture 為 PII，一併剔除。
+      const { cloudSyncToken, _loggedInEmail, _loggedInPicture, ...safeSettings } = DATA.settings;
       const payload = {
         token: DATA.settings.cloudSyncToken || '',
         data: {
@@ -243,7 +247,7 @@ const CloudSync = {
           meetings: DATA.meetings,
           memos: DATA.memos,
           schedule: DATA.schedule,
-          settings: DATA.settings,
+          settings: safeSettings,
           weekNotes: DATA.weekNotes,
           _uploadedAt: new Date().toISOString(),
         },
