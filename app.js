@@ -1719,6 +1719,8 @@ const App = {
 
   // ─── LOGIN ───
   checkLoginState() {
+    // [方案B] 停用 Google auth，開機進唯讀。要接回 Google：刪本行 early return。
+    this.enterViewOnly(); return;
     // Fallback：若使用者沒設過 OAuth Client ID，用 hardcode 的預設值
     // 這讓「拿到 URL 的同事」零設定就能 Google 登入
     const clientId = DATA.settings.googleClientId || DEFAULT_OAUTH_CLIENT_ID;
