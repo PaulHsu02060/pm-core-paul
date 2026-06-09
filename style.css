@@ -577,7 +577,6 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   color: var(--sage-700); border-radius: 99px; font-weight: 500; margin-left: 8px;
 }
 
-#page-project { max-width: 1080px; margin: 0 auto; }
 .proj-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
 
 .proj-dash-grid {
