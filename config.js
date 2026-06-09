@@ -36,6 +36,9 @@ var APP_CONFIG = {
 
   // ─── 其他 UI 範例字 ───
   PROJECT_INPUT_EXAMPLE: '範例品項',   // 新增專案輸入框 placeholder 範例
+
+  // ── 編輯鎖（訪客唯讀）──
+  editPasswordHash: '935817361',
 };
 
 // 選用保險：Node / 打包器環境也能 require。

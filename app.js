@@ -5991,6 +5991,23 @@ App.renderSettings = function() {
         `}
       </div>
 
+      <!-- Unlock edit (訪客唯讀 → 輸入密碼解鎖) -->
+      <div class="settings-section">
+        <div class="ss-title">🔓 輸入密碼解鎖編輯</div>
+        <div class="ss-desc">本機預設唯讀（訪客模式），輸入編輯密碼後即可編輯</div>
+
+        <div class="ss-field">
+          <label>編輯密碼</label>
+          <div>
+            <input type="password" id="unlock-pw" placeholder="輸入密碼以解鎖編輯">
+          </div>
+        </div>
+
+        <div>
+          <button class="tb-action" onclick="App.unlockEdit()">解鎖編輯</button>
+        </div>
+      </div>
+
       <!-- Password fallback -->
       <div class="settings-section">
         <div class="ss-title">🔒 編輯密碼（備援）</div>
@@ -6588,6 +6605,22 @@ App.changePassword = function() {
   }
   document.getElementById('set-pw').value = '';
   U.toast('✓ 密碼已更新');
+};
+
+// 設定頁「輸入密碼解鎖編輯」：訪客唯讀，比對 config.editPasswordHash 後解除 viewonly。
+// 比對沿用 doLogin 同套（U.hash(輸入).toString() === 目標 hash），不碰 doLogin/遮罩流程。
+App.unlockEdit = function() {
+  const input = document.getElementById('unlock-pw');
+  const entered = input ? input.value.trim() : '';
+  const target = CFG('editPasswordHash', '');
+  if (entered && U.hash(entered).toString() === target) {
+    document.body.classList.remove('viewonly');
+    const um = document.getElementById('userMode'); if (um) um.textContent = 'EDITOR';
+    if (input) input.value = '';
+    U.toast('✓ 已解鎖編輯');
+  } else {
+    U.toast('✗ 密碼錯誤', 'error');
+  }
 };
 
 // ─── EXCEL HISTORY IMPORT (Weekly Report) ───
