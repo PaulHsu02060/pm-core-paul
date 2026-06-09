@@ -577,6 +577,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   color: var(--sage-700); border-radius: 99px; font-weight: 500; margin-left: 8px;
 }
 
+#page-project { max-width: 1080px; margin: 0 auto; }
 .proj-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
 
 .proj-dash-grid {
@@ -594,7 +595,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
-  display: grid; grid-template-columns: 34px 24px minmax(240px, 3fr) minmax(80px, 1fr) 48px 64px 64px minmax(120px, 1.5fr) 64px 56px;
+  display: grid; grid-template-columns: 34px 24px minmax(240px, 360px) 110px 56px 64px 64px 110px 56px 50px;
   gap: 12px; align-items: center; padding: 11px 16px;
 }
 .task-row {
@@ -602,7 +603,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 }
 .task-row-header {
   background: var(--surface2); border-bottom: 1px solid var(--rule);
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink3); text-transform: uppercase;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .04em; color: var(--ink3); text-transform: uppercase;
 }
 .task-row:last-child { border-bottom: none; }
 .task-row:hover { background: var(--surface2); }

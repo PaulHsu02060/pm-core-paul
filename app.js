@@ -3121,15 +3121,15 @@ App.buildTaskRowHtml = function(t) {
       <div class="stage-bar" style="border:1px solid var(--rule2);"><div class="stage-bar-fill" style="width:${pct}%; background:${barColor};"></div></div>
       <span style="font-family:var(--mono); font-size:10.5px; color:var(--ink3); min-width:30px; text-align:right;">${pct}%</span>
     </div>
-    <span style="font-size:11.5px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
-    <span style="display:flex; align-items:center; justify-content:center; gap:4px; font-size:11px; color:var(--ink2);"><span class="task-urg ${t.urgency || 'medium'}"></span>${URGENCY_LABELS_ZH[t.urgency] || URGENCY_LABELS_ZH.medium}</span>
+    <span style="font-size:12px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
+    <span style="display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; color:var(--ink2);"><span class="task-urg ${t.urgency || 'medium'}"></span>${URGENCY_LABELS_ZH[t.urgency] || URGENCY_LABELS_ZH.medium}</span>
     <span class="rp-status ${statusCls}" style="text-align:center;">${statusTxt}</span>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
       <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
       ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
     </div>
-    <span style="font-size:10.5px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
-    <span class="task-deadline ${dlClass}" style="text-align:right;">${dlText}</span>
+    <span style="font-size:12px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
+    <span class="task-deadline ${dlClass}" style="text-align:right; font-size:12px;">${dlText}</span>
   </div>`;
 };
 
