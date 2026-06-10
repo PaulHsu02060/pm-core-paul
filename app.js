@@ -2736,8 +2736,8 @@ App.renderProject = function() {
   const tasks = allTasks; // for backward compat below
 
   const html = `
-    <div class="view-tabs-bar">${this.buildProjectViewTabsHtml()}</div>
     ${this.buildProjectHeaderHtml()}
+    <div class="view-tabs-bar">${this.buildProjectViewTabsHtml()}</div>
 
     ${this.buildProjKpiHtml(proj)}
 
