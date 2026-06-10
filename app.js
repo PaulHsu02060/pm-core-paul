@@ -68,6 +68,7 @@ const STORE = {
   syncLog:  `pmw::${PATH_KEY}::synclog`,
   weekNotes: `pmw::${PATH_KEY}::weeknotes`,
   pdcaGroups: `pmw::${PATH_KEY}::pdcagroups`,
+  editUnlock: `pmw::${PATH_KEY}::editunlock`,
 };
 
 // ─── DEFAULT SETTINGS ──────────────────────────────────
@@ -1776,6 +1777,20 @@ const App = {
 
   // ─── LOGIN ───
   checkLoginState() {
+    // [乙方案] 記住我：localStorage 有未過期且 hash 相符的憑證 → 自動解鎖、跳過 viewonly
+    //   hash 改變（管理者改了編輯密碼）→ 不符 → 自動失效；過期亦同，順手清掉
+    try {
+      const raw = localStorage.getItem(STORE.editUnlock);
+      if (raw) {
+        const c = JSON.parse(raw);
+        if (c && c.until > Date.now() && c.h === CFG('editPasswordHash', '')) {
+          const um = document.getElementById('userMode'); if (um) um.textContent = 'EDITOR';
+          document.getElementById('loginOverlay').classList.add('hidden');
+          return;                                   // 有效 → 不進 viewonly（保持可編輯）
+        }
+        localStorage.removeItem(STORE.editUnlock);  // 過期 / hash 不符 → 清掉
+      }
+    } catch (e) { localStorage.removeItem(STORE.editUnlock); }
     // [方案B] 停用 Google auth，開機進唯讀。要接回 Google：刪本行 early return。
     this.enterViewOnly(); return;
     // Fallback：若使用者沒設過 OAuth Client ID，用 hardcode 的預設值
@@ -6146,6 +6161,15 @@ App.renderSettings = function() {
           </div>
         </div>
 
+        <div class="ss-field">
+          <label>記住我</label>
+          <div>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink2);">
+              <input type="checkbox" id="unlock-remember" style="width:auto;"> 在此設備記住我 5 天
+            </label>
+          </div>
+        </div>
+
         <div>
           <button class="tb-action" onclick="App.unlockEdit()">解鎖編輯</button>
         </div>
@@ -6760,6 +6784,10 @@ App.unlockEdit = function() {
     document.body.classList.remove('viewonly');
     const um = document.getElementById('userMode'); if (um) um.textContent = 'EDITOR';
     if (input) input.value = '';
+    // 乙方案：勾「記住我」才寫憑證（公開 hash + 到期5天）；不勾不寫、也不清既有憑證
+    if (document.getElementById('unlock-remember')?.checked) {
+      localStorage.setItem(STORE.editUnlock, JSON.stringify({ h: target, until: Date.now() + 5*24*60*60*1000 }));
+    }
     U.toast('✓ 已解鎖編輯');
   } else {
     U.toast('✗ 密碼錯誤', 'error');
