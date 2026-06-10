@@ -606,7 +606,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 
 /* ─── TASK LIST ─── */
 .task-list-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); overflow: hidden; }
-.tlc-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--rule); }
+.tlc-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--head-band); border-bottom: 1px solid var(--rule); }
 .tlc-title { font-family: var(--mono); font-size: 11px; color: var(--ink3); letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 

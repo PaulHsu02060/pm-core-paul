@@ -2758,8 +2758,7 @@ App.renderProjectDashboard = function(proj) {
           <div class="tlc-head">
             <span class="tlc-title">待辦任務</span>
             <span class="tlc-count">${activeTasks.length}</span>
-            <span style="font-size:11px; color:var(--ink3); margin-left:auto;">延遲 → 進行中 → 未開始</span>
-            <button class="tb-action" data-edit onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:10px;">＋ 新增任務</button>
+            <button class="tb-action" data-edit onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:auto;">＋ 新增任務</button>
           </div>
           <div class="task-row-header">
             <span style="text-align:center;">序</span>
