@@ -259,6 +259,7 @@ button { cursor: pointer; }
 }
 body.viewonly .viewonly-banner { display: flex; }
 body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
+body.viewonly .cloud-sync-sec { display: none; }
 
 /* ─── STATS ─── */
 .stats-row {

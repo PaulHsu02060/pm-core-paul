@@ -6169,8 +6169,8 @@ App.renderSettings = function() {
         </div>
       </div>
 
-      <!-- 雲端同步 -->
-      <div class="settings-section">
+      <!-- 雲端同步（訪客唯讀時隱藏，解鎖編輯後才顯示：CSS body.viewonly .cloud-sync-sec） -->
+      <div class="settings-section cloud-sync-sec">
         <div class="ss-title">☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步</div>
         <div class="ss-desc">透過你自己的 Google Sheet + Apps Script，把 ${CFG('APP_NAME', 'PM-Core')} 個人資料同步到多台裝置<br>
           <span style="color:var(--ink4); font-size:11.5px;">📋 首次使用：你需要建立自己的 Sheet + 部署 Apps Script，每人資料完全獨立</span>
