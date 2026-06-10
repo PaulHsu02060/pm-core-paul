@@ -618,8 +618,8 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   border-bottom: 1px solid var(--rule); transition: background .12s; cursor: pointer;
 }
 .task-row-header {
-  background: var(--surface2); border-bottom: 1px solid var(--rule);
-  font-family: var(--mono); font-size: 12px; letter-spacing: .04em; color: var(--ink3); text-transform: uppercase;
+  background: var(--head-band); border-bottom: 1px solid var(--rule);
+  font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--ink3); text-transform: uppercase;
 }
 .task-row:last-child { border-bottom: none; }
 .task-row:hover { background: var(--surface2); }
