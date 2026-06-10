@@ -1350,6 +1350,8 @@ function generateSchedule() {
         }
         return false;
       }
+      // 第8項 B：勾選「排入行事曆」強制上排（聯集，繞過日期窗/緊急度；done 後判斷故完成任務仍走上方規則）
+      if (t.scheduleToCalendar === true) return true;
       // 【需求 A】預計開始日落在本週之後、且未被釘選 → 不自動進本週（plannedStart 空值不受影響）
       const pinned = (DATA.settings.pinnedWeekTaskIds || []).includes(t.id);
       if (!pinned && t.plannedStart && new Date(t.plannedStart) > sunday) {

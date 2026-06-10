@@ -449,6 +449,11 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
    - 受阻② topbar 已 `position:sticky; top:0`（style.css:218）；header 的 `top` 須扣 topbar 高度才不被蓋住，但目前無對應變數。
    - 需設計：圓角替代做法（子元素各自 border-radius／改包法，取代卡層 overflow:hidden）＋ 新增 `--topbar-h` 變數定 top 偏移 ＋ 決定是否連 `.tlc-head` 一起釘。
    - 等完整時段專門處理，不在零碎顯示層批次內做。
+26.（待設計）拖動 locked 持久化 —— N.3「拖動不覆蓋」未落地（拆自第8項，2026-06-10）。
+   - 現況：`generateSchedule()` 每次「全清重排」（app.js:1375 註解「不保留 locked 殘留」），新 items 一律 `locked:false`；拖動設的 `item.locked=true`（`handleScheduleDrop`, app.js:2456）只活在當前 `DATA.schedule` 快照，撐不過下一次重排。
+   - 缺口：架構 N.3「拖動過的 Task 智慧排程不覆蓋」目前 code 並未真正落地。
+   - 需設計：locked 狀態持久化（存哪、key 用 taskId 還是 date+start、重排時讀回並讓對應 slot 固定不被 `findRun` 佔走）。
+   - 高風險：動 `generateSchedule` 全清重排邏輯（引擎核心、56 cases 範圍）。與第8項「選誰上排」是兩件事，獨立 commit、一次一件。
 
 ---
 
