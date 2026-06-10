@@ -2719,6 +2719,16 @@ App.renderProject = function() {
     return;
   }
 
+  const html = `
+    ${this.buildProjectHeaderHtml()}
+    <div class="view-tabs-bar">${this.buildProjectViewTabsHtml()}</div>
+
+    ${this.renderProjectDashboard(proj)}
+  `;
+  document.getElementById('page-project').innerHTML = html;
+};
+
+App.renderProjectDashboard = function(proj) {
   const allTasks = this.getTasksOf(proj.id);
   const today = D.today();
   // 序：依 array 順序排（= Excel 匯入序，filter 保序），不再按 wbs 重排（§8b.4 層次一：序欄改連續流水號）
@@ -2734,12 +2744,7 @@ App.renderProject = function() {
   const visibleActive = showAll ? activeTasks : activeTasks.slice(0, PREVIEW_LIMIT);
 
   const tasks = allTasks; // for backward compat below
-
-  const html = `
-    ${this.buildProjectHeaderHtml()}
-    <div class="view-tabs-bar">${this.buildProjectViewTabsHtml()}</div>
-
-    ${this.buildProjKpiHtml(proj)}
+  return `    ${this.buildProjKpiHtml(proj)}
 
     <div class="proj-dash-grid">
       ${this.buildProjStagesHtml(proj)}
@@ -2830,8 +2835,7 @@ App.renderProject = function() {
         </div>` : ''}
       </div>
     </div>
-  `;
-  document.getElementById('page-project').innerHTML = html;
+`;
 };
 
 // 顯示用任務進度(Dashboard 口徑,KPI OVERALL 與階段進度卡共用,改必同步兩處呼叫端):
