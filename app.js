@@ -2687,6 +2687,22 @@ App.showUrgentModal = function() {
 // ═══════════════════════════════════════════════════════
 //  PAGE: PROJECT
 // ═══════════════════════════════════════════════════════
+App.buildProjectHeaderHtml = function() {
+  const proj = this.getProj(this.currentProjectId);
+  if (!proj) return '';
+  return `<div class="proj-header">
+        <div class="proj-color" style="background:${proj.color}"></div>
+        <div style="flex:1; min-width:0;">
+          <div class="proj-name">
+            ${U.esc(proj.name)}
+            ${proj.synced ? '<span class="proj-sync-badge">🔗 從 Google Sheet 同步</span>' : ''}
+          </div>
+        </div>
+        ${proj.synced ? `<button class="tb-action ghost" data-edit onclick="Sync.syncJSeries()">↻ 立即同步</button>` : ''}
+        ${!proj.synced ? `<button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>` : ''}
+      </div>`;
+};
+
 App.renderProject = function() {
   if (!this.currentProjectId) {
     // Show first project
@@ -2721,17 +2737,7 @@ App.renderProject = function() {
 
   const html = `
     <div class="view-tabs-bar">${this.buildProjectViewTabsHtml()}</div>
-    <div class="proj-header">
-      <div class="proj-color" style="background:${proj.color}"></div>
-      <div style="flex:1; min-width:0;">
-        <div class="proj-name">
-          ${U.esc(proj.name)}
-          ${proj.synced ? '<span class="proj-sync-badge">🔗 從 Google Sheet 同步</span>' : ''}
-        </div>
-      </div>
-      ${proj.synced ? `<button class="tb-action ghost" data-edit onclick="Sync.syncJSeries()">↻ 立即同步</button>` : ''}
-      ${!proj.synced ? `<button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>` : ''}
-    </div>
+    ${this.buildProjectHeaderHtml()}
 
     ${this.buildProjKpiHtml(proj)}
 
