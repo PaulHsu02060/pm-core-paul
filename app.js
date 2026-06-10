@@ -5924,6 +5924,17 @@ App.buildPdcaGroupCard = function(project, name, tasks) {
 // ═══════════════════════════════════════════════════════
 //  PAGE: SETTINGS
 // ═══════════════════════════════════════════════════════
+// 設定頁子分頁切換：純切 .active class（CSS display 控制顯隱），不 re-render。
+//   → 4 個 tab 的 set-*/unlock-* 元素永遠留在 DOM，saveSettings/unlockEdit 跨 tab 讀取不會 crash。
+//   querySelectorAll 限定 #page-settings，避免動到儀表板/專案頁的 .tab-btn。
+App.showSettingsTab = function(btn, id) {
+  document.querySelectorAll('#page-settings .tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#page-settings .tab-panel').forEach(p => p.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const panel = document.getElementById(id);
+  if (panel) panel.classList.add('active');
+};
+
 App.renderSettings = function() {
   const s = DATA.settings;
   const log = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
