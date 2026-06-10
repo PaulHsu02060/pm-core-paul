@@ -845,6 +845,13 @@ function dedupeMeetings(arr, sourceLabel) {
 }
 
 // ═══ 階段2 排程引擎 ═══════════════════════════════════════════════
+// 排入行事曆分流：回傳勾選 scheduleToCalendar 的任務子集（純函式，不碰 DOM/Storage）
+//   舊資料無此欄 → undefined !== true → 自然排除，不需 migration
+//   第7項只到「回傳正確子集」，時程表 render 吃這個函式是第8項
+function getCalendarTasks(tasks) {
+  return tasks.filter(t => t.scheduleToCalendar === true);
+}
+
 // 解析 predecessor 前置任務字串 → [{dep, type, lag}]
 // 支援兩種格式（同一字串可用逗號/分號分隔多個前置，可混用）：
 //   1. 純編號：'5' 或 '5,6'        → {dep:'5', type:'FS', lag:0}
@@ -3702,6 +3709,13 @@ App.buildTaskFormHtml = function(task, mode) {
         可切分（≥4h 任務拆成多天）
       </label>
     </div>
+    <div class="form-field">
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="tf-cal" ${t.scheduleToCalendar ? 'checked' : ''} style="width:auto;">
+        排入行事曆
+        <span data-tip="排入行事曆|勾選後此任務會出現在總儀表板時程表（視圖一），用於「我要親自排時間動手做」的任務" style="cursor:help;">?</span>
+      </label>
+    </div>
   `;
 };
 
@@ -3762,6 +3776,7 @@ App.saveNewTask = function(projId) {
     deliverableLink: document.getElementById('tf-deliverableLink').value.trim(),
     note: document.getElementById('tf-note').value.trim(),
     canSplit: document.getElementById('tf-split').checked,
+    scheduleToCalendar: document.getElementById('tf-cal').checked,
     completedAt: status === 'done' ? new Date().toISOString() : null,
     createdAt: new Date().toISOString(),
   };
@@ -3951,6 +3966,7 @@ App.saveTask = function(id) {
   t.deliverableLink = document.getElementById('tf-deliverableLink').value.trim();
   t.note      = document.getElementById('tf-note').value.trim();
   t.canSplit  = document.getElementById('tf-split').checked;
+  t.scheduleToCalendar = document.getElementById('tf-cal').checked;
 
   let newStatus = document.getElementById('tf-status').value;
   // 自動邏輯：實際完成日有填 → 強制標為已完成
