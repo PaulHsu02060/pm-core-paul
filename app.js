@@ -4591,10 +4591,10 @@ App.toggleGanttProject = function(id) {
 // 標籤來源 = computeSchedule result 的 anchorSource（manual/override）或「可排」推導出的 scheduled。
 const GANTT_STATUS_LABELS = { manual: '手動', override: '鎖', scheduled: '排程' };
 const GANTT_STATUS_COLORS = {
-  manual:    { bg: '#9CA3AF', fg: '#ffffff' },  // 灰：使用者手填錨點
-  scheduled: { bg: '#5C7A8B', fg: '#ffffff' },  // 藍：引擎連動算出
-  override:  { bg: '#C4956C', fg: '#ffffff' },  // 琥珀：本地鎖定 override
-  warn:      { fg: '#B8504D' },                  // 紅：! 圖示（循環/blocked/待排）
+  manual:    { bg: 'var(--gray-mid)', fg: 'var(--ink-inverse)' },  // 灰：使用者手填錨點
+  scheduled: { bg: 'var(--slate)', fg: 'var(--ink-inverse)' },  // 藍：引擎連動算出
+  override:  { bg: 'var(--amber)', fg: 'var(--ink-inverse)' },  // 琥珀：本地鎖定 override
+  warn:      { fg: 'var(--rose)' },                  // 紅：! 圖示（循環/blocked/待排）
 };
 const GANTT_SOURCE_DESC = { manual: '手動錨點', override: '本地鎖定（override）', scheduled: '機器排程連動' };
 
