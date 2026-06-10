@@ -5941,8 +5941,107 @@ App.renderSettings = function() {
   const syncOk = !!log.syncedAt;
 
   document.getElementById('page-settings').innerHTML = `
-    <div class="settings-grid">
+    <div class="tabs" style="margin-bottom:18px;">
+      <button class="tab-btn active" onclick="App.showSettingsTab(this,'排程')">排程</button>
+      <button class="tab-btn" onclick="App.showSettingsTab(this,'資料')">資料</button>
+      <button class="tab-btn" onclick="App.showSettingsTab(this,'編輯權限')">編輯權限</button>
+      <button class="tab-btn" onclick="App.showSettingsTab(this,'關於')">關於</button>
+    </div>
 
+    <div class="tab-panel active" id="排程"><div class="settings-grid">
+      <!-- Work schedule -->
+      <div class="settings-section">
+        <div class="ss-title">⏰ 工時與排程</div>
+        <div class="ss-desc">設定你的工作節奏，產生智慧排程時依此規則</div>
+
+        <div class="ss-field">
+          <label>每日可用工時</label>
+          <div>
+            <input type="number" id="set-hours" value="${s.dailyHours}" min="1" max="12" step="0.5">
+            <div class="help">扣掉雜事休息後實際能做任務的時間</div>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>上午時段</label>
+          <div>
+            <div class="time-range">
+              <input type="time" id="set-ws1" value="${s.workStart1}">
+              <span>到</span>
+              <input type="time" id="set-we1" value="${s.workEnd1}">
+            </div>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>下午時段</label>
+          <div>
+            <div class="time-range">
+              <input type="time" id="set-ws2" value="${s.workStart2}">
+              <span>到</span>
+              <input type="time" id="set-we2" value="${s.workEnd2}">
+            </div>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>黃金時段</label>
+          <div>
+            <select id="set-golden">
+              <option value="morning" ${s.goldenTime === 'morning' ? 'selected' : ''}>上午（深度工作優先）</option>
+              <option value="afternoon" ${s.goldenTime === 'afternoon' ? 'selected' : ''}>下午</option>
+              <option value="none" ${s.goldenTime === 'none' ? 'selected' : ''}>不需要規則</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>工作日</label>
+          <div>
+            <div class="day-pills" id="dayPills">
+              ${[1,2,3,4,5,6,0].map(d => {
+                const name = ['日','一','二','三','四','五','六'][d];
+                return `<button class="day-pill ${s.workDays.includes(d) ? 'on' : ''}" data-day="${d}"
+                              onclick="this.classList.toggle('on')">${name}</button>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>任務切分閾值 (h)</label>
+          <div>
+            <input type="number" id="set-split" value="${s.splitThreshold}" min="1" max="12" step="0.5">
+            <div class="help">超過此工時的任務會自動切分到多天</div>
+          </div>
+        </div>
+      </div>
+      <!-- 會議模板 -->
+      <div class="settings-section">
+        <div class="ss-title">📅 定期事件（會議 / 打掃 等）</div>
+        <div class="ss-desc">智慧排程會自動避開這些時段，包含每天、每週、每隔一週、每隔兩週的事件</div>
+
+        <!-- 每週固定事件 -->
+        <div style="margin:14px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
+          ⏰ 定期事件
+          <button class="tb-action ghost" onclick="App.addRecurringMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
+        </div>
+        <div id="recurringMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden;">
+          ${this.buildRecurringMeetingsHtml()}
+        </div>
+
+        <!-- 特定日期事件 -->
+        <div style="margin:18px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
+          📌 特定日期事件
+          <button class="tb-action ghost" onclick="App.addSpecialMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
+          <span style="font-size:10.5px; color:var(--ink3); font-weight:400; margin-left:8px;">如試作會議、PDCA、新品發表會、營業會議等</span>
+        </div>
+        <div id="specialMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:280px; overflow-y:auto;">
+          ${this.buildSpecialMeetingsHtml()}
+        </div>
+      </div>
+      <!-- /排程 --></div></div>
+    <div class="tab-panel" id="資料"><div class="settings-grid">
       <!-- Sync (WBS 同步：僅 admin 顯示) -->
       ${isAdmin() ? `
       <div class="settings-section" id="settings-jsync">
@@ -6015,195 +6114,6 @@ App.renderSettings = function() {
         </div>
       </div>
       ` : ''}
-
-      <!-- Work schedule -->
-      <div class="settings-section">
-        <div class="ss-title">⏰ 工時與排程</div>
-        <div class="ss-desc">設定你的工作節奏，產生智慧排程時依此規則</div>
-
-        <div class="ss-field">
-          <label>每日可用工時</label>
-          <div>
-            <input type="number" id="set-hours" value="${s.dailyHours}" min="1" max="12" step="0.5">
-            <div class="help">扣掉雜事休息後實際能做任務的時間</div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>上午時段</label>
-          <div>
-            <div class="time-range">
-              <input type="time" id="set-ws1" value="${s.workStart1}">
-              <span>到</span>
-              <input type="time" id="set-we1" value="${s.workEnd1}">
-            </div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>下午時段</label>
-          <div>
-            <div class="time-range">
-              <input type="time" id="set-ws2" value="${s.workStart2}">
-              <span>到</span>
-              <input type="time" id="set-we2" value="${s.workEnd2}">
-            </div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>黃金時段</label>
-          <div>
-            <select id="set-golden">
-              <option value="morning" ${s.goldenTime === 'morning' ? 'selected' : ''}>上午（深度工作優先）</option>
-              <option value="afternoon" ${s.goldenTime === 'afternoon' ? 'selected' : ''}>下午</option>
-              <option value="none" ${s.goldenTime === 'none' ? 'selected' : ''}>不需要規則</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>工作日</label>
-          <div>
-            <div class="day-pills" id="dayPills">
-              ${[1,2,3,4,5,6,0].map(d => {
-                const name = ['日','一','二','三','四','五','六'][d];
-                return `<button class="day-pill ${s.workDays.includes(d) ? 'on' : ''}" data-day="${d}"
-                              onclick="this.classList.toggle('on')">${name}</button>`;
-              }).join('')}
-            </div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>任務切分閾值 (h)</label>
-          <div>
-            <input type="number" id="set-split" value="${s.splitThreshold}" min="1" max="12" step="0.5">
-            <div class="help">超過此工時的任務會自動切分到多天</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Personal -->
-      <div class="settings-section">
-        <div class="ss-title">📝 個人資訊</div>
-        <div class="ss-desc">用於週報抬頭</div>
-
-        <div class="ss-field">
-          <label>姓名</label>
-          <div><input type="text" id="set-uname" value="${U.esc(s.userName || '')}"></div>
-        </div>
-
-        <div class="ss-field">
-          <label>部門</label>
-          <div><input type="text" id="set-dept" value="${U.esc(s.department || '')}" placeholder="e.g. 研發部"></div>
-        </div>
-      </div>
-
-      <!-- 會議模板 -->
-      <div class="settings-section">
-        <div class="ss-title">📅 定期事件（會議 / 打掃 等）</div>
-        <div class="ss-desc">智慧排程會自動避開這些時段，包含每天、每週、每隔一週、每隔兩週的事件</div>
-
-        <!-- 每週固定事件 -->
-        <div style="margin:14px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
-          ⏰ 定期事件
-          <button class="tb-action ghost" onclick="App.addRecurringMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
-        </div>
-        <div id="recurringMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden;">
-          ${this.buildRecurringMeetingsHtml()}
-        </div>
-
-        <!-- 特定日期事件 -->
-        <div style="margin:18px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
-          📌 特定日期事件
-          <button class="tb-action ghost" onclick="App.addSpecialMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
-          <span style="font-size:10.5px; color:var(--ink3); font-weight:400; margin-left:8px;">如試作會議、PDCA、新品發表會、營業會議等</span>
-        </div>
-        <div id="specialMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:280px; overflow-y:auto;">
-          ${this.buildSpecialMeetingsHtml()}
-        </div>
-      </div>
-
-      <!-- Google OAuth + 白名單 -->
-      <div class="settings-section">
-        <div class="ss-title">🔐 Google 登入</div>
-        <div class="ss-desc">用 Google 帳號登入，資料以 Gmail 區分，各使用者完全獨立</div>
-
-        ${s._loggedInEmail ? `
-        <div class="sync-status" style="margin-bottom:14px;">
-          <div class="sync-pulse"></div>
-          <div class="sync-status-text">
-            目前登入：<b>${U.esc(s._loggedInEmail)}</b>${isAdmin() ? ' <span style="font-size:10.5px; background:var(--sage-100); color:var(--sage-700); padding:1px 6px; border-radius:8px; margin-left:6px;">👑 ADMIN</span>' : ''}
-          </div>
-          <button class="tb-action ghost" onclick="App.googleSignOut()" style="font-size:11px; padding:4px 10px;">登出</button>
-        </div>` : ''}
-
-        ${isAdmin() ? `
-        <div class="ss-field">
-          <label>Google OAuth Client ID <span style="font-size:10.5px; color:var(--ink4);">(admin only)</span></label>
-          <div>
-            <input type="text" id="set-gci" value="${U.esc(s.googleClientId || '')}" placeholder="留空 = 使用內建預設 Client ID" style="font-family:var(--mono); font-size:11px;">
-            <div class="help">
-              留空時自動使用內建預設值（同事零設定即可登入）<br>
-              如要自訂：到 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--sage-600);">Google Cloud Console</a> 建立 OAuth 2.0 Client ID（Web application 類型）<br>
-              授權的 JavaScript 來源加入：<code style="background:var(--surface2); padding:1px 5px; border-radius:3px;">https://your-name.github.io</code>
-            </div>
-          </div>
-        </div>
-        ` : `
-        <div style="padding:12px 14px; background:var(--surface2); border-radius:6px; font-size:12px; color:var(--ink3); line-height:1.6;">
-          💡 你的資料以 Gmail 區分，完全獨立。<br>
-          • 想跨裝置同步：到下方「☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步」設定<br>
-          • 想本機備份：到下方「📦 資料管理」下載 JSON 備份
-        </div>
-        `}
-      </div>
-
-      <!-- Unlock edit (訪客唯讀 → 輸入密碼解鎖) -->
-      <div class="settings-section">
-        <div class="ss-title">🔓 輸入密碼解鎖編輯</div>
-        <div class="ss-desc">本機預設唯讀（訪客模式），輸入編輯密碼後即可編輯</div>
-
-        <div class="ss-field">
-          <label>編輯密碼</label>
-          <div>
-            <input type="password" id="unlock-pw" placeholder="輸入密碼以解鎖編輯">
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>記住我</label>
-          <div>
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink2);">
-              <input type="checkbox" id="unlock-remember" style="width:auto;"> 在此設備記住我 5 天
-            </label>
-          </div>
-        </div>
-
-        <div>
-          <button class="tb-action" onclick="App.unlockEdit()">解鎖編輯</button>
-        </div>
-      </div>
-
-      <!-- Password fallback -->
-      <div class="settings-section">
-        <div class="ss-title">🔒 編輯密碼（備援）</div>
-        <div class="ss-desc">若無法設定 Google OAuth，可改用密碼登入</div>
-
-        <div class="ss-field">
-          <label>新密碼</label>
-          <div>
-            <input type="password" id="set-pw" placeholder="留空表示不更動">
-            <div class="help">設成空白 = 不需密碼即可編輯</div>
-          </div>
-        </div>
-
-        <div>
-          <button class="tb-action ghost" onclick="App.changePassword()">更改密碼</button>
-        </div>
-      </div>
-
       <!-- 雲端同步（訪客唯讀時隱藏，解鎖編輯後才顯示：CSS body.viewonly .cloud-sync-sec） -->
       <div class="settings-section cloud-sync-sec">
         <div class="ss-title">☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步</div>
@@ -6300,8 +6210,102 @@ App.renderSettings = function() {
           💡「清除重複任務」把同專案 + 同任務名的舊紀錄合併到「歷史紀錄」中，只保留一筆主任務
         </div>
       </div>
+      <!-- /資料 --></div></div>
+    <div class="tab-panel" id="編輯權限"><div class="settings-grid">
+      <!-- Unlock edit (訪客唯讀 → 輸入密碼解鎖) -->
+      <div class="settings-section">
+        <div class="ss-title">🔓 輸入密碼解鎖編輯</div>
+        <div class="ss-desc">本機預設唯讀（訪客模式），輸入編輯密碼後即可編輯</div>
 
-      <!-- 關於 ${CFG('APP_NAME', 'PM-Core')} -->
+        <div class="ss-field">
+          <label>編輯密碼</label>
+          <div>
+            <input type="password" id="unlock-pw" placeholder="輸入密碼以解鎖編輯">
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>記住我</label>
+          <div>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink2);">
+              <input type="checkbox" id="unlock-remember" style="width:auto;"> 在此設備記住我 5 天
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <button class="tb-action" onclick="App.unlockEdit()">解鎖編輯</button>
+        </div>
+      </div>
+
+      <!-- Password fallback -->
+      <div class="settings-section editpw-sec">
+        <div class="ss-title">🔒 編輯密碼（備援）</div>
+        <div class="ss-desc">若無法設定 Google OAuth，可改用密碼登入</div>
+
+        <div class="ss-field">
+          <label>新密碼</label>
+          <div>
+            <input type="password" id="set-pw" placeholder="留空表示不更動">
+            <div class="help">設成空白 = 不需密碼即可編輯</div>
+          </div>
+        </div>
+
+        <div>
+          <button class="tb-action ghost" onclick="App.changePassword()">更改密碼</button>
+        </div>
+      </div>
+      <!-- /編輯權限 --></div></div>
+    <div class="tab-panel" id="關於"><div class="settings-grid">
+      <!-- Personal -->
+      <div class="settings-section">
+        <div class="ss-title">📝 個人資訊</div>
+        <div class="ss-desc">用於週報抬頭</div>
+
+        <div class="ss-field">
+          <label>姓名</label>
+          <div><input type="text" id="set-uname" value="${U.esc(s.userName || '')}"></div>
+        </div>
+
+        <div class="ss-field">
+          <label>部門</label>
+          <div><input type="text" id="set-dept" value="${U.esc(s.department || '')}" placeholder="e.g. 研發部"></div>
+        </div>
+      </div>
+      <!-- Google OAuth + 白名單 -->
+      <div class="settings-section">
+        <div class="ss-title">🔐 Google 登入</div>
+        <div class="ss-desc">用 Google 帳號登入，資料以 Gmail 區分，各使用者完全獨立</div>
+
+        ${s._loggedInEmail ? `
+        <div class="sync-status" style="margin-bottom:14px;">
+          <div class="sync-pulse"></div>
+          <div class="sync-status-text">
+            目前登入：<b>${U.esc(s._loggedInEmail)}</b>${isAdmin() ? ' <span style="font-size:10.5px; background:var(--sage-100); color:var(--sage-700); padding:1px 6px; border-radius:8px; margin-left:6px;">👑 ADMIN</span>' : ''}
+          </div>
+          <button class="tb-action ghost" onclick="App.googleSignOut()" style="font-size:11px; padding:4px 10px;">登出</button>
+        </div>` : ''}
+
+        ${isAdmin() ? `
+        <div class="ss-field">
+          <label>Google OAuth Client ID <span style="font-size:10.5px; color:var(--ink4);">(admin only)</span></label>
+          <div>
+            <input type="text" id="set-gci" value="${U.esc(s.googleClientId || '')}" placeholder="留空 = 使用內建預設 Client ID" style="font-family:var(--mono); font-size:11px;">
+            <div class="help">
+              留空時自動使用內建預設值（同事零設定即可登入）<br>
+              如要自訂：到 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--sage-600);">Google Cloud Console</a> 建立 OAuth 2.0 Client ID（Web application 類型）<br>
+              授權的 JavaScript 來源加入：<code style="background:var(--surface2); padding:1px 5px; border-radius:3px;">https://your-name.github.io</code>
+            </div>
+          </div>
+        </div>
+        ` : `
+        <div style="padding:12px 14px; background:var(--surface2); border-radius:6px; font-size:12px; color:var(--ink3); line-height:1.6;">
+          💡 你的資料以 Gmail 區分，完全獨立。<br>
+          • 想跨裝置同步：到下方「☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步」設定<br>
+          • 想本機備份：到下方「📦 資料管理」下載 JSON 備份
+        </div>
+        `}
+      </div>      <!-- 關於 ${CFG('APP_NAME', 'PM-Core')} -->
       <div class="settings-section">
         <div class="ss-title">ℹ️ 關於 ${CFG('APP_NAME', 'PM-Core')}</div>
         <div style="display:grid; grid-template-columns: 130px 1fr; gap:10px 16px; font-size:13px; line-height:1.7; padding:8px 0;">
@@ -6328,10 +6332,10 @@ App.renderSettings = function() {
           // 任何衍生作品請保留此版權聲明
         </div>
       </div>
+      <!-- /關於 --></div></div>
 
-      <div style="text-align:center; margin-top:14px;">
-        <button class="tb-action" onclick="App.saveSettings()" style="padding:12px 32px;">💾 儲存所有設定</button>
-      </div>
+    <div style="text-align:center; margin-top:14px;">
+      <button class="tb-action" onclick="App.saveSettings()" style="padding:12px 32px;">💾 儲存所有設定</button>
     </div>
   `;
 };
