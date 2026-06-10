@@ -622,6 +622,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--ink3); text-transform: uppercase;
 }
 .task-row:last-child { border-bottom: none; }
+.task-row:nth-child(even) { background: var(--cream); }
 .task-row:hover { background: var(--surface2); }
 .task-row.synced { background: rgba(74,124,92,.02); }
 .task-row.synced:hover { background: var(--sage-50); }
