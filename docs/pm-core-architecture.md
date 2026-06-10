@@ -443,6 +443,12 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 22. 四視圖看板（綜觀/看板/甘特/月曆 + renderKanban）
 23. 刪 A/B 群組母項（先查前置引用/getProjectStages 依賴）
 24. 待辦表餘裕/截止欄微調（純 CSS 一行）
+25.（待設計）待辦表頭凍結 `.task-row-header` sticky —— 已查證 2026-06-10，非單條 CSS。
+   - 捲動容器 = 視窗（主內容鏈 .app/.main/.content/#page-project 皆無局部 overflow 捲動層；sidebar 是另一條獨立 sticky 內捲，無關）。
+   - 受阻① `.task-list-card` 直接父層 `overflow:hidden`（style.css:608，用於裁圓角）會成為 sticky 的捲動容器 → header 失效。移除它，今天做好的 `.tlc-head` 底色 + 斑馬紋列背景會在卡片圓角處露方角。
+   - 受阻② topbar 已 `position:sticky; top:0`（style.css:218）；header 的 `top` 須扣 topbar 高度才不被蓋住，但目前無對應變數。
+   - 需設計：圓角替代做法（子元素各自 border-radius／改包法，取代卡層 overflow:hidden）＋ 新增 `--topbar-h` 變數定 top 偏移 ＋ 決定是否連 `.tlc-head` 一起釘。
+   - 等完整時段專門處理，不在零碎顯示層批次內做。
 
 ---
 
