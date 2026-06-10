@@ -946,6 +946,30 @@ function isTaskBlocked(task, allTasksMap) {
   return result;
 }
 
+function isTaskDelayed(task, today) {
+  if (!task || task.status === 'done' || task.status === 'hold') return false;
+  const end = getEffectiveSchedule(task).end;
+  return !!end && new Date(end) < new Date(today);
+}
+
+function groupTasksForBoard(tasks, today) {
+  const cols = [
+    { key: 'pending', label: '未開始', tasks: [] },
+    { key: 'wip',     label: '進行中', tasks: [] },
+    { key: 'delayed', label: '延遲',   tasks: [] },
+    { key: 'done',    label: '已完成', tasks: [] },
+    { key: 'hold',    label: '擱置中', tasks: [] }
+  ];
+  const byKey = {};
+  cols.forEach(c => { byKey[c.key] = c; });
+  (tasks || []).forEach(t => {
+    if (isTaskDelayed(t, today)) { byKey.delayed.tasks.push(t); return; }
+    const k = byKey[t.status] ? t.status : 'pending';
+    byKey[k].tasks.push(t);
+  });
+  return cols;
+}
+
 // 步驟4 第一段：依賴圖 + 拓撲排序 + 循環偵測（不算日期，computeSchedule 第二段會用）
 // 節點 id = String(task.wbs)；邊 = parsePredecessors(task.predecessor) 的每個 dep → 本任務。
 // @param tasks 任務陣列
@@ -1895,6 +1919,7 @@ const App = {
     document.getElementById('page-project').innerHTML = '<div class="view-tabs-bar">' + this.buildProjectViewTabsHtml() + '</div><div id="proj-view-body"></div>';
     if (view === 'gantt') this.renderGantt('proj-view-body', true);
     if (view === 'month') this.renderMonth('proj-view-body', this.currentProjectId);
+    if (view === 'kanban') this.renderKanban('proj-view-body', this.currentProjectId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
@@ -1970,6 +1995,7 @@ App.buildProjectViewTabsHtml = function() {
   return `
     <div class="tabs">
       <button class="tab-btn ${this.projectView === 'dashboard' ? 'active' : ''}" onclick="App.switchProjectView('dashboard')">儀表板</button>
+      <button class="tab-btn ${this.projectView === 'kanban' ? 'active' : ''}" onclick="App.switchProjectView('kanban')">看板</button>
       <button class="tab-btn ${this.projectView === 'gantt' ? 'active' : ''}" onclick="App.switchProjectView('gantt')">甘特圖</button>
       <button class="tab-btn ${this.projectView === 'month' ? 'active' : ''}" onclick="App.switchProjectView('month')">月曆</button>
     </div>`;
@@ -3122,6 +3148,38 @@ App.buildTaskRowHtml = function(t, i) {
     </div>
     <span style="font-size:12px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
     <span class="task-deadline ${dlClass}" style="text-align:center; font-size:12px;">${dlText}</span>
+  </div>`;
+};
+
+// 看板窄卡（§1.7）：dlClass/dlText、進度、前置數皆照抄 buildTaskRowHtml 口徑，顏色走 :root 變數（CSS 另給）。
+App.buildKanbanCardHtml = function(t) {
+  const sch = getEffectiveSchedule(t);
+  let dlText = '—';
+  let dlClass = '';
+  if (sch.end) {
+    const days = D.daysBetween(D.today(), new Date(sch.end));
+    if (days < 0)        { dlText = `逾${-days}`; dlClass = 'overdue'; }
+    else if (days === 0) { dlText = '今日'; dlClass = 'near'; }
+    else if (days === 1) { dlText = '明日'; dlClass = 'near'; }
+    else if (days <= 3)  { dlText = `${days}天`; dlClass = 'near'; }
+    else                 { dlText = D.fmt(new Date(sch.end), 'md'); }
+  }
+  const pct = taskDisplayProgress(t);
+  const predCount = parsePredecessors(t.predecessor).length;
+  return `<div class="kanban-card" onclick="App.openTaskModal('${t.id}')">
+    <div class="kanban-card-top">
+      <span class="kanban-card-wbs">${U.esc(t.wbs || '')}</span>
+      <span class="kanban-card-name">${U.esc(t.name || '')}</span>
+    </div>
+    <div class="kanban-card-meta">
+      ${t.subgroup ? `<span class="kanban-card-sub">${U.esc(t.subgroup)}</span>` : ''}
+      ${predCount > 0 ? `<span class="kanban-card-pred">+${predCount}</span>` : ''}
+    </div>
+    <div class="kanban-card-mid">
+      <span class="kanban-card-pct">${pct}%</span>
+      <span class="task-deadline kanban-card-due ${dlClass}">${dlText}</span>
+    </div>
+    <div class="kanban-card-owner">${U.esc(t.owner || '—')}</div>
   </div>`;
 };
 
@@ -4689,6 +4747,22 @@ App.renderMonth = function(targetId = 'page-month', pid = null) {
       </div>
     </div>
   `;
+};
+
+App.renderKanban = function(targetId = 'page-kanban', pid = null) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  const tasks = (DATA.tasks || []).filter(t => !t._deleted && (!pid || t.project === pid));
+  const cols = groupTasksForBoard(tasks, D.today());
+  el.innerHTML = '<div class="kanban-board">' + cols.map(c =>
+    '<div class="kanban-col' + (c.key === 'delayed' ? ' kanban-col-delayed' : '') + '">' +
+      '<div class="kanban-col-head"><span>' + c.label + '</span>' +
+        '<span class="kanban-col-count">' + c.tasks.length + '</span></div>' +
+      '<div class="kanban-cards">' +
+        c.tasks.map(t => App.buildKanbanCardHtml(t)).join('') +
+      '</div>' +
+    '</div>'
+  ).join('') + '</div>';
 };
 
 App.buildYMPickerHtml = function(curYear, curMonth) {
