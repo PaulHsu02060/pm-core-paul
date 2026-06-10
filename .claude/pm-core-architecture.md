@@ -2,7 +2,7 @@
 
 > 本文件是 PM-Core 的**單一架構真實來源**。整合所有定案設計 + 已完成進度，只保留最新正確版本。
 > 施工前必讀；定案內容不憑記憶改動；新需求若與本文件衝突，以討論更新本文件為先。
-> 最後更新：2026-06-09（家裡桌機，基準 HEAD `d781c14`）
+> 最後更新：2026-06-11（基準 HEAD `dcfddd3`）
 
 ---
 
@@ -425,7 +425,7 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 10. §8b.5：前置序號→id、引擎改比對 id、引入 order 欄位、插入 UI、56 cases + 插入案。中間插入不亂的根本解。
 
 **D 群：雙視圖架構（大工程，多 session，先定分流再動）**
-11. 新增「排入行事曆」欄位 + 分流邏輯。**定案（2026-06-10）**：欄位 `scheduleToCalendar`（布林預設 false）；最簡分流（只顯示手動勾選、舊資料不排入、Excel 延後）；`getCalendarTasks(tasks)` 純函式回傳勾選子集，時程表接線屬第 8 項。施工規格見 `docs/第7項-排入行事曆-施工規格.md`，回家裡桌機做（需 56 測試）。
+11. ✅ **已完成（2026-06-10~11，b73e58a/6a5386b/106edfc）** 新增「排入行事曆」欄位 + 分流邏輯。**定案（2026-06-10）**：欄位 `scheduleToCalendar`（布林預設 false）；最簡分流（只顯示手動勾選、舊資料不排入、Excel 延後）；`getCalendarTasks(tasks)` 純函式回傳勾選子集，時程表接線屬第 8 項。施工規格見 `docs/第7項-排入行事曆-施工規格.md`，回家裡桌機做（需 56 測試）。
 12. 視圖一（時間軸/時段制）呈現
 13. 視圖二（進度/待辦/逾期清單）呈現
 14. 部門負荷計算改用統一 H（工期×dailyHours 攤平到區間）
@@ -438,7 +438,7 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 
 **F 群：架構整理（低優先，feature 穩定後）**
 19. app.js 拆檔（~7000 行，no-build 約束）
-20. 設定頁 v2（移除 J 系列遺留、側欄預設收合）
+20. ✅ **部分完成** 設定頁已拆 4 panel tab（排程/資料/編輯權限/關於，34366b1/b26b4a9）；編輯密碼區已隱藏（接停用 doLogin 失效，dcfddd3）。剩餘：editpw-sec CSS 死規則待清（style.css:266）；個人資訊/Google 登入/資料管理經評估決定全留不砍（原 v2 砍 3 塊計畫取消）。
 21. 部門 D-2c/D-2d、D-3
 22. 四視圖看板（綜觀/看板/甘特/月曆 + renderKanban）
 23. 刪 A/B 群組母項（先查前置引用/getProjectStages 依賴）
@@ -454,6 +454,13 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
    - 缺口：架構 N.3「拖動過的 Task 智慧排程不覆蓋」目前 code 並未真正落地。
    - 需設計：locked 狀態持久化（存哪、key 用 taskId 還是 date+start、重排時讀回並讓對應 slot 固定不被 `findRun` 佔走）。
    - 高風險：動 `generateSchedule` 全清重排邏輯（引擎核心、56 cases 範圍）。與第8項「選誰上排」是兩件事，獨立 commit、一次一件。
+
+**G 群：Task 模板系統 + 引擎接線（大工程，需另開 session 完整設計，依賴最深）**
+27. Task 新模板（時/天計）設定頁欄位規劃 —— 區分「時段制(工時 H)」與「工期制(工作天)」兩種計量的表單欄位，呼應第二部分雙視圖模型。
+28. Task 中間插案邏輯接上 —— 任意位置插入任務、後續自動順延。依賴 §8b.5 前置序號 id 化（第10項），無 id 化無法穩定插案。
+29. WBS 完整模板一鍵套用（核心痛點 UX）—— 內建「設計→量產」全流程基礎模板；新使用者建專案只需設「初始預計開始日」+ 批量編輯各欄位，套用後自動產出全部 Task，並自動帶出全部預計開始/完成日期，免逐筆手填。
+   ⚠ 前置鐵則：第29項「自動帶日期」＝排程引擎接線。computeSchedule / applySchedule（56 測試過）早已建好，但 applySchedule 只由甘特手動鈕觸發，scheduledStart/End 從未自動寫入 —— 這是「比 Excel 還差」的根源。第29項成立的前提是引擎接到 UI（applySchedule 在建/改任務時自動跑、寫回 scheduledStart/End），須先做。
+   依賴鏈：27（欄位）→ 28（插案，需 §8b.5 id 化）→ 29（模板 + 引擎接線）。三項屬同一功能群，須整體設計，不可散做。
 
 ---
 
@@ -560,3 +567,20 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 - 欄位名 `scheduleToCalendar`（布林，預設 `false`）。
 - 分流走最簡版：只顯示手動勾選的、舊資料預設不排入、Excel 匯入延後。
 - `getCalendarTasks(tasks)` 純函式回傳勾選子集；時程表接線是第 8 項。
+
+---
+
+## 附錄之三：2026-06-10~11 完成的 commit
+
+接續配色工程批（`b227302`）之後，第8項時程表 + 設定頁 tab 重構系列：
+
+- `b73e58a` scheduleToCalendar 欄位 + getCalendarTasks 分流
+- `6a5386b` 時程表強制上排（第8項 B/聯集）
+- `106edfc` 甲修正 `!t.wbs` 總閘門（工期制不進視圖一）
+- `16fbf18` 雲端同步區 view-only 隱藏
+- `973c565` 解鎖編輯加「記住我 5 天」
+- `34366b1` 設定頁 tab 段1（CSS panel + showSettingsTab）
+- `b26b4a9` 設定頁 tab 段2（拆 4 panel）
+- `cb79a5c` 編輯權限 tab 文案 + icon
+- `dcfddd3` 隱藏失效「變更編輯密碼」區（接停用 doLogin）
+- 基準 HEAD：`dcfddd3`，引擎核心 56/56 PASS
