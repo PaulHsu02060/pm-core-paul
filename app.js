@@ -6214,8 +6214,8 @@ App.renderSettings = function() {
     <div class="tab-panel" id="編輯權限"><div class="settings-grid">
       <!-- Unlock edit (訪客唯讀 → 輸入密碼解鎖) -->
       <div class="settings-section">
-        <div class="ss-title">🔓 輸入密碼解鎖編輯</div>
-        <div class="ss-desc">本機預設唯讀（訪客模式），輸入編輯密碼後即可編輯</div>
+        <div class="ss-title">🔓 解鎖編輯</div>
+        <div class="ss-desc">輸入密碼，解除唯讀模式開始編輯</div>
 
         <div class="ss-field">
           <label>編輯密碼</label>
@@ -6240,8 +6240,8 @@ App.renderSettings = function() {
 
       <!-- Password fallback -->
       <div class="settings-section editpw-sec">
-        <div class="ss-title">🔒 編輯密碼（備援）</div>
-        <div class="ss-desc">若無法設定 Google OAuth，可改用密碼登入</div>
+        <div class="ss-title">⚙️ 變更編輯密碼</div>
+        <div class="ss-desc">修改解鎖編輯用的密碼</div>
 
         <div class="ss-field">
           <label>新密碼</label>
