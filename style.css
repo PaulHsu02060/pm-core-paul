@@ -12,6 +12,12 @@
   --stone-300: #B5B0A0; --stone-400: #7E796D; --stone-500: #5A5346;
   --stone-600: #3A332A; --stone-900: #1A1612;
   --gray-mid: #9CA3AF;   /* 中性冷灰：甘特 manual 錨點底 */
+  --sidebar-ink2: #7FA08C;      /* sidebar 次要字 */
+  --kpi-task-l: #EDF1E8;        /* KPI TASKS 淺底 */
+  --kpi-done-l: #E1F0E4;        /* KPI DONE 淺底 */
+  --kpi-wip-l: #E8EFF5;         /* KPI IN-PROGRESS 淺底 */
+  --kpi-delayed-l: #FBE9E0;     /* KPI DELAYED 淺底 */
+  --head-band: #E8EDE0;         /* 待辦表頭橫槓底 */
 
   --terracotta: #C4633E; --terracotta-l: #FAE8DC;
   --amber: #C4956C; --amber-l: #F5E8DC;
