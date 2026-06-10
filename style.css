@@ -19,6 +19,8 @@
   --kpi-done-l: #E1F0E4;        /* KPI DONE 淺底 */
   --kpi-wip-l: #E8EFF5;         /* KPI IN-PROGRESS 淺底 */
   --kpi-delayed-l: #FBE9E0;     /* KPI DELAYED 淺底 */
+  --kpi-overall-l: #E8EDE0;   /* OVERALL 淺 sage 底 */
+  --kpi-days-l: #FAEEDA;      /* WORKDAYS LEFT 淺琥珀底 */
   --head-band: #E8EDE0;         /* 待辦表頭橫槓底 */
 
   --terracotta: #C4633E; --terracotta-l: #FAE8DC;
@@ -293,6 +295,12 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   border-left: 3px solid var(--rule);                          /* 左彩條:預設中性,warn 覆蓋 */
 }
 .proj-kpi .stat.kpi-warn { border-left-color: var(--terracotta); }
+.proj-kpi .stat.kpi-tone-task    { background: var(--kpi-task-l); }
+.proj-kpi .stat.kpi-tone-done    { background: var(--kpi-done-l); }
+.proj-kpi .stat.kpi-tone-wip     { background: var(--kpi-wip-l); }
+.proj-kpi .stat.kpi-tone-delayed { background: var(--kpi-delayed-l); }
+.proj-kpi .stat.kpi-tone-overall { background: var(--kpi-overall-l); }
+.proj-kpi .stat.kpi-tone-days    { background: var(--kpi-days-l); }
 /* DOM 序是 num→label→sub,用 order 反轉成 label→num→sub,不動 app.js */
 .proj-kpi .stat-label { order: 1; }
 .proj-kpi .stat-num { order: 2; }

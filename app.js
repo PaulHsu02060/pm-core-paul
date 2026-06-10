@@ -2888,8 +2888,8 @@ App.buildProjKpiHtml = function(proj) {
   }
 
   // dataTip 格式「標題|內文|內文…」走 initTooltip;stack=true 時 sub 改獨立第二行(.stat-sub),非 stack 維持 inline span
-  const card = (label, value, sub, dataTip, warn, stack) => `
-    <div class="stat${warn ? ' kpi-warn' : ''}${stack && sub ? ' kpi-stack' : ''}"${dataTip ? ` data-tip="${U.esc(dataTip)}"` : ''}>
+  const card = (label, value, sub, dataTip, warn, stack, tone) => `
+    <div class="stat${warn ? ' kpi-warn' : ''}${stack && sub ? ' kpi-stack' : ''}${tone ? ' ' + tone : ''}"${dataTip ? ` data-tip="${U.esc(dataTip)}"` : ''}>
       <div class="stat-num">${value}</div>
       <div class="stat-label">${label}${sub && !stack ? ` <span class="stat-pct">${sub}</span>` : ''}</div>
       ${stack && sub ? `<div class="stat-sub">${sub}</div>` : ''}
@@ -2897,20 +2897,20 @@ App.buildProjKpiHtml = function(proj) {
 
   return `<div class="stats-row proj-kpi">
     ${card('TASKS', total, '',
-      '任務總數|這個專案的所有工作項目數(不含已刪除)')}
+      '任務總數|這個專案的所有工作項目數(不含已刪除)', false, false, 'kpi-tone-task')}
     ${card('DONE', done, donePct === null ? '—' : donePct + '%',
-      '完成件數|已完成的工作項目數|完成% = 已完成 ÷ 任務總數', false, true)}
+      '完成件數|已完成的工作項目數|完成% = 已完成 ÷ 任務總數', false, true, 'kpi-tone-done')}
     ${card('IN-PROGRESS', wip, '',
-      '進行中|正在進行、還沒完成的項目數')}
+      '進行中|正在進行、還沒完成的項目數', false, false, 'kpi-tone-wip')}
     ${card('DELAYED', delayed, noEnd > 0 ? `另${noEnd}件無日期` : '',
       '延遲件數|已過結束日但還沒完成的項目數|(暫停的不算;沒設日期的另計)',
-      delayed > 0)}
+      delayed > 0, false, 'kpi-tone-delayed')}
     ${card('OVERALL', overall === null ? '—' : overall + '%', '',
-      '整體完成度|所有項目的平均完成度,每項等重、不看工時')}
+      '整體完成度|所有項目的平均完成度,每項等重、不看工時', false, false, 'kpi-tone-overall')}
     ${card('WORKDAYS LEFT', wdLeft === null ? '—' : wdLeft,
       wdLeft === null ? '未設定' : (overdueWd > 0 ? `已逾期${overdueWd}工作日` : `至${endDate}`),
       '剩餘工作天|到專案結束日還剩幾個上班日(不含週末假日)',
-      overdueWd > 0)}
+      overdueWd > 0, false, 'kpi-tone-days')}
   </div>`;
 };
 
