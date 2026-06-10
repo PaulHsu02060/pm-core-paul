@@ -686,16 +686,14 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .kanban-card-top { display: flex; gap: 6px; align-items: baseline; margin-bottom: 4px; }
 .kanban-card-wbs { font-size: 11px; color: var(--ink4); font-family: var(--mono); }
 .kanban-card-name { font-size: 13px; color: var(--ink); line-height: 1.3; }
-.kanban-card-meta { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
-.kanban-card-sub, .kanban-card-pred {
-  font-size: 11px; padding: 1px 6px; border-radius: var(--r6);
-  background: var(--surface2); color: var(--ink3);
-}
-.kanban-card-mid {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
-}
-.kanban-card-pct { font-size: 11px; color: var(--ink3); }
 .kanban-card-owner { font-size: 11px; color: var(--ink4); }
+.kanban-card-progress { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.kanban-prog-track { flex: 1; height: 6px; background: var(--surface2); border: 1px solid var(--rule); border-radius: 99px; overflow: hidden; }
+.kanban-prog-fill { height: 100%; background: var(--sage-500); border-radius: 99px; }
+.kanban-col-delayed .kanban-prog-fill { background: var(--terracotta); }
+.kanban-prog-pct { font-size: 11px; color: var(--ink3); min-width: 28px; text-align: right; }
+.kanban-card-pred { font-size: 11px; color: var(--ink3); margin-bottom: 6px; }
+.kanban-card-dates { font-size: 11px; color: var(--ink4); }
 
 /* 看板篩選列（§1.8：狀態 + 階段 + 搜尋；案別下拉待 variant 資料層） */
 .kanban-filter-row {

@@ -3177,31 +3177,29 @@ App.buildTaskRowHtml = function(t, i) {
 // 看板窄卡（§1.7）：dlClass/dlText、進度、前置數皆照抄 buildTaskRowHtml 口徑，顏色走 :root 變數（CSS 另給）。
 App.buildKanbanCardHtml = function(t) {
   const sch = getEffectiveSchedule(t);
-  let dlText = '—';
-  let dlClass = '';
-  if (sch.end) {
-    const days = D.daysBetween(D.today(), new Date(sch.end));
-    if (days < 0)        { dlText = `逾${-days}`; dlClass = 'overdue'; }
-    else if (days === 0) { dlText = '今日'; dlClass = 'near'; }
-    else if (days === 1) { dlText = '明日'; dlClass = 'near'; }
-    else if (days <= 3)  { dlText = `${days}天`; dlClass = 'near'; }
-    else                 { dlText = D.fmt(new Date(sch.end), 'md'); }
-  }
   const pct = taskDisplayProgress(t);
-  const predCount = parsePredecessors(t.predecessor).length;
+  const preds = parsePredecessors(t.predecessor);
+  const predText = preds.map(p => {
+    let s = '#' + p.dep;
+    if (p.type !== 'FS') s += p.type;
+    if (p.lag > 0) s += '+' + p.lag;
+    else if (p.lag < 0) s += p.lag;
+    return s;
+  }).join(', ');
+  const startTxt = sch.start ? D.fmt(new Date(sch.start), 'md') : '—';
+  const endTxt   = sch.end   ? D.fmt(new Date(sch.end), 'md')   : '—';
+  const hasDates = !!(sch.start || sch.end);
   return `<div class="kanban-card" onclick="App.openTaskModal('${t.id}')">
     <div class="kanban-card-top">
       <span class="kanban-card-wbs">${U.esc(t.wbs || '')}</span>
       <span class="kanban-card-name">${U.esc(t.name || '')}</span>
     </div>
-    <div class="kanban-card-meta">
-      ${t.subgroup ? `<span class="kanban-card-sub">${U.esc(t.subgroup)}</span>` : ''}
-      ${predCount > 0 ? `<span class="kanban-card-pred">+${predCount}</span>` : ''}
+    ${preds.length > 0 ? `<div class="kanban-card-pred">← ${predText}</div>` : ''}
+    <div class="kanban-card-progress">
+      <div class="kanban-prog-track"><div class="kanban-prog-fill" style="width:${pct}%"></div></div>
+      <span class="kanban-prog-pct">${pct}%</span>
     </div>
-    <div class="kanban-card-mid">
-      <span class="kanban-card-pct">${pct}%</span>
-      <span class="task-deadline kanban-card-due ${dlClass}">${dlText}</span>
-    </div>
+    ${hasDates ? `<div class="kanban-card-dates">${startTxt} ~ ${endTxt}</div>` : ''}
     <div class="kanban-card-owner">${U.esc(t.owner || '—')}</div>
   </div>`;
 };
