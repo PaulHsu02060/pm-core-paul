@@ -970,6 +970,29 @@ function groupTasksForBoard(tasks, today) {
   return cols;
 }
 
+// 三視圖共用篩選（§1.8）。status='delayed' 走 isTaskDelayed（與看板延遲欄同口徑）；
+// 其餘 status 直接比對 t.status。variant 欄位本批預留不實作（傳了也忽略）。
+function filterTasks(tasks, f, today) {
+  f = f || {};
+  const kw = (f.keyword || '').trim().toLowerCase();
+  return (tasks || []).filter(t => {
+    if (f.status) {
+      if (f.status === 'delayed') { if (!isTaskDelayed(t, today)) return false; }
+      else if (t.status !== f.status) return false;
+    }
+    if (f.stage) {
+      const st = (t.stage || '').trim() || '未分階段';
+      if (st !== f.stage) return false;
+    }
+    if (f.dept && t.dept !== f.dept) return false;
+    if (kw) {
+      const hay = ((t.wbs || '') + ' ' + (t.name || '') + ' ' + (t.owner || '')).toLowerCase();
+      if (hay.indexOf(kw) < 0) return false;
+    }
+    return true;
+  });
+}
+
 // 步驟4 第一段：依賴圖 + 拓撲排序 + 循環偵測（不算日期，computeSchedule 第二段會用）
 // 節點 id = String(task.wbs)；邊 = parsePredecessors(task.predecessor) 的每個 dep → 本任務。
 // @param tasks 任務陣列
@@ -4752,9 +4775,32 @@ App.renderMonth = function(targetId = 'page-month', pid = null) {
 App.renderKanban = function(targetId = 'page-kanban', pid = null) {
   const el = document.getElementById(targetId);
   if (!el) return;
+  this.kanbanScope = { targetId, pid };
+  if (!this.kanbanFilter) this.kanbanFilter = { status: '', stage: '', dept: '', keyword: '' };
   const tasks = (DATA.tasks || []).filter(t => !t._deleted && (!pid || t.project === pid));
-  const cols = groupTasksForBoard(tasks, D.today());
-  el.innerHTML = '<div class="kanban-board">' + cols.map(c =>
+  const filtered = filterTasks(tasks, this.kanbanFilter, D.today());
+  const cols = groupTasksForBoard(filtered, D.today());
+
+  // 階段下拉：本批僅專案頁範圍（pid 不為 null），讀 getProjectStages（已排序、已排 deleted）
+  const stages = this.getProjectStages(pid);
+  const STATUS_OPTS = [
+    { v: '', label: '全部' }, { v: 'pending', label: '未開始' }, { v: 'wip', label: '進行中' },
+    { v: 'delayed', label: '延遲' }, { v: 'done', label: '已完成' }, { v: 'hold', label: '擱置中' }
+  ];
+  const statusOpts = STATUS_OPTS.map(o =>
+    '<option value="' + o.v + '"' + (o.v === this.kanbanFilter.status ? ' selected' : '') + '>' + o.label + '</option>'
+  ).join('');
+  const stageOpts = '<option value="">全部階段</option>' + stages.map(s =>
+    '<option value="' + U.esc(s.name) + '"' + (s.name === this.kanbanFilter.stage ? ' selected' : '') + '>' + U.esc(s.name) + '</option>'
+  ).join('');
+  const onch = ' App.renderKanban(App.kanbanScope.targetId, App.kanbanScope.pid);';
+  const filterRow = '<div class="kanban-filter-row">' +
+    '<select class="kanban-filter-status" onchange="App.kanbanFilter.status=this.value;' + onch + '">' + statusOpts + '</select>' +
+    '<select class="kanban-filter-stage" onchange="App.kanbanFilter.stage=this.value;' + onch + '">' + stageOpts + '</select>' +
+    '<input type="text" class="kanban-filter-search" placeholder="搜尋 編號/任務/負責人" value="' + U.esc(this.kanbanFilter.keyword || '') + '" onchange="App.kanbanFilter.keyword=this.value;' + onch + '">' +
+  '</div>';
+
+  el.innerHTML = filterRow + '<div class="kanban-board">' + cols.map(c =>
     '<div class="kanban-col' + (c.key === 'delayed' ? ' kanban-col-delayed' : '') + '">' +
       '<div class="kanban-col-head"><span>' + c.label + '</span>' +
         '<span class="kanban-col-count">' + c.tasks.length + '</span></div>' +

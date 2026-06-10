@@ -697,6 +697,36 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 .kanban-card-pct { font-size: 11px; color: var(--ink3); }
 .kanban-card-owner { font-size: 11px; color: var(--ink4); }
 
+/* 看板篩選列（§1.8：狀態 + 階段 + 搜尋；案別下拉待 variant 資料層） */
+.kanban-filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.kanban-filter-status, .kanban-filter-stage {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r6);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+.kanban-filter-search {
+  flex: 1;
+  min-width: 160px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r6);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+.kanban-filter-search::placeholder { color: var(--ink4); }
+
 .done-section { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); overflow: hidden; margin-top: 12px; opacity: .85; }
 .done-section.collapsed .done-list, .done-section.collapsed .done-clear-tip { display: none; }
 .done-head { padding: 11px 16px; background: var(--stone-50); display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; transition: background .15s; }
