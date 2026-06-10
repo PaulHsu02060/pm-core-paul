@@ -425,7 +425,7 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 10. §8b.5：前置序號→id、引擎改比對 id、引入 order 欄位、插入 UI、56 cases + 插入案。中間插入不亂的根本解。
 
 **D 群：雙視圖架構（大工程，多 session，先定分流再動）**
-11. 新增「排入行事曆」欄位 + 分流邏輯
+11. 新增「排入行事曆」欄位 + 分流邏輯。**定案（2026-06-10）**：欄位 `scheduleToCalendar`（布林預設 false）；最簡分流（只顯示手動勾選、舊資料不排入、Excel 延後）；`getCalendarTasks(tasks)` 純函式回傳勾選子集，時程表接線屬第 8 項。施工規格見 `docs/第7項-排入行事曆-施工規格.md`，回家裡桌機做（需 56 測試）。
 12. 視圖一（時間軸/時段制）呈現
 13. 視圖二（進度/待辦/逾期清單）呈現
 14. 部門負荷計算改用統一 H（工期×dailyHours 攤平到區間）
@@ -471,6 +471,7 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 **CSS 鐵則**
 - 顏色/圓角/z-index/陰影一律走 :root 變數，禁規則裡寫死 hex/數字。
 - 合理例外：rgba 透明衍生、膠囊 99px、圓點 50%。
+- hex 收斂結案（2026-06）：style.css 規則內零裸 hex（全進 :root），:root 外僅 rgba 帶 alpha 例外。app.js 寫死色**不收**——PROJ_COLORS/fallback 屬 JS 資料層值（非 CSS 呈現規則）、`_pdcaReportCss` 為獨立列印文件（拿不到 :root，無法 var()）；index.html 零 hex。
 
 **改檔紀律**
 - 含中文檔用 Edit 工具，禁 PowerShell 文字回寫（UTF-8 變亂碼）。
@@ -515,3 +516,36 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 4. 餘裕卡在 deadline 無資料來源，需先拍板。
 
 **今日教訓**：①版型「本來能用」別重構（早上 1080 置中繞一大圈）②不憑記憶先查證（差點重做已完成的引擎接線）③提公式前先確認資料源存在（餘裕的 deadline）④工作區未 commit 改動會累積成亂帳。
+
+---
+
+## 附錄之二：今日（2026-06-10）session 紀錄
+
+接續 2026-06-09，基準起點 HEAD = `d781c14`。
+
+**完成：配色工程全批收尾**（今日 push，HEAD 收於 `b227302`）
+- `1dbdfd8` 甘特錨點狀態色收進變數
+- `e3b2e59` :root 新增配色變數（sidebar/KPI/表頭）
+- `1532715` sidebar 深色主題（含 3 處繼承字修正）
+- `b128b3d` KPI 六卡分色（六張語意淺色底，`--kpi-*-l` 六變數）
+- `729a5ab` 待辦表頭橫槓 `.task-row-header` 底色 `--head-band` + 字級 12→13px
+- `1e1568b` `.tlc-head` 底色 surface2→`--head-band` + 移除狀態流向註記文字 + 按鈕 margin auto 維持靠右
+- `b227302` 斑馬紋 `.task-row:nth-child(even)` 套 `--cream`（anchor=hover 整行、插前面；synced/hover/done-list 蓋過斑馬，synced 列保留 sage 識別色）
+- → **配色工程全部結案**。
+- （另：今日 origin/main 尚有非配色批的看板視圖/篩選列/專案頁重構/序欄流水號 commit，非本紀錄範圍。）
+
+**完成：CSS hex 收斂全面盤點 → 結案**
+- style.css：規則內零裸 hex（全進 :root）；:root 外僅 rgba-alpha 合理例外。
+- app.js：寫死色兩類**都不收**——PROJ_COLORS/fallback 是 JS 資料層值（非 CSS 呈現規則）、`_pdcaReportCss` 是獨立列印文件（拿不到 :root，技術上無法 var()）。
+- index.html：零 hex。
+- 記憶裡「CSS hex 第二批待收」這條過時，無對應、無需動作（詳 §10 CSS 鐵則）。
+
+**環境確認 + 未動工**
+- 公司桌機（1141103004）確認無 Node（bash/PowerShell 皆 `command not found`）。
+- 第7項（§9 C 群第 7 項 排入行事曆欄位 + 分流）屬資料層、需跑 56 測試，**延回家裡桌機做**。
+- 第7項施工規格（`docs/第7項-排入行事曆-施工規格.md`）已寫、未開工，今日一併入版控（跨機要用）。
+
+**第7項定案**（細節見施工規格，§9-11 同步參照）
+- 欄位名 `scheduleToCalendar`（布林，預設 `false`）。
+- 分流走最簡版：只顯示手動勾選的、舊資料預設不排入、Excel 匯入延後。
+- `getCalendarTasks(tasks)` 純函式回傳勾選子集；時程表接線是第 8 項。
