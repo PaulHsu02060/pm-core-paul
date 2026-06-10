@@ -703,7 +703,7 @@ body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
-.kanban-filter-status, .kanban-filter-stage {
+.kanban-filter-status, .kanban-filter-stage, .kanban-filter-dept {
   height: 32px;
   padding: 0 8px;
   border: 1px solid var(--rule);

@@ -4791,6 +4791,7 @@ App.renderKanban = function(targetId = 'page-kanban', pid = null) {
 
   // 階段下拉：本批僅專案頁範圍（pid 不為 null），讀 getProjectStages（已排序、已排 deleted）
   const stages = this.getProjectStages(pid);
+  const proj = this.getProj(pid);   // dept 下拉資料源；pid=null（跨專案）→ undefined → 下拉不渲染
   const STATUS_OPTS = [
     { v: '', label: '全部' }, { v: 'pending', label: '未開始' }, { v: 'wip', label: '進行中' },
     { v: 'delayed', label: '延遲' }, { v: 'done', label: '已完成' }, { v: 'hold', label: '擱置中' }
@@ -4802,9 +4803,16 @@ App.renderKanban = function(targetId = 'page-kanban', pid = null) {
     '<option value="' + U.esc(s.name) + '"' + (s.name === this.kanbanFilter.stage ? ' selected' : '') + '>' + U.esc(s.name) + '</option>'
   ).join('');
   const onch = ' App.renderKanban(App.kanbanScope.targetId, App.kanbanScope.pid);';
+  const deptOpts = '<option value="">全部部門</option>' + ((proj && proj.depts) || []).map(d =>
+    '<option value="' + d.id + '"' + (d.id === this.kanbanFilter.dept ? ' selected' : '') + '>' + U.esc(d.name) + '</option>'
+  ).join('');
+  const deptSelect = (proj && proj.depts && proj.depts.length)
+    ? '<select class="kanban-filter-dept" onchange="App.kanbanFilter.dept=this.value;' + onch + '">' + deptOpts + '</select>'
+    : '';
   const filterRow = '<div class="kanban-filter-row">' +
     '<select class="kanban-filter-status" onchange="App.kanbanFilter.status=this.value;' + onch + '">' + statusOpts + '</select>' +
     '<select class="kanban-filter-stage" onchange="App.kanbanFilter.stage=this.value;' + onch + '">' + stageOpts + '</select>' +
+    deptSelect +
     '<input type="text" class="kanban-filter-search" placeholder="搜尋 編號/任務/負責人" value="' + U.esc(this.kanbanFilter.keyword || '') + '" onchange="App.kanbanFilter.keyword=this.value;' + onch + '">' +
   '</div>';
 
