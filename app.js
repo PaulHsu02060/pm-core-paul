@@ -1341,6 +1341,7 @@ function generateSchedule() {
   const candidates = DATA.tasks
     .filter(t => !t._deleted)
     .filter(t => t.status !== 'hold')
+    .filter(t => !t.wbs)  // 甲：視圖一只收時段制（無 WBS 編號）任務；工期制（WBS，含 Excel 匯入 synced:false 那批）走視圖二
     .filter(t => {
       // 已完成任務：本週才完成的也顯示（不重新排程，但要在時程表顯示）
       if (t.status === 'done') {
