@@ -2656,19 +2656,8 @@ App.renderProject = function() {
 
   const allTasks = this.getTasksOf(proj.id);
   const today = D.today();
-  // 排序：按 wbs 流水排（純顯示，不動 task.wbs 值）。段權重 + 段內序：1→…→25→A母項→A1→A2→…→手動任務最後
-  const wbsKey = (t) => {
-    const s = String(t.wbs || '').trim();
-    if (s === '') return [9999, 0];                            // 手動任務（無 wbs）排最後
-    if (/^\d+$/.test(s)) return [0, parseInt(s, 10)];          // 純數字（如 "26"）
-    if (/^[A-Za-z]+$/.test(s)) return [s.charCodeAt(0), -1];   // 光禿字母（群組母項）→ 段內序 -1，排該段最前
-    if (/^[A-Za-z]/.test(s)) return [s.charCodeAt(0), parseInt(s.slice(1), 10) || 0]; // 字母+數字（如 "A1"）
-    return [0, 0];                                             // 其他解析不出
-  };
-  const activeTasks = allTasks.filter(t => t.status !== 'done' && !t._deleted).sort((a, b) => {
-    const ka = wbsKey(a), kb = wbsKey(b);
-    return ka[0] - kb[0] || ka[1] - kb[1];   // 先比段權重，相等再比段內序
-  });
+  // 序：依 array 順序排（= Excel 匯入序，filter 保序），不再按 wbs 重排（§8b.4 層次一：序欄改連續流水號）
+  const activeTasks = allTasks.filter(t => t.status !== 'done' && !t._deleted);
   const doneTasks = allTasks.filter(t => t.status === 'done' && !t._deleted).sort((a,b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
   const deletedTasks = allTasks.filter(t => t._deleted).sort((a, b) => (b._deletedAt || '').localeCompare(a._deletedAt || ''));
 
@@ -2727,7 +2716,7 @@ App.renderProject = function() {
           <div id="activeTaskList">
             ${visibleActive.length === 0 ?
               '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>' :
-              visibleActive.map(t => this.buildTaskRowHtml(t)).join('')
+              visibleActive.map((t, i) => this.buildTaskRowHtml(t, i)).join('')
             }
           </div>
           ${!showAll ? `
@@ -2756,7 +2745,7 @@ App.renderProject = function() {
             <span class="done-head-chevron">▼</span>
           </div>
           <div class="done-list">
-            ${doneTasks.map(t => this.buildTaskRowHtml(t)).join('')}
+            ${doneTasks.map((t, i) => this.buildTaskRowHtml(t, i)).join('')}
           </div>
           <div class="done-clear-tip">
             💡 完成超過 ${DATA.settings.doneRetentionDays} 天的任務會自動清除
@@ -3070,7 +3059,7 @@ App.cleanExpiredDeletedTasks = function() {
   }
 };
 
-App.buildTaskRowHtml = function(t) {
+App.buildTaskRowHtml = function(t, i) {
   const sch = getEffectiveSchedule(t);
   const cat = t.taskType === 'milestone' ? 'milestone' : (t.category || 'deep');  // M2-T3：milestone 優先於 category，修 WBS 里程碑誤顯「會議」tag
   const isPreview = !DATA.settings.previewWeeks ? false : (
@@ -3108,7 +3097,7 @@ App.buildTaskRowHtml = function(t) {
   const slackTxt = t.status === 'done' ? '—' : '待引擎';
 
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
-    <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${t.wbs || '—'}</span>
+    <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${i + 1}</span>
     <span class="task-anchor" data-edit title="設為錨點"
           style="cursor:pointer; user-select:none; text-align:center;"
           onclick="event.stopPropagation(); App.setAnchor('${t.id}')">📌</span>
