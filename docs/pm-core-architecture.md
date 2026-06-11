@@ -184,10 +184,10 @@ Auth（檢視/編輯/登入）
 
 **不在此規格（獨立待辦）**：逆向排程（deadline + estHours → 反推最晚開始日）；slack/餘裕計算（依賴逆向+deadline 資料源）。
 
-**B 施工拍板（2026-06-11 定案，缺口④跨日重寫，code 待施工）**：D/C/A 已完成並進 feat（決定性排序 / slotScheduledEnd+全清 / horizon 8 週），B 是最後一塊，照下列 8 點動工：
+**B 施工拍板（2026-06-11 定案，缺口④跨日重寫，code 已完成：Step 0~4 進 feat，node 85 案綠）**：D/C/A 已完成並進 feat（決定性排序 / slotScheduledEnd+全清 / horizon 8 週），B 是最後一塊，照下列 8 點動工：
 
 1. **起算日**：時段制任務**無前置**，起算日 = max(plannedStart 或 today, today)；規格「前置完成日+1」對時段制 N/A（前置是工期制依賴鏈專屬）。
-2. **一任務多 item**（B 地基）：跨日後一任務的工時分散在多天/多時段，改為一任務 push **多個 item**，用既有 `chunk` 欄位標第幾段；渲染端 buildWeekScheduleHtml 逐格畫應自然分散，**同任務多段顯示須線上驗**。
+2. **一任務多 item**（B 地基）：跨日後一任務的工時分散在多天/多時段，改為一任務 push **多個 item**，用既有 `chunk` 欄位標第幾段；渲染端 buildWeekScheduleHtml 逐格畫應自然分散，**同任務多段顯示渲染已驗**（本機 index.html 驗過：同日午休切兩段不黏、多段同名同色、卡高對應 duration）。
 3. **當日塞滿**：當日**零散空格全塞**（利用率優先），不限只塞最長連續段。
 4. **8 週排不下**：**整任務回滾**（已佔格釋放）、整個不排 + 警示（全有或全無，乾淨優先），不留半段。
 5. **golden**：沿用現有 `isDeep`（category==='deep'||空）定義不改；每日先填當日 golden、同日 golden 滿才填當日非 golden、**不為 golden 拖到隔天**（Qextra 在逐日掃下自然收斂）。
