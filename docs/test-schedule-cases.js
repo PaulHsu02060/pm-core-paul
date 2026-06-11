@@ -837,26 +837,40 @@ function placeTask(slots, task, settings) {
     return allSlots.slice(best, best + N);
   }
 
+  // 平鋪時序 slot → segment：同日相鄰(時間差 60)併一段、斷格/跨日切新段；標 chunk index、各段帶末日
+  function toSegments(chosen) {
+    const overallEnd = chosen[chosen.length - 1].date;   // 末格日期（chosen 已時序）
+    const segs = [];
+    let cur = null, prevDate = null, prevMin = null;
+    for (const s of chosen) {
+      const m = startMin(s);
+      if (cur && s.date === prevDate && m === prevMin + 60) {
+        cur.duration += 60;        // 接續同段（同日相鄰）
+      } else {
+        cur = { date: s.date, start: s.start, duration: 60 };
+        segs.push(cur);            // 新段（跨日 or 時間斷格）
+      }
+      prevDate = s.date; prevMin = m;
+    }
+    return segs.map((seg, i) => ({ ...seg, chunk: i, slotScheduledEnd: overallEnd }));
+  }
+
   const isDeep = task.category === 'deep' || !task.category;
-  // 1a：一個任務一張長卡，找連續 N 格空檔（N = 取整後的 estHours 小時數）
+  // N = 取整後的 estHours 小時數
   const N = Math.max(1, Math.ceil(parseFloat(task.estHours) || 1));
   // 起算日 = max(plannedStart, today)；ISO 字串比較=時序比較（空字串/過去→today、未來→plannedStart）
   const todayIso = settings.todayIso;
   const plannedIso = task.plannedStart || '';
   const startIso = plannedIso > todayIso ? plannedIso : todayIso;
-  // filter 回傳同一批 slot 物件參照 → 後續 run.forEach 標 s.taken 仍寫回原 slots（佔位不斷）
+  // filter 回傳同一批 slot 物件參照 → 後續 commit 標 s.taken 仍寫回原 slots（佔位不斷）
   const scanSlots = slots.filter(s => s.date >= startIso);
-  const run = findRun(scanSlots, N, isDeep);
-  if (!run) return [];
-  run.forEach(s => s.taken = true);
-  const slotEnd = run[run.length - 1].date;   // 最後一格日期；現階段同日，跨日(B)後自動正確
-  return [{
-    date: run[0].date,
-    start: run[0].start,
-    duration: N * 60,
-    chunk: null,
-    slotScheduledEnd: slotEnd,
-  }];
+  // 分流：N>=splitThreshold 允許跨日（fillAcrossDays）；N<splitThreshold 同日連續（findRun，排不下回 [] 不降級）
+  const chosen = N >= settings.splitThreshold
+    ? fillAcrossDays(scanSlots, N, isDeep)
+    : findRun(scanSlots, N, isDeep);
+  if (!chosen) return [];
+  chosen.forEach(s => s.taken = true);   // commit：兩分支統一在此標 taken（先收集後提交）
+  return toSegments(chosen);
 }
 {
   // 手工 slot fixture：含過去格(06-08~06-10) + today(06-11)+；workDays 週一~五
@@ -868,7 +882,7 @@ function placeTask(slots, task, settings) {
       mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-09', '09:00'), mkSlot('2026-06-10', '09:00'),
       mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-12', '09:00'),
     ];
-    const segs = placeTask(slots, { estHours: 1, plannedStart: '2026-06-05' }, { todayIso: tIso, workDays: [1, 2, 3, 4, 5] });
+    const segs = placeTask(slots, { estHours: 1, plannedStart: '2026-06-05' }, { todayIso: tIso, splitThreshold: 4, workDays: [1, 2, 3, 4, 5] });
     check('案E1 起算日：過去 plannedStart 推到 today（不落過去格）',
       segs[0].date, '2026-06-11',
       'plannedStart 06-05 < today 06-11 → startIso=today；06-08/09/10 被 filter 擋，排到 06-11');
@@ -879,7 +893,7 @@ function placeTask(slots, task, settings) {
       mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-12', '09:00'),
       mkSlot('2026-06-15', '09:00'), mkSlot('2026-06-16', '09:00'),
     ];
-    const segs = placeTask(slots, { estHours: 1, plannedStart: '2026-06-15' }, { todayIso: tIso, workDays: [1, 2, 3, 4, 5] });
+    const segs = placeTask(slots, { estHours: 1, plannedStart: '2026-06-15' }, { todayIso: tIso, splitThreshold: 4, workDays: [1, 2, 3, 4, 5] });
     check('案E2 起算日：未來 plannedStart 取自己（不從 today 起）',
       segs[0].date >= '2026-06-15' ? '2026-06-15' : segs[0].date, '2026-06-15',
       'plannedStart 06-15 > today 06-11 → startIso=06-15；06-11/12 被 filter 擋，排到 >= 06-15');
@@ -988,6 +1002,73 @@ function fillAcrossDays(availSlots, N, isDeep) {
     check('案F8 決定性+亂序無關：兩跑相同且=排序輸入結果',
       `${r1 === r2}|${r1 === rs}`, 'true|true',
       '顯式 date sort → 亂序餵與排序餵結果一致、重跑穩定（決定性鐵則）');
+  }
+}
+
+// ════ 16. §4.7 B Step3 placeTask 接線（分流 + toSegments，端到端）════════
+// ⚠ placeTask 副本（section 14）已同步分流版；以下驗分流兩路徑 / segment 分組 / commit。
+{
+  const mkSlot = (date, start, golden = false, taken = false) => ({ date, dayNum: new Date(date).getDay(), start, duration: 60, golden, taken });
+  const st = (thr) => ({ todayIso: '2026-06-01', splitThreshold: thr, workDays: [1, 2, 3, 4, 5] });
+  const sigSeg = segs => segs.length === 0 ? '[]' : segs.map(s => s.date + ' ' + s.start + '/' + s.duration + '/' + s.chunk).join(' | ');
+  // 案G1 N>=threshold 跨日：多 segment、chunk index、各段帶末日
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-08', '10:00'), mkSlot('2026-06-09', '09:00')];
+    const segs = placeTask(slots, { estHours: 3 }, st(2));
+    check('案G1 跨日分流：N=3>=threshold → 多段 chunk0/1、各段 slotScheduledEnd=末日',
+      sigSeg(segs) + ' end=' + segs.map(s => s.slotScheduledEnd).join(','),
+      '2026-06-08 09:00/120/0 | 2026-06-09 09:00/60/1 end=2026-06-09,2026-06-09',
+      'day1 兩格併 120 段(chunk0)+day2 一格 60 段(chunk1)；兩段末日同為 06-09');
+  }
+  // 案G2 N<threshold 同日 findRun：單段 chunk0
+  {
+    const slots = [mkSlot('2026-06-08', '09:00')];
+    const segs = placeTask(slots, { estHours: 1 }, st(4));
+    check('案G2 同日分流：N=1<threshold → findRun 單段 chunk0',
+      sigSeg(segs), '2026-06-08 09:00/60/0',
+      'N=1<4 走 findRun，單格單段，chunk index=0');
+  }
+  // 案G3 N<threshold 同日排不下 → [] 不降級成跨日
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-09', '09:00')];
+    const segs = placeTask(slots, { estHours: 2 }, st(4));
+    check('案G3 不降級：N=2<threshold 同日無連續2格 → []（不退成跨日）',
+      sigSeg(segs) + ' | len=' + segs.length, '[] | len=0',
+      'findRun 找不到同日 2 連格回 null → placeTask []；若降級跨日會誤排兩天，故 [] 證明不降級');
+  }
+  // 案G4 同日零散切兩段（被會議切開）
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-08', '10:00', false, true), mkSlot('2026-06-08', '11:00')];
+    const segs = placeTask(slots, { estHours: 2 }, st(2));
+    check('案G4 segment 分組：同日 09/11(中間 10 會議) → 切兩段 chunk0/1',
+      sigSeg(segs), '2026-06-08 09:00/60/0 | 2026-06-08 11:00/60/1',
+      '09 與 11 時間差 120 非相鄰 → 各自一段（不黏成一張）；同日仍兩段');
+  }
+  // 案G5 commit：拿到非 null → chosen 標 taken、未選格不動
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-08', '10:00'), mkSlot('2026-06-08', '11:00')];
+    placeTask(slots, { estHours: 2 }, st(2));
+    check('案G5 commit 標 taken：選中 2 格 taken=true、未選格不動',
+      slots.map(s => s.taken).join(','), 'true,true,false',
+      'placeTask 統一 commit：09/10 被選標 taken，11 未選保持 false');
+  }
+  // 案G6 三日跨度：各段 slotScheduledEnd 都=最末日（含最早段）
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-09', '09:00'), mkSlot('2026-06-10', '09:00')];
+    const segs = placeTask(slots, { estHours: 3 }, st(2));
+    check('案G6 各段帶末日：三日各一段，chunk 012、slotScheduledEnd 皆=06-10',
+      segs.length + '|' + segs.map(s => s.chunk).join('') + '|' + segs.every(s => s.slotScheduledEnd === '2026-06-10'),
+      '3|012|true',
+      '三日不相鄰 → 3 段 chunk0/1/2；連最早 06-08 段也帶末日 06-10（caller 寫 task 取 last 一致）');
+  }
+  // 案G7 決定性：同輸入跑兩次 segments 全等（每次 fresh slots，避 commit 污染）
+  {
+    const build = () => [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-08', '10:00'), mkSlot('2026-06-09', '09:00')];
+    const r1 = sigSeg(placeTask(build(), { estHours: 3 }, st(2)));
+    const r2 = sigSeg(placeTask(build(), { estHours: 3 }, st(2)));
+    check('案G7 決定性：同輸入兩次 segments 全等', (r1 === r2) + '|' + r1,
+      'true|2026-06-08 09:00/120/0 | 2026-06-09 09:00/60/1',
+      'fresh slots 各跑一次（避 commit 污染 taken）→ 分流/分組決定性');
   }
 }
 

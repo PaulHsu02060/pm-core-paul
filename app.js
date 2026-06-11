@@ -1229,7 +1229,7 @@ function applySchedule(tasks, scope = 'full') {
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
 
 // 純函式：把單一任務放進 slots，回傳 segments[]（標 taken 為放置副作用，不寫 task）
-// 單 segment、chunk=null、N 用 Math.ceil；起算日 max(plannedStart, settings.todayIso) 之後才掃格
+// 分流：N>=splitThreshold 跨日(fillAcrossDays)、N<splitThreshold 同日(findRun 不降級)；toSegments 切段標 chunk；commit 標 taken
 // 排不下回傳 []（呼叫端重算 N 警示）；slotScheduledEnd 由呼叫端寫回 task
 function placeTask(slots, task, settings) {
   // slot 起始分鐘數（用於判斷時間相鄰）
@@ -1266,26 +1266,40 @@ function placeTask(slots, task, settings) {
     return allSlots.slice(best, best + N);
   }
 
+  // 平鋪時序 slot → segment：同日相鄰(時間差 60)併一段、斷格/跨日切新段；標 chunk index、各段帶末日
+  function toSegments(chosen) {
+    const overallEnd = chosen[chosen.length - 1].date;   // 末格日期（chosen 已時序）
+    const segs = [];
+    let cur = null, prevDate = null, prevMin = null;
+    for (const s of chosen) {
+      const m = startMin(s);
+      if (cur && s.date === prevDate && m === prevMin + 60) {
+        cur.duration += 60;        // 接續同段（同日相鄰）
+      } else {
+        cur = { date: s.date, start: s.start, duration: 60 };
+        segs.push(cur);            // 新段（跨日 or 時間斷格）
+      }
+      prevDate = s.date; prevMin = m;
+    }
+    return segs.map((seg, i) => ({ ...seg, chunk: i, slotScheduledEnd: overallEnd }));
+  }
+
   const isDeep = task.category === 'deep' || !task.category;
-  // 1a：一個任務一張長卡，找連續 N 格空檔（N = 取整後的 estHours 小時數）
+  // N = 取整後的 estHours 小時數
   const N = Math.max(1, Math.ceil(parseFloat(task.estHours) || 1));
   // 起算日 = max(plannedStart, today)；ISO 字串比較=時序比較（空字串/過去→today、未來→plannedStart）
   const todayIso = settings.todayIso;
   const plannedIso = task.plannedStart || '';
   const startIso = plannedIso > todayIso ? plannedIso : todayIso;
-  // filter 回傳同一批 slot 物件參照 → 後續 run.forEach 標 s.taken 仍寫回原 slots（佔位不斷）
+  // filter 回傳同一批 slot 物件參照 → 後續 commit 標 s.taken 仍寫回原 slots（佔位不斷）
   const scanSlots = slots.filter(s => s.date >= startIso);
-  const run = findRun(scanSlots, N, isDeep);
-  if (!run) return [];
-  run.forEach(s => s.taken = true);
-  const slotEnd = run[run.length - 1].date;   // 最後一格日期；現階段同日，跨日(B)後自動正確
-  return [{
-    date: run[0].date,
-    start: run[0].start,
-    duration: N * 60,
-    chunk: null,
-    slotScheduledEnd: slotEnd,
-  }];
+  // 分流：N>=splitThreshold 允許跨日（fillAcrossDays）；N<splitThreshold 同日連續（findRun，排不下回 [] 不降級）
+  const chosen = N >= settings.splitThreshold
+    ? fillAcrossDays(scanSlots, N, isDeep)
+    : findRun(scanSlots, N, isDeep);
+  if (!chosen) return [];
+  chosen.forEach(s => s.taken = true);   // commit：兩分支統一在此標 taken（先收集後提交）
+  return toSegments(chosen);
 }
 
 // 純函式（純讀，不碰 taken）：跨日逐日掃，挑出 N 格（時序排好）給呼叫端切 segment；湊不滿回 null
