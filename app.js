@@ -1288,6 +1288,38 @@ function placeTask(slots, task, settings) {
   }];
 }
 
+// 純函式（純讀，不碰 taken）：跨日逐日掃，挑出 N 格（時序排好）給呼叫端切 segment；湊不滿回 null
+// 逐日順延：日期顯式排序由早到晚；當日 isDeep 先 golden(時間序) 再非 golden(時間序)、非 deep 純時間序
+// 當日塞滿才換次日（不為 golden 拖隔天）；標 taken 由呼叫端 commit（先收集後提交，此處零副作用）
+function fillAcrossDays(availSlots, N, isDeep) {
+  const tmin = s => { const [h, m] = s.start.split(':').map(Number); return h * 60 + m; };
+  const free = availSlots.filter(s => !s.taken);   // 跳已佔（會議/前面任務）
+  // 按日分組（date → 該日 slots）
+  const byDate = new Map();
+  for (const s of free) {
+    if (!byDate.has(s.date)) byDate.set(s.date, []);
+    byDate.get(s.date).push(s);
+  }
+  const dates = [...byDate.keys()].sort();   // ISO 字串排序=時序（不靠輸入順序，決定性）
+  // 逐日掃：當日 golden 先填→非 golden 補，湊滿 N 即止；當日塞不滿順延次日
+  const chosen = [];
+  for (const date of dates) {
+    if (chosen.length >= N) break;
+    const day = byDate.get(date);
+    const ordered = isDeep
+      ? [...day.filter(s => s.golden).sort((a, b) => tmin(a) - tmin(b)),
+         ...day.filter(s => !s.golden).sort((a, b) => tmin(a) - tmin(b))]
+      : [...day].sort((a, b) => tmin(a) - tmin(b));
+    for (const s of ordered) {
+      if (chosen.length >= N) break;
+      chosen.push(s);
+    }
+  }
+  if (chosen.length < N) return null;   // 湊不滿：完全沒碰 taken，無 state 可滾
+  // 湊滿：依時序回傳（給 Step 3 切 segment / 算 slotScheduledEnd）
+  return chosen.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : tmin(a) - tmin(b));
+}
+
 function generateSchedule() {
   const { dailyHours, workStart1, workEnd1, workStart2, workEnd2, goldenTime, workDays, splitThreshold } = DATA.settings;
   const monday = D.weekStart();

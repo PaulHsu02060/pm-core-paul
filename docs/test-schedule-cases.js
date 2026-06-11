@@ -886,6 +886,111 @@ function placeTask(slots, task, settings) {
   }
 }
 
+// ════ 15. §4.7 B Step2 fillAcrossDays 跨日選格引擎（純讀，不接線）════════
+// ⚠ fillAcrossDays 為 app.js 同步複本（函式體 byte 對齊；純函式不依賴 D/Storage/DATA、不碰 taken）。
+//   改 app.js fillAcrossDays 須同步此處。
+function fillAcrossDays(availSlots, N, isDeep) {
+  const tmin = s => { const [h, m] = s.start.split(':').map(Number); return h * 60 + m; };
+  const free = availSlots.filter(s => !s.taken);   // 跳已佔（會議/前面任務）
+  // 按日分組（date → 該日 slots）
+  const byDate = new Map();
+  for (const s of free) {
+    if (!byDate.has(s.date)) byDate.set(s.date, []);
+    byDate.get(s.date).push(s);
+  }
+  const dates = [...byDate.keys()].sort();   // ISO 字串排序=時序（不靠輸入順序，決定性）
+  // 逐日掃：當日 golden 先填→非 golden 補，湊滿 N 即止；當日塞不滿順延次日
+  const chosen = [];
+  for (const date of dates) {
+    if (chosen.length >= N) break;
+    const day = byDate.get(date);
+    const ordered = isDeep
+      ? [...day.filter(s => s.golden).sort((a, b) => tmin(a) - tmin(b)),
+         ...day.filter(s => !s.golden).sort((a, b) => tmin(a) - tmin(b))]
+      : [...day].sort((a, b) => tmin(a) - tmin(b));
+    for (const s of ordered) {
+      if (chosen.length >= N) break;
+      chosen.push(s);
+    }
+  }
+  if (chosen.length < N) return null;   // 湊不滿：完全沒碰 taken，無 state 可滾
+  // 湊滿：依時序回傳（給 Step 3 切 segment / 算 slotScheduledEnd）
+  return chosen.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : tmin(a) - tmin(b));
+}
+{
+  const mkSlot = (date, start, golden = false, taken = false) => ({ date, dayNum: new Date(date).getDay(), start, duration: 60, golden, taken });
+  const sig = arr => arr === null ? 'null' : arr.map(s => s.date + ' ' + s.start).join(',');
+  const tk = slots => slots.map(s => s.taken).join(',');
+  // 案F1 當日全塞(零散格)+ 驗純讀(success 路徑 taken 不變)
+  {
+    const slots = [mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-11', '10:00', false, true), mkSlot('2026-06-11', '11:00')];
+    const r = fillAcrossDays(slots, 2, true);
+    check('案F1 當日全塞：跳會議格、同日兩格不溢次日（且 taken 不變=純讀）',
+      sig(r) + ' | taken=' + tk(slots),
+      '2026-06-11 09:00,2026-06-11 11:00 | taken=false,true,false',
+      '10:00 taken 跳過；09/11 同日湊滿 N=2；回傳後輸入 taken 原樣（fillAcrossDays 不碰 taken）');
+  }
+  // 案F2 跨日順延：day1 滿 + day2 補，末格=次日
+  {
+    const slots = [mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-11', '10:00'), mkSlot('2026-06-12', '09:00'), mkSlot('2026-06-12', '10:00')];
+    const r = fillAcrossDays(slots, 3, true);
+    check('案F2 跨日順延：N>當日容量 → 順延次日，末格=次日',
+      sig(r) + ' | end=' + r[r.length - 1].date,
+      '2026-06-11 09:00,2026-06-11 10:00,2026-06-12 09:00 | end=2026-06-12',
+      'N=3 > day1 容量 2 → day1 兩格 + day2 一格；slotScheduledEnd 取末格 06-12');
+  }
+  // 案F3 golden 同日優先、不拖隔天（修 latent bug 關鍵案）
+  {
+    const slots = [mkSlot('2026-06-11', '09:00', true), mkSlot('2026-06-11', '10:00', false), mkSlot('2026-06-12', '09:00', true), mkSlot('2026-06-12', '10:00', true)];
+    const r = fillAcrossDays(slots, 2, true);
+    check('案F3 golden 同日優先、不拖隔天：選 day1 兩格不碰 day2 golden',
+      sig(r), '2026-06-11 09:00,2026-06-11 10:00',
+      'day1 golden 先 + 非 golden 補湊滿 N=2 → 不為 day2 golden 拖隔天（修全域找最早 golden 跨週拉）');
+  }
+  // 案F4 golden 先於時間：下午 golden 壓過上午非 golden（isDeep,N=1）
+  {
+    const slots = [mkSlot('2026-06-11', '09:00', false), mkSlot('2026-06-11', '14:00', true)];
+    const r = fillAcrossDays(slots, 1, true);
+    check('案F4 golden 先於時間：isDeep 取下午 golden 14:00 非上午 09:00',
+      sig(r), '2026-06-11 14:00',
+      'isDeep 同日先填 golden（golden 可能在下午）→ 14:00 壓過更早的非 golden 09:00');
+  }
+  // 案F5 非 deep 純時間：同組格取最早（不偏 golden），與 F4 對照
+  {
+    const slots = [mkSlot('2026-06-11', '09:00', false), mkSlot('2026-06-11', '14:00', true)];
+    const r = fillAcrossDays(slots, 1, false);
+    check('案F5 非 deep 純時間：取最早 09:00（不主動偏/避 golden）',
+      sig(r), '2026-06-11 09:00',
+      '!isDeep → 純時間序，與 F4 同組格但取 09:00（沿用 findRun 語意，不擅自加語意）');
+  }
+  // 案F6 湊不滿回 null + 驗純讀(null 路徑 taken 不變)
+  {
+    const slots = [mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-12', '09:00')];
+    const r = fillAcrossDays(slots, 3, true);
+    check('案F6 湊不滿回 null：總空格 2 < N=3（且 taken 不變=純讀）',
+      sig(r) + ' | taken=' + tk(slots), 'null | taken=false,false',
+      '掃完所有 day 仍 < N → null；null 路徑亦完全沒碰 taken（無 state 可滾）');
+  }
+  // 案F7 跳已佔：taken 格不選
+  {
+    const slots = [mkSlot('2026-06-11', '09:00', false, true), mkSlot('2026-06-11', '10:00', false)];
+    const r = fillAcrossDays(slots, 1, true);
+    check('案F7 跳已佔：taken=true 格不被選', sig(r), '2026-06-11 10:00',
+      '09:00 taken → 略過，選 10:00');
+  }
+  // 案F8 決定性 + 亂序無關（顯式 date sort）
+  {
+    const shuffled = [mkSlot('2026-06-12', '10:00'), mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-12', '09:00'), mkSlot('2026-06-11', '10:00')];
+    const r1 = sig(fillAcrossDays(shuffled, 3, true));
+    const r2 = sig(fillAcrossDays(shuffled, 3, true));
+    const sorted = [mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-11', '10:00'), mkSlot('2026-06-12', '09:00'), mkSlot('2026-06-12', '10:00')];
+    const rs = sig(fillAcrossDays(sorted, 3, true));
+    check('案F8 決定性+亂序無關：兩跑相同且=排序輸入結果',
+      `${r1 === r2}|${r1 === rs}`, 'true|true',
+      '顯式 date sort → 亂序餵與排序餵結果一致、重跑穩定（決定性鐵則）');
+  }
+}
+
 console.log('\n===== 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
 process.exit(fail === 0 ? 0 : 1);
