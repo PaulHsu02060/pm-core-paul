@@ -612,7 +612,7 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 /* ─── TASK LIST ─── */
 .task-list-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); overflow: hidden; }
 .tlc-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--head-band); border-bottom: 1px solid var(--rule); }
-.tlc-title { font-family: var(--mono); font-size: 11px; color: var(--ink3); letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
+.tlc-title { font-family: var(--mono); font-size: 14px; color: var(--ink3); letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
