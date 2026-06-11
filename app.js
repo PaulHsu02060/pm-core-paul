@@ -1227,6 +1227,61 @@ function applySchedule(tasks, scope = 'full') {
 }
 
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
+
+// 純函式：把單一任務放進 slots，回傳 segments[]（標 taken 為放置副作用，不寫 task）
+// 階段一行為不變：單 segment、chunk=null、N 用 Math.round；settings 預收簽名暫未用
+// 排不下回傳 []（呼叫端重算 N 警示）；slotScheduledEnd 由呼叫端寫回 task
+function placeTask(slots, task, settings) {
+  // slot 起始分鐘數（用於判斷時間相鄰）
+  function startMin(slot) {
+    const [h, m] = slot.start.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  // 找一段「同一天、時間相鄰、N 格都空」的連續 slot 區間
+  // preferGolden：深度工作優先 golden time；找不到回 null
+  function findRun(allSlots, N, preferGolden) {
+    const startIdxs = [];
+    for (let i = 0; i + N <= allSlots.length; i++) {
+      let ok = true;
+      for (let k = 0; k < N; k++) {
+        const s = allSlots[i + k];
+        if (s.taken) { ok = false; break; }
+        if (k > 0) {
+          const prev = allSlots[i + k - 1];
+          // 同天 + 時間差正好 60 分 → 自動避開午休缺口 / 跨日 / 跨工作時段
+          if (s.date !== prev.date || startMin(s) !== startMin(prev) + 60) {
+            ok = false; break;
+          }
+        }
+      }
+      if (ok) startIdxs.push(i);
+    }
+    if (startIdxs.length === 0) return null;
+    let best = startIdxs[0];
+    if (preferGolden) {
+      const g = startIdxs.find(i => allSlots[i].golden);
+      if (g !== undefined) best = g;
+    }
+    return allSlots.slice(best, best + N);
+  }
+
+  const isDeep = task.category === 'deep' || !task.category;
+  // 1a：一個任務一張長卡，找連續 N 格空檔（N = 取整後的 estHours 小時數）
+  const N = Math.max(1, Math.round(parseFloat(task.estHours) || 1));
+  const run = findRun(slots, N, isDeep);
+  if (!run) return [];
+  run.forEach(s => s.taken = true);
+  const slotEnd = run[run.length - 1].date;   // 最後一格日期；現階段同日，跨日(B)後自動正確
+  return [{
+    date: run[0].date,
+    start: run[0].start,
+    duration: N * 60,
+    chunk: null,
+    slotScheduledEnd: slotEnd,
+  }];
+}
+
 function generateSchedule() {
   const { dailyHours, workStart1, workEnd1, workStart2, workEnd2, goldenTime, workDays, splitThreshold } = DATA.settings;
   const monday = D.weekStart();
@@ -1278,40 +1333,6 @@ function generateSchedule() {
     const mStart = msh * 60 + msm;
     const mEnd = meh * 60 + mem;
     return slotStart < mEnd && slotEnd > mStart;
-  }
-
-  // Helper: slot 起始分鐘數（用於判斷時間相鄰）
-  function startMin(slot) {
-    const [h, m] = slot.start.split(':').map(Number);
-    return h * 60 + m;
-  }
-
-  // Helper: 找一段「同一天、時間相鄰、N 格都空」的連續 slot 區間
-  // preferGolden：深度工作優先 golden time；找不到回 null
-  function findRun(allSlots, N, preferGolden) {
-    const startIdxs = [];
-    for (let i = 0; i + N <= allSlots.length; i++) {
-      let ok = true;
-      for (let k = 0; k < N; k++) {
-        const s = allSlots[i + k];
-        if (s.taken) { ok = false; break; }
-        if (k > 0) {
-          const prev = allSlots[i + k - 1];
-          // 同天 + 時間差正好 60 分 → 自動避開午休缺口 / 跨日 / 跨工作時段
-          if (s.date !== prev.date || startMin(s) !== startMin(prev) + 60) {
-            ok = false; break;
-          }
-        }
-      }
-      if (ok) startIdxs.push(i);
-    }
-    if (startIdxs.length === 0) return null;
-    let best = startIdxs[0];
-    if (preferGolden) {
-      const g = startIdxs.find(i => allSlots[i].golden);
-      if (g !== undefined) best = g;
-    }
-    return allSlots.slice(best, best + N);
   }
 
   // Mark meeting slots taken (legacy DATA.meetings)
@@ -1408,7 +1429,6 @@ function generateSchedule() {
 
   for (const task of sorted) {
     const totalHours = parseFloat(task.estHours) || 1;
-    const isDeep = task.category === 'deep' || !task.category;
     const isDone = task.status === 'done';
 
     // 已完成任務：只排 1 段，固定排在實際完成日的第一個空 slot
@@ -1433,27 +1453,27 @@ function generateSchedule() {
       continue;
     }
 
-    // 1a：一個任務一張長卡，找連續 N 格空檔（N = 取整後的 estHours 小時數）
-    const N = Math.max(1, Math.round(parseFloat(task.estHours) || 1));
-    const run = findRun(slots, N, isDeep);
-    if (!run) {
+    // 1a：放置抽純函式 placeTask（階段一行為不變，單 segment）
+    const segments = placeTask(slots, task, DATA.settings);
+    if (segments.length === 0) {
+      const N = Math.max(1, Math.round(parseFloat(task.estHours) || 1));
       console.warn(`[generateSchedule] 任務「${task.name}」需 ${N}h 連續空檔，8 週內排不下，略過`);
       continue;
     }
-    run.forEach(s => s.taken = true);
-    const slotEnd = run[run.length - 1].date;   // 最後一格日期；現階段同日，跨日(B)後自動正確
-    task.slotScheduledEnd = slotEnd;             // 寫回 task，查詢用
-    items.push({
-      taskId: task.id,
-      date: run[0].date,
-      start: run[0].start,
-      duration: N * 60,
-      chunk: null,
-      totalHours: totalHours,
-      week: D.weekKey(new Date(run[0].date)),    // item 帶所在週標籤（horizon 8 週，渲染按週挑）
-      locked: false,
-      slotScheduledEnd: slotEnd,                 // item，渲染用
-    });
+    task.slotScheduledEnd = segments[segments.length - 1].slotScheduledEnd;  // 寫回 task，查詢用
+    for (const seg of segments) {
+      items.push({
+        taskId: task.id,
+        date: seg.date,
+        start: seg.start,
+        duration: seg.duration,
+        chunk: seg.chunk,
+        totalHours: totalHours,
+        week: D.weekKey(new Date(seg.date)),     // item 帶所在週標籤（horizon 8 週，渲染按週挑）
+        locked: false,
+        slotScheduledEnd: seg.slotScheduledEnd,  // item，渲染用
+      });
+    }
   }
   DATA.schedule = { week: weekKey, items, generatedAt: new Date().toISOString() };
   Storage.save();
