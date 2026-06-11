@@ -1268,7 +1268,7 @@ function placeTask(slots, task, settings) {
 
   const isDeep = task.category === 'deep' || !task.category;
   // 1a：一個任務一張長卡，找連續 N 格空檔（N = 取整後的 estHours 小時數）
-  const N = Math.max(1, Math.round(parseFloat(task.estHours) || 1));
+  const N = Math.max(1, Math.ceil(parseFloat(task.estHours) || 1));
   const run = findRun(slots, N, isDeep);
   if (!run) return [];
   run.forEach(s => s.taken = true);
@@ -1422,11 +1422,6 @@ function generateSchedule() {
   // Schedule items（全清：每次乾淨重排，不保留 locked 殘留）
   const items = [];
 
-  // 硬上限：每個任務本週只排 1 個時段（1h）
-  // 若任務工時很長，hover tooltip 會提示需要幾週
-  const MAX_CHUNKS_PER_TASK = 1;   // TODO 1b: lift to allow splitting
-  const HOURS_PER_CHUNK = 1;       // TODO 1b: configurable chunk size
-
   for (const task of sorted) {
     const totalHours = parseFloat(task.estHours) || 1;
     const isDone = task.status === 'done';
@@ -1456,7 +1451,7 @@ function generateSchedule() {
     // 1a：放置抽純函式 placeTask（階段一行為不變，單 segment）
     const segments = placeTask(slots, task, DATA.settings);
     if (segments.length === 0) {
-      const N = Math.max(1, Math.round(parseFloat(task.estHours) || 1));
+      const N = Math.max(1, Math.ceil(parseFloat(task.estHours) || 1));
       console.warn(`[generateSchedule] 任務「${task.name}」需 ${N}h 連續空檔，8 週內排不下，略過`);
       continue;
     }
