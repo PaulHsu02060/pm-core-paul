@@ -197,6 +197,8 @@ Auth（檢視/編輯/登入）
 
 **順手修正（B 一起做）**：estHours 取整 `Math.round` → `Math.ceil`（向上取整，對齊上方 estHours 粒度）；清死常數 `MAX_CHUNKS_PER_TASK` / `HOURS_PER_CHUNK`（已無讀取）。
 
+**B 已完成上線（2026-06-12 收工）**：Step 0~4 全進 main（FF merge `c87d17d..5afdaf0`、無 merge commit、已 push 上線 github.io）、HEAD `5afdaf0`。node 85 案綠（決定性鐵則 / 起算日 / 跨日順延 / 當日全塞 / splitThreshold `>=` 邊界 / golden 同日收斂不拖隔天 / 整任務回滾）；渲染本機 index.html 驗過（同日午休切兩段不黏、多段同名同色、卡高對應 duration）；快取 bust `app.js?v=20260612-1`（style.css 未動不升）。實作鏈：placeTask 抽純函式（行為不變）→ N `Math.round`→`Math.ceil` + 清死常數 → 起算日 `max(plannedStart, today)` filter（順帶修「排到本週已過日」）→ `fillAcrossDays` 跨日選格引擎（純讀、groupBy+顯式 sort、golden 先填、先收集後提交→回滾自然成立）→ placeTask 分流（`N>=splitThreshold` 跨日 / `N<` 同日 findRun 不降級）+ `toSegments` 同日相鄰併段標 chunk。測試副本 byte 對齊本體。
+
 ---
 
 ## 第五部分：狀態衍生規則
@@ -404,11 +406,11 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 | 憑證 | 真值位置 | 管什麼 | 碰雲端 |
 |---|---|---|---|
 | `editPasswordHash`（`935817361`） | config.js 公開 | 前台解鎖編輯，只移除 viewonly class | 否，純前台 DOM |
-| `SYNC_TOKEN` | config.local.js 家裡真值（gitignored） | 雲端寫入 doPost 驗證 | 是，寫入命根 |
+| `SYNC_TOKEN` | config.local.js 真值（家裡+公司桌機兩台都有，gitignored） | 雲端寫入 doPost 驗證 | 是，寫入命根 |
 | 雲端 blob 殘留 | Google Sheet | 舊 upload 寫進的 token 殘影，0b 要蓋掉的對象 | — |
 
 - `editPasswordHash` 公開可接受（君子鎖，F12 可繞、但寫不進雲端），**勿當機密**。
-- `SYNC_TOKEN` 是唯一寫入鑰，公司機假值（`CHANGE_THIS_TOKEN`）寫不進雲端（doPost 擋），故 **0b 只能家裡做**。
+- `SYNC_TOKEN` 是唯一寫入鑰。**家裡 config.local.js 原有真值，公司桌機後來也貼了真值——兩台都有真 token**（早期「公司機假值、0b 只能家裡做」已更正：公司機已非假值）。**0b/0c 在哪台做的決定因素不是 token，而是用哪台的 local 資料當真實來源**：0b 是覆蓋上傳、會用該台資料蓋掉雲端 blob，做之前**必須先確認「該台 localStorage = 真實來源」，否則會蓋掉資料**。目前傾向**公司桌機**（local 資料較多），不想用家裡較少那份覆蓋雲端。
 - `SYNC_TOKEN` 備援：真值記密碼管理器，任何新機填回 config.local.js 即恢復。家裡桌機非系統一部分，掛了不影響（資料在雲端、code 在 GitHub）。
 
 ### 8c.1 方案 B 前端（已完成）
@@ -422,18 +424,18 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 - `U.hash`(709) 是 Java String.hashCode 類弱雜湊（非 SHA-256、無鹽、可暴力）——**僅前端軟鎖防君子，擋不住 F12**。
 - **安全模型**：前端密碼是 UI 軟鎖；**後端 doPost 的 SYNC_TOKEN 才是真防線**（token 在 config.local.js、不進 git）。前端鎖被破，對方只能改自己瀏覽器的本機副本，**寫不回雲端**（doPost token 擋）。
 
-### 8c.2 致命漏洞修復（0a 已做，0b/0c 待家裡驗）
+### 8c.2 致命漏洞修復（0a 已做，0b/0c 待驗——做前先定真實來源，見 §8c.0）
 
 ⚠️ **CloudSync.upload 原本把整包 DATA.settings（含 cloudSyncToken 明文）上傳雲端 blob。一旦 doGet 改公開，訪客 download 就能讀到 token → 寫入防線破功。**
 
 - **0a（commit `155d2c7` [WIP]）已修**：upload 剝掉 cloudSyncToken + PII（_loggedInEmail/_loggedInPicture），上傳 safeSettings；token 仍走 payload.token 供 doPost 寫入驗證。
-- **0b（家裡待做）**：在有 config.local.js 真 token 的家裡桌機做一次乾淨 upload，蓋掉雲端舊的含 token blob。
-- **0c（生死關，家裡待做）**：親自 download + F12 驗證雲端 JSON 內 cloudSyncToken/_loggedInEmail/_loggedInPicture 都不存在、整個回應搜 token 0 筆命中。
+- **0b（待做，傾向公司桌機）**：兩台都有真 token；**覆蓋上傳前須先確認用哪台資料當真實來源**（目前傾向公司桌機、local 較多），否則會蓋掉資料。選定後用該台做一次乾淨 upload，蓋掉雲端舊的含 token blob。
+- **0c（生死關，待做）**：親自 download + F12 驗證雲端 JSON 內 cloudSyncToken/_loggedInEmail/_loggedInPicture 都不存在、整個回應搜 token 0 筆命中。
 - **★ 0c PASS 前，絕對不可做 doGet 公開化**，否則雲端舊 blob 仍洩 token。
 
-### 8c.2.1 0b/0c 回家操作步驟（生死關，逐步）
+### 8c.2.1 0b/0c 操作步驟（生死關，逐步；在選定真實來源那台做，傾向公司桌機）
 
-1. 家裡開 app（config.local.js 載真 token/URL）→ 設定頁按「⬇ 從雲端下載最新」或 init 自動 download。
+1. 在真實來源那台（傾向公司桌機、local 較多）開 app（config.local.js 載真 token/URL）→ 設定頁按「⬇ 從雲端下載最新」或 init 自動 download。
 2. F12 → console 印 `DATA.settings`，實搜有沒有 `cloudSyncToken` / `_loggedInEmail` / `_loggedInPicture`。
 3. 判讀：
    - 雲端 blob 的 `data.settings` **仍含 token** → 是 0a 之前的舊髒 blob（舊 app.js 沒剝）→ 證實「舊 blob 髒」，正是 0b 要蓋的。
