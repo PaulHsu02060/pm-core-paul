@@ -184,6 +184,19 @@ Auth（檢視/編輯/登入）
 
 **不在此規格（獨立待辦）**：逆向排程（deadline + estHours → 反推最晚開始日）；slack/餘裕計算（依賴逆向+deadline 資料源）。
 
+**B 施工拍板（2026-06-11 定案，缺口④跨日重寫，code 待施工）**：D/C/A 已完成並進 feat（決定性排序 / slotScheduledEnd+全清 / horizon 8 週），B 是最後一塊，照下列 8 點動工：
+
+1. **起算日**：時段制任務**無前置**，起算日 = max(plannedStart 或 today, today)；規格「前置完成日+1」對時段制 N/A（前置是工期制依賴鏈專屬）。
+2. **一任務多 item**（B 地基）：跨日後一任務的工時分散在多天/多時段，改為一任務 push **多個 item**，用既有 `chunk` 欄位標第幾段；渲染端 buildWeekScheduleHtml 逐格畫應自然分散，**同任務多段顯示須線上驗**。
+3. **當日塞滿**：當日**零散空格全塞**（利用率優先），不限只塞最長連續段。
+4. **8 週排不下**：**整任務回滾**（已佔格釋放）、整個不排 + 警示（全有或全無，乾淨優先），不留半段。
+5. **golden**：沿用現有 `isDeep`（category==='deep'||空）定義不改；每日先填當日 golden、同日 golden 滿才填當日非 golden、**不為 golden 拖到隔天**（Qextra 在逐日掃下自然收斂）。
+6. **splitThreshold**：判準 `N >= splitThreshold` → 允許跨日拆；`N < splitThreshold` → 要求同日連續完成，同日找不到 N 連格就**整個不排 + horizon 警示、不降級成跨日**。邊界用 `>=`（N==threshold 可拆）。
+7. **不碰範圍**：B **不處理 locked / 手動拖動鎖定**（拖動功能尚未實作，維持全清 locked:false，另一條待辦）；**done 分支不動**（已完成維持單格放 actualEnd）。
+8. **測試（選 A 抽純函式）**：放置邏輯抽成純函式 `placeTask(slots, task, settings) → segments[]`，app.js 呼叫、測試檔抄此函式副本端到端驗（起算日 / 跨日順延 / 當日全塞 / splitThreshold 邊界 / golden 同日優先 / 回滾）；加決定性案「同 task 跑兩次 segments 完全相同」。
+
+**順手修正（B 一起做）**：estHours 取整 `Math.round` → `Math.ceil`（向上取整，對齊上方 estHours 粒度）；清死常數 `MAX_CHUNKS_PER_TASK` / `HOURS_PER_CHUNK`（已無讀取）。
+
 ---
 
 ## 第五部分：狀態衍生規則
