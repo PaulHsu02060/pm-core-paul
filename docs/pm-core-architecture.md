@@ -358,6 +358,20 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 > 「方案 B」= 拔 Google 登入、開機預設唯讀看雲端、設定頁密碼解鎖編輯。
 > 前端三塊今日完成；後端 doGet 公開化（唯讀分享最後一步）待使用者親自操作。
 
+### 8c.0 三憑證釐清（2026-06-11，防混淆鐵則）
+
+動 0b/0c 前必讀，三者互不相干，勿混為一談：
+
+| 憑證 | 真值位置 | 管什麼 | 碰雲端 |
+|---|---|---|---|
+| `editPasswordHash`（`935817361`） | config.js 公開 | 前台解鎖編輯，只移除 viewonly class | 否，純前台 DOM |
+| `SYNC_TOKEN` | config.local.js 家裡真值（gitignored） | 雲端寫入 doPost 驗證 | 是，寫入命根 |
+| 雲端 blob 殘留 | Google Sheet | 舊 upload 寫進的 token 殘影，0b 要蓋掉的對象 | — |
+
+- `editPasswordHash` 公開可接受（君子鎖，F12 可繞、但寫不進雲端），**勿當機密**。
+- `SYNC_TOKEN` 是唯一寫入鑰，公司機假值（`CHANGE_THIS_TOKEN`）寫不進雲端（doPost 擋），故 **0b 只能家裡做**。
+- `SYNC_TOKEN` 備援：真值記密碼管理器，任何新機填回 config.local.js 即恢復。家裡桌機非系統一部分，掛了不影響（資料在雲端、code 在 GitHub）。
+
 ### 8c.1 方案 B 前端（已完成）
 
 | commit | 內容 |
@@ -377,6 +391,18 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 - **0b（家裡待做）**：在有 config.local.js 真 token 的家裡桌機做一次乾淨 upload，蓋掉雲端舊的含 token blob。
 - **0c（生死關，家裡待做）**：親自 download + F12 驗證雲端 JSON 內 cloudSyncToken/_loggedInEmail/_loggedInPicture 都不存在、整個回應搜 token 0 筆命中。
 - **★ 0c PASS 前，絕對不可做 doGet 公開化**，否則雲端舊 blob 仍洩 token。
+
+### 8c.2.1 0b/0c 回家操作步驟（生死關，逐步）
+
+1. 家裡開 app（config.local.js 載真 token/URL）→ 設定頁按「⬇ 從雲端下載最新」或 init 自動 download。
+2. F12 → console 印 `DATA.settings`，實搜有沒有 `cloudSyncToken` / `_loggedInEmail` / `_loggedInPicture`。
+3. 判讀：
+   - 雲端 blob 的 `data.settings` **仍含 token** → 是 0a 之前的舊髒 blob（舊 app.js 沒剝）→ 證實「舊 blob 髒」，正是 0b 要蓋的。
+   - **0b**：用 0a 後的 app.js 重跑一次乾淨 upload（payload.token 帶真 token 過 doPost，但 data.settings 已剝乾淨）→ 蓋掉髒 blob。
+   - **0c**：再 download 驗一次（=0c），`data.settings` 搜不到 token → PASS。
+4. ⚠ **0c PASS 前，後端 doGet 絕不可改公開**（步驟1，見 §8c E 群）。
+
+> 推論（code 層面可確認，非實證）：0a（`155d2c7`）已把剝欄位的 code 上線，故 0a 之後任何一次 upload 寫出的 blob 必乾淨。風險只在「雲端現存那份是不是 0a 之後寫的」——若 0a 後從沒 upload 過，雲端可能仍是舊髒 blob。這無法靠 code 推斷，只能 download 實看，故 0c 不可省。
 
 ### 8c.3 分享兩條路（2026-06-09 釐清，互不衝突）
 
