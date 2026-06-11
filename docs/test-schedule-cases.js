@@ -1072,6 +1072,62 @@ function fillAcrossDays(availSlots, N, isDeep) {
   }
 }
 
+// ════ 17. §4.7 B Step4 決定性補齊 + 分流邊界回歸（純測試）════════
+// 補 G/F 未蓋到的：splitThreshold >= 邊界、起算日空值、多任務序列(避已排/決定性)、golden 端到端。
+{
+  const mkSlot = (date, start, golden = false, taken = false) => ({ date, dayNum: new Date(date).getDay(), start, duration: 60, golden, taken });
+  const st = (thr, today) => ({ todayIso: today || '2026-06-01', splitThreshold: thr, workDays: [1, 2, 3, 4, 5] });
+  const sigSeg = segs => segs.length === 0 ? '[]' : segs.map(s => s.date + ' ' + s.start + '/' + s.duration + '/' + s.chunk).join(' | ');
+  // 案H1 splitThreshold >= 邊界：N==threshold → 走跨日（證明 >= 非 >）
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-09', '09:00')];
+    const segs = placeTask(slots, { estHours: 2 }, st(2));
+    check('案H1 splitThreshold >= 邊界：N==threshold(2) 走跨日 fillAcrossDays',
+      sigSeg(segs), '2026-06-08 09:00/60/0 | 2026-06-09 09:00/60/1',
+      'N=2>=threshold=2 → 跨日各日一格；若是 > 則 findRun 同日無 2 連格回 []，故跨日結果證明邊界是 >=');
+  }
+  // 案H2 起算日空 plannedStart → today（E1/E2 未蓋空字串分支）
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-09', '09:00'), mkSlot('2026-06-10', '09:00')];
+    const segs = placeTask(slots, { estHours: 1 }, st(4, '2026-06-09'));
+    check('案H2 起算日：plannedStart 空 → 取 today（過去格被擋）',
+      segs[0].date, '2026-06-09',
+      "plannedIso='' > todayIso 為 false → startIso=today 06-09；過去格 06-08 被 filter 擋");
+  }
+  // 案H3 多任務序列：避開已排定（taskB 避 taskA 已佔格）
+  {
+    const slots = [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-08', '10:00'), mkSlot('2026-06-08', '11:00')];
+    const segA = sigSeg(placeTask(slots, { estHours: 2 }, st(2)));   // 先排 A：佔 09/10
+    const segB = sigSeg(placeTask(slots, { estHours: 1 }, st(2)));   // 後排 B：09/10 已 taken → 落 11
+    check('案H3 序列避開已排定：B 避開 A 佔的 09/10，落到 11',
+      segA + ' || ' + segB, '2026-06-08 09:00/120/0 || 2026-06-08 11:00/60/0',
+      'A 跨日分支佔 09/10 並 commit taken；B 同 slots 只見 11 空 → 序列 taken 累積正確');
+  }
+  // 案H4 全鏈路決定性：sortTasks → 序列 placeTask，整組跑兩次 segments 全等（§4.7 決定性鐵則）
+  {
+    const taskA = { id: 'a', estHours: 3, urgency: 'high', plannedStart: '2026-06-08' };
+    const taskB = { id: 'b', estHours: 2, urgency: 'medium', plannedStart: '2026-06-08' };
+    const build = () => [mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-08', '10:00'), mkSlot('2026-06-08', '11:00'), mkSlot('2026-06-09', '09:00'), mkSlot('2026-06-09', '10:00')];
+    const run = () => {
+      const slots = build();   // fresh slots 每跑（避 commit 污染）
+      return sortTasks([taskA, taskB]).map(t => sigSeg(placeTask(slots, t, st(2)))).join(' || ');
+    };
+    const r1 = run(), r2 = run();
+    check('案H4 全鏈路決定性：同組任務跑兩次 segments 完全相同',
+      (r1 === r2) + '|' + r1,
+      'true|2026-06-08 09:00/180/0 || 2026-06-09 09:00/120/0',
+      'sortTasks 排序穩定(A 高於 B) + 序列 placeTask(A 佔 06-08 三格成 180 段、B 落 06-09 兩格 120 段) → 兩跑全等');
+  }
+  // 案H5 golden 端到端：placeTask(isDeep) 真的把 isDeep 接進 fillAcrossDays golden 先填
+  {
+    const slots = [mkSlot('2026-06-08', '09:00', false), mkSlot('2026-06-08', '14:00', true), mkSlot('2026-06-08', '15:00', true)];
+    const segs = placeTask(slots, { estHours: 2 }, st(2));   // 無 category → isDeep=true
+    check('案H5 golden 端到端：isDeep 跨日分支取下午 golden 14/15 非上午 09',
+      sigSeg(segs), '2026-06-08 14:00/120/0',
+      'placeTask 把 isDeep 傳進 fillAcrossDays → golden 14/15 先填(相鄰併 120 段)，09 非 golden 留空，證明 wiring 未斷');
+  }
+}
+
 console.log('\n===== 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
 process.exit(fail === 0 ? 0 : 1);
