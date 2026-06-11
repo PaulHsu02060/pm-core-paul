@@ -3800,6 +3800,7 @@ App.saveNewTask = function(projId) {
     predecessor: App.serializePredecessors(),  // M2-§6.4：結構化列序列化回字串（取代 #tf-predecessor 自由文字；格式同 parsePredecessors）
     wbs: '',           // 階段2：WBS 識別
     durationDays: parseFloat(document.getElementById('tf-duration').value) || 1,  // M2-2：工期(工作天)，最小1（0工期語意由 taskType=milestone 表達）
+    measureType: (document.querySelector('.task-form').dataset.measure) || 'duration',  // 第27項：計量制(duration工期/hours時段)，讀表單 data-measure；讀不到兜 duration
     scheduledStart: '',  // 排程套用結果，四條一致
     scheduledEnd: '',
     parentWbsId: '',   // 階段2：子綁父
@@ -3986,6 +3987,7 @@ App.saveTask = function(id) {
   t.subgroup  = document.getElementById('tf-subgroup').value.trim();
   t.predecessor  = App.serializePredecessors();  // M2-§6.4：結構化列序列化回字串（與 saveNewTask 共用同一函式，單一真實來源）
   t.durationDays = parseFloat(document.getElementById('tf-duration').value) || 1;
+  t.measureType = t.measureType || 'duration';  // 第27項：edit 鎖定計量制——保留既有值不從 form 覆寫；舊資料無此欄兜 duration
   t.urgency   = document.getElementById('tf-urgency').value;
   const startField = App.readStartField();   // 2-A：預計開始雙態（與 saveNewTask 共用同一取值邏輯）
   t.start     = startField.start;            // 手動態存值、自動態存 ''
