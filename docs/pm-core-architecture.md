@@ -431,10 +431,24 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 14. 部門負荷計算改用統一 H（工期×dailyHours 攤平到區間）
 15. 緊急任務清單移植 —— 依賴視圖二
 
-**E 群：分享 / Auth（§8c）**
-16. 0b/0c：家裡乾淨 upload 蓋舊 blob + F12 驗證雲端無 token（doGet 公開化前置生死關）
-17. doGet 公開化（使用者親自，script.google.com，doPost 不動）—— 路 B
-18. Fork SOP 文件（路 A，零 code）
+**E 群：view-only 公開分享（核心需求 2026-06-11 查證定案，§8c）**
+
+需求：PM 分享前台 URL 給 RD/同事，對方開 URL 即看到唯讀最新進度，**零設定**。現況做不到——新設備 localStorage 無 `cloudSyncUrl`（預設 `''`，無 CFG 兜底），init 的 download 閘門（app.js:1728 `cloudSyncEnabled && cloudSyncUrl`）不成立，看到的是本地種子空白。
+
+施工步驟（**嚴格依賴順序，0c 是不可跨越的安全閘**）。本群在 §9 待施工清單佔第 16~18 項，內部以 0b/0c/步驟1/2a/2b 標識：
+
+- **0b（待回家，真 token）**：家裡用含真 token 的 `config.local.js` 跑一次乾淨 upload，覆蓋雲端舊版 blob（舊 blob 可能殘留 token）。公司桌機是假 token + 空 URL，做不了。
+- **0c（待回家，生死關）**：download 回來 + F12 實搜雲端 JSON 的 `data.settings`，確認**搜不到 token** 才算過。
+  - ⚠ **鐵則：0c PASS 前，後端 doGet 絕不可改公開**，否則公開讀把殘留 token 一起洩出，寫入防線破功。
+- **步驟1（後端，0c PASS 後才做）**：`script.google.com` 編輯器改 doGet 拿掉 token 檢查（`ENABLE_TOKEN` 對 doGet 關閉），**doPost 的 token 檢查不動**（寫入永遠要 token）。用「編輯現有部署→新版本」重部署，URL 不變。注意 repo 的 `.gs` 是備份，真正生效的是編輯器那份。
+- **步驟2a（前端）**：`cloudSyncUrl` 預設改讀 `CFG('CLOUD_SYNC_URL', '')`，把公開讀 URL baked 進 `config.js`，新設備零設定就有 URL → init 的 download 閘門成立。
+- **步驟2b（前端）**：✅ **已完成**（`enterViewOnly` app.js:1795，預設 view-only 保持唯讀）。
+
+**安全模型**：讀公開、寫仍鎖 token。真 token 只在不部署的 `config.local.js`（gitignored），線上 github.io 永遠寫不進雲端（assemble blob 時沒真 token，doPost 擋掉）。
+
+**排程**：0b → 0c（驗）→ PASS 才 步驟1 → 2a。全部屬 `[unverified]` / 動後端，**須回家做、需另開 session 專門執行**（碰安全 + Apps Script 後端）。
+
+（另：路 A Fork 分享 SOP 文件——零 code、同事讀自己的雲端、不需 doGet 公開化——見 §8c.3，獨立於本 view-only 路 B。）
 
 **F 群：架構整理（低優先，feature 穩定後）**
 19. app.js 拆檔（~7000 行，no-build 約束）
