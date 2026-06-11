@@ -1229,7 +1229,7 @@ function applySchedule(tasks, scope = 'full') {
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
 
 // 純函式：把單一任務放進 slots，回傳 segments[]（標 taken 為放置副作用，不寫 task）
-// 階段一行為不變：單 segment、chunk=null、N 用 Math.round；settings 預收簽名暫未用
+// 單 segment、chunk=null、N 用 Math.ceil；起算日 max(plannedStart, settings.todayIso) 之後才掃格
 // 排不下回傳 []（呼叫端重算 N 警示）；slotScheduledEnd 由呼叫端寫回 task
 function placeTask(slots, task, settings) {
   // slot 起始分鐘數（用於判斷時間相鄰）
@@ -1269,7 +1269,13 @@ function placeTask(slots, task, settings) {
   const isDeep = task.category === 'deep' || !task.category;
   // 1a：一個任務一張長卡，找連續 N 格空檔（N = 取整後的 estHours 小時數）
   const N = Math.max(1, Math.ceil(parseFloat(task.estHours) || 1));
-  const run = findRun(slots, N, isDeep);
+  // 起算日 = max(plannedStart, today)；ISO 字串比較=時序比較（空字串/過去→today、未來→plannedStart）
+  const todayIso = settings.todayIso;
+  const plannedIso = task.plannedStart || '';
+  const startIso = plannedIso > todayIso ? plannedIso : todayIso;
+  // filter 回傳同一批 slot 物件參照 → 後續 run.forEach 標 s.taken 仍寫回原 slots（佔位不斷）
+  const scanSlots = slots.filter(s => s.date >= startIso);
+  const run = findRun(scanSlots, N, isDeep);
   if (!run) return [];
   run.forEach(s => s.taken = true);
   const slotEnd = run[run.length - 1].date;   // 最後一格日期；現階段同日，跨日(B)後自動正確
@@ -1422,6 +1428,9 @@ function generateSchedule() {
   // Schedule items（全清：每次乾淨重排，不保留 locked 殘留）
   const items = [];
 
+  // 起算日基準：今天（迴圈不變量，算一次）
+  const todayIso = D.fmt(D.today(), 'iso');
+
   for (const task of sorted) {
     const totalHours = parseFloat(task.estHours) || 1;
     const isDone = task.status === 'done';
@@ -1449,7 +1458,7 @@ function generateSchedule() {
     }
 
     // 1a：放置抽純函式 placeTask（階段一行為不變，單 segment）
-    const segments = placeTask(slots, task, DATA.settings);
+    const segments = placeTask(slots, task, { ...DATA.settings, todayIso });
     if (segments.length === 0) {
       const N = Math.max(1, Math.ceil(parseFloat(task.estHours) || 1));
       console.warn(`[generateSchedule] 任務「${task.name}」需 ${N}h 連續空檔，8 週內排不下，略過`);

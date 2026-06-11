@@ -799,6 +799,93 @@ console.log('\n===== 10. getEffectiveSchedule 手動 fallback =====');
     'addDays(ws,7*8) 距起點 56 天(8週上限)；連續 8 週算出 8 個不同 key，horizon 內不撞週');
 }
 
+// ════ 14. §4.7 B Step1 起算日 filter（placeTask 副本端到端）════════
+// ⚠ placeTask 為 app.js 同步複本（函式體與本體 byte 對齊；placeTask 不依賴 D/Storage/DATA）。
+//   改 app.js placeTask 須同步此處，否則驗到舊邏輯。
+function placeTask(slots, task, settings) {
+  // slot 起始分鐘數（用於判斷時間相鄰）
+  function startMin(slot) {
+    const [h, m] = slot.start.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  // 找一段「同一天、時間相鄰、N 格都空」的連續 slot 區間
+  // preferGolden：深度工作優先 golden time；找不到回 null
+  function findRun(allSlots, N, preferGolden) {
+    const startIdxs = [];
+    for (let i = 0; i + N <= allSlots.length; i++) {
+      let ok = true;
+      for (let k = 0; k < N; k++) {
+        const s = allSlots[i + k];
+        if (s.taken) { ok = false; break; }
+        if (k > 0) {
+          const prev = allSlots[i + k - 1];
+          // 同天 + 時間差正好 60 分 → 自動避開午休缺口 / 跨日 / 跨工作時段
+          if (s.date !== prev.date || startMin(s) !== startMin(prev) + 60) {
+            ok = false; break;
+          }
+        }
+      }
+      if (ok) startIdxs.push(i);
+    }
+    if (startIdxs.length === 0) return null;
+    let best = startIdxs[0];
+    if (preferGolden) {
+      const g = startIdxs.find(i => allSlots[i].golden);
+      if (g !== undefined) best = g;
+    }
+    return allSlots.slice(best, best + N);
+  }
+
+  const isDeep = task.category === 'deep' || !task.category;
+  // 1a：一個任務一張長卡，找連續 N 格空檔（N = 取整後的 estHours 小時數）
+  const N = Math.max(1, Math.ceil(parseFloat(task.estHours) || 1));
+  // 起算日 = max(plannedStart, today)；ISO 字串比較=時序比較（空字串/過去→today、未來→plannedStart）
+  const todayIso = settings.todayIso;
+  const plannedIso = task.plannedStart || '';
+  const startIso = plannedIso > todayIso ? plannedIso : todayIso;
+  // filter 回傳同一批 slot 物件參照 → 後續 run.forEach 標 s.taken 仍寫回原 slots（佔位不斷）
+  const scanSlots = slots.filter(s => s.date >= startIso);
+  const run = findRun(scanSlots, N, isDeep);
+  if (!run) return [];
+  run.forEach(s => s.taken = true);
+  const slotEnd = run[run.length - 1].date;   // 最後一格日期；現階段同日，跨日(B)後自動正確
+  return [{
+    date: run[0].date,
+    start: run[0].start,
+    duration: N * 60,
+    chunk: null,
+    slotScheduledEnd: slotEnd,
+  }];
+}
+{
+  // 手工 slot fixture：含過去格(06-08~06-10) + today(06-11)+；workDays 週一~五
+  const mkSlot = (date, start, golden = false) => ({ date, dayNum: new Date(date).getDay(), start, duration: 60, golden, taken: false });
+  const tIso = D.fmt(D.today(), 'iso');   // 2026-06-11（D stub 固定）
+  // 案E1：過去 plannedStart → 推到 today，不落過去格
+  {
+    const slots = [
+      mkSlot('2026-06-08', '09:00'), mkSlot('2026-06-09', '09:00'), mkSlot('2026-06-10', '09:00'),
+      mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-12', '09:00'),
+    ];
+    const segs = placeTask(slots, { estHours: 1, plannedStart: '2026-06-05' }, { todayIso: tIso, workDays: [1, 2, 3, 4, 5] });
+    check('案E1 起算日：過去 plannedStart 推到 today（不落過去格）',
+      segs[0].date, '2026-06-11',
+      'plannedStart 06-05 < today 06-11 → startIso=today；06-08/09/10 被 filter 擋，排到 06-11');
+  }
+  // 案E2：未來 plannedStart → 起算日取 plannedStart 自己
+  {
+    const slots = [
+      mkSlot('2026-06-11', '09:00'), mkSlot('2026-06-12', '09:00'),
+      mkSlot('2026-06-15', '09:00'), mkSlot('2026-06-16', '09:00'),
+    ];
+    const segs = placeTask(slots, { estHours: 1, plannedStart: '2026-06-15' }, { todayIso: tIso, workDays: [1, 2, 3, 4, 5] });
+    check('案E2 起算日：未來 plannedStart 取自己（不從 today 起）',
+      segs[0].date >= '2026-06-15' ? '2026-06-15' : segs[0].date, '2026-06-15',
+      'plannedStart 06-15 > today 06-11 → startIso=06-15；06-11/12 被 filter 擋，排到 >= 06-15');
+  }
+}
+
 console.log('\n===== 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
 process.exit(fail === 0 ? 0 : 1);
