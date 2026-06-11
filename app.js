@@ -2170,6 +2170,7 @@ App.renderDashboard = function() {
               <button class="rw-arrow" onclick="App.dashboardWeekShift(1)" title="下一週">›</button>
               ${this.dashboardWeekOffset !== 0 ? `<button class="rw-arrow" onclick="App.dashboardWeekOffset=0; App.renderDashboard();" title="回到本週" style="background: var(--sage-50); color: var(--sage-700);">今</button>` : ''}
             </div>
+            <button class="tb-action" data-edit onclick="App.openHoursTaskDialog()" style="margin-left:auto;">+ 新增小時 Task</button>
           </div>
           ${scheduleHtml}
           <div class="legend-row">
@@ -3607,17 +3608,17 @@ App.readStartField = function() {
   return { startMode: mode, start: mode === 'manual' ? val : '' };
 };
 
-App.buildTaskFormHtml = function(task, mode) {
+App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
   const startMode = (mode === 'new') ? 'auto' : App.startModeOf(t);   // 2-A：新任務一律 auto；編輯讀 startMode（含舊任務相容）
   const autoStartDisplay = (mode !== 'new' && t.start && String(t.start).trim()) ? D.fmt(t.start, 'ymd') : '待排程引擎推算';
   return `
-    <div class="task-form" data-measure="duration">
+    <div class="task-form" data-measure="${measure}">
     ${mode === 'new' ? `
     <div class="form-field">
       <label>專案</label>
-      <select id="tf-project">${DATA.projects.filter(p => !p.synced).map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
+      <select id="tf-project"><option value="" ${!t.project ? 'selected' : ''}>— 請選擇 —</option>${DATA.projects.filter(p => !p.synced).map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
     </div>` : `
     <div class="form-field">
       <label>專案</label>
@@ -3628,8 +3629,8 @@ App.buildTaskFormHtml = function(task, mode) {
       <input type="text" id="tf-name" value="${U.esc(v(t.name))}" placeholder="例：完成 BOM 表 6 型壁掛機">
     </div>
     <div class="measure-toggle">
-      <button type="button" class="measure-btn active" data-measure="duration" onclick="App.setMeasureMode('duration')">工期制（工作天）</button>
-      <button type="button" class="measure-btn" data-measure="hours" onclick="App.setMeasureMode('hours')">時段制（工時 h）</button>
+      <button type="button" class="measure-btn ${measure==='duration'?'active':''}" data-measure="duration" onclick="App.setMeasureMode('duration')">工期制（工作天）</button>
+      <button type="button" class="measure-btn ${measure==='hours'?'active':''}" data-measure="hours" onclick="App.setMeasureMode('hours')">時段制（工時 h）</button>
     </div>
     <div class="form-field">
       <label>說明</label>
@@ -3768,6 +3769,17 @@ App.openNewTaskDialog = function(projId) {
     const nameField = document.getElementById('tf-name');
     if (nameField) nameField.focus();
   }, 50);
+};
+
+// 總儀表板「+ 新增小時 Task」：照 openNewTaskDialog 同套，差別=不帶 project（跨專案，留空讓使用者選）+ measure='hours'（開出時段制）
+App.openHoursTaskDialog = function() {
+  this.openModal({
+    title: '新增小時 Task',
+    body: App.buildTaskFormHtml({ start: D.fmt(D.today(), 'iso') }, 'new', 'hours'),
+    footer: `<button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+             <button class="tb-action" onclick="App.saveNewTask()">建立任務</button>`,
+  });
+  setTimeout(() => { const n = document.getElementById('tf-name'); if (n) n.focus(); }, 50);
 };
 
 App.saveNewTask = function(projId) {
