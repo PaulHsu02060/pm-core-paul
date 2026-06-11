@@ -752,7 +752,19 @@ function scoreTask(t) {
 }
 
 function sortTasks(arr) {
-  return [...arr].sort((a, b) => scoreTask(b) - scoreTask(a));
+  return [...arr].sort((a, b) => {
+    const ds = scoreTask(b) - scoreTask(a);   // 主鍵：維持現有 scoreTask 降序
+    if (ds !== 0) return ds;
+    // 平手 tiebreak（決定性）：plannedStart 早的先（空值排最後），再 id 字典序
+    const pa = a.plannedStart || '', pb = b.plannedStart || '';
+    if (pa !== pb) {
+      if (!pa) return 1;            // a 無 plannedStart → 排後
+      if (!pb) return -1;           // b 無 → a 在前
+      return pa < pb ? -1 : 1;      // ISO 字串比較 = 時序，早的先
+    }
+    const ia = String(a.id || ''), ib = String(b.id || '');
+    return ia < ib ? -1 : (ia > ib ? 1 : 0);   // 最終 id 字典序，保證唯一定序
+  });
 }
 
 // ─── CLEAN OLD DONE TASKS ──────────────────────────────

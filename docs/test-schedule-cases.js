@@ -58,6 +58,8 @@ const D = {
     }
     return d;
   },
+  // 測試 stub：固定今天為 2026-06-11（scoreTask 副本用；不隨真實日期飄，保決定性）
+  today() { return new Date('2026-06-11'); },
 };
 
 // ════ parsePredecessors 同步複本 ════════════════════════════════
@@ -308,6 +310,42 @@ function getEffectiveSchedule(task) {
 }
 
 // ════ 測試框架 ══════════════════════════════════════════════════
+// ════ scoreTask + sortTasks 同步複本（app.js:735-770）════════════
+// ⚠ 改 app.js 的 scoreTask/sortTasks 時，這兩份副本要一起改（決定性測試用）。
+function scoreTask(t) {
+  if (t.status === 'done')  return -9999;
+  if (t.status === 'hold')  return -9000;
+  let score = 0;
+  score += { high: 300, medium: 100, low: 0 }[t.urgency] || 0;
+  const sch = getEffectiveSchedule(t);
+  if (sch.end) {
+    const days = D.daysBetween(D.today(), new Date(sch.end));
+    if (days < 0)      score += 500 + Math.abs(days) * 10;
+    else if (days <= 1) score += 400;
+    else if (days <= 3) score += 250;
+    else if (days <= 7) score += 120;
+    else if (days <= 14) score += 50;
+  } else score -= 20;
+  if (t.status === 'wip') score += 80;
+  if (t.synced) score += 5; // tiny bias for synced items
+  return score;
+}
+function sortTasks(arr) {
+  return [...arr].sort((a, b) => {
+    const ds = scoreTask(b) - scoreTask(a);   // 主鍵：維持現有 scoreTask 降序
+    if (ds !== 0) return ds;
+    // 平手 tiebreak（決定性）：plannedStart 早的先（空值排最後），再 id 字典序
+    const pa = a.plannedStart || '', pb = b.plannedStart || '';
+    if (pa !== pb) {
+      if (!pa) return 1;            // a 無 plannedStart → 排後
+      if (!pb) return -1;           // b 無 → a 在前
+      return pa < pb ? -1 : 1;      // ISO 字串比較 = 時序，早的先
+    }
+    const ia = String(a.id || ''), ib = String(b.id || '');
+    return ia < ib ? -1 : (ia > ib ? 1 : 0);   // 最終 id 字典序，保證唯一定序
+  });
+}
+
 let pass = 0, fail = 0;
 function check(name, got, expected, why) {
   const g = typeof got === 'object' ? JSON.stringify(got) : String(got);
@@ -668,6 +706,37 @@ console.log('\n===== 10. getEffectiveSchedule 手動 fallback =====');
     `start=${r.start} end=${r.end} src=${r.startSource}`,
     'start=2026-04-01 end=2026-04-20 src=planned',
     't.start/t.end只在四層全空時兜底；既有任務(同步/匯入帶planned)取值與來源標記不變');
+}
+
+// ════ 11. sortTasks 決定性多鍵 tiebreak（§4.7 決定性鐵則）════════
+// 案D1 決定性：同組任務跑兩次，id 序列須完全相同
+{
+  const group = [
+    mk({ id: 'a1', urgency: 'high',   plannedStart: '2026-06-20', end: '2026-06-15' }),
+    mk({ id: 'a2', urgency: 'medium', plannedStart: '2026-06-10' }),
+    mk({ id: 'a3', urgency: 'low',    plannedStart: '2026-06-05', end: '2026-07-01' }),
+    mk({ id: 'a4', urgency: 'medium', plannedStart: '2026-06-10' }),
+  ];
+  const r1 = sortTasks(group).map(t => t.id).join(',');
+  const r2 = sortTasks(group).map(t => t.id).join(',');
+  check('案D1 sortTasks 跑兩次結果完全相同（決定性）', r1 === r2, true,
+    '相同輸入兩次排序 id 序列須完全一致，無飄移');
+}
+// 案D2 平手靠 id：同分(medium/pending/無end)、同 plannedStart → 只 id 不同；輸入故意 zzz 在前
+{
+  const t_b = mk({ id: 'zzz', urgency: 'medium', plannedStart: '2026-06-10' });
+  const t_a = mk({ id: 'aaa', urgency: 'medium', plannedStart: '2026-06-10' });
+  const out = sortTasks([t_b, t_a]).map(t => t.id).join(',');
+  check('案D2 平手靠 id 字典序（不靠輸入序）', out, 'aaa,zzz',
+    'scoreTask 同分、plannedStart 同 → id 字典序 aaa 在 zzz 前，雖輸入 zzz 在前');
+}
+// 案D3 平手靠 plannedStart：同分、plannedStart 一早一晚 → 早的先（優先於 id）
+{
+  const t_late  = mk({ id: 'aaa', urgency: 'medium', plannedStart: '2026-06-20' });
+  const t_early = mk({ id: 'zzz', urgency: 'medium', plannedStart: '2026-06-05' });
+  const out = sortTasks([t_late, t_early]).map(t => t.id).join(',');
+  check('案D3 平手靠 plannedStart 早的先（優先於 id）', out, 'zzz,aaa',
+    'scoreTask 同分 → plannedStart 早(zzz 06-05)在前，壓過 id 字典序(aaa<zzz)');
 }
 
 console.log('\n===== 結果 =====');
