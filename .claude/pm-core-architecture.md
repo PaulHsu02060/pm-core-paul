@@ -486,6 +486,24 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 - session 開始先 `git pull` + `git log` 確認與遠端同步，不一致先 pull。
 - 換機/下班前未完成也要 commit + push（可標 WIP）。
 
+**跨機分工開發流程（feature branch 策略）**
+
+核心原則：main 永遠保持「已驗證綠燈」狀態，未過 56 測試的核心改動絕不進 main。
+
+分流規則：
+- **UI / 純顯示層**（表單欄位 HTML、排版、純前端顯示切換、CSS）→ 直接在 main 做、push merge。
+  界線：資料一接到引擎計算就停手，那段屬後端。
+- **核心引擎 / 存檔流程 / 動 [CORE] 函式**（標 judgment-risk、須跑 56 測試）→ 進 feature 分支，不進 main。
+
+公司桌機（無 Node，驗不了）在分支上的正確用法：
+- 只做「查證 + 寫 diff 計畫（要改哪幾行、改成什麼、為什麼）」，commit + push 到分支存著。
+- **不盲寫核心演算法**——無 Node 盲寫的引擎邏輯回家很可能整段重來，等於白寫。把「改動計畫」備好比「盲寫 code」有效。
+
+家裡桌機（Node v24）：
+- git checkout 該分支 → 照 diff 計畫填引擎邏輯 → 跑 56 測試 → 綠了才 merge 進 main。
+
+分支內仍正常 commit + push（換機/下班保護），只是「不 merge 回 main」。切忌「不 commit」——改動不 commit 換機就消失（踩過 tooltip 重做的坑）。
+
 **CSS 鐵則**
 - 顏色/圓角/z-index/陰影一律走 :root 變數，禁規則裡寫死 hex/數字。
 - 合理例外：rgba 透明衍生、膠囊 99px、圓點 50%。
