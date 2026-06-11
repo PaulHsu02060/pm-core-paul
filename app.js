@@ -3650,7 +3650,7 @@ App.buildTaskFormHtml = function(task, mode) {
         <input type="text" id="tf-stage" list="tf-stage-list" value="${U.esc(v(t.stage))}" placeholder="輸入或選擇階段">
         <datalist id="tf-stage-list">${this.stageDatalistOptions(t.project)}</datalist>
       </div>
-      <div class="form-field"><label>子群組</label>
+      <div class="form-field dur-only"><label>子群組</label>
         <input type="text" id="tf-subgroup" list="tf-subgroup-list" value="${U.esc(v(t.subgroup))}" placeholder="輸入或選擇子群組">
         <datalist id="tf-subgroup-list">${this.subgroupDatalistOptions(t.project)}</datalist>
       </div>
@@ -3672,7 +3672,7 @@ App.buildTaskFormHtml = function(task, mode) {
         </select>
       </div>
     </div>
-    <div class="form-field">
+    <div class="form-field dur-only">
       <label>前置任務</label>
       ${App.buildPredListHtml(t)}
     </div>
@@ -3699,7 +3699,7 @@ App.buildTaskFormHtml = function(task, mode) {
         </div>
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row dur-only">
       <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(t.end)}"></div>
     </div>
     <div class="form-collapse ${mode === 'edit' ? 'open' : ''}" id="tf-actualSection">
@@ -3732,17 +3732,17 @@ App.buildTaskFormHtml = function(task, mode) {
       <label>風險內容</label>
       <textarea id="tf-riskIssue" placeholder="描述風險內容…">${U.esc(v(t.riskIssue))}</textarea>
     </div>
-    <div class="form-field">
+    <div class="form-field dur-only">
       <label>備註</label>
       <input type="text" id="tf-note" value="${U.esc(v(t.note))}">
     </div>
-    <div class="form-field">
+    <div class="form-field dur-only">
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="tf-split" ${t.canSplit !== false ? 'checked' : ''} style="width:auto;">
         可切分（≥4h 任務拆成多天）
       </label>
     </div>
-    <div class="form-field">
+    <div class="form-field dur-only">
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="tf-cal" ${t.scheduleToCalendar ? 'checked' : ''} style="width:auto;">
         排入行事曆

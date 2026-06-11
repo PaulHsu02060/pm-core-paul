@@ -552,23 +552,20 @@ SOP（待寫）：你在同事 Google 帳號開新 Apps Script、貼 `apps-scrip
 - session 開始先 `git pull` + `git log` 確認與遠端同步，不一致先 pull。
 - 換機/下班前未完成也要 commit + push（可標 WIP）。
 
-**跨機分工開發流程（feature branch 策略）**
+**跨機分工開發流程（2026-06-11 修訂，依改動性質分流）**
 
-核心原則：main 永遠保持「已驗證綠燈」狀態，未過 56 測試的核心改動絕不進 main。
+分流的判準是「改完能不能當場驗證」，不是「在哪台機器」：
 
-分流規則：
-- **UI / 純顯示層**（表單欄位 HTML、排版、純前端顯示切換、CSS）→ 直接在 main 做、push merge。
-  界線：資料一接到引擎計算就停手，那段屬後端。
-- **核心引擎 / 存檔流程 / 動 [CORE] 函式**（標 judgment-risk、須跑 56 測試）→ 進 feature 分支，不進 main。
+- **UI / 純前端**（畫面、欄位顯隱、按鈕、CSS、DOM 位置）→ 改完用瀏覽器即可驗（眼睛就是驗證工具）→ **直接進 main、commit/push，不開分支**。無論在哪台機器都這樣。
+- **後端邏輯 / 核心 / 資料層**（存欄位、saveTask 讀寫、排程引擎、計算）→ 改完畫面看不出對錯、需 Node 跑測試 → **開 feature 分支，commit 進分支、不 merge**。回家 Node 跑測試過了才 merge，不過在分支改到過才 merge。
 
-公司桌機（無 Node，驗不了）在分支上的正確用法：
-- 只做「查證 + 寫 diff 計畫（要改哪幾行、改成什麼、為什麼）」，commit + push 到分支存著。
-- **不盲寫核心演算法**——無 Node 盲寫的引擎邏輯回家很可能整段重來，等於白寫。把「改動計畫」備好比「盲寫 code」有效。
+關鍵認知：
+- 分支的用途是「先寫、晚點驗」。在分支寫核心、commit、回家驗，是標準 RD flow，撰寫不必等驗證。
+- 系統目前未對外開放，分支 code 有 bug 也進不了 main、影響不到線上（github.io 跑 main 綠版本）。
+- 公司機無 Node「不能驗證」≠「不能寫」。後端照寫進分支，驗證時間點往後挪即可。
+- 一個任務同時含 UI + 後端時：UI 部分進 main、後端部分進分支，各走各的。
 
-家裡桌機（Node v24）：
-- git checkout 該分支 → 照 diff 計畫填引擎邏輯 → 跑 56 測試 → 綠了才 merge 進 main。
-
-分支內仍正常 commit + push（換機/下班保護），只是「不 merge 回 main」。切忌「不 commit」——改動不 commit 換機就消失（踩過 tooltip 重做的坑）。
+Claude 與 Claude Code 一律遵守此分流，不得以「公司無 Node」為由阻擋後端撰寫。
 
 **CSS 鐵則**
 - 顏色/圓角/z-index/陰影一律走 :root 變數，禁規則裡寫死 hex/數字。
