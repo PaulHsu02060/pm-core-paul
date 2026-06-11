@@ -160,6 +160,32 @@ Auth（檢視/編輯/登入）
 
 ---
 
+### 4.7 時段制排程引擎（正向，2026-06-11 設計定案）
+
+現況：generateSchedule()（app.js:1218）是半成品——slot 模型/findRun 連續格/避會議/goldenTime preferGolden 已鋪好，工時設定（dailyHours/workStart-End/goldenTime/workDays）真的有讀。但三個缺口（程式碼自標 TODO 1b）：MAX_CHUNKS_PER_TASK=1 鎖死同日單塊、只排本週、不算完成日。本規格補完正向排程。逆向（deadline 反推）獨立待辦。
+
+**決定性鐵則（最高，驗收硬指標）**：相同輸入（任務無增減、無手動調整）→ N 次排程 N 次結果完全相同。任何隨機性/順序不穩定都是 bug。要求：①任務處理順序穩定（sortTasks urgency → plannedStart → id 多鍵排序，平手不飄）②slot 選擇決定性（多可用區間永遠選最早/最早golden）③無 Math.random、無 Date.now 滲進排序、無物件遍歷順序依賴。56 測試須新增「同組任務跑兩次，assert items 完全相同」案例。
+
+**重排策略**：選「全清重排」（每次全清 DATA.schedule.items 重算），非增量。但手動拖動過的任務鎖定，重排時當已佔用不動（呼應「手填日期不覆蓋」鐵則）。「避開已排定」= 同一次重排內先排佔位、後排避開，非跨次保留。
+
+**輸入**：任務 estHours + plannedStart；設定 dailyHours/workStart-End兩段/goldenTime/workDays；已佔用=會議時段+手動鎖定任務。
+
+**正向邏輯**：
+1. 起算日 = max(plannedStart, 前置完成日+1, today)。plannedStart 空值或落在過去 → 從 today 起（納入前置依賴）。
+2. 從起算日逐日掃可用 slot（60分格，避會議/已佔/手動鎖定）。
+3. 跨日分配：當日空檔不足 estHours，當日塞滿可塞的，剩餘順延到下一個有空檔工作日，直到排完（取代 MAX_CHUNKS_PER_TASK=1）。
+4. 多週順延：不限本週，往後找。上限 horizon=8 週，超過標「排不下，需8週」警示並停（取代只排本週）。
+5. golden time 優先：深度任務優先黃金時段（沿用 preferGolden）。golden 滿則排同日非黃金，不為golden拖到隔天。
+6. 切分閾值（啟用既有 splitThreshold）：超過閾值才允許跨日拆；小於閾值要求同日完成（不打散小任務）。小任務找不到同日 N 連格 → 套 horizon 上限警示。
+
+**輸出**：每 slot = date+start+duration（沿用 DATA.schedule.items）；新增 slotScheduledEnd（完成日=最後一個 slot 日期）寫回任務。獨立欄位，不與工期制 scheduledEnd 共用（避免兩引擎碰同欄位）。
+
+**estHours 粒度**：維持 60分格，向上取整（3.5h→4h），跨日拆以小時格為單位。
+
+**不在此規格（獨立待辦）**：逆向排程（deadline + estHours → 反推最晚開始日）；slack/餘裕計算（依賴逆向+deadline 資料源）。
+
+---
+
 ## 第五部分：狀態衍生規則
 
 四值：`pending`（未開始）/ `wip`（進行中）/ `done`（已完成）/ `hold`（擱置中）。
