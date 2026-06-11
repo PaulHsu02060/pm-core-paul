@@ -1388,6 +1388,12 @@ function generateSchedule() {
 
   const sorted = sortTasks(candidates);
 
+  // 全清重排：清掉所有時段制任務(非wbs)上輪殘留的 slotScheduledEnd
+  // 涵蓋「上輪排到、這輪掉出 candidates」者；工期制(wbs)走 scheduledEnd 不碰
+  for (const t of DATA.tasks) {
+    if (!t.wbs) t.slotScheduledEnd = null;
+  }
+
   // Schedule items（全清：每次乾淨重排，不保留 locked 殘留）
   const items = [];
 
@@ -1431,6 +1437,8 @@ function generateSchedule() {
       continue;
     }
     run.forEach(s => s.taken = true);
+    const slotEnd = run[run.length - 1].date;   // 最後一格日期；現階段同日，跨日(B)後自動正確
+    task.slotScheduledEnd = slotEnd;             // 寫回 task，查詢用
     items.push({
       taskId: task.id,
       date: run[0].date,
@@ -1440,6 +1448,7 @@ function generateSchedule() {
       totalHours: totalHours,
       week: weekKey,
       locked: false,
+      slotScheduledEnd: slotEnd,                 // item，渲染用
     });
   }
   DATA.schedule = { week: weekKey, items, generatedAt: new Date().toISOString() };

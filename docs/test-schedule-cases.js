@@ -739,6 +739,30 @@ console.log('\n===== 10. getEffectiveSchedule 手動 fallback =====');
     'scoreTask 同分 → plannedStart 早(zzz 06-05)在前，壓過 id 字典序(aaa<zzz)');
 }
 
+// ════ 12. §4.7 C 缺口 slotScheduledEnd（取值 + 全清）════════════
+// 案C1 取值：slotEnd = run[run.length-1].date（取最後一格，非 run[0]）
+{
+  const run1 = [{ date: '2026-06-15' }];                          // 單日（現階段）
+  const run2 = [{ date: '2026-06-15' }, { date: '2026-06-16' }];  // 跨日（預演 B）
+  check('案C1 slotScheduledEnd 取 run 最後一格（非 run[0]）',
+    `${run1[run1.length - 1].date}|${run2[run2.length - 1].date}`,
+    '2026-06-15|2026-06-16',
+    '單日 run 取唯一格；跨日 run 取最後一格 06-16(非起點 06-15) → B 跨日後自動正確');
+}
+// 案C2 全清：!t.wbs 才清，工期制(wbs)不碰、時段制(非wbs)清 null
+{
+  const tasks = [
+    { wbs: '1', slotScheduledEnd: '舊值' },   // 工期制 → 不動
+    { wbs: '',  slotScheduledEnd: '舊值' },   // 時段制(空字串 wbs) → 清
+    {           slotScheduledEnd: '舊值' },   // 無 wbs 欄位 → 清
+  ];
+  for (const t of tasks) { if (!t.wbs) t.slotScheduledEnd = null; }
+  check('案C2 全清 !t.wbs：工期制不動、時段制清 null',
+    `${tasks[0].slotScheduledEnd}|${tasks[1].slotScheduledEnd}|${tasks[2].slotScheduledEnd}`,
+    '舊值|null|null',
+    'wbs:1→!false 留舊值；wbs:""→!true 清；無wbs→!undefined 清');
+}
+
 console.log('\n===== 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
 process.exit(fail === 0 ? 0 : 1);
