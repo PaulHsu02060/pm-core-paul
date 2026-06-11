@@ -162,7 +162,7 @@ Auth（檢視/編輯/登入）
 
 ### 4.7 時段制排程引擎（正向，2026-06-11 設計定案）
 
-現況：generateSchedule()（app.js:1218）是半成品——slot 模型/findRun 連續格/避會議/goldenTime preferGolden 已鋪好，工時設定（dailyHours/workStart-End/goldenTime/workDays）真的有讀。但三個缺口（程式碼自標 TODO 1b）：MAX_CHUNKS_PER_TASK=1 鎖死同日單塊、只排本週、不算完成日。本規格補完正向排程。逆向（deadline 反推）獨立待辦。
+現況：generateSchedule()（app.js:1218）是半成品——slot 模型/findRun 連續格/避會議/goldenTime preferGolden 已鋪好，工時設定（dailyHours/workStart-End/goldenTime/workDays）真的有讀。但三個缺口（程式碼自標 TODO 1b）：缺口①：findRun 要求同一天 N 格連續，找不到整段即 skip（不跨日順延）；且 findRun 未套起算日 max(plannedStart, 前置完成日+1, today)。§4.7 目標：換掉 findRun 放置演算法為逐日掃格、當日塞滿剩餘順延次日，並套起算日。死常數 MAX_CHUNKS_PER_TASK/HOURS_PER_CHUNK 未被讀取，重寫後清除。缺口②：只排本週。缺口③：不算完成日。本規格補完正向排程。逆向（deadline 反推）獨立待辦。
 
 **決定性鐵則（最高，驗收硬指標）**：相同輸入（任務無增減、無手動調整）→ N 次排程 N 次結果完全相同。任何隨機性/順序不穩定都是 bug。要求：①任務處理順序穩定（sortTasks urgency → plannedStart → id 多鍵排序，平手不飄）②slot 選擇決定性（多可用區間永遠選最早/最早golden）③無 Math.random、無 Date.now 滲進排序、無物件遍歷順序依賴。56 測試須新增「同組任務跑兩次，assert items 完全相同」案例。
 
