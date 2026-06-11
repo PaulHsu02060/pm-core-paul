@@ -1231,12 +1231,15 @@ function generateSchedule() {
   const { dailyHours, workStart1, workEnd1, workStart2, workEnd2, goldenTime, workDays, splitThreshold } = DATA.settings;
   const monday = D.weekStart();
   const weekKey = D.weekKey(D.weekStart());
+  const HORIZON_WEEKS = 8;   // 多週順延上限：本週起往後 8 週（§4.7 缺口②）
 
-  // Build available slots for each work day
+  // Build available slots for each work day（horizon 8 週：外層逐週、內層逐工作日）
   const slots = [];
+  for (let w = 0; w < HORIZON_WEEKS; w++) {
+  const weekMonday = D.addDays(monday, w * 7);
   for (const dayNum of workDays) {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + (dayNum - 1));
+    const date = new Date(weekMonday);
+    date.setDate(weekMonday.getDate() + (dayNum - 1));
     const dateIso = D.fmt(date, 'iso');
 
     // Work periods
@@ -1263,6 +1266,7 @@ function generateSchedule() {
       }
     }
   }
+  }  // end horizon week loop
 
   // Helper: check if slot overlaps meeting time range
   function overlapsMeeting(slot, startTime, endTime) {
@@ -1421,7 +1425,7 @@ function generateSchedule() {
           duration: 60,
           chunk: null,
           totalHours,
-          week: weekKey,
+          week: D.weekKey(new Date(doneSlot.date)),   // item 帶所在週標籤（horizon 8 週，渲染按週挑）
           locked: false,
           completed: true, // 標記為已完成顯示
         });
@@ -1433,7 +1437,7 @@ function generateSchedule() {
     const N = Math.max(1, Math.round(parseFloat(task.estHours) || 1));
     const run = findRun(slots, N, isDeep);
     if (!run) {
-      console.warn(`[generateSchedule] 任務「${task.name}」需 ${N}h 連續空檔，本週排不下，略過`);
+      console.warn(`[generateSchedule] 任務「${task.name}」需 ${N}h 連續空檔，8 週內排不下，略過`);
       continue;
     }
     run.forEach(s => s.taken = true);
@@ -1446,7 +1450,7 @@ function generateSchedule() {
       duration: N * 60,
       chunk: null,
       totalHours: totalHours,
-      week: weekKey,
+      week: D.weekKey(new Date(run[0].date)),    // item 帶所在週標籤（horizon 8 週，渲染按週挑）
       locked: false,
       slotScheduledEnd: slotEnd,                 // item，渲染用
     });

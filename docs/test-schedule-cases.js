@@ -60,6 +60,22 @@ const D = {
   },
   // 測試 stub：固定今天為 2026-06-11（scoreTask 副本用；不隨真實日期飄，保決定性）
   today() { return new Date('2026-06-11'); },
+  // ── 同步複本（app.js:360-397，A1/A2 用）：改 app.js weekNum/weekKey 須同步這幾份 ──
+  addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; },
+  weekStart(d = new Date()) {
+    const x = new Date(d); x.setHours(0,0,0,0);
+    const day = x.getDay(); const diff = day === 0 ? 1 : 1 - day;
+    x.setDate(x.getDate() + diff); return x;
+  },
+  weekNum(d = new Date()) {
+    const target = new Date(d.valueOf());
+    const dayNr = (d.getDay() + 6) % 7;
+    target.setDate(target.getDate() - dayNr + 3);
+    const firstThursday = new Date(target.getFullYear(), 0, 4);
+    const diff = target - firstThursday;
+    return 1 + Math.ceil(diff / (7 * 86400000));
+  },
+  weekKey(d = new Date()) { return `W${this.weekNum(d)}-${d.getFullYear()}`; },
 };
 
 // ════ parsePredecessors 同步複本 ════════════════════════════════
@@ -761,6 +777,26 @@ console.log('\n===== 10. getEffectiveSchedule 手動 fallback =====');
     `${tasks[0].slotScheduledEnd}|${tasks[1].slotScheduledEnd}|${tasks[2].slotScheduledEnd}`,
     '舊值|null|null',
     'wbs:1→!false 留舊值；wbs:""→!true 清；無wbs→!undefined 清');
+}
+
+// ════ 13. §4.7 A 缺口 horizon 8 週（per-item week + 邊界）════════
+// 案A1 per-item 分週：連續兩週的日期算出不同 weekKey（渲染按週挑的前提）
+{
+  const k1 = D.weekKey(new Date('2026-06-15'));   // 第25週
+  const k2 = D.weekKey(new Date('2026-06-22'));   // 次週第26週
+  check('案A1 連續兩週 weekKey 不同 + 已知日期算對',
+    `${k1}|${k2}|${k1 !== k2}`, 'W25-2026|W26-2026|true',
+    '06-15→W25、06-22→W26：跨週標籤不同(渲染按週挑)，且 weekKey 值算對');
+}
+// 案A2 horizon=8 週邊界：跨度 56 天 + 8 個不重複 week key
+{
+  const ws = D.weekStart(new Date('2026-06-11'));
+  const span = (D.addDays(ws, 7 * 8) - ws) / 86400000;   // 56 天
+  const keys = [];
+  for (let w = 0; w < 8; w++) keys.push(D.weekKey(D.addDays(ws, w * 7)));
+  check('案A2 horizon=8 週：跨度 56 天 + 8 個不同 weekKey',
+    `${span}|${new Set(keys).size}`, '56|8',
+    'addDays(ws,7*8) 距起點 56 天(8週上限)；連續 8 週算出 8 個不同 key，horizon 內不撞週');
 }
 
 console.log('\n===== 結果 =====');
