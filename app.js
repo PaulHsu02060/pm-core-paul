@@ -3587,6 +3587,16 @@ App.setStartMode = function(m) {
   }
 };
 
+// 計量方式切換（殼，第27項）：純改 data-measure + active class，CSS 控顯隱；
+//   tf-duration/tf-hours 的 DOM 永遠在，不增刪、不碰資料層，saveTask 照常讀得到。
+App.setMeasureMode = function(m) {
+  const g = document.querySelector('.task-form');
+  if (!g) return;
+  g.dataset.measure = m;
+  g.querySelectorAll('.measure-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.measure === m));
+};
+
 // 讀預計開始雙態 → {start, startMode}（saveNewTask / saveTask 共用，單一真實來源）
 //   手動態：startMode='manual'，start = #tf-start 值（引擎據此當錨點）
 //   自動態：startMode='auto'，start = ''（清空，引擎視為非錨點、由前置推算）
@@ -3603,6 +3613,7 @@ App.buildTaskFormHtml = function(task, mode) {
   const startMode = (mode === 'new') ? 'auto' : App.startModeOf(t);   // 2-A：新任務一律 auto；編輯讀 startMode（含舊任務相容）
   const autoStartDisplay = (mode !== 'new' && t.start && String(t.start).trim()) ? D.fmt(t.start, 'ymd') : '待排程引擎推算';
   return `
+    <div class="task-form" data-measure="duration">
     ${mode === 'new' ? `
     <div class="form-field">
       <label>專案</label>
@@ -3615,6 +3626,10 @@ App.buildTaskFormHtml = function(task, mode) {
     <div class="form-field">
       <label>任務名稱 *</label>
       <input type="text" id="tf-name" value="${U.esc(v(t.name))}" placeholder="例：完成 BOM 表 6 型壁掛機">
+    </div>
+    <div class="measure-toggle">
+      <button type="button" class="measure-btn active" data-measure="duration" onclick="App.setMeasureMode('duration')">工期制（工作天）</button>
+      <button type="button" class="measure-btn" data-measure="hours" onclick="App.setMeasureMode('hours')">時段制（工時 h）</button>
     </div>
     <div class="form-field">
       <label>說明</label>
@@ -3661,8 +3676,11 @@ App.buildTaskFormHtml = function(task, mode) {
       <label>前置任務</label>
       ${App.buildPredListHtml(t)}
     </div>
-    <div class="form-row">
+    <div class="form-row mg-duration">
       <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
+    </div>
+    <div class="form-row mg-hours">
+      <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
     </div>
     <div class="form-field">
       <label>預計開始</label>
@@ -3703,9 +3721,6 @@ App.buildTaskFormHtml = function(task, mode) {
         </div>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
-    </div>
     <div class="form-field">
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="tf-riskHL" ${t.riskHL ? 'checked' : ''} style="width:auto;">
@@ -3733,6 +3748,7 @@ App.buildTaskFormHtml = function(task, mode) {
         排入行事曆
         <span data-tip="排入行事曆|勾選後此任務會出現在總儀表板時程表（視圖一），用於「我要親自排時間動手做」的任務" style="cursor:help;">?</span>
       </label>
+    </div>
     </div>
   `;
 };
