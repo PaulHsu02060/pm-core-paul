@@ -22,6 +22,7 @@
   --kpi-overall-l: #E8EDE0;   /* OVERALL 淺 sage 底 */
   --kpi-days-l: #FAEEDA;      /* WORKDAYS LEFT 淺琥珀底 */
   --head-band: #E8EDE0;         /* 待辦表頭橫槓底 */
+  --head-band-strong: var(--sage-700);  /* 待辦任務表頭:深 sage 反白底 */
 
   --terracotta: #C4633E; --terracotta-l: #FAE8DC;
   --amber: #C4956C; --amber-l: #F5E8DC;
@@ -611,8 +612,8 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 
 /* ─── TASK LIST ─── */
 .task-list-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); overflow: hidden; }
-.tlc-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--head-band); border-bottom: 1px solid var(--rule); }
-.tlc-title { font-family: var(--mono); font-size: 14px; color: var(--ink3); letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
+.tlc-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--head-band-strong); }
+.tlc-title { font-family: var(--mono); font-size: 14px; color: var(--ink-inverse); letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
@@ -623,8 +624,8 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
   border-bottom: 1px solid var(--rule); transition: background .12s; cursor: pointer;
 }
 .task-row-header {
-  background: var(--head-band); border-bottom: 1px solid var(--rule);
-  font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--ink3); text-transform: uppercase;
+  background: var(--head-band-strong); border-bottom: 1px solid var(--rule);
+  font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--ink-inverse); text-transform: uppercase;
 }
 .task-row:last-child { border-bottom: none; }
 .task-row:nth-child(even) { background: var(--cream); }
