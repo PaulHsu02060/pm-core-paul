@@ -2883,7 +2883,8 @@ App.renderProjectDashboard = function(proj) {
           <div class="task-row-header">
             <span style="text-align:center;">序</span>
             <span></span>
-            <span style="text-align:left;">任務／階段</span>
+            <span style="text-align:left;">階段</span>
+            <span style="text-align:left;">任務</span>
             <span style="text-align:left;">進度%</span>
             <span style="text-align:center;">負責人</span>
             <span style="text-align:center;">緊急程度</span>
@@ -3279,13 +3280,13 @@ App.buildTaskRowHtml = function(t, i) {
     <span class="task-anchor" data-edit title="設為錨點"
           style="cursor:pointer; user-select:none; text-align:center;"
           onclick="event.stopPropagation(); App.setAnchor('${t.id}')">📌</span>
+    <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.stage || '—')}</span>
     <div class="task-info">
       <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
         ${U.esc(t.name)}
         ${t.synced ? `<span class="sync-tag">🔗 ${U.esc(t.syncRef || '')}</span>` : ''}
         ${isPreview ? '<span class="preview-tag">📅 兩週預告</span>' : ''}
       </div>
-      ${t.desc ? `<div class="task-desc">${U.esc(t.desc)}</div>` : ''}
     </div>
     <div style="display:flex; align-items:center; gap:6px;">
       <div class="stage-bar" style="border:1px solid var(--rule2);"><div class="stage-bar-fill" style="width:${pct}%; background:${barColor};"></div></div>

@@ -616,7 +616,7 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
-  display: grid; grid-template-columns: 0.5fr 0.4fr 3.5fr 1.4fr 0.9fr 0.9fr 1fr 1.6fr 0.8fr 0.8fr;
+  display: grid; grid-template-columns: 0.5fr 0.4fr 1.2fr 2.6fr 1.4fr 0.9fr 0.9fr 1fr 1.6fr 0.8fr 0.8fr;
   gap: 14px; align-items: center; padding: 11px 16px;
 }
 .task-row {
