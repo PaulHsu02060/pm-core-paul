@@ -2129,7 +2129,6 @@ App.buildViewTabsHtml = function() {
   return `
     <div class="tabs">
       <button class="tab-btn ${this.currentView === 'dashboard' ? 'active' : ''}" onclick="App.switchView('dashboard')">儀表板</button>
-      <button class="tab-btn ${this.currentView === 'gantt' ? 'active' : ''}" onclick="App.switchView('gantt')">甘特圖</button>
       <button class="tab-btn ${this.currentView === 'month' ? 'active' : ''}" onclick="App.switchView('month')">月曆</button>
     </div>`;
 };
