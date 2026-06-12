@@ -15,7 +15,7 @@
  */
 var APP_CONFIG = {
   CLOUD_SHEET_ID: 'PASTE_YOUR_SHEET_ID_HERE',
-  CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbyQk7--RPpUg2vrrKB2VZDV5ewgs0plxwRp-7bEhrHzHsk64CxkV3L_HQ4gPcQgszeT6Q/exec',  // 公開讀 doGet exec URL（進 git、全公開；非 token）
+  CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbwDzSs44F4AENfeQKEBX_xrYH7Y38wsvAn4iYY9lXLewQUppbyaKRgBQVmAfU1W2uYNSg/exec',  // 公開讀 doGet exec URL（進 git、全公開；非 token）
   WBS_SHEET_NAME: 'WBS主表',
   ADMIN_EMAILS: [],
   ALLOWED_EMAILS: [],
