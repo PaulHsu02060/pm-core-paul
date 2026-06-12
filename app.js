@@ -630,7 +630,44 @@ function runMigrations() {
     changed = true;
   }
 
+  if (migratePredToId()) changed = true;   // §8b 乙案：存量 predecessor wbs→id（函式內自帶 predToId_v1 旗標擋重跑）
+
   if (changed) Storage.save();
+}
+
+// ─── §8b 乙案：predecessor 字串的 dep 從 wbs 序號 → task.id（一次性遷移）───
+// §8b 乙案遷移：predecessor 字串 wbs→id。已接進 runMigrations()（predToId_v1 旗標擋重跑、回傳 bool 供呼叫端決定 changed）
+// 純函式：只改 DATA.tasks 資料 + 設旗標，無 I/O；存檔交給呼叫端（接進 runMigrations 後走其結尾的 if(changed) Storage.save()）。
+// 鐵則1 per-project：wbs 僅專案內唯一，每專案各建一張 wbs→id 表，禁全域表（跨專案同號會靜默接錯）。
+// 鐵則2 正面冪等：只改寫純數字 dep（^\d+$＝舊 wbs）；非純數字（id_/sync_ 前綴＝已遷移）跳過 → 重跑安全。
+// 鐵則3 只換 dep 數字：關係碼(FS/SS/FF/SF)、lag(+N)、分隔符一律原樣保留。
+function migratePredToId() {
+  DATA.settings._migrations = DATA.settings._migrations || {};
+  const M = DATA.settings._migrations;
+  if (M.predToId_v1) return false;   // 旗標已設 → 早退，未做事 → false（呼叫端不觸發 changed/save）
+
+  // 1. 每專案各建一張 wbs(字串) → id 對照表
+  const wbsToIdByProj = {};
+  DATA.tasks.forEach(t => {
+    const w = (t.wbs === undefined || t.wbs === null) ? '' : String(t.wbs).trim();
+    if (!w) return;
+    (wbsToIdByProj[t.project] = wbsToIdByProj[t.project] || {})[w] = t.id;
+  });
+  // 2. 逐任務改寫 predecessor：split 捕獲分隔符（奇數索引原樣保留），只動 token（偶數索引）
+  DATA.tasks.forEach(t => {
+    if (!t.predecessor) return;
+    const table = wbsToIdByProj[t.project] || {};
+    const rewritten = String(t.predecessor)
+      .split(/([,，;；])/)
+      .map(seg => /^[,，;；]$/.test(seg) ? seg
+        : seg.replace(/^(\s*)(\d+)(.*)$/, (whole, sp, dep, rest) =>
+            table[dep] ? sp + table[dep] + rest : whole))  // 純數字 dep 且查得到才換；否則原樣
+      .join('');
+    if (rewritten !== t.predecessor) t.predecessor = rewritten;
+  });
+
+  M.predToId_v1 = true;
+  return true;   // 跑完整段遷移（未被旗標早退）→ true，呼叫端據此設 changed 並存檔
 }
 
 // ─── 判斷一個定期事件是否發生在指定日期 ───
@@ -885,7 +922,10 @@ function parsePredecessors(str) {
   const parts = s.split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
   for (const part of parts) {
     // dep(數字) + 可選 type(2 字母) + 可選 lag(+/- 數字，容忍空白)
-    const m = part.match(/^(\d+)\s*([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
+    // dep 三形態：id_xxx / sync_xxx(皆 U.id() 產，base36 全小寫無大寫無底線) / 純數字(過渡期舊 wbs)
+    // 與關係碼([A-Za-z]{2} 大寫)無分隔黏接，靠「id 小寫 vs 關係碼大寫」不相交切分。
+    // ⚠ 若 U.id() 改帶大寫或底線，此切分失效——改 id 格式須同步改此正則。
+    const m = part.match(/^(id_[a-z0-9]+|sync_[a-z0-9_]+|\d+)\s*([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
     if (!m) continue;                          // 無法解析（非數字開頭）→ 跳過
     const dep = m[1];
     let type = (m[2] || 'FS').toUpperCase();
@@ -1014,13 +1054,15 @@ function filterTasks(tasks, f, today) {
 }
 
 // 步驟4 第一段：依賴圖 + 拓撲排序 + 循環偵測（不算日期，computeSchedule 第二段會用）
-// 節點 id = String(task.wbs)；邊 = parsePredecessors(task.predecessor) 的每個 dep → 本任務。
+// 節點/邊 key = task.id(穩定身分，與位置脫鉤，供任意插入)
+// 但進圖判準(上面 filter)仍看 t.wbs —— 只有 WBS 任務參與排程依賴，手動任務不進圖
+// ⚠ 勿把 filter 也改成 t.id，否則手動無 wbs 任務會被誤拉進排程拓撲
 // @param tasks 任務陣列
 // @return {
-//   order:    [wbs,...]      拓撲順序（前置在前、依賴在後；不含 circular 節點）
-//   circular: [wbs,...]      落在環上的節點（標 error:'circular'，排程時跳過）
-//   nodes:    Map<wbs,task>  節點查找表
-//   edges:    Map<wbs,[{dep,type,lag}...]>  每個節點「已存在於圖中」的前置邊
+//   order:    [id,...]      拓撲順序（前置在前、依賴在後；不含 circular 節點）
+//   circular: [id,...]      落在環上的節點（標 error:'circular'，排程時跳過）
+//   nodes:    Map<id,task>  節點查找表
+//   edges:    Map<id,[{dep,type,lag}...]>  每個節點「已存在於圖中」的前置邊
 // }
 // 三色 DFS：white(未訪) / gray(訪問中，在堆疊上) / black(完成)。
 //   訪問中又遇到 gray 節點 → 有環；直接環 A→B→A 與間接環 A→B→C→A 都會在重遇 gray 時抓到。
@@ -1029,14 +1071,14 @@ function filterTasks(tasks, f, today) {
 function topoSortTasks(tasks) {
   const list = (tasks || []).filter(t => t && t.wbs !== '' && t.wbs !== undefined && t.wbs !== null);
   const nodes = new Map();
-  for (const t of list) nodes.set(String(t.wbs), t);
+  for (const t of list) nodes.set(t.id, t);
 
   // 邊：本任務 → 它的前置；只保留 dep 存在於 nodes 的邊。
   // 不存在的前置不影響拓撲（由 isTaskBlocked 另報「前置不存在」）。
   const edges = new Map();
   for (const t of list) {
     const preds = parsePredecessors(t.predecessor).filter(p => nodes.has(String(p.dep)));
-    edges.set(String(t.wbs), preds);
+    edges.set(t.id, preds);
   }
 
   const WHITE = 0, GRAY = 1, BLACK = 2;
@@ -3578,7 +3620,7 @@ App.PRED_RELATIONS = [
 App.predCandidates = function(projId, selfId) {
   return (DATA.tasks || [])
     .filter(t => t.project === projId && String(t.wbs == null ? '' : t.wbs).trim() && t.id !== selfId)
-    .map(t => ({ wbs: String(t.wbs).trim(), name: t.name || '' }));
+    .map(t => ({ wbs: String(t.wbs).trim(), name: t.name || '', id: t.id }));
 };
 
 // 單列 HTML（pred = {dep,type,lag} 或 null=空白列；candidates 用來把 dep 還原成「編號 · 名稱」顯示）
@@ -3586,8 +3628,8 @@ App._predRowHtml = function(pred, candidates) {
   const dep  = pred ? String(pred.dep) : '';
   const type = pred ? pred.type : 'FS';
   const lag  = pred ? pred.lag : 0;
-  const cand = dep ? (candidates || []).find(c => c.wbs === dep) : null;
-  const searchVal = dep ? (dep + ' · ' + (cand ? cand.name : '')).trim() : '';
+  const cand = dep ? (candidates || []).find(c => c.id === dep) : null;   // dep 經 D 已是 id，用 id 比 id
+  const searchVal = dep ? (cand ? (cand.wbs + '·' + cand.name) : '⚠️前置不存在').trim() : '';   // 顯示給人看 wbs 編號（非 id）；查不到候選不吐裸 id
   const rels = App.PRED_RELATIONS.map(r =>
     `<option value="${r.code}" ${type === r.code ? 'selected' : ''}>${U.esc(r.label)}</option>`).join('');
   return `
@@ -3628,19 +3670,24 @@ App.buildPredListHtml = function(t) {
 };
 
 // 序列化：DOM 列 → task.predecessor 字串（兩存檔點共用，單一真實來源）
-App.serializePredecessors = function() {
+App.serializePredecessors = function(projId) {
   const rows = Array.from(document.querySelectorAll('#tf-pred-list .pred-row'));
   const parts = [];
+  const cand = App.predCandidates(projId);   // selfId 省略 → 不排除自己（serialize 要查全候選）
+  const wbsToId = {};
+  cand.forEach(c => { wbsToId[c.wbs] = c.id; });
   for (const row of rows) {
     const raw = (row.querySelector('.pred-search') || {}).value || '';
     const m = raw.trim().match(/^(\d+)/);   // 取開頭 wbs 編號（容「16」或「16 · 名稱」）
     if (!m) continue;                        // 沒選到有效任務 → 跳過該列
     const dep = m[1];
+    const depId = wbsToId[dep];              // wbs → id（§8b 乙案：predecessor 改存 id）
+    if (depId === undefined) continue;       // 查不到（亂打/懸空）→ 跳過該列，不存壞資料；===undefined 防 falsy id 誤跳
     const type = (row.querySelector('.pred-rel') || {}).value || 'FS';
     const lagEl = row.querySelector('.pred-lag');
     const lagVisible = lagEl && lagEl.style.display !== 'none';
     const lag = lagVisible ? (parseInt(lagEl.value, 10) || 0) : 0;
-    let token = dep + type;                  // 明確寫出 FS/SS/FF/SF（parsePredecessors 看得懂）
+    let token = depId + type;                // dep 存 id；明確寫出 FS/SS/FF/SF（parsePredecessors 看得懂）
     if (lag > 0) token += '+' + lag;
     else if (lag < 0) token += lag;          // 負 lag 自帶 '-'
     parts.push(token);
@@ -3903,7 +3950,7 @@ App.saveNewTask = function(projId) {
     startMode: startField.startMode,   // 2-A：純 UI 意圖記憶（auto/manual）
     end: document.getElementById('tf-end').value,
     estHours: parseFloat(document.getElementById('tf-hours').value) || 1,
-    predecessor: App.serializePredecessors(),  // M2-§6.4：結構化列序列化回字串（取代 #tf-predecessor 自由文字；格式同 parsePredecessors）
+    predecessor: App.serializePredecessors(document.getElementById('tf-project').value || projId),  // M2-§6.4：結構化列序列化回字串（傳 projId 供 wbs→id 反查；格式同 parsePredecessors）
     wbs: '',           // 階段2：WBS 識別
     durationDays: parseFloat(document.getElementById('tf-duration').value) || 1,  // M2-2：工期(工作天)，最小1（0工期語意由 taskType=milestone 表達）
     measureType: (document.querySelector('.task-form').dataset.measure) || 'duration',  // 第27項：計量制(duration工期/hours時段)，讀表單 data-measure；讀不到兜 duration
@@ -4091,7 +4138,7 @@ App.saveTask = function(id) {
   t.taskType  = document.getElementById('tf-taskType').value;  // M2-T4：編輯送出同步類型
   t.stage     = document.getElementById('tf-stage').value.trim();     // M2-2a：與同步/匯入同欄位，trim 同收集口徑
   t.subgroup  = document.getElementById('tf-subgroup').value.trim();
-  t.predecessor  = App.serializePredecessors();  // M2-§6.4：結構化列序列化回字串（與 saveNewTask 共用同一函式，單一真實來源）
+  t.predecessor  = App.serializePredecessors(t.project);  // M2-§6.4：傳 t.project 供 wbs→id 反查（編輯無 tf-project，走 task 資料）；與 saveNewTask 共用同一函式
   t.durationDays = parseFloat(document.getElementById('tf-duration').value) || 1;
   t.measureType = t.measureType || 'duration';  // 第27項：edit 鎖定計量制——保留既有值不從 form 覆寫；舊資料無此欄兜 duration
   t.urgency   = document.getElementById('tf-urgency').value;
