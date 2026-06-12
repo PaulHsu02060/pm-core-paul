@@ -2880,6 +2880,7 @@ App.renderProjectDashboard = function(proj) {
             <span class="tlc-count">${activeTasks.length}</span>
             <button class="tb-action" data-edit onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:auto;">＋ 新增任務</button>
           </div>
+          ${this.buildTaskFilterBar(proj.id)}
           <div class="task-row-header">
             <span style="text-align:center;">序</span>
             <span></span>
@@ -2893,6 +2894,7 @@ App.renderProjectDashboard = function(proj) {
             <span style="text-align:center;">餘裕（天）</span>
             <span style="text-align:center;">截止日</span>
           </div>
+          <!-- TODO 接線(乙案):render 待辦清單時用 getTaskFilter(proj.id) 四 Set 過濾 activeTasks，獨立過濾不碰 filterTasks，回家做。本批 UI 殼不過濾，照舊全量渲染。 -->
           <div id="activeTaskList">
             ${visibleActive.length === 0 ?
               '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>' :
@@ -2956,6 +2958,107 @@ App.renderProjectDashboard = function(proj) {
       </div>
     </div>
 `;
+};
+
+// ─── 待辦清單篩選器 UI 殼（§塊3）──────────────────────────────
+// 膠囊 chip 多選 + 展開面板。本批只做 UI：勾選只更新 state Set + 切 DOM 樣式，
+// 不過濾清單（接線見 renderProjectDashboard 內 TODO，回家碰 filterTasks Node 驗）。
+// state per-proj，不入 localStorage；面板開合真實來源是 DOM .open class，不在 state 存一份。
+App.getTaskFilter = function(projId) {
+  this._taskFilter = this._taskFilter || {};
+  if (!this._taskFilter[projId])
+    this._taskFilter[projId] = { stages: new Set(), owners: new Set(), urg: new Set(), status: new Set() };
+  return this._taskFilter[projId];
+};
+
+// 該專案 task 的 distinct 負責人（排序）。階段選項另用 getProjectStages 的 name。
+App.taskOwnerOptions = function(projectId) {
+  const set = new Set();
+  (DATA.tasks || []).forEach(t => {
+    if (t.project === projectId && !t._deleted && typeof t.owner === 'string' && t.owner.trim())
+      set.add(t.owner.trim());
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+};
+
+App.buildTaskFilterBar = function(projId) {
+  const stageOpts = this.getProjectStages(projId).map(s => ({ value: s.name, label: s.name }));
+  const ownerOpts = this.taskOwnerOptions(projId).map(o => ({ value: o, label: o }));
+  const urgOpts = ['high', 'medium', 'low'].map(v => ({ value: v, label: URGENCY_LABELS_ZH[v] }));
+  const statusOpts = ['pending', 'wip', 'done', 'hold'].map(v => ({ value: v, label: STATUS_LABELS_ZH[v] }));
+  return `<div class="task-filter-bar">
+    ${this.buildTaskFilterChip(projId, 'stages', '階段', stageOpts)}
+    ${this.buildTaskFilterChip(projId, 'owners', '負責人', ownerOpts)}
+    ${this.buildTaskFilterChip(projId, 'urg', '緊急程度', urgOpts)}
+    ${this.buildTaskFilterChip(projId, 'status', '狀態', statusOpts)}
+    <button class="tf-clear-all" onclick="App.clearTaskFilter('${projId}')">全部清除</button>
+  </div>`;
+};
+
+App.buildTaskFilterChip = function(projId, key, label, options) {
+  const sel = this.getTaskFilter(projId)[key];
+  const selArr = [...sel];
+  const chipText = selArr.length === 0 ? label
+    : selArr[0] + (selArr.length > 1 ? ` +${selArr.length - 1}` : '');
+  const boxes = options.length ? options.map(o =>
+    `<label class="tf-opt${sel.has(o.value) ? ' on' : ''}">
+      <input type="checkbox" value="${U.esc(o.value)}"${sel.has(o.value) ? ' checked' : ''}
+        onchange="App.toggleTaskFilterOpt('${projId}','${key}',this.value,this.checked)">
+      <span>${U.esc(o.label)}</span>
+    </label>`).join('') : '<div class="tf-empty">無選項</div>';
+  return `<div class="tf-chip-wrap" data-key="${key}">
+    <button class="tf-chip tf-${key}${selArr.length ? ' active' : ''}" data-label="${U.esc(label)}"
+      onclick="App.toggleTaskFilterPanel('${projId}','${key}')">
+      <span class="tf-chip-label">${U.esc(chipText)}</span><span class="tf-caret">▾</span>
+    </button>
+    <div class="tf-panel">
+      <div class="tf-opts">${boxes}</div>
+      <div class="tf-panel-foot">
+        <button onclick="App.clearTaskFilterKey('${projId}','${key}')">清除</button>
+        <button onclick="App.toggleTaskFilterPanel('${projId}','${key}')">套用</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+// 面板開合:同時只開一顆,純 toggle .open class（不重繪）
+App.toggleTaskFilterPanel = function(projId, key) {
+  const wrap = document.querySelector(`.tf-chip-wrap[data-key="${key}"]`);
+  if (!wrap) return;
+  const willOpen = !wrap.classList.contains('open');
+  document.querySelectorAll('.tf-chip-wrap.open').forEach(w => w.classList.remove('open'));
+  if (willOpen) wrap.classList.add('open');
+};
+
+// chip 勾選:更新 Set + 即時改 DOM 樣式/膠囊文字（本批不觸發過濾）
+App.toggleTaskFilterOpt = function(projId, key, value, checked) {
+  const sel = this.getTaskFilter(projId)[key];
+  checked ? sel.add(value) : sel.delete(value);
+  const wrap = document.querySelector(`.tf-chip-wrap[data-key="${key}"]`);
+  if (!wrap) return;
+  wrap.querySelectorAll('.tf-opt').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+  const chip = wrap.querySelector('.tf-chip');
+  const selArr = [...sel];
+  chip.classList.toggle('active', selArr.length > 0);
+  wrap.querySelector('.tf-chip-label').textContent =
+    selArr.length === 0 ? chip.dataset.label
+    : selArr[0] + (selArr.length > 1 ? ` +${selArr.length - 1}` : '');
+};
+
+App.clearTaskFilterKey = function(projId, key) {
+  this.getTaskFilter(projId)[key].clear();
+  const wrap = document.querySelector(`.tf-chip-wrap[data-key="${key}"]`);
+  if (wrap) wrap.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.checked = false; cb.dispatchEvent(new Event('change'));
+  });
+};
+
+App.clearTaskFilter = function(projId) {
+  const f = this.getTaskFilter(projId);
+  ['stages', 'owners', 'urg', 'status'].forEach(k => f[k].clear());
+  document.querySelectorAll('.task-filter-bar input[type=checkbox]').forEach(cb => {
+    cb.checked = false; cb.dispatchEvent(new Event('change'));
+  });
 };
 
 // 顯示用任務進度(Dashboard 口徑,KPI OVERALL 與階段進度卡共用,改必同步兩處呼叫端):

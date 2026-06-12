@@ -28,8 +28,10 @@
   --amber: #C4956C; --amber-l: #F5E8DC;
   --slate: #5C7A8B; --slate-l: #DDE6EC;
   --plum: #8B5E73; --plum-l: #EDDFE5;
-  --rose: #B8504D; --rose-l: #F5DEDD;
+  --rose: #B8504D; --rose-l: #F5DEDD; --rose-ink: #7A2E2C;   /* rose-l 淺底上的深字（與 -l 成對） */
   --amber-ink: #6B4423; --slate-ink: #2E3F4D;   /* -l 淺底上的深字(與 -l 成對) */
+  /* 待辦篩選膠囊選中底（中淺階，比各色 -l 深一階）*/
+  --sage-chip: #C7DDB8; --slate-chip: #BBCEDB; --terracotta-chip: #EBC79E; --rose-chip: #EBBBBA;
 
   /* 行事曆事件語意色族(漸層 from/to、邊框、字;-ink 為其上深字) */
   --navy: #4A6B85; --navy-from: #DCE7EF; --navy-to: #C8D8E4; --navy-ink: #1F3848;   /* 會議 meeting/auto-meeting */
@@ -627,6 +629,32 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
   background: var(--head-band-strong); border-bottom: 1px solid var(--rule);
   font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--ink-inverse); text-transform: uppercase;
 }
+
+/* ─── 待辦清單篩選列（§塊3 UI 殼：膠囊多選 + 展開面板，本批不接過濾）─── */
+.task-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; background: var(--surface2); border-bottom: 1px solid var(--rule); }
+.tf-chip-wrap { position: relative; }
+.tf-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border: 1.5px solid var(--rule2); border-radius: 99px; background: var(--surface); color: var(--ink3); font-size: 11.5px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background .12s, color .12s, border-color .12s; }
+.tf-chip:hover { border-color: var(--ink4); }
+.tf-caret { font-size: 9px; opacity: .7; }
+/* 選中態 B+：中淺底（-chip 階）+ 1.5px 主色邊 + 最深階字（各膠囊語意色）*/
+.tf-chip.tf-stages.active { background: var(--sage-chip); border-color: var(--sage-500); color: var(--sage-700); }
+.tf-chip.tf-owners.active { background: var(--slate-chip); border-color: var(--slate); color: var(--slate-ink); }
+.tf-chip.tf-urg.active { background: var(--terracotta-chip); border-color: var(--terracotta); color: var(--terracotta-ink); }
+.tf-chip.tf-status.active { background: var(--rose-chip); border-color: var(--rose); color: var(--rose-ink); }
+.tf-clear-all { margin-left: auto; border: none; background: none; color: var(--ink3); font-size: 11px; cursor: pointer; padding: 4px 6px; text-decoration: underline; }
+.tf-clear-all:hover { color: var(--terracotta); }
+/* 展開面板 */
+.tf-panel { display: none; position: absolute; top: calc(100% + 6px); left: 0; min-width: 160px; max-height: 280px; overflow-y: auto; background: var(--surface); border: 1px solid var(--rule2); border-radius: var(--r10); box-shadow: var(--shadow-lg); z-index: var(--z-dropdown); padding: 6px; }
+.tf-chip-wrap.open .tf-panel { display: block; }
+.tf-opts { display: flex; flex-direction: column; gap: 1px; }
+.tf-opt { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: var(--r6); font-size: 12px; color: var(--ink2); cursor: pointer; }
+.tf-opt:hover { background: var(--surface2); }
+.tf-opt.on { background: var(--sage-50); color: var(--sage-700); font-weight: 500; }
+.tf-opt input { accent-color: var(--sage-500); }
+.tf-empty { padding: 8px; font-size: 11.5px; color: var(--ink4); text-align: center; }
+.tf-panel-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--rule); }
+.tf-panel-foot button { flex: 1; border: 1px solid var(--rule2); background: var(--surface); border-radius: var(--r6); padding: 4px; font-size: 11px; color: var(--ink2); cursor: pointer; }
+.tf-panel-foot button:hover { background: var(--surface2); }
 .task-row:last-child { border-bottom: none; }
 .task-row:nth-child(even) { background: var(--cream); }
 .task-row:hover { background: var(--surface2); }
