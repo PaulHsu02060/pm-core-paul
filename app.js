@@ -4799,7 +4799,6 @@ App.buildGanttHeaderHtml = function(days) {
       <button onclick="App.ganttShift(-14)">‹‹ 上兩週</button>
       <button onclick="App.ganttToday()">今天</button>
       <button onclick="App.ganttShift(14)">下兩週 ››</button>
-      <button onclick="App.applyGanttSchedule()">⚡ 一鍵套用排程</button>
     </div>
   </div>`;
 };
@@ -4811,28 +4810,6 @@ App.ganttShift = function(days) {
 App.ganttToday = function() {
   this.ganttStart = D.monday();
   this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
-};
-
-// 一鍵套用排程：逐專案跑 applySchedule（wbs 僅專案內唯一，故不可全域套用），落地後存檔重繪
-App.applyGanttSchedule = function() {
-  const lines = [];
-  let totalA = 0, totalS = 0;
-  DATA.projects.forEach(p => {
-    const tasks = DATA.tasks.filter(t => t.project === p.id);
-    if (tasks.length === 0) return;          // 空專案跳過
-    const res = applySchedule(tasks);         // 逐專案：內部mutate task.scheduledStart/End（與DATA.tasks同參考）
-    totalA += res.applied.length;
-    totalS += res.skipped.length;
-    if (res.applied.length || res.skipped.length) {
-      lines.push(`${p.name}：套用${res.applied.length}筆／跳過${res.skipped.length}筆`);
-    }
-  });
-  Storage.save();                             // 持久化（scheduled寫進localStorage）
-  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);  // 重繪，getEffectiveSchedule自動讀到scheduled層
-  const summary = totalA === 0 && totalS === 0
-    ? '沒有可排程的任務'
-    : `⚡ 套用${totalA}筆、跳過${totalS}筆\n` + lines.join('\n');
-  U.toast(summary, totalA > 0 ? 'success' : 'info');
 };
 
 App.buildGanttFilterHtml = function() {
