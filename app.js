@@ -3814,7 +3814,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
   const startMode = (mode === 'new') ? 'auto' : App.startModeOf(t);   // 2-A：新任務一律 auto；編輯讀 startMode（含舊任務相容）
-  const autoStartDisplay = (mode !== 'new' && t.start && String(t.start).trim()) ? D.fmt(t.start, 'ymd') : '待排程引擎推算';
+  const autoStartDisplay = (mode !== 'new' && t.scheduledStart && String(t.scheduledStart).trim()) ? D.fmt(t.scheduledStart, 'ymd') : '待排程引擎推算';
   return `
     <div class="task-form" data-measure="${measure}">
     ${mode === 'new' ? `
@@ -4038,6 +4038,9 @@ App.saveNewTask = function(projId) {
   } else {
     DATA.tasks.push(task);
   }
+  const _sch = applySchedule(DATA.tasks, 'full');
+  const _blocked = _sch.skipped.filter(s => !String(s.reason || '').startsWith('anchor'));
+  if (_blocked.length) { U.toast('⚠️' + _blocked.length + ' 筆任務無法排程（循環或缺前置）', 'warning'); }
   Storage.save();
   this.closeModal();
   this.refreshAll();
@@ -4239,6 +4242,9 @@ App.saveTask = function(id) {
   }
   t.status = newStatus;
 
+  const _sch = applySchedule(DATA.tasks, 'full');
+  const _blocked = _sch.skipped.filter(s => !String(s.reason || '').startsWith('anchor'));
+  if (_blocked.length) { U.toast('⚠️' + _blocked.length + ' 筆任務無法排程（循環或缺前置）', 'warning'); }
   Storage.save();
   this.closeModal();
   this.refreshAll();
