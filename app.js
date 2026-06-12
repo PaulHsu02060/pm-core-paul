@@ -3380,9 +3380,9 @@ App.buildTaskRowHtml = function(t, i) {
 
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
     <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${i + 1}</span>
-    <span class="task-anchor" data-edit title="設為錨點"
+    <span class="task-anchor ${t.pinned ? 'pinned' : ''}" data-edit title="${t.pinned ? '已釘住開始日（點取消）' : '點此釘住開始日'}"
           style="cursor:pointer; user-select:none; text-align:center;"
-          onclick="event.stopPropagation(); App.setAnchor('${t.id}')">📌</span>
+          onclick="event.stopPropagation(); App.setAnchor('${t.id}')">${t.pinned ? '<span class="anchor-badge"><i class="ti ti-pinned"></i>已釘</span>' : '<i class="ti ti-pin"></i>'}</span>
     <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.stage || '—')}</span>
     <div class="task-info">
       <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -4236,9 +4236,12 @@ App.saveTask = function(id) {
 
 // 錨點釘子（綜觀清單 task-row 📌）接口 — 目前空殼，下一階段接排程引擎
 App.setAnchor = function(id) {
-  U.toast('錨點功能開發中，下一階段接排程引擎', 'info');
-  // TODO 回家做：override 通用化（解除 isJTask 限制）→ setJOverride 寫 start
-  //   → computeSchedule 錨點改讀 override → 觸發下游級聯重算 → 寫回 scheduled cache
+  const t = DATA.tasks.find(x => x.id === id);
+  if (!t) return;
+  if (t.locked) { U.toast('⚠️同步來的任務無法修改', 'warning'); return; }
+  t.pinned = !t.pinned;
+  Storage.save();
+  this.refreshAll();
 };
 
 App.saveJSchedule = function(id) {
