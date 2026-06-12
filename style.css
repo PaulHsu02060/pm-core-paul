@@ -623,7 +623,7 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
   gap: 14px; align-items: center; padding: 11px 16px;
 }
 .task-row {
-  border-bottom: 1px solid var(--rule); transition: background .12s; cursor: pointer;
+  position: relative; border-bottom: 1px solid var(--rule); transition: background .12s; cursor: pointer;
 }
 .task-row-header {
   background: var(--head-band-strong); border-bottom: 1px solid var(--rule);
@@ -660,6 +660,27 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .task-row:hover { background: var(--surface2); }
 .task-row.synced { background: rgba(74,124,92,.02); }
 .task-row.synced:hover { background: var(--sage-50); }
+/* 列交界 hover 插入（§8b 中間插入 UI 殼；只在 active 清單開、末列不放）*/
+.row-insert {
+  position: absolute; left: 0; right: 0; bottom: -9px; height: 18px;
+  align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .12s; z-index: var(--z-sticky);
+  pointer-events: none;            /* 熱區不擋列點擊；只有➕按鈕可點 */
+  display: none;                   /* 預設關（done 清單等情境）；只在 active 清單開 */
+}
+.row-insert::before {
+  content: ''; position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+  height: 2px; background: var(--sage-600); border-radius: 99px;
+}
+.row-insert-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--sage-600); color: var(--ink-inverse); border: none;
+  font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); pointer-events: auto;
+}
+#activeTaskList .task-row .row-insert { display: flex; }
+#activeTaskList .task-row:last-child .row-insert { display: none; }
+#activeTaskList .task-row:hover .row-insert { opacity: 1; }
 .task-check {
   width: 18px; height: 18px; border-radius: var(--r4); border: 1.5px solid var(--rule2);
   display: flex; align-items: center; justify-content: center;

@@ -3404,6 +3404,10 @@ App.buildTaskRowHtml = function(t, i) {
     </div>
     <span style="font-size:12px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
     <span class="task-deadline ${dlClass}" style="text-align:center; font-size:12px;">${dlText}</span>
+    <div class="row-insert" data-edit>
+      <button class="row-insert-btn" tabindex="-1" title="在此列下方插入任務"
+              onclick="event.stopPropagation(); App._insertAfterId='${t.id}'; App.openNewTaskDialog('${t.project}');"><i class="ti ti-plus"></i></button>
+    </div>
   </div>`;
 };
 
@@ -4026,7 +4030,14 @@ App.saveNewTask = function(projId) {
     createdAt: new Date().toISOString(),
   };
 
-  DATA.tasks.push(task);
+  if (App._insertAfterId) {
+    const _i = DATA.tasks.findIndex(x => x.id === App._insertAfterId);
+    if (_i >= 0) { DATA.tasks.splice(_i + 1, 0, task); }
+    else { DATA.tasks.push(task); }
+    App._insertAfterId = null;
+  } else {
+    DATA.tasks.push(task);
+  }
   Storage.save();
   this.closeModal();
   this.refreshAll();
@@ -7934,6 +7945,7 @@ App.openModal = function({ title, body, footer }) {
 };
 
 App.closeModal = function() {
+  App._insertAfterId = null;   // 取消/關閉(含 X、Esc)清插入旗標，避免殘留下次誤插
   document.getElementById('modalOverlay').classList.remove('open');
 };
 
