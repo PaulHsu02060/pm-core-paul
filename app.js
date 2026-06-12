@@ -95,7 +95,7 @@ const DEFAULT_SETTINGS = {
   googleClientId: '', // 由使用者在設定頁填入
 
   // ─── 雲端同步 (Cloud Sync via Google Apps Script) ───
-  cloudSyncUrl: '',                      // Apps Script Web App URL
+  cloudSyncUrl: CFG('CLOUD_SYNC_URL', ''),  // 預設讀 config.js 公開讀 URL（訪客零設定即有讀取網址；本機存檔/真值仍優先覆蓋）
   cloudSyncToken: CFG('SYNC_TOKEN', 'CHANGE_THIS_TOKEN'),  // = APP_CONFIG.SYNC_TOKEN，與 apps-script-cloud-sync.gs 的 CHECK_TOKEN 成對
   cloudSyncEnabled: true,                // 預設開啟（只要填了 URL 就會自動運作）
   cloudAutoSync: true,                   // 儲存後自動上傳
