@@ -1054,6 +1054,25 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .ss-field input, .ss-field select { padding: 7px 10px; border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface2); outline: none; font-size: 13px; width: 100%; transition: all .15s; }
 .ss-field input:focus, .ss-field select:focus { border-color: var(--sage-500); background: var(--surface); box-shadow: 0 0 0 3px rgba(74,124,92,.1); }
 .ss-field .help { font-size: 11px; color: var(--ink3); margin-top: 4px; line-height: 1.5; }
+/* 工作日曆（公休/補班）匯入區（§之二.9 第3步） */
+.cal-import { display: flex; flex-direction: column; gap: 10px; }
+.cal-label { font-size: 12px; color: var(--ink2); font-weight: 500; }
+.cal-textarea { width: 100%; min-height: 120px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r6); font-family: var(--mono); font-size: 11px; resize: vertical; background: var(--surface2); outline: none; box-sizing: border-box; }
+.cal-textarea:focus { background: var(--surface); border-color: var(--sage-500); }
+.cal-btns { display: flex; gap: 8px; }
+.cal-preview { padding: 10px 12px; background: var(--surface2); border-radius: var(--r8); font-size: 12px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.cal-preview:empty { display: none; }
+.cal-result { color: var(--sage-700); font-weight: 600; }
+.cal-hint { color: var(--terracotta-ink); }
+.cal-loaded-head { font-size: 12px; color: var(--ink3); padding: 2px 0; }
+.cal-loaded { border: 1px solid var(--rule); border-radius: var(--r8); max-height: 260px; overflow-y: auto; }
+.cal-empty { padding: 16px; text-align: center; color: var(--ink4); font-size: 12px; }
+.cal-year { padding: 6px 12px; background: var(--head-band-strong); color: var(--ink-inverse); font-size: 11px; font-weight: 600; position: sticky; top: 0; }
+.cal-row { display: grid; grid-template-columns: 104px 1fr auto; gap: 10px; align-items: center; padding: 7px 12px; border-top: 1px solid var(--rule); font-size: 12px; }
+.cal-row-date { font-family: var(--mono); color: var(--ink3); }
+.cal-row-name { color: var(--ink); }
+.cal-del { border: none; background: none; color: var(--ink4); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: var(--r6); }
+.cal-del:hover { background: var(--terracotta-chip); color: var(--terracotta-ink); }
 .time-range { display: flex; align-items: center; gap: 8px; }
 .time-range input { flex: 1; }
 .time-range span { color: var(--ink3); font-family: var(--mono); font-size: 11px; }

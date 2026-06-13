@@ -6302,6 +6302,85 @@ App.showSettingsTab = function(btn, id) {
   if (panel) panel.classList.add('active');
 };
 
+App._pendingCalendar = null;   // 解析後暫存，確認才寫入
+
+// 解析貼上文字 → 預覽（不寫入）。error/空貼/0 公休 → 提示且不給確認鈕（防清空現有）
+App.parseCalendarImport = function() {
+  const ta = document.getElementById('cal-paste');
+  const prev = document.getElementById('cal-preview');
+  const text = ((ta && ta.value) || '').trim();
+  if (!text) { App._pendingCalendar = null; prev.innerHTML = '<div class="cal-hint">請先貼上行事曆文字</div>'; return; }
+  const r = D.parseCalendarPaste(text);
+  if (r.error) {   // 彈性版：無表頭等 → 顯示 error、不給確認鈕、不清空現有
+    App._pendingCalendar = null;
+    prev.innerHTML = `<div class="cal-hint">${U.esc(r.error)}</div>`;
+    return;
+  }
+  const N = Object.keys(r.holidays).length, M = Object.keys(r.workOverrides).length, K = r.skipped;
+  if (N === 0) {
+    App._pendingCalendar = null;
+    prev.innerHTML = `<div class="cal-hint">未解析到公休（公休 0 · 補班 ${M} · 跳過 ${K}）。請確認類型欄含「公休日」，或無類型欄時工作日欄為 0。未寫入。</div>`;
+    return;
+  }
+  App._pendingCalendar = { holidays: r.holidays, workOverrides: r.workOverrides };
+  const cur = Object.keys((DATA.calendars && DATA.calendars.base && DATA.calendars.base.holidays) || {}).length;
+  prev.innerHTML = `<div class="cal-result">✅ 公休 ${N} 筆 · 補班 ${M} 筆 · 跳過 ${K} 行</div>` +
+    `<button class="tb-action" onclick="App.confirmCalendarImport()">確認寫入（會覆蓋現有 ${cur} 筆公休）</button>`;
+};
+
+// 確認寫入：整批覆蓋 base.holidays（+ 有補班才寫 override.workOverrides）→ Storage.save → 重渲染
+App.confirmCalendarImport = function() {
+  const p = App._pendingCalendar;
+  if (!p || !Object.keys(p.holidays).length) { U.toast('⚠ 沒有可寫入的公休', 'warning'); return; }
+  if (!DATA.calendars) DATA.calendars = { base: { name: '台灣公版', holidays: {} }, override: null };
+  DATA.calendars.base.holidays = p.holidays;
+  if (Object.keys(p.workOverrides).length) {
+    if (!DATA.calendars.override) DATA.calendars.override = { name: '公司調休', extraHolidays: {}, workOverrides: {} };
+    DATA.calendars.override.workOverrides = p.workOverrides;
+  }
+  Storage.save();
+  const n = Object.keys(p.holidays).length;
+  App._pendingCalendar = null;
+  const ta = document.getElementById('cal-paste'); if (ta) ta.value = '';
+  document.getElementById('cal-preview').innerHTML = '';
+  document.getElementById('cal-loaded').innerHTML = App.buildLoadedHolidaysHtml();
+  U.toast(`✅ 已寫入 ${n} 筆公休`, 'success');
+};
+
+// 刪單筆公休
+App.deleteHoliday = function(date) {
+  const hol = DATA.calendars && DATA.calendars.base && DATA.calendars.base.holidays;
+  if (!hol || !(date in hol)) return;
+  delete hol[date];
+  Storage.save();
+  document.getElementById('cal-loaded').innerHTML = App.buildLoadedHolidaysHtml();
+};
+
+// 清空貼上區
+App.clearCalendarPaste = function() {
+  const ta = document.getElementById('cal-paste'); if (ta) ta.value = '';
+  document.getElementById('cal-preview').innerHTML = '';
+  App._pendingCalendar = null;
+};
+
+// 已載入公休清單（年份分組，第一版只顯示公休；單筆刪）
+App.buildLoadedHolidaysHtml = function() {
+  const hol = (DATA.calendars && DATA.calendars.base && DATA.calendars.base.holidays) || {};
+  const dates = Object.keys(hol).sort();
+  if (!dates.length) return '<div class="cal-empty">尚未載入公休</div>';
+  const byYear = {};
+  dates.forEach(d => { const y = d.slice(0, 4); (byYear[y] = byYear[y] || []).push(d); });
+  const groups = Object.keys(byYear).sort().map(y =>
+    `<div class="cal-year">${y}（${byYear[y].length}）</div>` +
+    byYear[y].map(d =>
+      `<div class="cal-row"><span class="cal-row-date">${d}</span>` +
+      `<span class="cal-row-name">${U.esc(hol[d])}</span>` +
+      `<button class="cal-del" onclick="App.deleteHoliday('${d}')" title="刪除">✕</button></div>`
+    ).join('')
+  ).join('');
+  return `<div class="cal-loaded-head">共 ${dates.length} 筆公休</div>${groups}`;
+};
+
 App.renderSettings = function() {
   const s = DATA.settings;
   const log = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
@@ -6381,6 +6460,22 @@ App.renderSettings = function() {
             <input type="number" id="set-split" value="${s.splitThreshold}" min="1" max="12" step="0.5">
             <div class="help">超過此工時的任務會自動切分到多天</div>
           </div>
+        </div>
+      </div>
+      <!-- 工作日曆（公休 / 補班）匯入 -->
+      <div class="settings-section">
+        <div class="ss-title">🗓 工作日曆（公休 / 補班）</div>
+        <div class="ss-desc">貼上公司行事曆（含表頭，欄位順序不限），解析後寫入工作日定義（isWorkday／排程依此判工作日）</div>
+
+        <div class="cal-import">
+          <label class="cal-label">貼上行事曆文字（須含表頭那一行，如 日期／星期／類型／節日名稱／工作日；欄位順序不限）</label>
+          <textarea id="cal-paste" class="cal-textarea" placeholder="日期&#9;星期&#9;類型&#9;節日名稱&#9;工作日&#10;2026-01-01&#9;四&#9;公休日&#9;元旦&#9;0"></textarea>
+          <div class="cal-btns">
+            <button class="tb-action" onclick="App.parseCalendarImport()">解析</button>
+            <button class="tb-action ghost" onclick="App.clearCalendarPaste()">清空</button>
+          </div>
+          <div id="cal-preview" class="cal-preview"></div>
+          <div id="cal-loaded" class="cal-loaded">${App.buildLoadedHolidaysHtml()}</div>
         </div>
       </div>
       <!-- 會議模板 -->
