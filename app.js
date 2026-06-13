@@ -1070,13 +1070,13 @@ function filterTasks(tasks, f, today) {
 }
 
 // 步驟4 第一段：依賴圖 + 拓撲排序 + 循環偵測（不算日期，computeSchedule 第二段會用）
-// 節點 id = String(task.wbs)；邊 = parsePredecessors(task.predecessor) 的每個 dep → 本任務。
+// 節點 key = task.id（前置 id 化後，§8b.5 層次二）；邊 = parsePredecessors(task.predecessor) 的每個 dep(id) → 本任務。
 // @param tasks 任務陣列
 // @return {
-//   order:    [wbs,...]      拓撲順序（前置在前、依賴在後；不含 circular 節點）
-//   circular: [wbs,...]      落在環上的節點（標 error:'circular'，排程時跳過）
-//   nodes:    Map<wbs,task>  節點查找表
-//   edges:    Map<wbs,[{dep,type,lag}...]>  每個節點「已存在於圖中」的前置邊
+//   order:    [id,...]       拓撲順序（前置在前、依賴在後；不含 circular 節點）
+//   circular: [id,...]       落在環上的節點（標 error:'circular'，排程時跳過）
+//   nodes:    Map<id,task>   節點查找表
+//   edges:    Map<id,[{dep,type,lag}...]>  每個節點「已存在於圖中」的前置邊
 // }
 // 三色 DFS：white(未訪) / gray(訪問中，在堆疊上) / black(完成)。
 //   訪問中又遇到 gray 節點 → 有環；直接環 A→B→A 與間接環 A→B→C→A 都會在重遇 gray 時抓到。
@@ -1085,14 +1085,14 @@ function filterTasks(tasks, f, today) {
 function topoSortTasks(tasks) {
   const list = (tasks || []).filter(t => t && t.wbs !== '' && t.wbs !== undefined && t.wbs !== null);
   const nodes = new Map();
-  for (const t of list) nodes.set(String(t.wbs), t);
+  for (const t of list) nodes.set(t.id, t);
 
   // 邊：本任務 → 它的前置；只保留 dep 存在於 nodes 的邊。
   // 不存在的前置不影響拓撲（由 isTaskBlocked 另報「前置不存在」）。
   const edges = new Map();
   for (const t of list) {
-    const preds = parsePredecessors(t.predecessor).filter(p => nodes.has(String(p.dep)));
-    edges.set(String(t.wbs), preds);
+    const preds = parsePredecessors(t.predecessor).filter(p => nodes.has(p.dep));
+    edges.set(t.id, preds);
   }
 
   const WHITE = 0, GRAY = 1, BLACK = 2;
@@ -1152,11 +1152,11 @@ function topoSortTasks(tasks) {
 //        ③無手填、前置正常 → 依關係推算
 //        ④無手填、無前置 → 標 toSchedule（待排）
 // @return { results:[{wbs,taskId,name,suggestedStart,suggestedEnd,blocked,error,toSchedule,blockedCause,warnings}],
-//           circular:[wbs], hasCircular }
+//           circular:[id], hasCircular }
 // ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function computeSchedule(tasks) {
   const { order, circular, nodes } = topoSortTasks(tasks);
-  const byWbs = new Map();   // wbs -> result（供連鎖污染查前置）
+  const byId = new Map();   // id -> result（供連鎖污染查前置；前置 id 化後 key=task.id）
   const results = [];
 
   const iso = (d) => D.fmt(d, 'iso');
@@ -1164,17 +1164,17 @@ function computeSchedule(tasks) {
   const ident = (t) => ({ wbs: (t.wbs === undefined || t.wbs === null) ? '' : t.wbs, taskId: t.id, name: t.name || '' });
 
   // 1. 先標 circular 節點（讓下游污染查得到）
-  for (const wbs of circular) {
-    const t = nodes.get(wbs);
-    byWbs.set(wbs, { ...ident(t), suggestedStart: null, suggestedEnd: null,
+  for (const id of circular) {
+    const t = nodes.get(id);
+    byId.set(id, { ...ident(t), suggestedStart: null, suggestedEnd: null,
       blocked: true, error: 'circular', toSchedule: false, blockedCause: 'circular',
       warnings: ['循環依賴：此任務在依賴環上，無法排程'] });
   }
 
   function processTask(t) {
     const fullPreds = parsePredecessors(t.predecessor);
-    const preds = fullPreds.filter(p => nodes.has(String(p.dep)));
-    const missingWarn = fullPreds.filter(p => !nodes.has(String(p.dep)))
+    const preds = fullPreds.filter(p => nodes.has(p.dep));
+    const missingWarn = fullPreds.filter(p => !nodes.has(p.dep))
       .map(p => `前置 #${p.dep} 不存在`);
     const dur = durOf(t);
 
@@ -1197,7 +1197,7 @@ function computeSchedule(tasks) {
     const pollutedWarn = [];
     let pollutedCause = null;
     for (const p of preds) {
-      const pr = byWbs.get(String(p.dep));
+      const pr = byId.get(p.dep);
       if (!pr) continue;
       if (pr.error === 'circular' || pr.blockedCause === 'circular') {
         pollutedWarn.push(`前置 #${p.dep} 無法排程（上游循環）`);
@@ -1217,7 +1217,7 @@ function computeSchedule(tasks) {
     if (preds.length > 0) {
       let latest = null;
       for (const p of preds) {
-        const pr = byWbs.get(String(p.dep));
+        const pr = byId.get(p.dep);
         const ps = new Date(pr.suggestedStart);
         const pe = new Date(pr.suggestedEnd);
         let s;
@@ -1238,11 +1238,11 @@ function computeSchedule(tasks) {
   }
 
   // 2. 圖內節點按拓撲順序處理
-  for (const wbs of order) byWbs.set(wbs, processTask(nodes.get(wbs)));
+  for (const id of order) byId.set(id, processTask(nodes.get(id)));
 
   // 3. 整理輸出：order → circular → 非圖內任務（無 wbs，例如手填任務）
-  for (const wbs of order) results.push(byWbs.get(wbs));
-  for (const wbs of circular) results.push(byWbs.get(wbs));
+  for (const id of order) results.push(byId.get(id));
+  for (const id of circular) results.push(byId.get(id));
   for (const t of (tasks || [])) {
     if (!t) continue;
     if (t.wbs === '' || t.wbs === undefined || t.wbs === null) results.push(processTask(t));

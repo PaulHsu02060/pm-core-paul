@@ -158,11 +158,11 @@ function getJOverride(task) {            // 測試版吃 task 物件（生產吃
 function topoSortTasks(tasks) {
   const list = (tasks || []).filter(t => t && t.wbs !== '' && t.wbs !== undefined && t.wbs !== null);
   const nodes = new Map();
-  for (const t of list) nodes.set(String(t.wbs), t);
+  for (const t of list) nodes.set(t.id, t);
   const edges = new Map();
   for (const t of list) {
-    const preds = parsePredecessors(t.predecessor).filter(p => nodes.has(String(p.dep)));
-    edges.set(String(t.wbs), preds);
+    const preds = parsePredecessors(t.predecessor).filter(p => nodes.has(p.dep));
+    edges.set(t.id, preds);
   }
   const WHITE = 0, GRAY = 1, BLACK = 2;
   const color = new Map();
@@ -198,21 +198,21 @@ function topoSortTasks(tasks) {
 // ════ computeSchedule 同步複本 ══════════════════════════════════
 function computeSchedule(tasks) {
   const { order, circular, nodes } = topoSortTasks(tasks);
-  const byWbs = new Map();
+  const byId = new Map();
   const results = [];
   const iso = (d) => D.fmt(d, 'iso');
   const durOf = (t) => Math.max(1, parseFloat(t.durationDays) || 1);
   const ident = (t) => ({ wbs: (t.wbs === undefined || t.wbs === null) ? '' : t.wbs, taskId: t.id, name: t.name || '' });
-  for (const wbs of circular) {
-    const t = nodes.get(wbs);
-    byWbs.set(wbs, { ...ident(t), suggestedStart: null, suggestedEnd: null,
+  for (const id of circular) {
+    const t = nodes.get(id);
+    byId.set(id, { ...ident(t), suggestedStart: null, suggestedEnd: null,
       blocked: true, error: 'circular', toSchedule: false, blockedCause: 'circular',
       warnings: ['循環依賴：此任務在依賴環上，無法排程'] });
   }
   function processTask(t) {
     const fullPreds = parsePredecessors(t.predecessor);
-    const preds = fullPreds.filter(p => nodes.has(String(p.dep)));
-    const missingWarn = fullPreds.filter(p => !nodes.has(String(p.dep))).map(p => `前置 #${p.dep} 不存在`);
+    const preds = fullPreds.filter(p => nodes.has(p.dep));
+    const missingWarn = fullPreds.filter(p => !nodes.has(p.dep)).map(p => `前置 #${p.dep} 不存在`);
     const dur = durOf(t);
     // ① 錨點：使用者刻意定的開始日，最高優先、不被推算覆蓋（即使上游有問題也不 block，只警示）
     //   - 同步任務(J task)：錨點 = override._localStart（前端刻意改的），plannedStart 不算錨點
@@ -231,7 +231,7 @@ function computeSchedule(tasks) {
     const pollutedWarn = [];
     let pollutedCause = null;
     for (const p of preds) {
-      const pr = byWbs.get(String(p.dep));
+      const pr = byId.get(p.dep);
       if (!pr) continue;
       if (pr.error === 'circular' || pr.blockedCause === 'circular') {
         pollutedWarn.push(`前置 #${p.dep} 無法排程（上游循環）`); pollutedCause = 'circular';
@@ -247,7 +247,7 @@ function computeSchedule(tasks) {
     if (preds.length > 0) {
       let latest = null;
       for (const p of preds) {
-        const pr = byWbs.get(String(p.dep));
+        const pr = byId.get(p.dep);
         const ps = new Date(pr.suggestedStart);
         const pe = new Date(pr.suggestedEnd);
         let s;
@@ -264,9 +264,9 @@ function computeSchedule(tasks) {
       blocked: false, error: null, toSchedule: true, blockedCause: null,
       warnings: ['待排：無前置且未填開始日'].concat(missingWarn) };
   }
-  for (const wbs of order) byWbs.set(wbs, processTask(nodes.get(wbs)));
-  for (const wbs of order) results.push(byWbs.get(wbs));
-  for (const wbs of circular) results.push(byWbs.get(wbs));
+  for (const id of order) byId.set(id, processTask(nodes.get(id)));
+  for (const id of order) results.push(byId.get(id));
+  for (const id of circular) results.push(byId.get(id));
   for (const t of (tasks || [])) {
     if (!t) continue;
     if (t.wbs === '' || t.wbs === undefined || t.wbs === null) results.push(processTask(t));
