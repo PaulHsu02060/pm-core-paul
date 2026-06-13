@@ -1016,11 +1016,10 @@ function isTaskBlocked(task, allTasksMap) {
       predRefStr = D.fmt(D.addWorkdays(new Date(dep.start), depDur - 1), 'iso');
     }
     if (taskRefStr && predRefStr) {
-      // 只有 FS 是「起點(SOD) ≥ 終點(EOD)」→ 同日不成立，需跳次一工作日(+1)；
-      // SS/FF/SF 端點同層級(SOD≥SOD / EOD≥EOD / EOD≥SOD)當日即成立，不 +1。
-      // 此 fsBump 讓偵測門檻與 computeSchedule 的推算門檻完全同尺。
-      const fsBump = (p.type === 'FS') ? 1 : 0;
-      const predShifted = D.addWorkdays(new Date(predRefStr), p.lag + fsBump);
+      // FS：起點(SOD) ≥ 前置終點(EOD)，offset=Math.max(1,lag)（純FS=1、FS+N=N，下限1），與 computeSchedule 同尺；
+      // SS/FF/SF 端點同層級(SOD≥SOD / EOD≥EOD / EOD≥SOD)當日即成立，用純 lag、不墊高。
+      const fsOffset = (p.type === 'FS') ? Math.max(1, p.lag) : p.lag;
+      const predShifted = D.addWorkdays(new Date(predRefStr), fsOffset);
       const taskRef = new Date(taskRefStr);
       // predShifted 晚於 taskRef（正天數）→ 本任務排太早 → 違反
       if (D.daysBetween(taskRef, predShifted) > 0) {
@@ -1234,7 +1233,7 @@ function computeSchedule(tasks) {
         if (p.type === 'SS') s = D.addWorkdays(ps, p.lag);
         else if (p.type === 'FF') s = D.addWorkdays(D.addWorkdays(pe, p.lag), -(dur - 1));
         else if (p.type === 'SF') s = D.addWorkdays(D.addWorkdays(ps, p.lag), -(dur - 1));
-        else s = D.addWorkdays(pe, 1 + p.lag);   // FS（parsePredecessors 已把未知關係正規化為 FS）
+        else s = D.addWorkdays(pe, Math.max(1, p.lag));   // FS：Excel WORKDAY(end,1)=純FS、WORKDAY(end,N)=FS+N；lag 即總工作日位移(下限1)，非 1+lag
         if (latest === null || s > latest) latest = s;
       }
       return { ...ident(t), suggestedStart: iso(latest), suggestedEnd: iso(D.addWorkdays(latest, dur - 1)),

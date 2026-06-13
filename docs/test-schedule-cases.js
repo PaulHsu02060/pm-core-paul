@@ -169,8 +169,8 @@ function isTaskBlocked(task, allTasksMap) {
       predRefStr = D.fmt(D.addWorkdays(new Date(dep.start), depDur - 1), 'iso');
     }
     if (taskRefStr && predRefStr) {
-      const fsBump = (p.type === 'FS') ? 1 : 0;
-      const predShifted = D.addWorkdays(new Date(predRefStr), p.lag + fsBump);
+      const fsOffset = (p.type === 'FS') ? Math.max(1, p.lag) : p.lag;
+      const predShifted = D.addWorkdays(new Date(predRefStr), fsOffset);
       const taskRef = new Date(taskRefStr);
       if (D.daysBetween(taskRef, predShifted) > 0) {
         result.reasons.push({ dep: p.dep, type: p.type, conflict: '日期衝突' });
@@ -298,7 +298,7 @@ function computeSchedule(tasks) {
         if (p.type === 'SS') s = D.addWorkdays(ps, p.lag);
         else if (p.type === 'FF') s = D.addWorkdays(D.addWorkdays(pe, p.lag), -(dur - 1));
         else if (p.type === 'SF') s = D.addWorkdays(D.addWorkdays(ps, p.lag), -(dur - 1));
-        else s = D.addWorkdays(pe, 1 + p.lag);
+        else s = D.addWorkdays(pe, Math.max(1, p.lag));
         if (latest === null || s > latest) latest = s;
       }
       return { ...ident(t), suggestedStart: iso(latest), suggestedEnd: iso(D.addWorkdays(latest, dur - 1)),
@@ -487,11 +487,11 @@ console.log('\n===== 2. isTaskBlocked 四種關係邊界 =====');
 {
   const p = mk({ wbs: '2', status: 'done', end: '2026-01-09' });
   const m = mapOf([p]);
-  const tEarly = mk({ wbs: 'c', predecessor: '2FS+2', start: '2026-01-13' }); // 門檻 01-14
-  const tOk = mk({ wbs: 'd', predecessor: '2FS+2', start: '2026-01-14' });
-  check('2FS+2 start=01-13 → 衝突', isTaskBlocked(tEarly, m).blocked, true,
-    '門檻=addWorkdays(01-09, 2+1)=01-14，01-13 太早');
-  check('2FS+2 start=01-14 → OK', isTaskBlocked(tOk, m).blocked, false, '剛好達門檻不衝突');
+  const tEarly = mk({ wbs: 'c', predecessor: '2FS+2', start: '2026-01-12' }); // 門檻 01-13
+  const tOk = mk({ wbs: 'd', predecessor: '2FS+2', start: '2026-01-13' });
+  check('2FS+2 start=01-12 → 衝突', isTaskBlocked(tEarly, m).blocked, true,
+    '門檻=addWorkdays(01-09, max(1,2)=2)=01-13，01-12 太早');
+  check('2FS+2 start=01-13 → OK', isTaskBlocked(tOk, m).blocked, false, '剛好達門檻不衝突');
 }
 // SS：前置 start 01-05(週一) done，同日對齊應成立
 {
@@ -563,12 +563,12 @@ console.log('\n===== 4. computeSchedule 日期推算 =====');
 {
   const out = runSchedule([
     mk({ wbs: '10', start: '2026-01-05', durationDays: 5 }),      // end 01-09
-    mk({ wbs: '11', predecessor: '10FS+10', durationDays: 1 }),   // start=addWorkdays(01-09,11)=01-26
+    mk({ wbs: '11', predecessor: '10FS+10', durationDays: 1 }),   // start=addWorkdays(01-09,10)=01-23
     mk({ wbs: '20', start: '2026-01-05', durationDays: 3 }),      // end 01-07
-    mk({ wbs: '21', predecessor: '20FS+2', durationDays: 2 }),    // start=addWorkdays(01-07,3)=01-12
+    mk({ wbs: '21', predecessor: '20FS+2', durationDays: 2 }),    // start=addWorkdays(01-07,2)=01-09
   ]);
-  check('10FS+10', R(out, '11').suggestedStart, '2026-01-26', 'addWorkdays(前置end 01-09, 1+10)=01-26');
-  check('2FS+2', `${R(out, '21').suggestedStart}~${R(out, '21').suggestedEnd}`, '2026-01-12~2026-01-13', 'addWorkdays(01-07,1+2)=01-12');
+  check('10FS+10', R(out, '11').suggestedStart, '2026-01-23', 'addWorkdays(前置end 01-09, max(1,10)=10)=01-23');
+  check('2FS+2', `${R(out, '21').suggestedStart}~${R(out, '21').suggestedEnd}`, '2026-01-09~2026-01-12', 'addWorkdays(01-07,max(1,2)=2)=01-09');
 }
 // FF（Sheet 例 1FF）：finish 對齊前置 finish
 {
