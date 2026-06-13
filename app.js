@@ -7231,10 +7231,15 @@ App._excelParsedRows = [];
 // Date → 'YYYY-MM-DD'；空值/非 Date → ''
 function wbsDateStr(v) {
   if (!v) return '';
-  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
-  // 防呆：raw:false 已是字串時直接用；其餘嘗試 new Date
-  const d = new Date(v);
-  return isNaN(d) ? '' : d.toISOString().slice(0, 10);
+  // 日期型（cellDates:true 解析的本地午夜 Date）→ 用本地 getter，不走 UTC toISOString（避免 UTC+8 -1 天）
+  if (v instanceof Date && !isNaN(v)) return D.fmt(v, 'iso');
+  // 字串/其他：先正則直抽 YYYY-MM-DD（完全不經 Date，免疫時區）
+  const s = String(v).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // 非標準格式才 round-trip（盡力而為；斜線日期 new Date 走本地，仍安全）
+  const d = new Date(s);
+  return isNaN(d) ? '' : D.fmt(d, 'iso');
 }
 
 // 讀專案資訊頁部門表（列12表頭，列13起對應），建「成員→部門」反查 map

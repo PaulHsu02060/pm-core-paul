@@ -96,6 +96,20 @@ const D = {
   },
 };
 
+// ── wbsDateStr 同步複本（app.js 獨立函式，匯入器日期轉換；呼叫上方 D.fmt） ──
+function wbsDateStr(v) {
+  if (!v) return '';
+  // 日期型（cellDates:true 解析的本地午夜 Date）→ 用本地 getter，不走 UTC toISOString（避免 UTC+8 -1 天）
+  if (v instanceof Date && !isNaN(v)) return D.fmt(v, 'iso');
+  // 字串/其他：先正則直抽 YYYY-MM-DD（完全不經 Date，免疫時區）
+  const s = String(v).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // 非標準格式才 round-trip（盡力而為；斜線日期 new Date 走本地，仍安全）
+  const d = new Date(s);
+  return isNaN(d) ? '' : D.fmt(d, 'iso');
+}
+
 // ── 工具 ──────────────────────────────────────────────────────
 // 用「本地時間」建構 Date，避免 UTC 解析時區坑
 function d(s) { const [y, m, day] = s.split('-').map(Number); return new Date(y, m - 1, day); }
@@ -202,6 +216,23 @@ console.log('\n===== 5. parseCalendarPaste =====');
   check('補班筆數=1', Object.keys(r.workOverrides).length, 1, '補班→workOverrides');
   check('補班日期名', r.workOverrides['2026-02-07'], '春節調整補班', '補班→workOverrides');
   check('表頭被跳過計入skipped', r.skipped, 1, '表頭行（日期欄非YYYY-MM-DD）skipped=1');
+}
+
+console.log('\n===== 6. wbsDateStr（Excel 日期匯入不差一天） =====');
+{
+  // 日期型分支：cellDates:true 給的本地午夜 Date（new Date 本地建構，任何時區都這天）
+  check('日期型 Date → 不差一天', wbsDateStr(new Date(2025, 10, 21)), '2025-11-21',
+    '本地午夜 Nov 21 用 D.fmt 本地讀回；舊碼 toISOString 在 UTC+8 會吐 11-20（差一天 bug）');
+  check('日期型 Date（#54 可販日）', wbsDateStr(new Date(2027, 0, 28)), '2027-01-28',
+    '本地讀回不位移');
+  // 字串分支：正則直抽，完全不經 Date
+  check('ISO 字串原樣（正則直抽）', wbsDateStr('2025-11-21'), '2025-11-21',
+    'YYYY-MM-DD 正則命中，不經 Date round-trip');
+  check('ISO 字串帶時間只取日期', wbsDateStr('2025-11-21T00:00:00'), '2025-11-21',
+    '無 $ 錨點，後段時間被忽略');
+  // 邊界
+  check('空字串 → 空', wbsDateStr(''), '', 'falsy 直接回空');
+  check('null → 空', wbsDateStr(null), '', 'falsy 直接回空');
 }
 
 console.log('\n===== 結果 =====');
