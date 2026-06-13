@@ -1769,6 +1769,14 @@ const Sync = {
         }
       }
 
+      // 第二輪：前置 id 化（§8b.5 層次二，方案 X 覆蓋，與 WBS 匯入同模式）。
+      // ⚠ 每次同步當下重翻，不是 one-shot migration、不設旗標、不擋重跑——上次爆炸根因正是半套 migration 掃存量。
+      // 必須在這批 task 全部 push 完之後做，否則前置指向後面尚未進 map 的 task 會查不到。
+      // 查找來源＝本次同步批次（1698 已清該專案舊 synced task、迴圈只 push 這批，故 filter 即此批），同批互相前置才查得到。
+      const syncedBatch = DATA.tasks.filter(t => t.synced && t.project === jProj.id);
+      const wbsToIdMap = buildWbsToIdMap(syncedBatch);
+      syncedBatch.forEach(t => { t.predecessor = translatePredToId(t.predecessor, wbsToIdMap); });
+
       // Store sync log
       const syncedAt = new Date().toISOString();
       localStorage.setItem(STORE.syncLog, JSON.stringify({ syncedAt, count: data.tasks.length }));
