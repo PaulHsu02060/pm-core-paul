@@ -1231,7 +1231,12 @@ function computeSchedule(tasks) {
         blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
     }
 
-    // ④ 無 start、無前置：待排
+    // ④ 無前置：有起算來源(plannedStart) → 從它起算(起算來源，非錨點，仍參與連動)；無起算來源才待排
+    const src = isJTask(t) ? t.plannedStart : (t.start || t.plannedStart);
+    if (src) {
+      return { ...ident(t), suggestedStart: src, suggestedEnd: iso(D.addWorkdays(new Date(src), dur - 1)),
+        blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
+    }
     return { ...ident(t), suggestedStart: null, suggestedEnd: null,
       blocked: false, error: null, toSchedule: true, blockedCause: null,
       warnings: ['待排：無前置且未填開始日'].concat(missingWarn) };

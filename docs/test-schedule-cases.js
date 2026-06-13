@@ -300,6 +300,11 @@ function computeSchedule(tasks) {
       return { ...ident(t), suggestedStart: iso(latest), suggestedEnd: iso(D.addWorkdays(latest, dur - 1)),
         blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
     }
+    const src = isJTask(t) ? t.plannedStart : (t.start || t.plannedStart);
+    if (src) {
+      return { ...ident(t), suggestedStart: src, suggestedEnd: iso(D.addWorkdays(new Date(src), dur - 1)),
+        blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
+    }
     return { ...ident(t), suggestedStart: null, suggestedEnd: null,
       blocked: false, error: null, toSchedule: true, blockedCause: null,
       warnings: ['待排：無前置且未填開始日'].concat(missingWarn) };
@@ -696,6 +701,32 @@ console.log('\n===== 7. 錨點分流（α 方案） =====');
     `待排=${R(noPred, '401').toSchedule} src無=${R(noPred, '401').anchorSource} 推算=${R(withPred, '403').suggestedStart} src推=${R(withPred, '403').anchorSource}`,
     '待排=true src無=undefined 推算=2026-01-08 src推=undefined',
     '無__isJ無start：無前置→toSchedule=true且未進錨點分支(anchorSource undefined)；有前置則依402(end 01-07)FS推算→01-08(四)，亦非錨點');
+}
+
+// ════ 7b. ④ plannedStart 起算來源（新邏輯：無前置但有 plannedStart → 起算、非錨點、保留連動） ═══
+// 驗證 computeSchedule ④ 分支改動：源頭任務(無前置)有 plannedStart 時，從它起算而非待排，
+// 且「不設 anchorSource」=當「起算來源」非「錨點」→ applySchedule 會寫 scheduled、下游可連動。
+console.log('\n===== 7b. ④ plannedStart 起算來源 =====');
+// 案A：無前置 + plannedStart → 從它起算、不待排、非錨點
+{
+  const out = runSchedule([
+    mk({ wbs: '501', plannedStart: '2026-01-12', durationDays: 5 }),   // 無__isJ、無start、無前置、有 plannedStart
+  ]);
+  check('案A 無前置+plannedStart：從它起算、不待排、非錨點',
+    `start=${R(out, '501').suggestedStart} 待排=${R(out, '501').toSchedule} blocked=${R(out, '501').blocked} src=${R(out, '501').anchorSource}`,
+    'start=2026-01-12 待排=false blocked=false src=undefined',
+    '無前置但有plannedStart→④起算來源 src=t.start||t.plannedStart=01-12；toSchedule=false不待排；無anchorSource(undefined)證明是起算來源非錨點→守住連動命脈');
+}
+// 案B：源頭 plannedStart 起算 + 下游連動（今日核心需求）
+{
+  const out = runSchedule([
+    mk({ wbs: '511', plannedStart: '2026-01-12', durationDays: 5 }),   // 源頭：無前置、plannedStart 01-12(一)dur5→end 01-16(五)
+    mk({ wbs: '512', predecessor: '511', durationDays: 3 }),           // 下游：FS 接 511、無 plannedStart
+  ]);
+  check('案B 源頭plannedStart起算→下游連動',
+    `源頭start=${R(out, '511').suggestedStart} 源頭src=${R(out, '511').anchorSource} 下游start=${R(out, '512').suggestedStart} 下游待排=${R(out, '512').toSchedule}`,
+    '源頭start=2026-01-12 源頭src=undefined 下游start=2026-01-19 下游待排=false',
+    '源頭④起算 src=plannedStart 01-12(一)dur5→end addWorkdays(01-12,4)=01-16(五)、無anchorSource；下游FS=addWorkdays(01-16,1)跨週末→01-19(一)、前置鏈通故toSchedule=false');
 }
 
 // ════ 8. applySchedule — 落地 scheduledStart/End（抉擇 B：錨點不寫） ═══
