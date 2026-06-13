@@ -357,6 +357,15 @@ function translatePreds(tasks) {
 }
 function runSchedule(tasks) { return computeSchedule(translatePreds(tasks)); }
 function runApply(tasks) { return applySchedule(translatePreds(tasks)); }
+// §3 topoSort 直測用：翻 fixture 後 order/circular 回的是 id 清單，映回 wbs 讓 expected 維持序號可讀。
+// 只覆寫 order/circular 兩欄，其餘欄（nodes/edges）以 ...out 原樣保留。
+function runTopo(tasks) {
+  const out = topoSortTasks(translatePreds(tasks));
+  const idToWbs = new Map(tasks.map(t => [t.id, t.wbs]));
+  return { ...out,
+    order: out.order.map(id => idToWbs.get(id)),
+    circular: out.circular.map(id => idToWbs.get(id)) };
+}
 
 // ════ getEffectiveSchedule 同步複本（dispStart/dispEnd 與 app.js 一字不差） ═══
 // ⚠ 介面差異（抉擇C）：生產 getJOverride(task.id)，測試版 getJOverride(task)（吃物件，同錨點那步）。
@@ -513,16 +522,16 @@ console.log('\n===== 2. isTaskBlocked 四種關係邊界 =====');
 // ════ 3. topoSortTasks — 拓撲 + 循環 ═════════════════════════════
 console.log('\n===== 3. topoSortTasks =====');
 check('鏈 1→2→3 order',
-  topoSortTasks([mk({ wbs: '1' }), mk({ wbs: '2', predecessor: '1' }), mk({ wbs: '3', predecessor: '2' })]).order,
+  runTopo([mk({ wbs: '1' }), mk({ wbs: '2', predecessor: '1' }), mk({ wbs: '3', predecessor: '2' })]).order,
   ['1', '2', '3'], '無前置先、依賴後');
 {
-  const direct = topoSortTasks([mk({ wbs: '1', predecessor: '2' }), mk({ wbs: '2', predecessor: '1' })]);
+  const direct = runTopo([mk({ wbs: '1', predecessor: '2' }), mk({ wbs: '2', predecessor: '1' })]);
   check('直接環 1↔2 circular', direct.circular.slice().sort(), ['1', '2'], 'A→B→A 兩節點都標環');
   check('直接環 order 空', direct.order, [], '環上節點不進 order');
 }
 {
   // 間接環 1→3→2→1 + 無辜上游 4→1
-  const ind = topoSortTasks([mk({ wbs: '1', predecessor: '3' }), mk({ wbs: '2', predecessor: '1' }), mk({ wbs: '3', predecessor: '2' }), mk({ wbs: '4', predecessor: '1' })]);
+  const ind = runTopo([mk({ wbs: '1', predecessor: '3' }), mk({ wbs: '2', predecessor: '1' }), mk({ wbs: '3', predecessor: '2' }), mk({ wbs: '4', predecessor: '1' })]);
   check('間接環 {1,2,3} circular', ind.circular.slice().sort(), ['1', '2', '3'], 'A→B→C→A 整環標到');
   check('無辜上游 4 不在 circular', ind.circular.includes('4'), false, '只標環上節點，不誤標依賴環的上游');
   check('無辜上游 4 在 order', ind.order.includes('4'), true, '4 自己不在環上，正常進 order');
