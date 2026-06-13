@@ -712,6 +712,8 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 
 **雲端（已完成）：** doGet 公開唯讀已上線（2026-06-12）——訪客開網頁即見最新 J 系列資料。新部署繞過舊部署不生效問題；doGet 拔 token 鎖（純讀），doPost token 檢查保留（寫入維持鎖）。前端 config.js 換新 exec URL。教訓：Apps Script 編輯部署若不生效，直接建新部署最快（代價 URL 變、前端要跟著換）。
 
+**雲端（待補）：** `pdcaGroups` 尚未進 CloudSync upload/download blob——它在 Storage(localStorage) 有存，但 upload payload 與 download 還原都沒帶，跨機不同步、download 不還原（在雲端機器間切換會掉 PDCA 分組）。低風險但會掉資料。比照 calendars（2026-06-14 已補）做法：upload 加 `pdcaGroups: DATA.pdcaGroups`、download 加 `DATA.pdcaGroups = cloud.pdcaGroups || DATA.pdcaGroups` 防坑 + 寫回 localStorage。另做，這次不碰。
+
 ---
 
 ## 第九部分之二：餘裕計算規格（§9-8 細節）

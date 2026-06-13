@@ -68,6 +68,7 @@ const STORE = {
   syncLog:  `pmw::${PATH_KEY}::synclog`,
   weekNotes: `pmw::${PATH_KEY}::weeknotes`,
   pdcaGroups: `pmw::${PATH_KEY}::pdcagroups`,
+  calendars: `pmw::${PATH_KEY}::calendars`,
   editUnlock: `pmw::${PATH_KEY}::editunlock`,
 };
 
@@ -148,6 +149,8 @@ const Storage = {
       DATA.settings  = { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(STORE.settings) || '{}')) };
       DATA.weekNotes = JSON.parse(localStorage.getItem(STORE.weekNotes) || '{}');
       DATA.pdcaGroups = JSON.parse(localStorage.getItem(STORE.pdcaGroups) || '{}');
+      // 工作日曆：舊環境無此 key → fallback 完整預設結構（非 undefined，避免 isWorkday 讀 .base 炸）
+      DATA.calendars = JSON.parse(localStorage.getItem(STORE.calendars) || 'null') || { base: { name: '台灣公版', holidays: {} }, override: null };
 
       // ─── 清掉「找不到任務」的 schedule 殘留 ───
       if (DATA.schedule && Array.isArray(DATA.schedule.items)) {
@@ -208,6 +211,7 @@ const Storage = {
     localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
     localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
     localStorage.setItem(STORE.pdcaGroups, JSON.stringify(DATA.pdcaGroups || {}));
+    localStorage.setItem(STORE.calendars, JSON.stringify(DATA.calendars || { base: { name: '台灣公版', holidays: {} }, override: null }));
 
     // ─── 雲端自動同步（debounced，避免頻繁上傳）───
     if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudAutoSync && DATA.settings.cloudSyncUrl) {
@@ -254,6 +258,7 @@ const CloudSync = {
           schedule: DATA.schedule,
           settings: safeSettings,
           weekNotes: DATA.weekNotes,
+          calendars: DATA.calendars,
           _uploadedAt: new Date().toISOString(),
         },
       };
@@ -322,6 +327,8 @@ const CloudSync = {
       DATA.schedule = cloud.schedule || { week: null, items: [] };
       DATA.settings = { ...DEFAULT_SETTINGS, ...(cloud.settings || {}), ...localCloudCfg };
       DATA.weekNotes = cloud.weekNotes || {};
+      // ⚠ 防坑：雲端沒帶 calendars（舊 blob）→ 保留本地剛匯入的，不可用空預設蓋掉
+      DATA.calendars = cloud.calendars || DATA.calendars;
       DATA.settings.cloudLastSync = new Date().toISOString();
 
       // 寫入 localStorage（直接寫，不觸發 auto-upload）
@@ -332,6 +339,7 @@ const CloudSync = {
       localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
       localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
       localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
+      localStorage.setItem(STORE.calendars, JSON.stringify(DATA.calendars));
       // 雲端覆蓋後再跑一次 migration（否則 load 時跑的會被雲端蓋掉）；其內 Storage.save 會把結果上傳回雲端
       runMigrations();
 
