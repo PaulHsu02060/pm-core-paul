@@ -18,7 +18,7 @@
  */
 
 // ── 假 DATA（workDays = 週一~五；JS getDay() 編號 0=日..6=六） ──
-const DATA = { settings: { workDays: [1, 2, 3, 4, 5] } };
+const DATA = { settings: { workDays: [1, 2, 3, 4, 5] }, calendars: { base: { name: '台灣公版', holidays: {} }, override: null } };
 
 // ════ D 同步複本（只含排程相關方法） ════════════════════════════
 const D = {
@@ -39,8 +39,12 @@ const D = {
   isWorkday(date) {
     const iso = this.fmt(date, 'iso');
     if (!iso) return false;
-    if (this.calendar.supplementWorkDays.includes(iso)) return true;
-    if (this.calendar.holidays.includes(iso)) return false;
+    const cal = (typeof DATA !== 'undefined' && DATA.calendars) || null;
+    const base = cal && cal.base;
+    const override = cal && cal.override;
+    if (override?.workOverrides && iso in override.workOverrides) return true;
+    if (override?.extraHolidays && iso in override.extraHolidays) return false;
+    if (base?.holidays && iso in base.holidays) return false;
     const dt = date instanceof Date ? date : new Date(date);
     const workDays = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.workDays) || [1, 2, 3, 4, 5];
     return workDays.includes(dt.getDay());

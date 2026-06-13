@@ -130,6 +130,10 @@ let DATA = {
   settings: { ...DEFAULT_SETTINGS },
   weekNotes: {}, // { 'W21-2026': 'note text' }
   pdcaGroups: {}, // { [pid]: { [group]: { level, owner, note, workContent, actualStart, targetDate, delayDaysOverride, delayReason, recoveryMethod, recoveryDate, affectsLaunch } } }
+  // 工作日曆（架構文件 §第四部分之二）：base 公版假日 + override 公司調休，兩層疊加供 isWorkday/addWorkdays。
+  // 步驟 2-1：先建初始結構（holidays 空物件、weekends 先不放維持讀 DATA.settings.workDays、override 待之二.6）；
+  // 2-2 才把 isWorkday 改讀此處；第 3 步灌冰點 28 公休進 base.holidays。
+  calendars: { base: { name: '台灣公版', holidays: {} }, override: null },
 };
 
 // ─── STORAGE HELPERS ───────────────────────────────────
@@ -415,11 +419,17 @@ const D = {
   isWorkday(date) {
     const iso = this.fmt(date, 'iso');
     if (!iso) return false;
-    // a. 補班日 → 一定上班（即使落在週末）
-    if (this.calendar.supplementWorkDays.includes(iso)) return true;
-    // b. 放假日 → 一定不上班（即使落在平日）
-    if (this.calendar.holidays.includes(iso)) return false;
-    // c. 否則照設定頁 workDays 判斷（無 DATA 時退回週一~五）
+    // 工作日曆兩層疊加（§第四部分之二.5）。DATA.calendars 未載入(舊環境)→ 退回只認週末。
+    const cal = (typeof DATA !== 'undefined' && DATA.calendars) || null;
+    const base = cal && cal.base;
+    const override = cal && cal.override;   // 可能 null
+    // a. 覆蓋層補班 → 一定上班（最高優先）
+    if (override?.workOverrides && iso in override.workOverrides) return true;
+    // b. 覆蓋層額外公休 → 不上班
+    if (override?.extraHolidays && iso in override.extraHolidays) return false;
+    // c. 基底層國定假日 → 不上班（base.holidays 是物件，用 in 判斷存在）
+    if (base?.holidays && iso in base.holidays) return false;
+    // d. 否則照 workDays（週末維持現狀；無 DATA 退回週一~五）
     const dt = date instanceof Date ? date : new Date(date);
     const workDays = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.workDays) || [1, 2, 3, 4, 5];
     return workDays.includes(dt.getDay());

@@ -15,7 +15,7 @@
  */
 
 // ── 假的 DATA（提供 workDays；預設週一~五，JS getDay() 編號 0=日..6=六） ──
-const DATA = { settings: { workDays: [1, 2, 3, 4, 5] } };
+const DATA = { settings: { workDays: [1, 2, 3, 4, 5] }, calendars: { base: { name: '台灣公版', holidays: {} }, override: { workOverrides: {}, extraHolidays: {} } } };
 
 // ── D 物件同步複本（與 app.js 一致） ──────────────────────────────
 const D = {
@@ -27,12 +27,15 @@ const D = {
     if (opt === 'iso') return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return `${m}/${day}`;
   },
-  calendar: { holidays: [], supplementWorkDays: [] },
   isWorkday(date) {
     const iso = this.fmt(date, 'iso');
     if (!iso) return false;
-    if (this.calendar.supplementWorkDays.includes(iso)) return true;  // 補班 → 上班
-    if (this.calendar.holidays.includes(iso)) return false;           // 放假 → 不上班
+    const cal = (typeof DATA !== 'undefined' && DATA.calendars) || null;
+    const base = cal && cal.base;
+    const override = cal && cal.override;
+    if (override?.workOverrides && iso in override.workOverrides) return true;
+    if (override?.extraHolidays && iso in override.extraHolidays) return false;
+    if (base?.holidays && iso in base.holidays) return false;
     const dt = date instanceof Date ? date : new Date(date);
     const workDays = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.workDays) || [1, 2, 3, 4, 5];
     return workDays.includes(dt.getDay());
@@ -74,8 +77,8 @@ const iso = (x) => D.fmt(x, 'iso');
 // 2026-01-01 元旦（週四）放假；2026-02-07（週六）補班。
 // 註：company 類型（如 2026-01-08 尾牙）後端不會收進任何陣列，故這裡兩個陣列都不含它，
 //     用來驗證「company 事件日照常上班」。
-D.calendar.holidays = ['2026-01-01'];            // 元旦（週四）
-D.calendar.supplementWorkDays = ['2026-02-07'];  // 補班（週六）
+DATA.calendars.base.holidays = { '2026-01-01': '元旦' };            // 元旦（週四）
+DATA.calendars.override.workOverrides = { '2026-02-07': '補班' };  // 補班（週六）
 
 // ── 測試框架 ──────────────────────────────────────────────────
 let pass = 0, fail = 0;
