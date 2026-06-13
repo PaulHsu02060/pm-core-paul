@@ -133,7 +133,7 @@ let DATA = {
   pdcaGroups: {}, // { [pid]: { [group]: { level, owner, note, workContent, actualStart, targetDate, delayDaysOverride, delayReason, recoveryMethod, recoveryDate, affectsLaunch } } }
   // 工作日曆（架構文件 §第四部分之二）：base 公版假日 + override 公司調休，兩層疊加供 isWorkday/addWorkdays。
   // 步驟 2-1：先建初始結構（holidays 空物件、weekends 先不放維持讀 DATA.settings.workDays、override 待之二.6）；
-  // 2-2 才把 isWorkday 改讀此處；第 3 步灌冰點 28 公休進 base.holidays。
+  // 2-2 才把 isWorkday 改讀此處；第 3 步灌公司公休（約 28 筆範例）進 base.holidays。
   calendars: { base: { name: '台灣公版', holidays: {} }, override: null },
 };
 
@@ -477,30 +477,72 @@ const D = {
     return d;
   },
 
-  // 解析貼上的行事曆文字（Excel 冰點格式，Tab 分隔）→ {holidays, workOverrides, skipped}
-  // 純函式：不碰 DOM/Storage，回傳純物件，寫入由呼叫端負責（之二.9）。
+  // 解析貼上的行事曆文字（Tab 分隔）→ {holidays, workOverrides, skipped, error?}
+  // 彈性表頭對應：靠表頭名稱定位欄位（不要求欄位順序），需含表頭那一行。
+  // 純函式：不碰 DOM/Storage，寫入由呼叫端負責（之二.9）。
   parseCalendarPaste(text) {
     const holidays = {};
     const workOverrides = {};
     let skipped = 0;
-    const lines = String(text || '').split('\n');
-    for (const line of lines) {
-      const raw = line.replace(/\r$/, '');
-      if (!raw.trim()) continue;                       // 空行跳過（不計入 skipped）
-      const cols = raw.split('\t');
-      const date = (cols[0] || '').trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }  // 非日期（表頭等）
-      const type = (cols[2] || '').trim();
-      const name = (cols[3] || '').trim();
-      const workFlag = (cols[4] || '').trim();
-      const wk = (cols[1] || '').trim();
-      if (type === '公休日') {
-        holidays[date] = name || '公休日';
-      } else if (type === '補班' || ((wk === '六' || wk === '日') && workFlag === '1')) {
-        workOverrides[date] = name || '補班';
-      } else {
-        // 週末、工作日 → 跳過（不計 skipped，屬正常略過）
+    const lines = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    // 同義詞表（小寫比對，精確或子字串命中）
+    const SYN = {
+      date: ['日期', 'date', '年月日'],
+      type: ['類型', 'type', '假別', '性質', '類別'],
+      name: ['節日名稱', '名稱', '假日名', 'name', '說明', '節日'],
+      workday: ['工作日', '上班', '是否上班', 'workday'],
+      weekday: ['星期', 'weekday'],
+    };
+    const matchCol = (h) => {
+      const hl = (h || '').trim().toLowerCase();
+      if (!hl) return null;
+      for (const key in SYN) {
+        for (const s of SYN[key]) {
+          const sl = s.toLowerCase();
+          if (sl === hl || hl.indexOf(sl) !== -1) return key;
+        }
       }
+      return null;
+    };
+    // 找表頭行：第一個能對到「日期」欄的行
+    let headerIdx = -1;
+    let colMap = {};
+    for (let i = 0; i < lines.length; i++) {
+      const cols = lines[i].split('\t');
+      const m = {};
+      for (let ci = 0; ci < cols.length; ci++) {
+        const k = matchCol(cols[ci]);
+        if (k && !(k in m)) m[k] = ci;
+      }
+      if ('date' in m) { headerIdx = i; colMap = m; break; }
+    }
+    if (headerIdx < 0 || !('date' in colMap)) {
+      return { holidays: {}, workOverrides: {}, skipped: 0, error: '找不到「日期」欄表頭，請確認複製時包含表頭那一行' };
+    }
+    const di = colMap.date, ti = colMap.type, ni = colMap.name, wi = colMap.workday, wki = colMap.weekday;
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      const cols = line.split('\t');
+      if (cols.length <= di) { skipped++; continue; }
+      const date = (cols[di] || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }
+      const type = (ti != null && ti < cols.length) ? (cols[ti] || '').trim() : '';
+      const name = (ni != null && ni < cols.length) ? (cols[ni] || '').trim() : '';
+      const workFlag = (wi != null && wi < cols.length) ? (cols[wi] || '').trim() : '';
+      const wk = (wki != null && wki < cols.length) ? (cols[wki] || '').trim() : '';
+      let isHol = false, isMk = false;
+      if (ti != null && type) {
+        if (type === '公休日') isHol = true;
+        else if (type === '補班') isMk = true;
+        else if (type === '週末' || type === '工作日') { /* 跳過 */ }
+        else if (wi != null && workFlag === '0' && wk !== '六' && wk !== '日') isHol = true;
+      } else if (wi != null) {
+        if (workFlag === '0' && wk !== '六' && wk !== '日') isHol = true;
+        else if (workFlag === '1' && (wk === '六' || wk === '日')) isMk = true;
+      }
+      if (isHol) holidays[date] = name || '公休';
+      else if (isMk) workOverrides[date] = name || '補班';
     }
     return { holidays, workOverrides, skipped };
   },

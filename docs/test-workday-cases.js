@@ -67,30 +67,72 @@ const D = {
     return d;
   },
 
-  // 解析貼上的行事曆文字（Excel 冰點格式，Tab 分隔）→ {holidays, workOverrides, skipped}
-  // 純函式：不碰 DOM/Storage，回傳純物件，寫入由呼叫端負責（之二.9）。
+  // 解析貼上的行事曆文字（Tab 分隔）→ {holidays, workOverrides, skipped, error?}
+  // 彈性表頭對應：靠表頭名稱定位欄位（不要求欄位順序），需含表頭那一行。
+  // 純函式：不碰 DOM/Storage，寫入由呼叫端負責（之二.9）。
   parseCalendarPaste(text) {
     const holidays = {};
     const workOverrides = {};
     let skipped = 0;
-    const lines = String(text || '').split('\n');
-    for (const line of lines) {
-      const raw = line.replace(/\r$/, '');
-      if (!raw.trim()) continue;                       // 空行跳過（不計入 skipped）
-      const cols = raw.split('\t');
-      const date = (cols[0] || '').trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }  // 非日期（表頭等）
-      const type = (cols[2] || '').trim();
-      const name = (cols[3] || '').trim();
-      const workFlag = (cols[4] || '').trim();
-      const wk = (cols[1] || '').trim();
-      if (type === '公休日') {
-        holidays[date] = name || '公休日';
-      } else if (type === '補班' || ((wk === '六' || wk === '日') && workFlag === '1')) {
-        workOverrides[date] = name || '補班';
-      } else {
-        // 週末、工作日 → 跳過（不計 skipped，屬正常略過）
+    const lines = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    // 同義詞表（小寫比對，精確或子字串命中）
+    const SYN = {
+      date: ['日期', 'date', '年月日'],
+      type: ['類型', 'type', '假別', '性質', '類別'],
+      name: ['節日名稱', '名稱', '假日名', 'name', '說明', '節日'],
+      workday: ['工作日', '上班', '是否上班', 'workday'],
+      weekday: ['星期', 'weekday'],
+    };
+    const matchCol = (h) => {
+      const hl = (h || '').trim().toLowerCase();
+      if (!hl) return null;
+      for (const key in SYN) {
+        for (const s of SYN[key]) {
+          const sl = s.toLowerCase();
+          if (sl === hl || hl.indexOf(sl) !== -1) return key;
+        }
       }
+      return null;
+    };
+    // 找表頭行：第一個能對到「日期」欄的行
+    let headerIdx = -1;
+    let colMap = {};
+    for (let i = 0; i < lines.length; i++) {
+      const cols = lines[i].split('\t');
+      const m = {};
+      for (let ci = 0; ci < cols.length; ci++) {
+        const k = matchCol(cols[ci]);
+        if (k && !(k in m)) m[k] = ci;
+      }
+      if ('date' in m) { headerIdx = i; colMap = m; break; }
+    }
+    if (headerIdx < 0 || !('date' in colMap)) {
+      return { holidays: {}, workOverrides: {}, skipped: 0, error: '找不到「日期」欄表頭，請確認複製時包含表頭那一行' };
+    }
+    const di = colMap.date, ti = colMap.type, ni = colMap.name, wi = colMap.workday, wki = colMap.weekday;
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      const cols = line.split('\t');
+      if (cols.length <= di) { skipped++; continue; }
+      const date = (cols[di] || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }
+      const type = (ti != null && ti < cols.length) ? (cols[ti] || '').trim() : '';
+      const name = (ni != null && ni < cols.length) ? (cols[ni] || '').trim() : '';
+      const workFlag = (wi != null && wi < cols.length) ? (cols[wi] || '').trim() : '';
+      const wk = (wki != null && wki < cols.length) ? (cols[wki] || '').trim() : '';
+      let isHol = false, isMk = false;
+      if (ti != null && type) {
+        if (type === '公休日') isHol = true;
+        else if (type === '補班') isMk = true;
+        else if (type === '週末' || type === '工作日') { /* 跳過 */ }
+        else if (wi != null && workFlag === '0' && wk !== '六' && wk !== '日') isHol = true;
+      } else if (wi != null) {
+        if (workFlag === '0' && wk !== '六' && wk !== '日') isHol = true;
+        else if (workFlag === '1' && (wk === '六' || wk === '日')) isMk = true;
+      }
+      if (isHol) holidays[date] = name || '公休';
+      else if (isMk) workOverrides[date] = name || '補班';
     }
     return { holidays, workOverrides, skipped };
   },
@@ -194,8 +236,9 @@ console.log('\n===== 4. ⚠ 排程語意（避免 off-by-one） =====');
     '跨週末也成立：workdaysBetween(01-09,01-13)=3');
 }
 
-console.log('\n===== 5. parseCalendarPaste =====');
+console.log('\n===== 5. parseCalendarPaste（彈性表頭對應）=====');
 {
+  // 5-1 標準格式（典型欄位：日期/星期/類型/節日名稱/工作日/備註）
   const sample = [
     '日期\t星期\t類型\t節日名稱\t工作日(1/0)\t備註',
     '2025-10-04\t六\t週末\t\t0\t',
@@ -204,18 +247,68 @@ console.log('\n===== 5. parseCalendarPaste =====');
     '2025-10-07\t二\t工作日\t\t1\t',
     '2025-10-10\t五\t公休日\t國慶節\t0\t',
     '2025-10-13\t一\t工作日\t\t1\t',
-    '',                                              // 空行
-    '2026-02-07\t六\t補班\t春節調整補班\t1\t',          // 補班案（測 workOverrides）
+    '',
+    '2026-02-07\t六\t補班\t春節調整補班\t1\t',
   ].join('\n');
   const r = D.parseCalendarPaste(sample);
-  check('公休筆數=2（中秋+國慶，週末/工作日不計）', Object.keys(r.holidays).length, 2, '只有類型=公休日進 holidays');
-  check('中秋節日期名', r.holidays['2025-10-06'], '中秋節', '10-06 公休日→holidays');
-  check('國慶節日期名', r.holidays['2025-10-10'], '國慶節', '10-10 公休日→holidays');
-  check('週末不進holidays', r.holidays['2025-10-04'], undefined, '週末略過');
-  check('工作日不進holidays', r.holidays['2025-10-07'], undefined, '工作日略過');
-  check('補班筆數=1', Object.keys(r.workOverrides).length, 1, '補班→workOverrides');
-  check('補班日期名', r.workOverrides['2026-02-07'], '春節調整補班', '補班→workOverrides');
-  check('表頭被跳過計入skipped', r.skipped, 1, '表頭行（日期欄非YYYY-MM-DD）skipped=1');
+  check('標準：公休=2（中秋+國慶）', Object.keys(r.holidays).length, 2, '類型=公休日進 holidays');
+  check('標準：中秋名', r.holidays['2025-10-06'], '中秋節', '名稱欄抓對');
+  check('標準：國慶名', r.holidays['2025-10-10'], '國慶節', '名稱欄抓對');
+  check('標準：週末不進', r.holidays['2025-10-04'], undefined, '類型=週末略過');
+  check('標準：工作日不進', r.holidays['2025-10-07'], undefined, '類型=工作日略過');
+  check('標準：補班=1', Object.keys(r.workOverrides).length, 1, '類型=補班進 workOverrides');
+  check('標準：補班名', r.workOverrides['2026-02-07'], '春節調整補班', '補班名稱抓對');
+  check('標準：skipped=0（表頭當定位行不計）', r.skipped, 0, '新版表頭偵測，不靠 regex 失敗計數');
+}
+{
+  // 5-2 欄位亂序（類型/節日名稱/日期/工作日）— colMap 定位
+  const sample = [
+    '類型\t節日名稱\t日期\t工作日',
+    '公休日\t中秋節\t2025-10-06\t0',
+    '工作日\t\t2025-10-07\t1',
+  ].join('\n');
+  const r = D.parseCalendarPaste(sample);
+  check('亂序：公休=1', Object.keys(r.holidays).length, 1, '靠表頭定位，不管欄序');
+  check('亂序：中秋名（date 在第3欄）', r.holidays['2025-10-06'], '中秋節', 'di=colMap.date');
+}
+{
+  // 5-3 無類型欄（日期/星期/工作日）→ 用工作日=0 且非六/日 判公休
+  const sample = [
+    '日期\t星期\t工作日',
+    '2026-01-01\t四\t0',
+    '2026-01-03\t六\t0',
+  ].join('\n');
+  const r = D.parseCalendarPaste(sample);
+  check('無類型：元旦(四,0)→公休', r.holidays['2026-01-01'], '公休', '無 name 欄預設「公休」');
+  check('無類型：週六(0)不算公休', r.holidays['2026-01-03'], undefined, '六/日 workFlag=0 屬週末非公休');
+}
+{
+  // 5-4 英文表頭（Date/Type/Name/Workday）
+  const sample = [
+    'Date\tType\tName\tWorkday',
+    '2025-10-06\t公休日\tMid-Autumn\t0',
+  ].join('\n');
+  const r = D.parseCalendarPaste(sample);
+  check('英文表頭：公休名', r.holidays['2025-10-06'], 'Mid-Autumn', '同義詞含 date/type/name/workday');
+}
+{
+  // 5-5 無表頭 → 報錯、不寫入
+  const sample = [
+    '2025-10-06\t公休日\t中秋節\t0',
+    '2025-10-07\t工作日\t\t1',
+  ].join('\n');
+  const r = D.parseCalendarPaste(sample);
+  check('無表頭：回 error', !!r.error, true, '找不到日期欄表頭');
+  check('無表頭：holidays 空', Object.keys(r.holidays).length, 0, '無表頭不寫入');
+}
+{
+  // 5-6 補班無類型欄（週六 工作日=1）→ workOverrides
+  const sample = [
+    '日期\t星期\t工作日',
+    '2026-02-07\t六\t1',
+  ].join('\n');
+  const r = D.parseCalendarPaste(sample);
+  check('無類型補班：週六(1)→補班', r.workOverrides['2026-02-07'], '補班', 'workFlag=1 且六/日 → 補班');
 }
 
 console.log('\n===== 6. wbsDateStr（Excel 日期匯入不差一天） =====');
