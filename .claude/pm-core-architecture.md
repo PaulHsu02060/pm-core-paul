@@ -712,8 +712,14 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 - 合理例外：rgba 透明衍生、膠囊 99px、圓點 50%。
 
 **改檔紀律**
-- 含中文檔用 Edit 工具，禁 PowerShell 文字回寫（UTF-8 變亂碼）。
+- 禁 PowerShell 文字回寫（UTF-8 變亂碼）。含中文檔用 Edit（單行/短改）或 node 腳本（多行區塊，見下方 CRLF 鐵則）。
 - `?v=` 版本號只升動到的檔對應行，不全升。
+
+**CRLF 多行替換鐵則（2026-06-13 慘痛教訓）**
+- 本專案 repo 混合換行（多數程式碼檔 app.js/測試/index.html 是 CRLF，md 文件是 LF）。str_replace/Edit 對 CRLF 多行 old_string 定位不穩，跨 session 反覆失敗（曾在 isWorkday 兩層化同步耗費大量來回，多次「舊行沒刪、新邏輯並存」）。
+- 改多行區塊（函式整塊、含中文段）改用 node 腳本：讀檔偵測 `useCRLF = content.includes('\r\n')`，用 `nl(s)=> useCRLF ? s.replace(/\n/g,'\r\n') : s` 把樣板字串轉 CRLF 再比對；`content.split(old).length-1 === 1` 才 `fs.writeFileSync`，否則 ABORT 不寫（多塊則全部 count===1 才一起寫）。
+- 腳本經 `cat > _tmp_*.js << 'EOF'`（bash heredoc，繞開會「插入而非取代」的編輯工具）寫入，跑完即 `rm`。`_tmp_*.js` 機密檔規則已排除。
+- 單行替換（如 `?v=` 升版）CRLF 影響小，但統一用 node 手法最穩、且 count===1 防呆避免重複行。
 
 **測試**
 - Node.js（家裡桌機）跑 `node docs/test-schedule-cases.js`（56 案）+ `node --check app.js`。
