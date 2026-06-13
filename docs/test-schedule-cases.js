@@ -594,6 +594,20 @@ console.log('\n===== 4. computeSchedule 日期推算 =====');
   ]);
   check('SF（finish 對齊前置 start，+0）', `${R(out, '51').suggestedStart}~${R(out, '51').suggestedEnd}`, '2026-01-09~2026-01-12', 'SF：end=addWorkdays(前置start,0)=01-12');
 }
+// SS/FF/SF +lag（lag=3 跨週末，鎖 lag>0 行為；改 FS 前就該綠，SS/FF/SF 為純 p.lag）
+{
+  const out = runSchedule([
+    mk({ wbs: '80', start: '2026-01-08', durationDays: 1 }),
+    mk({ wbs: '81', predecessor: '80SS+3', durationDays: 2 }),    // SS+3：start=addWorkdays(前start 01-08,3)=01-13
+    mk({ wbs: '82', start: '2026-01-05', durationDays: 5 }),      // end 01-09
+    mk({ wbs: '83', predecessor: '82FF+3', durationDays: 2 }),    // FF+3：end=addWorkdays(前end 01-09,3)=01-14，start反推01-13
+    mk({ wbs: '84', start: '2026-01-09', durationDays: 3 }),
+    mk({ wbs: '85', predecessor: '84SF+3', durationDays: 2 }),    // SF+3：end=addWorkdays(前start 01-09,3)=01-14，start反推01-13
+  ]);
+  check('SS+3（後start=前start+3工作日，跨週末）', `${R(out, '81').suggestedStart}~${R(out, '81').suggestedEnd}`, '2026-01-13~2026-01-14', 'SS：addWorkdays(01-08,3)=01-13 跳過10/11週末');
+  check('FF+3（後end=前end+3工作日，跨週末）', `${R(out, '83').suggestedStart}~${R(out, '83').suggestedEnd}`, '2026-01-13~2026-01-14', 'FF：addWorkdays(01-09,3)=01-14，start=addWorkdays(14,-1)=01-13');
+  check('SF+3（後end=前start+3工作日，跨週末）', `${R(out, '85').suggestedStart}~${R(out, '85').suggestedEnd}`, '2026-01-13~2026-01-14', 'SF：addWorkdays(01-09,3)=01-14，start=addWorkdays(14,-1)=01-13');
+}
 // 多前置取最晚
 {
   const out = runSchedule([
