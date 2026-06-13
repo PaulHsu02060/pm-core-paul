@@ -887,7 +887,7 @@ function buildWbsToIdMap(tasks) {
 // translatePredToId(predStr, wbsToIdMap)：把「序號字串 predecessor」翻成「id 字串 predecessor」。
 //   - 沿用 parsePredecessors 同一套拆解（逗號/分號分隔、每段 ^(\d+)([A-Za-z]{2})?([+-]數字)?）。
 //   - 只翻「序號部分」→ id；關係(FS/SS/FF/SF)與 lag(+N) 原樣保留。
-//   - 查得到 → 'id_xxxFS+2'；查不到 → 該段原樣保留（不丟棄，留著好 debug）。
+//   - 查得到 → 'id_xxx#FS+2'（# 分隔 id 與 type，純前置 → 'id_xxx#'）；查不到 → 該段原樣保留（不丟棄，好 debug）。
 //   - 純函式，回傳翻譯後字串。
 function translatePredToId(predStr, wbsToIdMap) {
   if (predStr === null || predStr === undefined) return '';
@@ -903,7 +903,7 @@ function translatePredToId(predStr, wbsToIdMap) {
     if (!id) { out.push(part); continue; }          // 查不到 → 原樣保留
     const type = m[2] ? m[2] : '';
     const lag = m[3] ? m[3].replace(/\s+/g, '') : '';
-    out.push(id + type + lag);                       // id + 關係 + lag（原樣黏回）
+    out.push(id + '#' + type + lag);                 // id#關係lag（# 分隔，根除 id 結尾字母與 type 撞；type/lag 可空）
   }
   return out.join(',');
 }
@@ -927,15 +927,28 @@ function parsePredecessors(str) {
   // 以半形/全形逗號或分號分隔多個前置
   const parts = s.split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
   for (const part of parts) {
-    // dep(數字) + 可選 type(2 字母) + 可選 lag(+/- 數字，容忍空白)
-    const m = part.match(/^(\d+)\s*([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
-    if (!m) continue;                          // 無法解析（非數字開頭）→ 跳過
-    const dep = m[1];
-    let type = (m[2] || 'FS').toUpperCase();
+    // 兩格式相容（§8b.5 層次二）：以「有無 #」切分支。
+    //   有 #（id 格式）：# 前＝dep（任意字元，原樣取，因 id 是 id_xxx/sync_xxx）；# 後＝type+lag。
+    //   無 #（舊序號格式）：dep(純數字) + 緊貼 type + lag —— fixture 與未翻譯資料走這條。
+    const hashIdx = part.indexOf('#');
+    let dep, mTail;
+    if (hashIdx >= 0) {
+      dep = part.slice(0, hashIdx).trim();
+      // # 後只剩可選 type(2 字母) + 可選 lag；type/lag 皆可空（純前置翻成 'id_xxx#'）
+      mTail = part.slice(hashIdx + 1).trim().match(/^([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
+      if (!dep || !mTail) continue;            // dep 空 / # 後格式不合 → 跳過
+    } else {
+      // 舊序號格式：dep(數字) + 可選 type(2 字母) + 可選 lag(+/- 數字，容忍空白)
+      const m = part.match(/^(\d+)\s*([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
+      if (!m) continue;                        // 無法解析（非數字開頭）→ 跳過
+      dep = m[1];
+      mTail = [m[0], m[2], m[3]];              // 對齊 # 分支：[全, type, lag]，下方共用解析
+    }
+    let type = (mTail[1] || 'FS').toUpperCase();
     if (!VALID.includes(type)) type = 'FS';    // 未知關係 → FS
     let lag = 0;
-    if (m[3]) {
-      const n = parseInt(m[3].replace(/\s+/g, ''), 10);
+    if (mTail[2]) {
+      const n = parseInt(mTail[2].replace(/\s+/g, ''), 10);
       lag = isNaN(n) ? 0 : n;
     }
     out.push({ dep, type, lag });
