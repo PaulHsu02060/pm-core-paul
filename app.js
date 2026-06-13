@@ -7363,6 +7363,14 @@ function performWbsImport(parsed) {
     });
   });
 
+  // 第二輪：前置 id 化（§8b.5 層次二，方案 X 直接覆蓋不留 raw）。
+  // 必須在這批 task 全部 push 完之後做——否則前置指向後面尚未進 map 的 task 會查不到。
+  // 查找來源＝本次匯入完整批次（7316 已清該專案舊 task、迴圈只 push 這批，故 filter 即此批），
+  // 範圍鎖在同專案內，同批互相前置才查得到、且不跨專案撞序號。
+  const importedBatch = DATA.tasks.filter(t => t.project === projId);
+  const wbsToIdMap = buildWbsToIdMap(importedBatch);
+  importedBatch.forEach(t => { t.predecessor = translatePredToId(t.predecessor, wbsToIdMap); });
+
   Storage.save();
   App.refreshAll();
   return { imported: rows.length, projectId: projId };
