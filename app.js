@@ -2989,7 +2989,6 @@ App.renderProjectDashboard = function(proj) {
           ${this.buildTaskFilterBar(proj.id)}
           <div class="task-row-header">
             <span style="text-align:center;">序</span>
-            <span></span>
             <span style="text-align:left;">階段</span>
             <span style="text-align:left;">任務</span>
             <span style="text-align:left;">進度%</span>
@@ -3486,9 +3485,6 @@ App.buildTaskRowHtml = function(t, i) {
 
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
     <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${i + 1}</span>
-    <span class="task-anchor ${t.pinned ? 'pinned' : ''}" data-edit title="${t.pinned ? '已釘住開始日（點取消）' : '點此釘住開始日'}"
-          style="cursor:pointer; user-select:none; text-align:center;"
-          onclick="event.stopPropagation(); App.setAnchor('${t.id}')">${t.pinned ? '<span class="anchor-badge"><i class="ti ti-pinned"></i>已釘</span>' : '<i class="ti ti-pin"></i>'}</span>
     <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.stage || '—')}</span>
     <div class="task-info">
       <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -4355,16 +4351,6 @@ App.saveTask = function(id) {
   this.closeModal();
   this.refreshAll();
   U.toast('✓ 任務已儲存');
-};
-
-// 錨點釘子（綜觀清單 task-row 📌）接口 — 目前空殼，下一階段接排程引擎
-App.setAnchor = function(id) {
-  const t = DATA.tasks.find(x => x.id === id);
-  if (!t) return;
-  if (t.locked) { U.toast('⚠️同步來的任務無法修改', 'warning'); return; }
-  t.pinned = !t.pinned;
-  Storage.save();
-  this.refreshAll();
 };
 
 App.saveJSchedule = function(id) {

@@ -401,6 +401,8 @@ UI：狀態欄反灰唯讀，`?` hover 說明規則。
 
 ### 6.8 釘子視覺 toggle（2026-06-13 已完成，commit `6a89be4`）
 
+> ⚠️ **已廢除（2026-06-13）**：Task 層個別錨定移除。個別任務本就應跟前置連動，釘住反而違反連動；錨定的正確位置在 **Template 層（正推／逆推）**，非個別 Task。已移除 📌 `task-anchor` UI（task-row + header 第 2 欄 + grid 11→10 欄）、`App.setAnchor` 函式、`.task-anchor`/`.anchor-badge` CSS。`t.pinned` 孤兒欄位保留（無人讀、不顯示）。下方為原設計記錄，僅供歷史參照。
+
 任務列釘子改為視覺 toggle，取代舊版空殼（點了跳 toast「開發中」）：
 
 - 引入 **Tabler icons webfont**（CDN，鎖版本 `3.44.0`：`https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.44.0/dist/tabler-icons.min.css`）。系統原本無 icon 字體、全靠 emoji，emoji 無法 CSS 染色 toggle。免費 Tabler webfont 只有 outline 線性版（無 filled）。

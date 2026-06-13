@@ -619,7 +619,7 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
-  display: grid; grid-template-columns: 0.5fr 0.4fr 1.2fr 2.6fr 1.4fr 0.9fr 0.9fr 1fr 1.6fr 0.8fr 0.8fr;
+  display: grid; grid-template-columns: 0.5fr 1.2fr 2.6fr 1.4fr 0.9fr 0.9fr 1fr 1.6fr 0.8fr 0.8fr;
   gap: 14px; align-items: center; padding: 11px 16px;
 }
 .task-row {
@@ -688,9 +688,6 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 }
 .task-check.done { background: var(--sage-500); border-color: var(--sage-500); color: var(--ink-inverse); font-size: 11px; }
 .task-check.locked { background: var(--stone-100); cursor: not-allowed; }
-.task-anchor { color: var(--ink4); font-size: 16px; transition: color .12s; }
-.anchor-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500; color: var(--sage-700); }
-.anchor-badge i { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--sage-100); font-size: 15px; }
 .task-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .task-name { font-size: 13.5px; font-weight: 500; color: var(--ink); }
 .task-row.done .task-name { text-decoration: line-through; color: var(--ink4); }
