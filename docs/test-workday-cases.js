@@ -66,6 +66,34 @@ const D = {
     }
     return d;
   },
+
+  // 解析貼上的行事曆文字（Excel 冰點格式，Tab 分隔）→ {holidays, workOverrides, skipped}
+  // 純函式：不碰 DOM/Storage，回傳純物件，寫入由呼叫端負責（之二.9）。
+  parseCalendarPaste(text) {
+    const holidays = {};
+    const workOverrides = {};
+    let skipped = 0;
+    const lines = String(text || '').split('\n');
+    for (const line of lines) {
+      const raw = line.replace(/\r$/, '');
+      if (!raw.trim()) continue;                       // 空行跳過（不計入 skipped）
+      const cols = raw.split('\t');
+      const date = (cols[0] || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }  // 非日期（表頭等）
+      const type = (cols[2] || '').trim();
+      const name = (cols[3] || '').trim();
+      const workFlag = (cols[4] || '').trim();
+      const wk = (cols[1] || '').trim();
+      if (type === '公休日') {
+        holidays[date] = name || '公休日';
+      } else if (type === '補班' || ((wk === '六' || wk === '日') && workFlag === '1')) {
+        workOverrides[date] = name || '補班';
+      } else {
+        // 週末、工作日 → 跳過（不計 skipped，屬正常略過）
+      }
+    }
+    return { holidays, workOverrides, skipped };
+  },
 };
 
 // ── 工具 ──────────────────────────────────────────────────────
@@ -150,6 +178,30 @@ console.log('\n===== 4. ⚠ 排程語意（避免 off-by-one） =====');
     '五(第1天)→一(第2天)→二(第3天)；end=addWorkdays(週五,2)=01-13');
   check('  回算 workdaysBetween 應 = N', D.workdaysBetween(start, end), N,
     '跨週末也成立：workdaysBetween(01-09,01-13)=3');
+}
+
+console.log('\n===== 5. parseCalendarPaste =====');
+{
+  const sample = [
+    '日期\t星期\t類型\t節日名稱\t工作日(1/0)\t備註',
+    '2025-10-04\t六\t週末\t\t0\t',
+    '2025-10-05\t日\t週末\t\t0\t',
+    '2025-10-06\t一\t公休日\t中秋節\t0\t',
+    '2025-10-07\t二\t工作日\t\t1\t',
+    '2025-10-10\t五\t公休日\t國慶節\t0\t',
+    '2025-10-13\t一\t工作日\t\t1\t',
+    '',                                              // 空行
+    '2026-02-07\t六\t補班\t春節調整補班\t1\t',          // 補班案（測 workOverrides）
+  ].join('\n');
+  const r = D.parseCalendarPaste(sample);
+  check('公休筆數=2（中秋+國慶，週末/工作日不計）', Object.keys(r.holidays).length, 2, '只有類型=公休日進 holidays');
+  check('中秋節日期名', r.holidays['2025-10-06'], '中秋節', '10-06 公休日→holidays');
+  check('國慶節日期名', r.holidays['2025-10-10'], '國慶節', '10-10 公休日→holidays');
+  check('週末不進holidays', r.holidays['2025-10-04'], undefined, '週末略過');
+  check('工作日不進holidays', r.holidays['2025-10-07'], undefined, '工作日略過');
+  check('補班筆數=1', Object.keys(r.workOverrides).length, 1, '補班→workOverrides');
+  check('補班日期名', r.workOverrides['2026-02-07'], '春節調整補班', '補班→workOverrides');
+  check('表頭被跳過計入skipped', r.skipped, 1, '表頭行（日期欄非YYYY-MM-DD）skipped=1');
 }
 
 console.log('\n===== 結果 =====');

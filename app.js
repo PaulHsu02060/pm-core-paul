@@ -468,6 +468,34 @@ const D = {
     }
     return d;
   },
+
+  // 解析貼上的行事曆文字（Excel 冰點格式，Tab 分隔）→ {holidays, workOverrides, skipped}
+  // 純函式：不碰 DOM/Storage，回傳純物件，寫入由呼叫端負責（之二.9）。
+  parseCalendarPaste(text) {
+    const holidays = {};
+    const workOverrides = {};
+    let skipped = 0;
+    const lines = String(text || '').split('\n');
+    for (const line of lines) {
+      const raw = line.replace(/\r$/, '');
+      if (!raw.trim()) continue;                       // 空行跳過（不計入 skipped）
+      const cols = raw.split('\t');
+      const date = (cols[0] || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }  // 非日期（表頭等）
+      const type = (cols[2] || '').trim();
+      const name = (cols[3] || '').trim();
+      const workFlag = (cols[4] || '').trim();
+      const wk = (cols[1] || '').trim();
+      if (type === '公休日') {
+        holidays[date] = name || '公休日';
+      } else if (type === '補班' || ((wk === '六' || wk === '日') && workFlag === '1')) {
+        workOverrides[date] = name || '補班';
+      } else {
+        // 週末、工作日 → 跳過（不計 skipped，屬正常略過）
+      }
+    }
+    return { holidays, workOverrides, skipped };
+  },
 };
 
 // ─── PDCA 報告：資料模型（方式 1 — 任務掛 pdcaGroup，大項目動態聚合）───
