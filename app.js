@@ -865,6 +865,49 @@ function getCalendarTasks(tasks) {
   return tasks.filter(t => t.scheduleToCalendar === true);
 }
 
+// ── [CORE] 前置依賴 序號→id 翻譯工具（§8b.5 層次二，純函式，不碰 DOM/Storage）──
+// 單一真實來源：WBS 匯入 / J 同步 / 手動表單三條路徑共用此翻譯，邏輯只此一份。
+//
+// buildWbsToIdMap(tasks)：建「wbs序號(String) → task.id」查找表。
+//   - 只收有 wbs 的 task（空字串 / null / undefined 跳過）。
+//   - 同序號重複：保留先者（map.has 才不覆蓋）。
+//   - 純函式，回傳 Map。
+function buildWbsToIdMap(tasks) {
+  const map = new Map();
+  for (const t of (tasks || [])) {
+    if (!t) continue;
+    if (t.wbs !== '' && t.wbs != null) {
+      const k = String(t.wbs).trim();
+      if (!map.has(k)) map.set(k, t.id);   // 保留先者
+    }
+  }
+  return map;
+}
+
+// translatePredToId(predStr, wbsToIdMap)：把「序號字串 predecessor」翻成「id 字串 predecessor」。
+//   - 沿用 parsePredecessors 同一套拆解（逗號/分號分隔、每段 ^(\d+)([A-Za-z]{2})?([+-]數字)?）。
+//   - 只翻「序號部分」→ id；關係(FS/SS/FF/SF)與 lag(+N) 原樣保留。
+//   - 查得到 → 'id_xxxFS+2'；查不到 → 該段原樣保留（不丟棄，留著好 debug）。
+//   - 純函式，回傳翻譯後字串。
+function translatePredToId(predStr, wbsToIdMap) {
+  if (predStr === null || predStr === undefined) return '';
+  const s = String(predStr).trim();
+  if (!s) return '';
+  // 保留原分隔片段順序；逐段 match，序號翻 id、其餘原樣黏回。
+  const parts = s.split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
+  const out = [];
+  for (const part of parts) {
+    const m = part.match(/^(\d+)\s*([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
+    if (!m) { out.push(part); continue; }           // 無法解析 → 原樣保留
+    const id = wbsToIdMap && wbsToIdMap.get(String(m[1]).trim());
+    if (!id) { out.push(part); continue; }          // 查不到 → 原樣保留
+    const type = m[2] ? m[2] : '';
+    const lag = m[3] ? m[3].replace(/\s+/g, '') : '';
+    out.push(id + type + lag);                       // id + 關係 + lag（原樣黏回）
+  }
+  return out.join(',');
+}
+
 // 解析 predecessor 前置任務字串 → [{dep, type, lag}]
 // 支援兩種格式（同一字串可用逗號/分號分隔多個前置，可混用）：
 //   1. 純編號：'5' 或 '5,6'        → {dep:'5', type:'FS', lag:0}
