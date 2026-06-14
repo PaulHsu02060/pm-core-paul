@@ -814,6 +814,18 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .deleted-section { border-color: var(--terracotta-l) !important; }
 .deleted-section .done-head { background: rgba(196, 99, 62, 0.06); }
 .deleted-section .done-head:hover { background: rgba(196, 99, 62, 0.12); }
+
+/* commit2 C：done inline 原位 + 收合 toggle bar */
+#activeTaskList.hide-done .task-row.done { display: none; }
+#activeTaskList .task-row.done { opacity: .65; }
+.done-toggle-bar { padding: 11px 14px 11px 11px; margin-top: 0; background: var(--sage-100); border: 1px solid var(--sage-200); border-left: 4px solid var(--sage-500); border-radius: var(--r12); display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; transition: background .15s; }
+.done-toggle-bar:hover { background: var(--sage-200); }
+.done-toggle-bar .done-head-chevron { margin-left: 0; color: var(--sage-600); }
+.done-toggle-bar .done-head-title { color: var(--sage-800); font-weight: 600; }
+.done-toggle-bar .done-head-count { color: var(--sage-50); background: var(--sage-700); }
+.done-toggle-bar .done-toggle-note { color: var(--sage-600); }
+.done-toggle-bar.collapsed .done-head-chevron { transform: rotate(-90deg); }
+.done-toggle-note { font-size: 11px; color: var(--ink4); }
 .deleted-row:last-child { border-bottom: none !important; }
 .deleted-row:hover { background: var(--surface2); }
 

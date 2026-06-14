@@ -865,6 +865,7 @@ function cleanOldDoneTasks() {
   DATA.tasks = DATA.tasks.filter(t => {
     if (t.status !== 'done') return true;
     if (t.synced) return true; // synced tasks managed by sync
+    if (t.measureType !== 'hours') return true; // 工期制（WBS/手動專案任務）永不自動清除，只清時段制雜事
     if (!t.completedAt) { t.completedAt = new Date().toISOString(); return true; }
     return new Date(t.completedAt) >= cutoff;
   });
@@ -3007,19 +3008,30 @@ App.renderProject = function() {
 App.renderProjectDashboard = function(proj) {
   const allTasks = this.getTasksOf(proj.id);
   const today = D.today();
-  // 序：依 array 順序排（= Excel 匯入序，filter 保序），不再按 wbs 重排（§8b.4 層次一：序欄改連續流水號）
-  const activeTasks = allTasks.filter(t => t.status !== 'done' && !t._deleted);
-  const doneTasks = allTasks.filter(t => t.status === 'done' && !t._deleted).sort((a,b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
+  // 序基準（同源）：orderedProjectTasks 陣列序、排除 deleted、含 done（done 佔號）。外層+前置下拉共用。
+  const ordered = this.orderedProjectTasks(proj.id);
+  const activeCount = ordered.filter(t => t.status !== 'done').length;
+  const doneCount = ordered.length - activeCount;
   const deletedTasks = allTasks.filter(t => t._deleted).sort((a, b) => (b._deletedAt || '').localeCompare(a._deletedAt || ''));
 
-  // 預設只顯示 15 筆 active tasks（超過時可展開）
-  const PREVIEW_LIMIT = 15;
+  // 預覽切到「第 15 個未完成」位置（done 不佔額度、夾在中間者原位保留）
+  const PREVIEW_ACTIVE_LIMIT = 15;
   this._projectExpanded = this._projectExpanded || {};
   const isExpanded = !!this._projectExpanded[proj.id];
-  const showAll = isExpanded || activeTasks.length <= PREVIEW_LIMIT;
-  const visibleActive = showAll ? activeTasks : activeTasks.slice(0, PREVIEW_LIMIT);
+  let activeSeen = 0, cutIdx = ordered.length - 1;
+  for (let p = 0; p < ordered.length; p++) {
+    if (ordered[p].status !== 'done') {
+      activeSeen++;
+      if (activeSeen === PREVIEW_ACTIVE_LIMIT) { cutIdx = p; break; }
+    }
+  }
+  const overflow = activeCount > PREVIEW_ACTIVE_LIMIT;
+  const showAll = isExpanded || !overflow;
+  const visible = showAll ? ordered : ordered.slice(0, cutIdx + 1);
 
-  const tasks = allTasks; // for backward compat below
+  this._doneVisible = this._doneVisible || {};
+  const doneVisible = !!this._doneVisible[proj.id];
+
   return `    ${this.buildProjKpiHtml(proj)}
 
     <div class="proj-dash-grid">
@@ -3033,7 +3045,7 @@ App.renderProjectDashboard = function(proj) {
         <div class="task-list-card">
           <div class="tlc-head">
             <span class="tlc-title">待辦任務</span>
-            <span class="tlc-count">${activeTasks.length}</span>
+            <span class="tlc-count">${activeCount}</span>
             <button class="tb-action" data-edit onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:auto;">＋ 新增任務</button>
           </div>
           ${this.buildTaskFilterBar(proj.id)}
@@ -3049,22 +3061,29 @@ App.renderProjectDashboard = function(proj) {
             <span style="text-align:center;">餘裕（天）</span>
             <span style="text-align:center;">截止日</span>
           </div>
-          <!-- TODO 接線(乙案):render 待辦清單時用 getTaskFilter(proj.id) 四 Set 過濾 activeTasks，獨立過濾不碰 filterTasks，回家做。本批 UI 殼不過濾，照舊全量渲染。 -->
-          <div id="activeTaskList">
-            ${visibleActive.length === 0 ?
+          ${doneCount > 0 ? `
+          <div class="done-toggle-bar ${doneVisible ? '' : 'collapsed'}" onclick="App.toggleDoneVisible('${proj.id}')">
+            <span class="done-head-chevron">▼</span>
+            <span class="done-head-title">已完成</span>
+            <span class="done-head-count">${doneCount}</span>
+            <span class="done-toggle-note">${doneVisible ? '原位顯示（灰字刪除線）' : '已收合'}</span>
+          </div>` : ''}
+          <!-- TODO 接線(乙案):render 待辦清單時用 getTaskFilter(proj.id) 四 Set 過濾 ordered/visible，獨立過濾不碰 filterTasks，回家做。本批 UI 殼不過濾，照舊全量渲染。 -->
+          <div id="activeTaskList" class="${doneVisible ? '' : 'hide-done'}">
+            ${visible.length === 0 ?
               '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>' :
-              visibleActive.map((t, i) => this.buildTaskRowHtml(t, i)).join('')
+              visible.map((t, pos) => this.buildTaskRowHtml(t, pos)).join('')
             }
           </div>
           ${!showAll ? `
           <div style="padding:10px 16px; border-top:1px solid var(--rule); text-align:center; background:var(--surface2);">
             <button class="tb-action ghost" onclick="App.toggleProjectExpanded('${proj.id}')" style="font-size:11.5px; padding:5px 14px;">
-              展開全部（還有 ${activeTasks.length - PREVIEW_LIMIT} 筆）▼
+              展開全部（還有 ${activeCount - PREVIEW_ACTIVE_LIMIT} 筆）▼
             </button>
-          </div>` : (isExpanded && activeTasks.length > PREVIEW_LIMIT ? `
+          </div>` : (isExpanded && overflow ? `
           <div style="padding:10px 16px; border-top:1px solid var(--rule); text-align:center; background:var(--surface2);">
             <button class="tb-action ghost" onclick="App.toggleProjectExpanded('${proj.id}')" style="font-size:11.5px; padding:5px 14px;">
-              收起（只顯示前 ${PREVIEW_LIMIT} 筆）▲
+              收起（只顯示前 ${PREVIEW_ACTIVE_LIMIT} 個未完成）▲
             </button>
           </div>` : '')}
           <div class="list-foot">
@@ -3074,20 +3093,6 @@ App.renderProjectDashboard = function(proj) {
           </div>
         </div>
 
-        ${doneTasks.length > 0 ? `
-        <div class="done-section collapsed" id="doneSection">
-          <div class="done-head" onclick="document.getElementById('doneSection').classList.toggle('collapsed')">
-            <span class="done-head-title">已完成</span>
-            <span class="done-head-count">${doneTasks.length}</span>
-            <span class="done-head-chevron">▼</span>
-          </div>
-          <div class="done-list">
-            ${doneTasks.map((t, i) => this.buildTaskRowHtml(t, i)).join('')}
-          </div>
-          <div class="done-clear-tip">
-            💡 完成超過 ${DATA.settings.doneRetentionDays} 天的任務會自動清除
-          </div>
-        </div>` : ''}
 
         ${deletedTasks.length > 0 ? `
         <div class="done-section deleted-section collapsed" id="deletedSection">
@@ -3460,6 +3465,12 @@ App.buildProjDeptHtml = function(proj) {
 App.toggleProjectExpanded = function(projId) {
   this._projectExpanded = this._projectExpanded || {};
   this._projectExpanded[projId] = !this._projectExpanded[projId];
+  this.renderProject();
+};
+
+App.toggleDoneVisible = function(projId) {
+  this._doneVisible = this._doneVisible || {};
+  this._doneVisible[projId] = !this._doneVisible[projId];
   this.renderProject();
 };
 
