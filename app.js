@@ -6806,25 +6806,26 @@ App.renderSettings = function() {
 };
 
 App.saveSettings = function() {
-  DATA.settings.jSheetUrl = document.getElementById('set-url').value.trim();
-  DATA.settings.syncTimes = [
-    document.getElementById('set-st1').value,
-    document.getElementById('set-st2').value,
-  ];
-  DATA.settings.autoSyncEnabled = document.getElementById('set-autosync').value === 'true';
-  DATA.settings.previewWeeks = parseInt(document.getElementById('set-preview').value);
-  DATA.settings.dailyHours = parseFloat(document.getElementById('set-hours').value);
-  DATA.settings.workStart1 = document.getElementById('set-ws1').value;
-  DATA.settings.workEnd1 = document.getElementById('set-we1').value;
-  DATA.settings.workStart2 = document.getElementById('set-ws2').value;
-  DATA.settings.workEnd2 = document.getElementById('set-we2').value;
-  DATA.settings.goldenTime = document.getElementById('set-golden').value;
-  DATA.settings.workDays = Array.from(document.querySelectorAll('#dayPills .day-pill.on'))
-    .map(b => parseInt(b.dataset.day));
-  DATA.settings.splitThreshold = parseFloat(document.getElementById('set-split').value);
-  DATA.settings.userName = document.getElementById('set-uname').value.trim();
-  DATA.settings.department = document.getElementById('set-dept').value.trim();
-  DATA.settings.doneRetentionDays = parseInt(document.getElementById('set-retention').value);
+  const el = (id) => document.getElementById(id);
+  const sv = (id) => { const e = el(id); return e ? e.value : null; };
+  let v;
+  if ((v = sv('set-url')) !== null) DATA.settings.jSheetUrl = v.trim();
+  const st1 = sv('set-st1'), st2 = sv('set-st2');
+  if (st1 !== null && st2 !== null) DATA.settings.syncTimes = [st1, st2];
+  if ((v = sv('set-autosync')) !== null) DATA.settings.autoSyncEnabled = v === 'true';
+  if ((v = sv('set-preview')) !== null) DATA.settings.previewWeeks = parseInt(v);
+  if ((v = sv('set-hours')) !== null) DATA.settings.dailyHours = parseFloat(v);
+  if ((v = sv('set-ws1')) !== null) DATA.settings.workStart1 = v;
+  if ((v = sv('set-we1')) !== null) DATA.settings.workEnd1 = v;
+  if ((v = sv('set-ws2')) !== null) DATA.settings.workStart2 = v;
+  if ((v = sv('set-we2')) !== null) DATA.settings.workEnd2 = v;
+  if ((v = sv('set-golden')) !== null) DATA.settings.goldenTime = v;
+  const dayPillBox = document.getElementById('dayPills');
+  if (dayPillBox) DATA.settings.workDays = Array.from(dayPillBox.querySelectorAll('.day-pill.on')).map(b => parseInt(b.dataset.day));
+  if ((v = sv('set-split')) !== null) DATA.settings.splitThreshold = parseFloat(v);
+  if ((v = sv('set-uname')) !== null) DATA.settings.userName = v.trim();
+  if ((v = sv('set-dept')) !== null) DATA.settings.department = v.trim();
+  if ((v = sv('set-retention')) !== null) DATA.settings.doneRetentionDays = parseInt(v);
 
   // Google OAuth + whitelist
   const gciEl = document.getElementById('set-gci');
