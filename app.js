@@ -3137,7 +3137,10 @@ App.taskOwnerOptions = function(projectId) {
 };
 
 App.buildTaskFilterBar = function(projId) {
-  const stageOpts = this.getProjectStages(projId).map(s => ({ value: s.name, label: s.name }));
+  const seenStage = new Set();
+  const stageOpts = this.getProjectStages(projId)
+    .filter(s => { if (seenStage.has(s.name)) return false; seenStage.add(s.name); return true; })
+    .map(s => ({ value: s.name, label: s.name }));
   const ownerOpts = this.taskOwnerOptions(projId).map(o => ({ value: o, label: o }));
   const urgOpts = ['high', 'medium', 'low'].map(v => ({ value: v, label: URGENCY_LABELS_ZH[v] }));
   const statusOpts = ['pending', 'wip', 'done', 'hold'].map(v => ({ value: v, label: STATUS_LABELS_ZH[v] }));
@@ -3315,11 +3318,8 @@ App.buildProjStagesHtml = function(proj) {
     return `${sLine}<br>${eLine}`;
   };
 
-  // 膠囊標題：前端寫死顯示文字（純顯示層，不存後端）；分組鍵來自計算層 group
-  const GROUP_TITLE = { main: '2.9 ~ 7.3 kW', alt: '2.2 kW（另案）' };
-
   const rowHtml = (st) => {
-    const ts = tasks.filter(t => stageOf(t) === st.name);
+    const ts = tasks.filter(t => stageOf(t) === st.name && (t.variant || null) === st.variantId);
     const pct = ts.length > 0
       ? Math.round(ts.reduce((s, t) => s + taskDisplayProgress(t), 0) / ts.length)
       : null;
@@ -3342,17 +3342,21 @@ App.buildProjStagesHtml = function(proj) {
       <div class="stage-pct-h">完成</div><div class="stage-cnt-h">完成/件數</div>
     </div>`;
 
-  // 動態分組：計算層回傳幾組就畫幾組（無 alt 桶 → 只畫 main，連膠囊都不出）
-  const groupOrder = ['main', 'alt'];
-  const blocks = groupOrder.map(gk => {
-    const gs = stages.filter(st => st.group === gk);
-    if (gs.length === 0) return '';
-    const onlyMain = stages.every(st => st.group === 'main');
-    // 只有 main 一組時不畫膠囊標題（退化成單組樣式）
-    const cap = onlyMain ? '' :
-      `<div class="stage-group-cap"><span class="stage-cap-pill cap-${gk}">${GROUP_TITLE[gk]}</span><span class="stage-cap-rule"></span></div>`;
-    return cap + colHead + gs.map(rowHtml).join('');
-  }).join('');
+  // 分塊：proj.variants 有值→按案別分塊；無→單組顯示(其他專案維持原樣)
+  const variantList = (proj.variants && proj.variants.length) ? proj.variants : null;
+  let blocks;
+  if (variantList) {
+    blocks = variantList.map((vr, i) => {
+      const gs = stages.filter(st => st.variantId === vr.id);
+      if (gs.length === 0) return '';
+      const cap = `<div class="stage-group-cap"><span class="stage-cap-pill cap-${i % 3}">${U.esc(vr.name)}</span><span class="stage-cap-rule"></span></div>`;
+      return cap + colHead + gs.map(rowHtml).join('');
+    }).join('');
+    const noVar = stages.filter(st => !st.variantId);
+    if (noVar.length) blocks += colHead + noVar.map(rowHtml).join('');
+  } else {
+    blocks = colHead + stages.map(rowHtml).join('');
+  }
 
   return `<div class="proj-stages-card">
     <div class="proj-stages-head">階段進度 <span class="proj-stages-count">${stages.length} 個階段</span></div>
@@ -5199,7 +5203,10 @@ App.renderKanban = function(targetId = 'page-kanban', pid = null) {
   const statusOpts = STATUS_OPTS.map(o =>
     '<option value="' + o.v + '"' + (o.v === this.kanbanFilter.status ? ' selected' : '') + '>' + o.label + '</option>'
   ).join('');
-  const stageOpts = '<option value="">全部階段</option>' + stages.map(s =>
+  const seenKStage = new Set();
+  const stageOpts = '<option value="">全部階段</option>' + stages
+    .filter(s => { if (seenKStage.has(s.name)) return false; seenKStage.add(s.name); return true; })
+    .map(s =>
     '<option value="' + U.esc(s.name) + '"' + (s.name === this.kanbanFilter.stage ? ' selected' : '') + '>' + U.esc(s.name) + '</option>'
   ).join('');
   const onch = ' App.renderKanban(App.kanbanScope.targetId, App.kanbanScope.pid);';
@@ -6032,27 +6039,30 @@ App.getPdcaGroups = function(projectId) {
 // ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 App.getProjectStages = function(projectId) {
   const NO_STAGE = '未分階段';
-  const buckets = {};   // { 階段名: [tasks] }
+  const buckets = {};   // key = 階段名 + '\u0000' + (variant||'')；同名階段跨案別各自一桶
   (DATA.tasks || []).forEach(t => {
     if (t.project !== projectId || t._deleted) return;
     const s = (typeof t.stage === 'string' && t.stage.trim()) ? t.stage.trim() : NO_STAGE;
-    (buckets[s] || (buckets[s] = [])).push(t);
+    const key = s + '\u0000' + (t.variant || '');
+    (buckets[key] || (buckets[key] = [])).push(t);
   });
-  const isAlt = (nm) => /\([\d.]+\)\s*$/.test(nm);
-  const stages = Object.keys(buckets).map(name => {
-    let earliestStart = null, latestEnd = null, doneCount = 0;
-    buckets[name].forEach(t => {
+  const stages = Object.keys(buckets).map(key => {
+    const ts = buckets[key];
+    const name = key.split('\u0000')[0];
+    const variantId = key.split('\u0000')[1] || null;
+    let earliestStart = null, latestEnd = null, doneCount = 0, minWbs = Infinity;
+    ts.forEach(t => {
       if (t.status === 'done') doneCount++;
+      const w = parseInt(t.wbs); if (!isNaN(w) && w < minWbs) minWbs = w;
       const sch = getEffectiveSchedule(t);
       if (sch && sch.start && (!earliestStart || sch.start < earliestStart)) earliestStart = sch.start;
       if (sch && sch.end   && (!latestEnd   || sch.end   > latestEnd))       latestEnd   = sch.end;
     });
-    return { stageId: name, name, earliestStart, latestEnd,
-             itemCount: buckets[name].length, doneCount, group: isAlt(name) ? 'alt' : 'main' };
+    return { stageId: key, name, variantId, minWbs,
+             earliestStart, latestEnd, itemCount: ts.length, doneCount };
   });
-  // 排序：階段名數字前綴(parseFloat，"10." 排在 "2." 後)；無前綴(NaN，如「未分階段」)排最後
-  const numOf = st => { const n = parseFloat(st.name); return isNaN(n) ? Infinity : n; };
-  stages.sort((a, b) => numOf(a) - numOf(b) || a.name.localeCompare(b.name));
+  // 排序：minWbs 升冪(主案 wbs 全小於另案→variant 自然分組)；平手以階段名穩定(防 Infinity-Infinity=NaN)
+  stages.sort((a, b) => (a.minWbs - b.minWbs) || a.name.localeCompare(b.name));
   return stages;
 };
 

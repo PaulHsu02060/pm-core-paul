@@ -323,8 +323,9 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .stage-group-cap { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
 .stage-group-cap:first-of-type { margin-top: 2px; }
 .stage-cap-pill { font-size: 12.5px; font-weight: 500; padding: 3px 12px; border-radius: 99px; }
-.stage-cap-pill.cap-main { color: var(--sage-700); background: var(--sage-50); border: 1px solid var(--sage-100); }
-.stage-cap-pill.cap-alt  { color: var(--khaki-ink); background: var(--khaki-bg); border: 1px solid var(--khaki); }
+.stage-cap-pill.cap-0 { color: var(--sage-700); background: var(--sage-50); border: 1px solid var(--sage-100); }
+.stage-cap-pill.cap-1 { color: var(--khaki-ink); background: var(--khaki-bg); border: 1px solid var(--khaki); }
+.stage-cap-pill.cap-2 { color: var(--clay-ink); background: var(--clay-from); border: 1px solid var(--clay); }
 .stage-cap-rule { flex: 1; height: 0; border-top: 1px solid var(--rule); }
 
 /* 表頭小字 */
