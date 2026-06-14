@@ -7539,10 +7539,15 @@ function performWbsImport(parsed) {
   }
   const projId = proj.id;
   proj.depts = parsed.depts || [];   // D-2a：部門表存進 proj（if/else 外→重匯也覆寫跟著 Excel 更新）
+  // 從本批 rows 的 variant 去重建案別清單(id 制，平行 depts)；空字串=通案不建
+  const variantNames = [...new Set(rows.map(r => r.variant).filter(v => v && v.trim()))];
+  proj.variants = variantNames.map(name => ({ id: U.id(), name }));
 
   // D-2b：建「部門名→id」反查表，task.dept 改存部門 id（「未指派」查無→保留字面）
   const nameToId = {};
   (proj.depts || []).forEach(d => { nameToId[d.name] = d.id; });
+  const variantNameToId = {};
+  (proj.variants || []).forEach(v => { variantNameToId[v.name] = v.id; });
 
   // 甲案：清空該專案舊任務整批重灌（用 project，不是 projectId）
   DATA.tasks = DATA.tasks.filter(t => t.project !== projId);
@@ -7567,6 +7572,7 @@ function performWbsImport(parsed) {
       durationDays: row.durationDays,
       owner: row.owner,
       dept: nameToId[row.dept] || row.dept,   // D-2b：存部門 id（未指派/查無→保留字面字串）
+      variant: variantNameToId[row.variant] || null,
       start: '',                     // 形狀一致防 getEffectiveSchedule fallback，不灌真日期
       end: '',
       plannedStart: row.plannedStart,
