@@ -3510,7 +3510,7 @@ App.buildTaskRowHtml = function(t, i) {
   let dlClass = '';
   if (sch.end) {
     const days = D.daysBetween(D.today(), new Date(sch.end));
-    if (days < 0)      { dlText = `逾${-days}`; dlClass = 'overdue'; }      // 短格式（截止欄窄）：逾41 / 今日 / 明日 / 2天 / 7/10
+    if (days < 0)      { dlText = `逾${D.workdaysBetween(sch.end, D.today()) - 1}`; dlClass = 'overdue'; }      // 短格式（截止欄窄）：逾41 / 今日 / 明日 / 2天 / 7/10
     else if (days === 0) { dlText = '今日'; dlClass = 'near'; }
     else if (days === 1) { dlText = '明日'; dlClass = 'near'; }
     else if (days <= 3)  { dlText = `${days}天`; dlClass = 'near'; }
@@ -3534,8 +3534,19 @@ App.buildTaskRowHtml = function(t, i) {
   const statusCls = isDelayed ? 'late' : (t.status === 'done' ? 'done' : (t.status === 'wip' ? 'wip' : ''));
   const statusTxt = isDelayed ? '延遲' : (STATUS_LABELS_ZH[t.status] || t.status || '');
 
-  // 餘裕欄佔位：真值待引擎（deadline − plannedEnd），已完成顯示 '—'
-  const slackTxt = t.status === 'done' ? '—' : '待引擎';
+  // 餘裕：sch.end − 今天(工作日,含頭尾故 -1);done 或無 end 顯 '—'
+  let slackTxt;
+  if (t.status === 'done' || !sch.end) {
+    slackTxt = '—';
+  } else {
+    const today = D.today();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(sch.end) < today) {
+      slackTxt = '超' + (D.workdaysBetween(sch.end, today) - 1) + '天';
+    } else {
+      slackTxt = '餘' + (D.workdaysBetween(today, sch.end) - 1) + '天';
+    }
+  }
 
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
     <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${i + 1}</span>
