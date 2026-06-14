@@ -339,25 +339,35 @@ UI：狀態欄反灰唯讀，`?` hover 說明規則。
 
 ### 6.2 欄位與排序
 
+順序為今天重排後（2026-06-14，`f5a1c0f`）的實際渲染序（app.js:3980 起 `buildTaskFormHtml`）：
+
 | 順序 | 欄位 | 必填 | 元件 | 狀態 |
 |---|---|---|---|---|
-| 1 | 專案 | ✅ | select | ✅ 完成（改名、移到最上） |
+| 1 | 專案 | ✅ | select | ✅（改名、移到最上） |
 | 2 | 任務名稱 | ✅ | text | ✅ |
-| 3 | 說明 | — | textarea | ✅ |
+| 3 | 計量切換（工期制／時段制） | — | measure-toggle 按鈕 | ✅（切換 dur-only／hours 欄位顯隱） |
 | 4a | 擔當 | ✅ | text | ✅ |
-| 4b | 類型 | ✅ | select（帶 ? 說明） | ✅ 欄位完成 / ❌ Tooltip 未做 |
+| 4b | 類型 | ✅ | select（? tooltip） | ✅（含 tooltip） |
 | 5a | 階段 | ✅ | text+datalist | ✅（改名 PLM階段→階段） |
-| 5b | 子群組 | — | text+datalist | ✅ |
-| 6a | 緊急程度 | — | select（自動算可覆蓋，帶 ?） | ✅ 欄位 / ❌ Tooltip 未做 |
-| 6b | 狀態 | — | select（反灰唯讀，帶 ?） | ❌ 反灰+Tooltip 未做 |
-| 7 | 前置任務 | — | 結構化下拉（見 6.4） | ❌ 未做（還是舊自由文字） |
-| 8a | 預計開始 | ✅ | date | ✅ |
-| 8b | 工期 | — | number | ✅ 欄位 / ❌ 自動算未做 |
-| 8c | 預計完成 | — | date（自動算） | ❌ 自動算未做 |
-| 9 | Deadline | — | date | ❌ 新欄位未做 |
-| 10 | 需拉高層 HL | — | checkbox+textarea | ✅ 完成 |
-| 11 | 實際執行區 | — | 反向摺疊 | ✅ 完成（含交付物） |
-| 新增 | 排入行事曆 | — | checkbox | ❌ 未做（雙視圖分流用） |
+| 5b | 子群組 | — | text+datalist（dur-only） | ✅ |
+| 6 | 預計開始 | ✅ | date（+ 推算日顯示） | ✅（顯示 scheduledStart 推算日，§4.9） |
+| 7 | 預計完成 / Deadline | — | date（tf-end，兩者併一欄） | ✅ 欄位 / ❌ 自動算未做 |
+| 8a | 工期（工作天） | — | number（dur-only，tf-duration） | ✅ 欄位 / ❌ 自動算未做 |
+| 8b | 預估工時 (h) | — | number（hours，tf-hours） | ✅ |
+| 9 | 前置任務 | — | 結構化下拉（見 6.4） | ❌ 未做（仍舊自由文字） |
+| 10a | 緊急程度 | — | select（? tooltip，自動算可覆蓋） | ✅（含 tooltip） |
+| 10b | 狀態 | — | select（? tooltip） | ✅ tooltip / ❌ 反灰唯讀未做 |
+| 11 | 說明 | — | textarea | ✅ |
+| 12 | 實際執行區 | — | 反向摺疊（實際開始/完成 + 交付物 + 連結） | ✅ |
+| 13 | 需拉高層 HL + 風險內容 | — | checkbox（? tooltip）+ textarea | ✅ |
+| 14 | 備註 | — | text（dur-only） | ✅ |
+| 15 | 可切分（≥4h 拆多天） | — | checkbox（dur-only） | ✅ |
+| 16 | 排入行事曆 | — | checkbox（dur-only，? tooltip） | ✅（雙視圖分流欄位，§2.3） |
+
+**順序重排（2026-06-14，`f5a1c0f`）：** 時間區（預計開始／完成／工期／工時／前置）上移到階段下方
+——時間是專案重心；緊急／狀態降到時間之後；說明移到末段（實際執行／HL／備註／可切分／排行事曆前）。
+`buildTaskFormHtml` 18 區塊 splice 重排，**每區塊內容不動、只換序**，共用表單（new／edit／工期制／時段制）
+所有入口一致（單一真實來源，不複製兩份）。
 
 **已移除：** 分類（category，UI 拿掉、資料層保留、行事曆配色仍讀 category）、處理方式（method）。
 
@@ -424,34 +434,43 @@ UI：狀態欄反灰唯讀，`?` hover 說明規則。
 
 ## 第七部分：WBS 匯入器（現況，已查證）
 
-`parseWbsExcel`(:6378) + `performWbsImport`(:6444) 已將 Excel 幾乎所有欄位寫入 task：
+`parseWbsExcel`(app.js:7454) + `performWbsImport`(app.js:7553) 已將 Excel 幾乎所有欄位寫入 task。
+**讀法靠表頭名、不靠固定欄序**（2026-06-14，`3df295f`）：新 Excel 在 B 欄插入「案別」整體右移，
+固定欄序會全錯位，故改讀第 1 列表頭、建「表頭字面 → 欄 index」映射（app.js:7482-7494）：
+- `colMap[表頭] = i`（`String().trim()` 防呆空白）；`cell(row, 表頭名)` 靠名取值，欄序不拘。
+- **必要欄檢查**：`['N','PLM階段','任務名','類型','前置(N)','工期','負責人','預計開始']` 缺任一
+  → 整批失敗、報「缺少必要欄」。
+- 「案別」**不在必要欄**：舊 Excel 無此欄 → 不報錯、該批 variant 留空（向後相容，見 §8e.3）。
 
-| Excel欄 | task 屬性 |
+（欄序不再固定，靠表頭名讀；下表順序僅供參考，實際依 Excel 表頭字面。）
+
+| Excel 欄（表頭名讀） | task 屬性 |
 |---|---|
-| A 序號 | wbs |
-| B 階段 | stage |
-| C 子群組 | subgroup |
-| D 任務名 | name |
-| E 類型 | taskType（+category lossy 過渡） |
-| F 前置 | predecessor |
-| G 工期 | durationDays |
-| H 負責人 | owner + dept |
-| I 預計開始 | plannedStart |
-| J 預計完成 | plannedEnd |
-| K/L 實際開始/完成 | actualStart/End |
-| M 進度 | progress |
-| N 狀態 | status |
-| O/P 必交付/交付物 | mustDeliver/deliverable |
-| Q 風險議題 | riskIssue |
-| R 備註 | note |
-| U/V 已交付/連結 | delivered/deliverableLink |
+| 序號（N） | wbs |
+| 案別 | variant（id 制，見 §8e） |
+| 階段（PLM階段） | stage |
+| 子群組 | subgroup |
+| 任務名 | name |
+| 類型 | taskType（+category lossy 過渡） |
+| 前置(N) | predecessor |
+| 工期 | durationDays |
+| 負責人 | owner + dept |
+| 預計開始 | plannedStart |
+| 預計完成 | plannedEnd |
+| 實際開始/完成 | actualStart/End |
+| 進度 | progress |
+| 狀態 | status |
+| 必交付/交付物 | mustDeliver/deliverable |
+| 風險議題 | riskIssue |
+| 備註 | note |
+| 已交付/連結 | delivered/deliverableLink |
 | 待補 | deadline（§6.6） |
 
 **兩個 caveat：**
 1. 匯入器刻意把 `start`/`end` 留空字串（只寫 planned），防 `getEffectiveSchedule` 誤判手填錨點。
 2. **重新匯入整碗覆蓋**：先清空該專案任務再重建。匯入後本地編輯下次重匯被 Excel 覆蓋。工作流：來源是 Excel 的改 Excel 重匯；PM-Core 表單編輯適合手動新建任務。
 
-H 欄解析 quirks：多人分隔符（`、` `/` `＋`/`+`）全要拆；髒值（`—`、`「負責人」`表頭）→ 未指派；未知名 → 未指派；H 欄可能直接是部門名 → 反查表要含部門名為 key。
+負責人欄解析 quirks：多人分隔符（`、` `/` `＋`/`+`）全要拆；髒值（`—`、`「負責人」`表頭）→ 未指派；未知名 → 未指派；負責人欄可能直接是部門名 → 反查表要含部門名為 key。
 
 ---
 
@@ -671,6 +690,54 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 
 ---
 
+## 第八部分之五：變體／案別架構（variant，2026-06-14 已實作）
+
+> 一個 J 系列專案同時承載「主案 + 多變體（2.2kW / 2.9~7.3kW 等案別）」的根本解。
+> 落地 commit：`3df295f`（匯入器表頭名讀 + 案別欄解析）、`db4e499`（performWbsImport
+> 接案別、id 制寫入 task）、`25d7fed`（階段進度卡按案別 variant 分塊顯示）。
+
+### 8e.1 需求由來
+變體階段常是主案子集、階段名重複，只能靠 kW／代號區分。原本 `stage` 欄被迫同時扛
+「變體 + 階段」兩維度，出現「手工機(2.2)」這種縫合產物。正解：把 variant 拆成獨立
+維度（id 制），`stage` 回歸純階段名。
+
+### 8e.2 資料結構（id 制，平行 depts）
+- `project.variants = [{ id, name }]`：案別清單，`U.id()` 自動發 id（與 `project.depts`
+  同款 id 結構，name 可改不破壞關聯）。空陣列／無此欄 → 該專案無變體（通案單組）。
+- `task.variant`：存 variant **id**（非名稱）。**空 = 通案 = `null`**。
+- 與 §8b「身分／位置分離」一致：variant 靠 id 指認，name 只供顯示。
+
+### 8e.3 匯入器接「案別」欄（向後相容）
+- `parseWbsExcel`：改靠表頭名讀（見 §第七部分），讀「案別」欄 → `variantRaw`
+  （app.js:7508/7521）。**案別欄不在必要欄檢查**：舊 Excel 無此欄 → 該批 variant 留空、
+  不報錯（向後相容）。
+- `performWbsImport`（app.js:7564-7597）：
+  1. 從本批 rows 的 variant **去重**建清單：`[...new Set(rows.map(r => r.variant).filter(...))]`，
+     `U.id()` 發 id 寫 `proj.variants`；空字串＝通案不建。
+  2. 建「variant name → id」反查表（平行 depts 的 nameToId）。
+  3. 逐列 `task.variant = variantNameToId[row.variant] || null`（查無／通案 → null）。
+
+### 8e.4 階段複合鍵分塊（同名階段跨案別各自一桶）
+- bucket key ＝ `階段名 + '\u0000' + (t.variant || '')`（app.js:6053-6075）。`\u0000` 當分隔符，
+  同名階段在不同案別各自分到一桶、不會被合併。
+- 還原：`key.split('\u0000')` → `name` ＋ `variantId`（`[1] || null`）。
+- 排序：`minWbs` 升冪（主案 wbs 全小於另案 → variant 自然分組）；平手以階段名穩定
+  （防 `Infinity - Infinity = NaN`）。
+
+### 8e.5 階段進度卡渲染（按案別分塊）
+- `proj.variants` 有值 → 按案別分塊（app.js:3345-3359）：每塊一個 cap 膠囊
+  `stage-cap-pill cap-${i % 3}`（案別索引 mod 3 配色，cap-0/1/2 三色輪替）+ 該案別階段。
+- 無 `variantId` 的階段（通案）→ 收尾單獨一塊，附在所有案別之後。
+- `proj.variants` 空 → 維持**單組原樣**（其他專案不受影響，行為不變）。
+
+### 8e.6 邊界與未竟
+- status 過濾函式（app.js:1137）**本批預留不實作 variant**（傳了也忽略），非分塊路徑不吃 variant。
+- **前置候選過濾尚未加 variant 維度**：§9 S5 階段過濾已預留疊加空間（未來多一個
+  「variant 相同」AND 條件 → 同 variant + 同階段及之前）。
+- **未做**：variant 編輯 UI、兩種版面（主案完整／變體精簡）的 mockup（屬後續，動工前先出設計）。
+
+---
+
 ## 第九部分：待施工清單（依風險與依賴排序）
 
 每項獨立 commit，逐一核 diff → 線上驗證 → commit。
@@ -707,7 +774,7 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 16. app.js 拆檔（~7000 行，no-build 約束，ES modules 或 ordered script）
 17. 設定頁 v2（移除 J 系列遺留、側欄預設收合）
 18. 部門 D-2c/D-2d、D-3
-19. variant 變體/案別架構（task.variant id 制）：一個 J 系列專案承載主案 + 多變體（2.2kW 等），變體階段可能是主案子集、階段名重複，只能靠 kW/代號區分。stage 欄目前被迫扛「變體+階段」兩維度（出現「手工機(2.2)」縫合產物）。正解：拆 variant（id 制，project.variants=[{id,name}]）+ stage（純階段）兩欄。前置候選過濾屆時 = 同 variant + 同階段及之前。屬大功能，動工前先出 mockup + 資料結構設計 + 兩種版面（主案完整/變體精簡）。S5 階段過濾預留疊加空間（未來多一個 variant 相同 AND 條件）。
+19. ✅ variant 變體／案別架構（id 制）核心已實作（2026-06-14，`3df295f`/`db4e499`/`25d7fed`，見 §8e）：資料結構（project.variants=[{id,name}]、task.variant 存 id）、匯入器接案別欄、階段複合鍵分塊、案別膠囊配色全到位。**剩**：前置候選過濾加 variant 維度（S5 已預留疊加空間）、variant 編輯 UI、兩種版面（主案完整／變體精簡）mockup。
 20. **Excel 匯出**：把 J 系列/排程結果匯出成 Excel（JS + SheetJS，client 端產生）。待 variant 後做——匯出帶「案別」欄才乾淨，否則 stage 混「變體+階段」會匯出髒資料。
 21. **Template 範本系統正推/逆推（§8d + §4.8 + §6.8）**：錨定已從 Task 層移除（§6.8 廢除），正解在 Template 層。正推 UI + 逆推引擎（backward pass，§4.8）待做；逆推引擎屬核心新增、判斷風險最高。
 
@@ -717,11 +784,30 @@ Excel 的序號（N 欄）同時被當兩件事用，綁死導致插入會亂：
 
 ---
 
-## 第九部分之二：餘裕計算規格（§9-8 細節）
+## 第九部分之二：餘裕計算規格（2026-06-14 已實作，commit `d5104b6`）
 
-- 公式：餘裕 = `deadline - plannedEnd`。正=餘 N 天（綠）/ 0=黃 / 負=超 N 天（紅）/ 完成或無 deadline=「—」。
-- **卡點**：`task.deadline` 不存在；待辦表「截止日」(3079-3088) 讀 `getEffectiveSchedule(t).end`（有效結束日），非獨立 deadline。拿它當 deadline → 餘裕恆 0。
-- **必須先定 deadline 獨立來源**（與 §6.6 同一件事）才能算。
+**口徑（落地版）：** 餘裕 ＝ `sch.end − 今天`（工作日）。`sch.end` ＝ `getEffectiveSchedule(t).end`
+（override > actual > scheduled > planned）。
+- 正數 → `餘 N 天`、0 → `餘 0 天`、負數 → `超 N 天`、`done` 或無 `sch.end` → `—`。
+- **工作日，非日曆天**：用 `D.workdaysBetween`（含頭含尾）；因含頭尾，公式取 **inclusive − 1**：
+  - end ≥ 今天：`workdaysBetween(今天, sch.end) − 1`（end==今天得 0 → 餘 0 天）。
+  - end < 今天：`workdaysBetween(sch.end, 今天) − 1`（逾期天數）。
+  - 比較前今天正規化午夜（`setHours(0,0,0,0)`），避免 end==今天被誤判逾期。
+
+**口徑變更（與原規格不同，顯式記）：** 原規格寫 `餘裕 = deadline − plannedEnd`（日曆天、需獨立
+deadline 欄）。因 `task.deadline` 仍不存在（§6.6 未做），落地改用 **`sch.end − 今天`（工作日）**——
+用既有有效結束日當基準，先讓欄位可用；待 deadline 欄補上再議是否切換基準。
+
+**截止日欄同步：** 待辦列「截止日」(dlText) 逾期天數原本是日曆天（`-days`），一併改成工作日
+（`workdaysBetween(sch.end, 今天) − 1`），與餘裕欄同一把尺 → **兩欄逾期數字一致**。
+
+**工作日帶行事曆四層：** `workdaysBetween` 逐日呼叫 `isWorkday`（app.js:427-444），判斷順序＝
+公司補班（override.workOverrides）> 公司額外公休（override.extraHolidays）> 國定假日（base.holidays）
+> 週末規則（settings.workDays）。與排程引擎 `addWorkdays` 同一把尺。
+（前提：`DATA.calendars` 已載入假日；未載入的環境退回只認週末，見 §第四部分之二.5。）
+
+**關聯 §4.6：** §4.6 的「逾期判定布林」（`(deadline||plannedEnd) < today` 延遲徽章、散落 4 處待統一）
+是另一機制，本次未動；此處只改餘裕欄與截止日欄的「天數顯示計量」。
 
 ---
 
