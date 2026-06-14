@@ -3849,20 +3849,88 @@ App.PRED_RELATIONS = [
   { code: 'SF', label: '它開始後，本任務才能完成' },
 ];
 
-// 候選任務（本專案、有 wbs、排除自己）→ [{wbs, name}]
-App.predCandidates = function(projId, selfId) {
-  return (DATA.tasks || [])
-    .filter(t => t.project === projId && String(t.wbs == null ? '' : t.wbs).trim() && t.id !== selfId)
-    .map(t => ({ wbs: String(t.wbs).trim(), name: t.name || '' }));
+// 序基準（單一真實來源）：專案任務陣列序（= Excel/wbs 升冪 for 匯入，且保中間插入位置）。
+// 排除已刪除、含 done（done 佔號）。外層待辦列與前置下拉共用此排序與 seq（同源）。
+App.orderedProjectTasks = function(projId) {
+  return (DATA.tasks || []).filter(t => t.project === projId && !t._deleted);
 };
 
-// 單列 HTML（pred = {dep,type,lag} 或 null=空白列；candidates 用來把 dep 還原成「編號 · 名稱」顯示）
+// 任務在其專案 ordered 序中的 seq（同源，1-based）；查無回 '?'（供超範圍前置顯示標籤）
+App._seqOf = function(taskId) {
+  const t = (DATA.tasks || []).find(x => x.id === taskId);
+  if (!t) return '?';
+  const i = this.orderedProjectTasks(t.project).findIndex(x => x.id === taskId);
+  return i < 0 ? '?' : (i + 1);
+};
+
+// 前置候選：本專案、measureType!=='hours'、排除自己；階段窗（前1-2階段全收 + 同階段只列自己之前）。
+// 序與 seq 同源 orderedProjectTasks；階段序 SoT = getProjectStages（minWbs，忽略 variant）。
+// @param currentStage 表單當前階段（新建讀 tf-stage、編輯讀 t.stage）→ 定本任務階段序 S
+App.predCandidates = function(projId, selfId, currentStage) {
+  const NO_STAGE = '未分階段';
+  const norm = (s) => (typeof s === 'string' && s.trim()) ? s.trim() : NO_STAGE;
+
+  // 階段名 → index（getProjectStages 已按 minWbs 排序；同名取首次序，忽略 variant）
+  const stages = App.getProjectStages(projId);
+  const nameToIdx = {};
+  let k = 0;
+  stages.forEach(s => { if (!(s.name in nameToIdx)) nameToIdx[s.name] = k++; });
+  const idxOf = (stage) => (norm(stage) in nameToIdx) ? nameToIdx[norm(stage)] : stages.length;
+
+  const S = idxOf(currentStage);   // 本任務階段序（全新階段名 → stages.length，視為最後）
+
+  // 同源序：陣列序、含 done、排除 deleted；seq = 位置+1
+  const ordered = App.orderedProjectTasks(projId);
+  const selfPos = selfId ? ordered.findIndex(t => t.id === selfId) : -1;
+  const selfBefore = selfPos < 0 ? Infinity : selfPos;   // 新建自己不在序中 → 視為在尾，同階段全收
+
+  return ordered
+    .map((t, pos) => ({ t, pos }))
+    .filter(({ t, pos }) => {
+      if (t.id === selfId) return false;                 // 排自己
+      if (t.measureType === 'hours') return false;       // 對齊 S5c：小時 Task 不可當工期前置
+      const d = S - idxOf(t.stage);                      // 候選比自己早幾個階段
+      if (d === 0) return pos < selfBefore;              // 同階段 → 只列自己之前
+      if (d === 1 || d === 2) return true;               // 前 1-2 階段 → 全收
+      return false;                                      // d>=3（太早）/ d<0（同後或更晚）→ 擋
+    })
+    .map(({ t, pos }) => ({
+      id: t.id,
+      seq: pos + 1,                                      // 與外層待辦同源序（可非連續）
+      name: t.name || '',
+      stage: norm(t.stage),                              // 供 optgroup 分組
+      stageIdx: idxOf(t.stage),                          // 供 optgroup 依階段序排
+    }));
+};
+
+// 單列 HTML（pred = {dep,type,lag} 或 null=空白列）：前置任務改 <select>，value=task.id、label「seq · 名稱」、按階段 optgroup。
 App._predRowHtml = function(pred, candidates) {
-  const dep  = pred ? String(pred.dep) : '';
-  const type = pred ? pred.type : 'FS';
-  const lag  = pred ? pred.lag : 0;
-  const cand = dep ? (candidates || []).find(c => c.wbs === dep) : null;
-  const searchVal = dep ? (dep + ' · ' + (cand ? cand.name : '')).trim() : '';
+  const cands = candidates || App._predCands || [];
+  const depId = pred ? String(pred.dep) : '';
+  const type  = pred ? pred.type : 'FS';
+  const lag   = pred ? pred.lag : 0;
+
+  // 選項：（不設前置）+ 按階段 optgroup（stageIdx 升冪）
+  let optsHtml = `<option value="">（不設前置）</option>`;
+  const byIdx = {}, order = [];
+  cands.forEach(c => {
+    if (!(c.stageIdx in byIdx)) { byIdx[c.stageIdx] = { name: c.stage, items: [] }; order.push(c.stageIdx); }
+    byIdx[c.stageIdx].items.push(c);
+  });
+  order.sort((a, b) => a - b);
+  order.forEach(idx => {
+    const g = byIdx[idx];
+    optsHtml += `<optgroup label="${U.esc(g.name)}">` +
+      g.items.map(c => `<option value="${U.esc(c.id)}"${c.id === depId ? ' selected' : ''}>${U.esc(c.seq + ' · ' + c.name)}</option>`).join('') +
+      `</optgroup>`;
+  });
+  // 超範圍 selected（回顯保留，不丟資料；改階段才清＝onTaskStageChange）
+  if (depId && !cands.some(c => c.id === depId)) {
+    const to = (DATA.tasks || []).find(t => t.id === depId);
+    const label = to ? (App._seqOf(depId) + ' · ' + (to.name || '')) : depId;
+    optsHtml += `<optgroup label="（目前範圍外）"><option value="${U.esc(depId)}" selected>${U.esc(label)}（範圍外）</option></optgroup>`;
+  }
+
   const rels = App.PRED_RELATIONS.map(r =>
     `<option value="${r.code}" ${type === r.code ? 'selected' : ''}>${U.esc(r.label)}</option>`).join('');
   return `
@@ -3870,7 +3938,7 @@ App._predRowHtml = function(pred, candidates) {
         <div class="pred-field">
           <label class="pred-field-label">🔗 要接在這個任務之後</label>
           <div class="pred-field-line">
-            <input type="text" class="pred-search" list="tf-pred-candidates" value="${U.esc(searchVal)}" placeholder="搜尋任務（編號或名稱）">
+            <select class="pred-search">${optsHtml}</select>
             <button type="button" class="pred-del" onclick="App.removePredRow(this)" title="刪除這條前置">✕</button>
           </div>
         </div>
@@ -3886,17 +3954,18 @@ App._predRowHtml = function(pred, candidates) {
       </div>`;
 };
 
-// 整個前置欄內容（datalist 候選 + 既有列 + 加列鈕）；反序列化走 parsePredecessors（字串→陣列）
+// 整個前置欄內容（select 候選列 + 加列鈕）；反序列化走 parsePredecessors（字串→陣列）。候選快取供 addPredRow/onTaskStageChange 共用。
 App.buildPredListHtml = function(t) {
-  const cands = App.predCandidates(t.project, t.id);
-  const opts = cands.map(c => `<option value="${U.esc(c.wbs + ' · ' + c.name)}"></option>`).join('');
+  const cands = App.predCandidates(t.project, t.id, t.stage);
+  App._predCands  = cands;       // 快取：addPredRow 新列 + onTaskStageChange 重建共用
+  App._predProj   = t.project;   // 快取：onTaskStageChange 重算 predCandidates 用
+  App._predSelfId = t.id;
   const preds = parsePredecessors(t.predecessor);
   const rows = preds.length
     ? preds.map(p => App._predRowHtml(p, cands)).join('')
     : App._predRowHtml(null, cands);   // 沒有前置時給一條空白列起手
   return `
       <div class="field-hint pred-intro">設定這個任務接在哪個任務之後，系統會自動排好開始日期。</div>
-      <datalist id="tf-pred-candidates">${opts}</datalist>
       <div id="tf-pred-list">${rows}</div>
       <button type="button" class="pred-add" onclick="App.addPredRow()">＋ 加一條前置</button>
       <div class="tip pred-example">想成『這件事要排在誰後面』。例如本任務要等『#16 模具開發』做完、再隔 2 天材料到位才動工 → 選 #16、選『完成後才開始』、緩衝填 2。</div>`;
@@ -3907,17 +3976,16 @@ App.serializePredecessors = function() {
   const rows = Array.from(document.querySelectorAll('#tf-pred-list .pred-row'));
   const parts = [];
   for (const row of rows) {
-    const raw = (row.querySelector('.pred-search') || {}).value || '';
-    const m = raw.trim().match(/^(\d+)/);   // 取開頭 wbs 編號（容「16」或「16 · 名稱」）
-    if (!m) continue;                        // 沒選到有效任務 → 跳過該列
-    const dep = m[1];
+    const sel = row.querySelector('.pred-search');
+    const id = sel ? (sel.value || '').trim() : '';   // select.value = task.id（空=不設前置）
+    if (!id) continue;                                 // 空值 → 跳過該列
     const type = (row.querySelector('.pred-rel') || {}).value || 'FS';
     const lagEl = row.querySelector('.pred-lag');
     const lagVisible = lagEl && lagEl.style.display !== 'none';
     const lag = lagVisible ? (parseInt(lagEl.value, 10) || 0) : 0;
-    let token = dep + type;                  // 明確寫出 FS/SS/FF/SF（parsePredecessors 看得懂）
+    let token = id + '#' + type;                       // id#關係（# 分隔，對齊 translatePredToId）
     if (lag > 0) token += '+' + lag;
-    else if (lag < 0) token += lag;          // 負 lag 自帶 '-'
+    else if (lag < 0) token += lag;                    // 負 lag 自帶 '-'
     parts.push(token);
   }
   return parts.join(',');
@@ -3927,7 +3995,7 @@ App.serializePredecessors = function() {
 App.addPredRow = function() {
   const list = document.getElementById('tf-pred-list');
   if (!list) return;
-  list.insertAdjacentHTML('beforeend', App._predRowHtml(null, null));
+  list.insertAdjacentHTML('beforeend', App._predRowHtml(null, App._predCands || []));
 };
 
 // 刪一條列（刪到空則補一條空白列，維持起手姿態）
@@ -3937,6 +4005,43 @@ App.removePredRow = function(btn) {
   if (!list || !row) return;
   row.remove();
   if (!list.querySelector('.pred-row')) App.addPredRow();
+};
+
+// 階段欄改變 → 用新階段重算候選窗、重建前置 select；超出新窗的「已選」前置清掉+toast。
+// （對齊回顯分工：回顯保留超範圍、僅「改階段」這個主動動作才清。）
+App.onTaskStageChange = function() {
+  const list = document.getElementById('tf-pred-list');
+  if (!list) return;
+  const newStage = (document.getElementById('tf-stage') || {}).value || '';
+
+  // 重建前，先收集現有列「已選」的前置（含 relation/lag，保留有效者用）
+  const current = Array.from(list.querySelectorAll('.pred-row')).map(row => {
+    const sel = row.querySelector('.pred-search');
+    const id = sel ? (sel.value || '').trim() : '';
+    if (!id) return null;
+    const type = (row.querySelector('.pred-rel') || {}).value || 'FS';
+    const lagEl = row.querySelector('.pred-lag');
+    const lag = lagEl ? (parseInt(lagEl.value, 10) || 0) : 0;
+    return { dep: id, type: type, lag: lag };
+  }).filter(Boolean);
+
+  // 新階段重算候選 + 更新快取
+  const cands = App.predCandidates(App._predProj, App._predSelfId, newStage);
+  App._predCands = cands;
+  const inWindow = new Set(cands.map(c => c.id));
+
+  // 只保留仍在新窗內的，清掉超範圍的
+  const kept = current.filter(p => inWindow.has(p.dep));
+  const dropped = current.length - kept.length;
+
+  // 重建列（保留者逐列回填；全清→一條空白列起手）
+  list.innerHTML = kept.length
+    ? kept.map(p => App._predRowHtml(p, cands)).join('')
+    : App._predRowHtml(null, cands);
+
+  if (dropped > 0) {
+    U.toast('⚠️' + dropped + ' 筆前置因階段調整超出可選範圍，已移除', 'warning');
+  }
 };
 
 // ── 2-A：預計開始「自動／手動」雙態（startMode 純 UI 意圖記憶；引擎錨點機制不動）──
@@ -4013,7 +4118,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
     </div>
     <div class="form-row">
       <div class="form-field"><label>階段</label>
-        <input type="text" id="tf-stage" list="tf-stage-list" value="${U.esc(v(t.stage))}" placeholder="輸入或選擇階段">
+        <input type="text" id="tf-stage" list="tf-stage-list" value="${U.esc(v(t.stage))}" placeholder="輸入或選擇階段" onchange="App.onTaskStageChange()">
         <datalist id="tf-stage-list">${this.stageDatalistOptions(t.project)}</datalist>
       </div>
       <div class="form-field dur-only"><label>子群組</label>
