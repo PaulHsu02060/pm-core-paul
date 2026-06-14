@@ -7453,38 +7453,71 @@ async function parseWbsExcel(file) {
     // 部門翻譯：建「成員→部門」反查 map（重用上面已取的 wsInfo，免重複 lookup）
     const memberToDept = buildMemberToDept(wsInfo);
 
-    const raw = XLSX.utils.sheet_to_json(wsMain, { header: 'A', range: 1 });
+    const aoa = XLSX.utils.sheet_to_json(wsMain, { header: 1, range: 0, defval: null });
     const rows = [];
     const errors = [];
 
-    raw.forEach((r) => {
-      // D 欄（任務名）空 → skip
-      const name = r.D != null && String(r.D).trim() !== '' ? String(r.D).trim() : '';
+    // 改靠表頭名讀（不再固定欄序，因新 Excel 在 B 欄插入「案別」整體右移）：
+    // 第 1 列為表頭，建「表頭字面→欄 index」映射（String().trim() 防呆，萬一手動編輯帶到空白）
+    const headerRow = aoa[0] || [];
+    const colMap = {};
+    headerRow.forEach((h, i) => { const key = String(h == null ? '' : h).trim(); if (key) colMap[key] = i; });
+    const cell = (row, headerName) => { const i = colMap[headerName]; return (i == null) ? null : row[i]; };
+
+    // 必要欄檢查：缺任一即整批失敗（案別欄不在此列，缺失向後相容舊 Excel、不報錯→該批 variant 留空）
+    const REQUIRED = ['N', 'PLM階段', '任務名', '類型', '前置(N)', '工期', '負責人', '預計開始'];
+    const missing = REQUIRED.filter(h => colMap[h] == null);
+    if (missing.length) {
+      return { ok: false, rows: [], projectName, errors: ['缺少必要欄：' + missing.join('、')] };
+    }
+
+    aoa.slice(1).forEach((r) => {
+      // 任務名空 → skip
+      const nameRaw = cell(r, '任務名');
+      const name = nameRaw != null && String(nameRaw).trim() !== '' ? String(nameRaw).trim() : '';
       if (!name) return;
 
+      const typeRaw = cell(r, '類型');
+      const ownerRaw = cell(r, '負責人');
+      const durRaw = cell(r, '工期');
+      const progRaw = cell(r, '進度%');
+      const mustRaw = cell(r, '必須繳付');
+      const wbsRaw = cell(r, 'N');
+      const variantRaw = cell(r, '案別');
+      const stageRaw = cell(r, 'PLM階段');
+      const subgroupRaw = cell(r, '子群組');
+      const predRaw = cell(r, '前置(N)');
+      const statusRaw = cell(r, '狀態');
+      const deliverableRaw = cell(r, '繳付物說明');
+      const riskRaw = cell(r, '風險議題');
+      const noteRaw = cell(r, '備註');
+      const deliveredRaw = cell(r, '已交付');
+      const linkRaw = cell(r, '繳付連結');
+
       rows.push({
-        wbs: r.A != null ? String(r.A).trim() : '',
-        stage: r.B != null ? String(r.B).trim() : '',
-        subgroup: r.C != null ? String(r.C).trim() : '',
+        wbs: wbsRaw != null ? String(wbsRaw).trim() : '',
+        variant: variantRaw != null ? String(variantRaw).trim() : '',
+        stage: stageRaw != null ? String(stageRaw).trim() : '',
+        subgroup: subgroupRaw != null ? String(subgroupRaw).trim() : '',
         name: name,
-        category: String(r.E || '').includes('里程碑') ? 'meeting' : 'deep',
-        taskType: mapTaskType(r.E),   // M2-T：類型正本（E欄原字串→task/milestone/group）；上行 lossy 映射待消費點全改完後拔除
-        predecessor: r.F != null ? String(r.F).trim() : '',      // 原樣序號字串
-        durationDays: typeof r.G === 'number' ? r.G : (parseFloat(r.G) || 0),
-        owner: r.H != null ? String(r.H).trim() : '',
-        dept: ownerToDept(r.H, memberToDept),   // 主責部門（取H欄第一人查map）；owner 維持原樣
-        plannedStart: wbsDateStr(r.I),
-        plannedEnd: wbsDateStr(r.J),
-        actualStart: wbsDateStr(r.K),
-        actualEnd: wbsDateStr(r.L),
-        progress: typeof r.M === 'number' ? Math.round(r.M * 100) : 0,  // 0~1 → 0~100
-        status: r.N != null ? String(r.N).trim() : '',
-        mustDeliver: r.O === '✓' || r.O === true || String(r.O).trim() === '✓',
-        deliverable: r.P != null ? String(r.P).trim() : '',
-        riskIssue: r.Q != null ? String(r.Q).trim() : '',
-        note: r.R != null ? String(r.R).trim() : '',
-        delivered: r.U != null ? String(r.U).trim() : '',
-        deliverableLink: r.V != null ? String(r.V).trim() : '',
+        category: String(typeRaw || '').includes('里程碑') ? 'meeting' : 'deep',
+        taskType: mapTaskType(typeRaw),
+        predecessor: predRaw != null ? String(predRaw).trim() : '',
+        durationDays: typeof durRaw === 'number' ? durRaw : (parseFloat(durRaw) || 0),
+        owner: ownerRaw != null ? String(ownerRaw).trim() : '',
+        dept: ownerToDept(ownerRaw, memberToDept),
+        plannedStart: wbsDateStr(cell(r, '預計開始')),
+        plannedEnd: wbsDateStr(cell(r, '預計結束')),
+        actualStart: wbsDateStr(cell(r, '實際開始')),
+        actualEnd: wbsDateStr(cell(r, '實際完成')),
+        progress: typeof progRaw === 'number' ? Math.round(progRaw * 100) : 0,
+        status: statusRaw != null ? String(statusRaw).trim() : '',
+        mustDeliver: mustRaw === '✓' || mustRaw === true || String(mustRaw).trim() === '✓',
+        deliverable: deliverableRaw != null ? String(deliverableRaw).trim() : '',
+        riskIssue: riskRaw != null ? String(riskRaw).trim() : '',
+        note: noteRaw != null ? String(noteRaw).trim() : '',
+        delivered: deliveredRaw != null ? String(deliveredRaw).trim() : '',
+        deliverableLink: linkRaw != null ? String(linkRaw).trim() : '',
       });
     });
 
