@@ -6159,7 +6159,7 @@ App.getPdcaGroups = function(projectId) {
   return out;
 };
 
-// 把專案任務依 PLM 階段(task.stage)分桶，算每階段日期範圍 + 數量，依階段名數字前綴排序。供階段下拉用。
+// 把專案任務依 PLM 階段(task.stage)分桶，算每階段日期範圍 + 數量，依階段內最小 wbs（minWbs）排序。供階段下拉用。
 // 日期走 getEffectiveSchedule 顯示優先序(override>actual>scheduled>planned)；.start==='' 的項目排除，不汙染 min/max。
 // 純算：不碰 UI/渲染/引擎/applySchedule。ISO 'YYYY-MM-DD' 字串可直接字典序比較＝時序比較。
 // @return [{ stageId, name, earliestStart, latestEnd, itemCount }]；空階段(無有日期項目) earliest/latest = null

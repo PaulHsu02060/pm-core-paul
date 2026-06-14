@@ -78,3 +78,39 @@ app.js 的 `SEED()` 只種 recurringMeetings / cleaningDefaults / projMerges / p
 被 `isAdmin()` / 權限條件 render 的欄位，任何「一次讀所有欄位」的 save 函式都要防 `null`
 （元素可能不存在）。「DOM 元素被條件渲染、save 卻假設它一定在」是本專案反覆出現的坑
 （同類：架構文件警告過 DOM 移除 → 裸讀 null crash，如任務表單實際執行區 DOM 永遠保留的設計）。
+
+---
+
+## 坑 3：cleanOldDoneTasks 每次 init 硬刪 done 任務（PLM 工期制任務被誤刪）
+
+**現象**
+PLM 專案任務（WBS 匯入 / 手動建）標「已完成」後，過了 30 天，下次開頁／重整就
+從待辦清單消失——且**不進「已刪除」區、不可還原**（永久消失）。
+
+**根因（已查證，附行號）**
+- `cleanOldDoneTasks`（app.js:859-872）在 `init()`（app.js:1959，`Storage.load` 之後）
+  **每次載入就跑**。
+- 它把 `status==='done'` 的任務，`completedAt` 超過 `doneRetentionDays`（預設 30 天）者
+  從 `DATA.tasks` **filter 掉（真刪除）+ Storage.save**——非 `_deleted` 軟刪除、不進
+  已刪除區、不可還原。
+- 豁免原本只有 `if (t.synced) return true`（app.js:867，J 系列同步任務）。**WBS Excel 匯入
+  （performWbsImport，未設 synced）+ 手動建任務（synced:false）都不豁免 → done 超 30 天
+  被硬刪。**
+- 顯示層「完成超過 N 天自動清除」tip 文字準確，刪除是真的、不是裝飾。
+
+**暫繞法**
+無（已根治）。
+
+**根治（已做，commit `2243ae9`）**
+- `cleanOldDoneTasks` 在 synced 豁免之後加一行
+  `if (t.measureType !== 'hours') return true;`——**工期制（WBS / 手動專案任務）永不
+  自動清除，只清時段制雜事**（`measureType==='hours'`）。
+- 一併移除待辦頂部 toggle bar 的「自動清除」tip（工期制不清、文字會誤導）。
+- 效果：工期制 done 任務永久保留；只有時段制 done 超 N 天才清。
+
+**操作提醒**
+- 任何「掃 `DATA.tasks` 做 filter + Storage.save」的清理函式都是**真刪除、永久**——
+  改它前先確認豁免條件涵蓋了所有「不該被刪」的任務類別。
+- cleanOldDoneTasks 跑在**每次 init**，威力放大（每次開頁就掃），動它的豁免要特別謹慎。
+- 線上驗法：建一筆工期制 done 任務、把 `completedAt` 改成超過 30 天前、重整頁面 →
+  確認**不被刪**；時段制雜事 done 超期則仍會清。
