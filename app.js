@@ -1170,7 +1170,7 @@ function filterTasks(tasks, f, today) {
 //   只把「環上節點」(gray 重遇點 → 堆疊頂這一段) 標 circular，不誤標單純「依賴環的上游」。
 //   用迭代式 DFS（顯式堆疊）避免大圖遞迴爆堆疊。
 function topoSortTasks(tasks) {
-  const list = (tasks || []).filter(t => t && t.wbs !== '' && t.wbs !== undefined && t.wbs !== null);
+  const list = (tasks || []).filter(t => t && t.measureType !== 'hours');
   const nodes = new Map();
   for (const t of list) nodes.set(t.id, t);
 

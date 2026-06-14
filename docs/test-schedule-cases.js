@@ -200,7 +200,7 @@ function getJOverride(task) {            // 測試版吃 task 物件（生產吃
 
 // ════ topoSortTasks 同步複本 ════════════════════════════════════
 function topoSortTasks(tasks) {
-  const list = (tasks || []).filter(t => t && t.wbs !== '' && t.wbs !== undefined && t.wbs !== null);
+  const list = (tasks || []).filter(t => t && t.measureType !== 'hours');
   const nodes = new Map();
   for (const t of list) nodes.set(t.id, t);
   const edges = new Map();
