@@ -3990,10 +3990,6 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
       <button type="button" class="measure-btn ${measure==='duration'?'active':''}" data-measure="duration" onclick="App.setMeasureMode('duration')">工期制（工作天）</button>
       <button type="button" class="measure-btn ${measure==='hours'?'active':''}" data-measure="hours" onclick="App.setMeasureMode('hours')">時段制（工時 h）</button>
     </div>
-    <div class="form-field">
-      <label>說明</label>
-      <textarea id="tf-desc" placeholder="任務詳細說明（選填）">${U.esc(v(t.desc))}</textarea>
-    </div>
     <div class="form-row">
       <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
       <div class="form-field"><label>類型 <span data-tip="類型|任務=要排程的工作；里程碑=時間點標記（工期0）；群組=純分類母項，不排程" style="cursor:help;">?</span></label>
@@ -4014,33 +4010,6 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
         <datalist id="tf-subgroup-list">${this.subgroupDatalistOptions(t.project)}</datalist>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-field"><label>緊急程度 <span data-tip="緊急程度|系統自動推算，可手動覆蓋" style="cursor:help;">?</span></label>
-        <select id="tf-urgency">
-          <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
-          <option value="medium" ${t.urgency === 'medium' || !t.urgency ? 'selected' : ''}>🟡 普通</option>
-          <option value="low" ${t.urgency === 'low' ? 'selected' : ''}>🟢 不急</option>
-        </select>
-      </div>
-      <div class="form-field"><label>狀態 <span data-tip="狀態|依實際開始/完成日自動推導" style="cursor:help;">?</span></label>
-        <select id="tf-status">
-          <option value="pending" ${t.status === 'pending' || !t.status ? 'selected' : ''}>未開始</option>
-          <option value="wip" ${t.status === 'wip' ? 'selected' : ''}>進行中</option>
-          <option value="done" ${t.status === 'done' ? 'selected' : ''}>已完成</option>
-          <option value="hold" ${t.status === 'hold' ? 'selected' : ''}>擱置中</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-field dur-only">
-      <label>前置任務</label>
-      ${App.buildPredListHtml(t)}
-    </div>
-    <div class="form-row mg-duration">
-      <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
-    </div>
-    <div class="form-row mg-hours">
-      <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
-    </div>
     <div class="form-field">
       <label>預計開始</label>
       <div id="tf-start-block" class="startmode" data-mode="${startMode}">
@@ -4060,6 +4029,37 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
     </div>
     <div class="form-row dur-only">
       <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(t.end)}"></div>
+    </div>
+    <div class="form-row mg-duration">
+      <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
+    </div>
+    <div class="form-row mg-hours">
+      <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
+    </div>
+    <div class="form-field dur-only">
+      <label>前置任務</label>
+      ${App.buildPredListHtml(t)}
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>緊急程度 <span data-tip="緊急程度|系統自動推算，可手動覆蓋" style="cursor:help;">?</span></label>
+        <select id="tf-urgency">
+          <option value="high" ${t.urgency === 'high' ? 'selected' : ''}>🔴 緊急</option>
+          <option value="medium" ${t.urgency === 'medium' || !t.urgency ? 'selected' : ''}>🟡 普通</option>
+          <option value="low" ${t.urgency === 'low' ? 'selected' : ''}>🟢 不急</option>
+        </select>
+      </div>
+      <div class="form-field"><label>狀態 <span data-tip="狀態|依實際開始/完成日自動推導" style="cursor:help;">?</span></label>
+        <select id="tf-status">
+          <option value="pending" ${t.status === 'pending' || !t.status ? 'selected' : ''}>未開始</option>
+          <option value="wip" ${t.status === 'wip' ? 'selected' : ''}>進行中</option>
+          <option value="done" ${t.status === 'done' ? 'selected' : ''}>已完成</option>
+          <option value="hold" ${t.status === 'hold' ? 'selected' : ''}>擱置中</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-field">
+      <label>說明</label>
+      <textarea id="tf-desc" placeholder="任務詳細說明（選填）">${U.esc(v(t.desc))}</textarea>
     </div>
     <div class="form-collapse ${mode === 'edit' ? 'open' : ''}" id="tf-actualSection">
       <div class="form-collapse-head" onclick="document.getElementById('tf-actualSection').classList.toggle('open')">
