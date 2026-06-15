@@ -4622,6 +4622,32 @@ App.openProjectDialog = function(projId) {
         <label>備註</label>
         <input type="text" id="pf-note" value="${editing ? U.esc(editing.note || '') : ''}" placeholder="簡短描述">
       </div>
+      ${!isEdit ? `
+      <div class="form-field">
+        <label>建立方式</label>
+        <select id="pf-mode" onchange="document.getElementById('pf-tplBox').style.display=this.value==='template'?'':'none'">
+          <option value="blank">空白專案</option>
+          <option value="template">套用範本</option>
+        </select>
+      </div>
+      <div id="pf-tplBox" style="display:none">
+        <div class="form-field">
+          <label>選擇範本</label>
+          <select id="pf-tpl"><option value="product-dev-v1">${typeof PRODUCT_DEV_TEMPLATE!=='undefined' ? PRODUCT_DEV_TEMPLATE.templateName : '產品開發範本'}</option></select>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>主案開始日</label><input type="date" id="pf-start"></div>
+          <div class="form-field"><label>主案結束日</label><input type="date" id="pf-end"></div>
+        </div>
+        <div class="form-field">
+          <label>排程方向</label>
+          <select id="pf-direction">
+            <option value="forward">順推（從開始日）</option>
+            <option value="backward" disabled>逆推（從結束日，尚未開放）</option>
+          </select>
+        </div>
+      </div>
+      ` : ''}
         ${isEdit ? `
         <div class="form-field">
           <label>部門擔當</label>
@@ -4667,6 +4693,12 @@ App.saveProject = function(id) {
     const p = this.getProj(id);
     if (p && !p.synced) { p.name = name; p.color = color; p.note = note; }
   } else {
+    const mode = document.getElementById('pf-mode') ? document.getElementById('pf-mode').value : 'blank';
+    if (mode === 'template') {
+      console.log('套範本 stub:', { name, tpl: document.getElementById('pf-tpl').value, start: document.getElementById('pf-start').value, end: document.getElementById('pf-end').value, direction: document.getElementById('pf-direction').value });
+      U.toast('套範本功能開發中（已讀取輸入，見 console）', 'warning');
+      return;
+    }
     const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
     ensurePdcaData(np);
     DATA.projects.push(np);
