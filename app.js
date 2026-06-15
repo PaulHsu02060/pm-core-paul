@@ -1513,6 +1513,46 @@ App.applyTemplate = function(template, userInput) {
   }
   tasks.forEach(t => { t.predecessor = relinkPred(t.predecessor, t.name); });
 
+  // ⑧ 各案別順推排程：seed 無前置 task=該案開始日 → computeSchedule → 寫回 planned*（§8d.6 第一版只順推）
+  const variantStart = {}, variantEnd = {}, variantDir = {};
+  variants.forEach(v => {
+    variantStart[v.id] = v.schedule.startDate || '';
+    variantEnd[v.id] = v.schedule.endDate || '';
+    variantDir[v.id] = v.schedule.direction || 'forward';
+  });
+  // 逆推 v1 disabled（UI 已 disable，此為防呆）：方向 backward → warning，仍以開始日當順推
+  variants.forEach(v => {
+    if (variantDir[v.id] === 'backward') {
+      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
+    }
+  });
+  // seed：無前置(relink 後 predecessor==='') 的 task → plannedStart = 該案開始日
+  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
+  // computeSchedule 跑一次（兩案獨立子圖、另案前置全指內部，已驗）→ 純算不 mutate
+  const sch = computeSchedule(tasks);
+  const schById = new Map();
+  sch.results.forEach(r => schById.set(r.taskId, r));
+  tasks.forEach(t => {
+    const r = schById.get(t.id);
+    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
+    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
+  });
+  // 6b 溢出偵測：per 案別 computedEnd=max(plannedEnd) vs 設定結束日（有填才比）
+  variants.forEach(v => {
+    const endLimit = variantEnd[v.id];
+    if (!endLimit) return;
+    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
+    if (!vts.length) return;
+    let binding = vts[0];
+    vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
+    const computedEnd = binding.plannedEnd;
+    if (computedEnd > endLimit) {
+      const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
+      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
+        '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
+    }
+  });
+
   return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings };
 };
 
