@@ -5050,6 +5050,7 @@ App.deleteProject = function(id) {
   Storage.save();
   this.closeModal();
   this.showPage('dashboard', document.querySelector('[data-page=dashboard]'));
+  this.refreshAll();   // 補：刪完重繪 sidebar（清舊按鈕）+ 儀表板彙總；showPage 已先設 currentPage=dashboard，避開 renderProject null 自動跳第一個專案
 };
 
 // ═══════════════════════════════════════════════════════
