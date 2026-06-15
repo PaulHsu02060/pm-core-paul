@@ -1375,6 +1375,58 @@ function applySchedule(tasks, scope = 'full') {
   return { applied, skipped, total: results.length };
 }
 
+// ═══ 範本套用引擎（§8d.6）═══════════════════════════════════
+// App.applyTemplate(template, userInput)：純函式，只回傳資料、不碰 DOM/Storage（[CORE]）。
+//   批1：①建專案 ②建 variants(含 schedule)+對照表 ③建 depts(role→人,空role/無人跳過)。
+//   task/warnings 暫留空；步驟④~⑧(篩階段/id重產/依賴重指/排程)後批接入。
+//   userInput = { projectName, color?, note,
+//     cases:[{variantName,startDate,endDate,direction,selectedStages,stageRenames}],
+//     roleMap:{role:人名} }；cases[0]=主案。
+App.applyTemplate = function(template, userInput) {
+  const ui = userInput || {};
+
+  // ① 專案物件（形狀對齊 saveProject/performWbsImport；ensurePdcaData 補 pdca）
+  const project = {
+    id: U.id(),
+    name: (ui.projectName || '').trim(),
+    color: ui.color || PROJ_COLORS[0],
+    note: (ui.note || '').trim(),
+    synced: false,
+    createdAt: new Date().toISOString(),
+  };
+  ensurePdcaData(project);
+
+  // ② variants(含 schedule) + variantNameToId 對照表（平行 depts 的 nameToId）
+  const variants = [];
+  const variantNameToId = {};
+  (ui.cases || []).forEach(c => {
+    const id = U.id();
+    const name = (c.variantName || '').trim();
+    variants.push({
+      id, name,
+      schedule: {
+        startDate: c.startDate || '',
+        endDate: c.endDate || '',
+        direction: c.direction || 'forward',
+      },
+      stages: c.selectedStages ? c.selectedStages.slice() : [],
+    });
+    variantNameToId[name] = id;
+  });
+
+  // ③ depts（範本 role → 實際負責人；空 role 或無人 → 跳過不建空部門）
+  const depts = [];
+  const roleMap = ui.roleMap || {};
+  Object.keys(roleMap).forEach(role => {
+    const r = (role || '').trim();
+    const person = (roleMap[role] || '').trim();
+    if (!r || !person) return;
+    depts.push({ id: U.id(), name: r, members: [{ id: U.id(), name: person }] });
+  });
+
+  return { project, variants, variantNameToId, depts, tasks: [], warnings: [] };
+};
+
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
 
 // 純函式：把單一任務放進 slots，回傳 segments[]（標 taken 為放置副作用，不寫 task）
