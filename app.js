@@ -1375,187 +1375,6 @@ function applySchedule(tasks, scope = 'full') {
   return { applied, skipped, total: results.length };
 }
 
-// ═══ 範本套用引擎（§8d.6）═══════════════════════════════════
-// App.applyTemplate(template, userInput)：純函式，只回傳資料、不碰 DOM/Storage（[CORE]）。
-//   批1：①建專案 ②建 variants(含 schedule)+對照表 ③建 depts(role→人,空role/無人跳過)。
-//   task/warnings 暫留空；步驟④~⑧(篩階段/id重產/依賴重指/排程)後批接入。
-//   userInput = { projectName, color?, note,
-//     cases:[{variantName,startDate,endDate,direction,selectedStages,stageRenames}],
-//     roleMap:{role:人名} }；cases[0]=主案。
-App.applyTemplate = function(template, userInput) {
-  const ui = userInput || {};
-
-  // ① 專案物件（形狀對齊 saveProject/performWbsImport；ensurePdcaData 補 pdca）
-  const project = {
-    id: U.id(),
-    name: (ui.projectName || '').trim(),
-    color: ui.color || PROJ_COLORS[0],
-    note: (ui.note || '').trim(),
-    synced: false,
-    createdAt: new Date().toISOString(),
-  };
-  ensurePdcaData(project);
-
-  // ② variants(含 schedule) + variantNameToId 對照表（平行 depts 的 nameToId）
-  const variants = [];
-  const variantNameToId = {};
-  (ui.cases || []).forEach(c => {
-    const id = U.id();
-    const name = (c.variantName || '').trim();
-    variants.push({
-      id, name,
-      schedule: {
-        startDate: c.startDate || '',
-        endDate: c.endDate || '',
-        direction: c.direction || 'forward',
-      },
-      stages: c.selectedStages ? c.selectedStages.slice() : [],
-    });
-    variantNameToId[name] = id;
-  });
-
-  // ③ depts（範本 role → 實際負責人；空 role 或無人 → 跳過不建空部門）
-  const depts = [];
-  const roleMap = ui.roleMap || {};
-  Object.keys(roleMap).forEach(role => {
-    const r = (role || '').trim();
-    const person = (roleMap[role] || '').trim();
-    if (!r || !person) return;
-    depts.push({ id: U.id(), name: r, members: [{ id: U.id(), name: person }] });
-  });
-
-  // ④ 篩選勾選階段 + 收集 excludedNs / ⑤ id重產 / ⑦ task組裝（38欄）
-  //   predecessor 暫留 raw 序號字串，批2b 才譯 id（excludedNs 斷依賴+warning）
-  const roleToDeptId = {};
-  depts.forEach(d => { roleToDeptId[d.name] = d.id; });
-  const uiCaseByName = {};
-  (ui.cases || []).forEach(c => { uiCaseByName[(c.variantName || '').trim()] = c; });
-  const dailyHours = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.dailyHours) || 6;
-
-  const tasks = [];
-  const excludedNs = [];
-  (template && template.cases ? template.cases : []).forEach(tc => {
-    const vName = (tc.variant || '').trim();
-    const uiCase = uiCaseByName[vName];
-    const variantId = variantNameToId[vName] || null;
-    const selected = (uiCase && uiCase.selectedStages) ? uiCase.selectedStages : null;
-    (tc.modules || []).forEach(mod => {
-      const included = !selected || selected.indexOf(mod.stage) >= 0;
-      (mod.tasks || []).forEach(tk => {
-        if (!included) { excludedNs.push(tk.n); return; }
-        tasks.push({
-          id: U.id(),
-          project: project.id,
-          wbs: tk.n,
-          parentWbsId: '',
-          name: tk.name || '',
-          desc: mod.stage ? (mod.stage + ' / ' + (tk.subgroup || '')) : (tk.subgroup || ''),
-          category: (tk.type || '').indexOf('里程碑') >= 0 ? 'meeting' : 'deep',
-          taskType: tk.type || '任務',
-          predecessor: tk.predecessor || '',
-          durationDays: tk.durationDays,
-          owner: '',
-          dept: roleToDeptId[(tk.role || '').trim()] || '',
-          variant: variantId,
-          start: '',
-          end: '',
-          plannedStart: '',
-          plannedEnd: '',
-          actualStart: '',
-          actualEnd: '',
-          progress: 0,
-          status: 'pending',
-          urgency: 'med',
-          estHours: parseFloat(tk.durationDays || 0) * dailyHours || 4,
-          method: '',
-          canSplit: false,
-          completedAt: null,
-          createdAt: new Date().toISOString(),
-          scheduledStart: '',
-          scheduledEnd: '',
-          synced: false,
-          stage: mod.stage || '',
-          subgroup: tk.subgroup || '',
-          mustDeliver: false,
-          deliverable: tk.deliverable || '',
-          riskIssue: '',
-          delivered: '',
-          deliverableLink: '',
-          note: '',
-        });
-      });
-    });
-  });
-
-  // ⑥ 依賴重指：predecessor(raw序號) → 剝除指向被砍階段的前置(+warning) → translatePredToId 譯新id
-  const wbsToIdMap = buildWbsToIdMap(tasks);
-  const excludedSet = new Set(excludedNs);
-  const nToName = {};
-  (template && template.cases ? template.cases : []).forEach(tc => {
-    (tc.modules || []).forEach(mod => {
-      (mod.tasks || []).forEach(tk => { nToName[tk.n] = tk.name || ''; });
-    });
-  });
-  const warnings = [];
-  function relinkPred(rawPred, selfName) {
-    const parts = String(rawPred || '').split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
-    const kept = [];
-    for (const part of parts) {
-      const m = part.match(/^(\d+)/);
-      if (m && excludedSet.has(parseInt(m[1], 10))) {
-        const depName = nToName[m[1]] || ('#' + m[1]);
-        warnings.push('「' + selfName + '」的前置「' + depName + '」因所在階段未選，已自動移除');
-        continue;
-      }
-      kept.push(part);
-    }
-    return translatePredToId(kept.join(','), wbsToIdMap);
-  }
-  tasks.forEach(t => { t.predecessor = relinkPred(t.predecessor, t.name); });
-
-  // ⑧ 各案別順推排程：seed 無前置 task=該案開始日 → computeSchedule → 寫回 planned*（§8d.6 第一版只順推）
-  const variantStart = {}, variantEnd = {}, variantDir = {};
-  variants.forEach(v => {
-    variantStart[v.id] = v.schedule.startDate || '';
-    variantEnd[v.id] = v.schedule.endDate || '';
-    variantDir[v.id] = v.schedule.direction || 'forward';
-  });
-  // 逆推 v1 disabled（UI 已 disable，此為防呆）：方向 backward → warning，仍以開始日當順推
-  variants.forEach(v => {
-    if (variantDir[v.id] === 'backward') {
-      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
-    }
-  });
-  // seed：無前置(relink 後 predecessor==='') 的 task → plannedStart = 該案開始日
-  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
-  // computeSchedule 跑一次（兩案獨立子圖、另案前置全指內部，已驗）→ 純算不 mutate
-  const sch = computeSchedule(tasks);
-  const schById = new Map();
-  sch.results.forEach(r => schById.set(r.taskId, r));
-  tasks.forEach(t => {
-    const r = schById.get(t.id);
-    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
-    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
-  });
-  // 6b 溢出偵測：per 案別 computedEnd=max(plannedEnd) vs 設定結束日（有填才比）
-  variants.forEach(v => {
-    const endLimit = variantEnd[v.id];
-    if (!endLimit) return;
-    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
-    if (!vts.length) return;
-    let binding = vts[0];
-    vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
-    const computedEnd = binding.plannedEnd;
-    if (computedEnd > endLimit) {
-      const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
-      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
-        '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
-    }
-  });
-
-  return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings };
-};
-
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
 
 // 純函式：把單一任務放進 slots，回傳 segments[]（標 taken 為放置副作用，不寫 task）
@@ -2458,6 +2277,188 @@ const App = {
     this.currentProjectId = id;
     this.showPage('project', btn);
   },
+};
+
+// ═══ 範本套用引擎（§8d.6）═══════════════════════════════════
+// App.applyTemplate(template, userInput)：純函式，只回傳資料、不碰 DOM/Storage（[CORE]）。
+//   批1：①建專案 ②建 variants(含 schedule)+對照表 ③建 depts(role→人,空role/無人跳過)。
+//   task/warnings 暫留空；步驟④~⑧(篩階段/id重產/依賴重指/排程)後批接入。
+//   userInput = { projectName, color?, note,
+//     cases:[{variantName,startDate,endDate,direction,selectedStages,stageRenames}],
+//     roleMap:{role:人名} }；cases[0]=主案。
+App.applyTemplate = function(template, userInput) {
+  const ui = userInput || {};
+
+  // ① 專案物件（形狀對齊 saveProject/performWbsImport；ensurePdcaData 補 pdca）
+  const project = {
+    id: U.id(),
+    name: (ui.projectName || '').trim(),
+    color: ui.color || PROJ_COLORS[0],
+    note: (ui.note || '').trim(),
+    synced: false,
+    createdAt: new Date().toISOString(),
+  };
+  ensurePdcaData(project);
+
+  // ② variants(含 schedule) + variantNameToId 對照表（平行 depts 的 nameToId）
+  const variants = [];
+  const variantNameToId = {};
+  (ui.cases || []).forEach(c => {
+    const id = U.id();
+    const name = (c.variantName || '').trim();
+    variants.push({
+      id, name,
+      schedule: {
+        startDate: c.startDate || '',
+        endDate: c.endDate || '',
+        direction: c.direction || 'forward',
+      },
+      stages: c.selectedStages ? c.selectedStages.slice() : [],
+    });
+    variantNameToId[name] = id;
+  });
+
+  // ③ depts（範本 role → 實際負責人；空 role 或無人 → 跳過不建空部門）
+  const depts = [];
+  const roleMap = ui.roleMap || {};
+  Object.keys(roleMap).forEach(role => {
+    const r = (role || '').trim();
+    const person = (roleMap[role] || '').trim();
+    if (!r || !person) return;
+    depts.push({ id: U.id(), name: r, members: [{ id: U.id(), name: person }] });
+  });
+
+  // ④ 篩選勾選階段 + 收集 excludedNs / ⑤ id重產 / ⑦ task組裝（38欄）
+  //   predecessor 暫留 raw 序號字串，批2b 才譯 id（excludedNs 斷依賴+warning）
+  const roleToDeptId = {};
+  depts.forEach(d => { roleToDeptId[d.name] = d.id; });
+  const uiCaseByName = {};
+  (ui.cases || []).forEach(c => { uiCaseByName[(c.variantName || '').trim()] = c; });
+  const dailyHours = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.dailyHours) || 6;
+
+  const tasks = [];
+  const excludedNs = [];
+  (template && template.cases ? template.cases : []).forEach(tc => {
+    const vName = (tc.variant || '').trim();
+    const uiCase = uiCaseByName[vName];
+    if (!uiCase) return;   // 該案別未選入 userInput → 整案不生成（§8d.4 另案不選則不建）
+    const variantId = variantNameToId[vName] || null;
+    const selected = (uiCase && uiCase.selectedStages) ? uiCase.selectedStages : null;
+    (tc.modules || []).forEach(mod => {
+      const included = !selected || selected.indexOf(mod.stage) >= 0;
+      (mod.tasks || []).forEach(tk => {
+        if (!included) { excludedNs.push(tk.n); return; }
+        tasks.push({
+          id: U.id(),
+          project: project.id,
+          wbs: tk.n,
+          parentWbsId: '',
+          name: tk.name || '',
+          desc: mod.stage ? (mod.stage + ' / ' + (tk.subgroup || '')) : (tk.subgroup || ''),
+          category: (tk.type || '').indexOf('里程碑') >= 0 ? 'meeting' : 'deep',
+          taskType: tk.type || '任務',
+          predecessor: tk.predecessor || '',
+          durationDays: tk.durationDays,
+          owner: '',
+          dept: roleToDeptId[(tk.role || '').trim()] || '',
+          variant: variantId,
+          start: '',
+          end: '',
+          plannedStart: '',
+          plannedEnd: '',
+          actualStart: '',
+          actualEnd: '',
+          progress: 0,
+          status: 'pending',
+          urgency: 'med',
+          estHours: parseFloat(tk.durationDays || 0) * dailyHours || 4,
+          method: '',
+          canSplit: false,
+          completedAt: null,
+          createdAt: new Date().toISOString(),
+          scheduledStart: '',
+          scheduledEnd: '',
+          synced: false,
+          stage: mod.stage || '',
+          subgroup: tk.subgroup || '',
+          mustDeliver: false,
+          deliverable: tk.deliverable || '',
+          riskIssue: '',
+          delivered: '',
+          deliverableLink: '',
+          note: '',
+        });
+      });
+    });
+  });
+
+  // ⑥ 依賴重指：predecessor(raw序號) → 剝除指向被砍階段的前置(+warning) → translatePredToId 譯新id
+  const wbsToIdMap = buildWbsToIdMap(tasks);
+  const excludedSet = new Set(excludedNs);
+  const nToName = {};
+  (template && template.cases ? template.cases : []).forEach(tc => {
+    (tc.modules || []).forEach(mod => {
+      (mod.tasks || []).forEach(tk => { nToName[tk.n] = tk.name || ''; });
+    });
+  });
+  const warnings = [];
+  function relinkPred(rawPred, selfName) {
+    const parts = String(rawPred || '').split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
+    const kept = [];
+    for (const part of parts) {
+      const m = part.match(/^(\d+)/);
+      if (m && excludedSet.has(parseInt(m[1], 10))) {
+        const depName = nToName[m[1]] || ('#' + m[1]);
+        warnings.push('「' + selfName + '」的前置「' + depName + '」因所在階段未選，已自動移除');
+        continue;
+      }
+      kept.push(part);
+    }
+    return translatePredToId(kept.join(','), wbsToIdMap);
+  }
+  tasks.forEach(t => { t.predecessor = relinkPred(t.predecessor, t.name); });
+
+  // ⑧ 各案別順推排程：seed 無前置 task=該案開始日 → computeSchedule → 寫回 planned*（§8d.6 第一版只順推）
+  const variantStart = {}, variantEnd = {}, variantDir = {};
+  variants.forEach(v => {
+    variantStart[v.id] = v.schedule.startDate || '';
+    variantEnd[v.id] = v.schedule.endDate || '';
+    variantDir[v.id] = v.schedule.direction || 'forward';
+  });
+  // 逆推 v1 disabled（UI 已 disable，此為防呆）：方向 backward → warning，仍以開始日當順推
+  variants.forEach(v => {
+    if (variantDir[v.id] === 'backward') {
+      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
+    }
+  });
+  // seed：無前置(relink 後 predecessor==='') 的 task → plannedStart = 該案開始日
+  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
+  // computeSchedule 跑一次（兩案獨立子圖、另案前置全指內部，已驗）→ 純算不 mutate
+  const sch = computeSchedule(tasks);
+  const schById = new Map();
+  sch.results.forEach(r => schById.set(r.taskId, r));
+  tasks.forEach(t => {
+    const r = schById.get(t.id);
+    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
+    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
+  });
+  // 6b 溢出偵測：per 案別 computedEnd=max(plannedEnd) vs 設定結束日（有填才比）
+  variants.forEach(v => {
+    const endLimit = variantEnd[v.id];
+    if (!endLimit) return;
+    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
+    if (!vts.length) return;
+    let binding = vts[0];
+    vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
+    const computedEnd = binding.plannedEnd;
+    if (computedEnd > endLimit) {
+      const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
+      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
+        '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
+    }
+  });
+
+  return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings };
 };
 
 // ═══════════════════════════════════════════════════════
@@ -4876,8 +4877,38 @@ App.saveProject = function(id) {
   } else {
     const mode = document.getElementById('pf-mode') ? document.getElementById('pf-mode').value : 'blank';
     if (mode === 'template') {
-      console.log('套範本 stub:', { name, tpl: document.getElementById('pf-tpl').value, start: document.getElementById('pf-start').value, end: document.getElementById('pf-end').value, direction: document.getElementById('pf-direction').value });
-      U.toast('套範本功能開發中（已讀取輸入，見 console）', 'warning');
+      const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
+      if (!tpl) { U.toast('⚠ 找不到範本', 'warning'); return; }
+      const start = document.getElementById('pf-start').value;
+      if (!start) { U.toast('⚠ 套用範本請填主案開始日', 'warning'); return; }   // 開始日必填 guard
+      const mainCase = tpl.cases[0];   // 甲-1：只接主案
+      const userInput = {
+        projectName: name, color, note,
+        cases: [{
+          variantName: mainCase.variant,
+          startDate: start,
+          endDate: document.getElementById('pf-end').value,
+          direction: document.getElementById('pf-direction').value,
+          selectedStages: mainCase.stages,   // 全選範本主案宣告的階段
+        }],
+        roleMap: {},                          // 甲-1：部門列 UI 未刻，留空
+      };
+      const res = App.applyTemplate(tpl, userInput);
+      res.project.depts = res.depts;          // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到
+      res.project.variants = res.variants;
+      DATA.projects.push(res.project);
+      res.tasks.forEach(t => DATA.tasks.push(t));
+      this.currentProjectId = res.project.id;
+      Storage.save();
+      this.closeModal();
+      this.refreshAll();
+      if (res.warnings.length) {
+        console.warn('套範本提醒:', res.warnings);
+        U.toast('✓ 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒，見 console）', 'warning');
+      } else {
+        U.toast('✓ 已用範本建立 ' + res.tasks.length + ' 筆任務', 'success');
+      }
+      this.showPage('project', null);
       return;
     }
     const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };

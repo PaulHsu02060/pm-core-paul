@@ -353,6 +353,7 @@ App.applyTemplate = function(template, userInput) {
   (template && template.cases ? template.cases : []).forEach(tc => {
     const vName = (tc.variant || '').trim();
     const uiCase = uiCaseByName[vName];
+    if (!uiCase) return;   // 該案別未選入 userInput → 整案不生成（§8d.4 另案不選則不建）
     const variantId = variantNameToId[vName] || null;
     const selected = (uiCase && uiCase.selectedStages) ? uiCase.selectedStages : null;
     (tc.modules || []).forEach(mod => {
@@ -645,6 +646,11 @@ const TPLcyc = { cases: [{ variant: '主案', stages: ['S1'], modules: [{ stage:
 const schC = App.applyTemplate(TPLcyc, { projectName: 'P', cases: [{ variantName: '主案', startDate: '2026-07-01', selectedStages: ['S1'] }], roleMap: { PM: '甲' } });
 check('C-16 循環→plannedStart留空', schC.tasks[0].plannedStart, '');
 check('C-17 循環→未能排入warning', schC.warnings.some(w => w.indexOf('未能排入') >= 0), true);
+
+// ════════ 批4a：未選入的案別不生成（TPL4 含主案+另案，userInput 只給主案） ════════
+const r4a = App.applyTemplate(TPL4, { projectName: 'P', cases: [{ variantName: '主案', startDate: '2026-07-01', selectedStages: ['S1'] }], roleMap: { PM: '甲' } });
+check('4a-1 未選另案→只剩主案 task', r4a.tasks.every(t => t.variant === r4a.variantNameToId['主案']), true);
+check('4a-2 只主案3筆(另案t4不生成)', r4a.tasks.length, 3);
 
 // ════ 結果 ════
 console.log(`\nPASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
