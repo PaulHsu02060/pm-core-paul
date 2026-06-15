@@ -63,6 +63,17 @@ var PRODUCT_DEV_TEMPLATE =
           "stageNameCN": "原型規劃",
           "tasks": [
             {
+              "tplId": "t19",
+              "n": 19,
+              "name": "專案計畫書（含損益）",
+              "type": "任務",
+              "subgroup": "文件",
+              "durationDays": 15,
+              "predecessor": "",
+              "deliverable": "計畫書",
+              "role": ""
+            },
+            {
               "tplId": "t1",
               "n": 1,
               "name": "需求規格訂定 — 結構件打樣",
@@ -264,17 +275,6 @@ var PRODUCT_DEV_TEMPLATE =
               "durationDays": 8,
               "predecessor": "",
               "deliverable": "軟體協議文件",
-              "role": ""
-            },
-            {
-              "tplId": "t19",
-              "n": 19,
-              "name": "專案計畫書（含損益）",
-              "type": "任務",
-              "subgroup": "文件",
-              "durationDays": 15,
-              "predecessor": "",
-              "deliverable": "計畫書",
               "role": ""
             },
             {
