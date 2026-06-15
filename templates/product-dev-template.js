@@ -196,7 +196,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "任務",
               "subgroup": "試驗",
               "durationDays": 56,
-              "predecessor": "",
+              "predecessor": "8",
               "deliverable": "性能試驗報告",
               "role": ""
             },
@@ -207,7 +207,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "任務",
               "subgroup": "試驗",
               "durationDays": 5,
-              "predecessor": "",
+              "predecessor": "12",
               "deliverable": "性能試驗報告",
               "role": ""
             },
@@ -284,7 +284,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "任務",
               "subgroup": "電性驗證",
               "durationDays": 15,
-              "predecessor": "",
+              "predecessor": "13",
               "deliverable": "EMI報告",
               "role": ""
             },
@@ -312,7 +312,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "任務",
               "subgroup": "備料",
               "durationDays": 43,
-              "predecessor": "",
+              "predecessor": "17",
               "deliverable": "備料清單",
               "role": ""
             },
@@ -334,7 +334,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "里程碑",
               "subgroup": "會議",
               "durationDays": 2,
-              "predecessor": "",
+              "predecessor": "23",
               "deliverable": "評審紀錄（內部）",
               "role": ""
             },
@@ -505,7 +505,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "任務",
               "subgroup": "強制認證",
               "durationDays": 20,
-              "predecessor": "",
+              "predecessor": "76",
               "deliverable": "法規登錄證書",
               "role": ""
             },
@@ -552,6 +552,28 @@ var PRODUCT_DEV_TEMPLATE =
               "predecessor": "41",
               "deliverable": "節能標章",
               "role": ""
+            },
+            {
+              "tplId": "t75",
+              "n": 75,
+              "name": "商檢測試",
+              "type": "任務",
+              "subgroup": "送測",
+              "durationDays": 90,
+              "predecessor": "36,37",
+              "deliverable": "商檢測試數據",
+              "role": ""
+            },
+            {
+              "tplId": "t76",
+              "n": 76,
+              "name": "測試報告",
+              "type": "任務",
+              "subgroup": "報告",
+              "durationDays": 14,
+              "predecessor": "75",
+              "deliverable": "商檢測試報告",
+              "role": ""
             }
           ]
         },
@@ -566,7 +588,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "里程碑",
               "subgroup": "備料",
               "durationDays": 7,
-              "predecessor": "",
+              "predecessor": "33",
               "deliverable": "齊料里程碑",
               "role": ""
             },
@@ -638,7 +660,7 @@ var PRODUCT_DEV_TEMPLATE =
               "type": "任務",
               "subgroup": "備料",
               "durationDays": 9,
-              "predecessor": "",
+              "predecessor": "33",
               "deliverable": "備料清單",
               "role": ""
             },
