@@ -64,6 +64,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t1",
+              "n": 1,
               "name": "需求規格訂定 — 結構件打樣",
               "type": "任務",
               "subgroup": "系統",
@@ -74,6 +75,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t2",
+              "n": 2,
               "name": "系統部件驗證 — 功能+環境測試",
               "type": "任務",
               "subgroup": "系統",
@@ -84,6 +86,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t3",
+              "n": 3,
               "name": "系統部件選型 — 測項檢討會議",
               "type": "任務",
               "subgroup": "系統",
@@ -94,6 +97,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t4",
+              "n": 4,
               "name": "機構訂定 — 結構驗證+設計調整",
               "type": "任務",
               "subgroup": "機構",
@@ -104,6 +108,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t5",
+              "n": 5,
               "name": "設計評審 DR（BOM 初期討論）",
               "type": "里程碑",
               "subgroup": "會議",
@@ -120,6 +125,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t6",
+              "n": 6,
               "name": "主要零組件到料",
               "type": "任務",
               "subgroup": "備料",
@@ -130,6 +136,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t7",
+              "n": 7,
               "name": "控制模組樣品到料",
               "type": "任務",
               "subgroup": "備料",
@@ -140,6 +147,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t8",
+              "n": 8,
               "name": "樣機改機",
               "type": "任務",
               "subgroup": "組立",
@@ -150,6 +158,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t9",
+              "n": 9,
               "name": "結構板金件打樣",
               "type": "任務",
               "subgroup": "組立",
@@ -160,6 +169,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t10",
+              "n": 10,
               "name": "EVT 設計評審會議",
               "type": "里程碑",
               "subgroup": "會議",
@@ -170,6 +180,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t11",
+              "n": 11,
               "name": "備料 BOM",
               "type": "任務",
               "subgroup": "文件",
@@ -180,6 +191,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t12",
+              "n": 12,
               "name": "性能試驗 — 機種型號內測",
               "type": "任務",
               "subgroup": "試驗",
@@ -190,6 +202,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t13",
+              "n": 13,
               "name": "性能試驗 — 機種型號內測",
               "type": "任務",
               "subgroup": "試驗",
@@ -200,6 +213,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t14",
+              "n": 14,
               "name": "EVT 試驗報告彙整",
               "type": "任務",
               "subgroup": "文件",
@@ -210,6 +224,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t15",
+              "n": 15,
               "name": "BOM＋不良事例＋部品認定",
               "type": "任務",
               "subgroup": "報告",
@@ -220,6 +235,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t16",
+              "n": 16,
               "name": "DVT 移行會前會",
               "type": "任務",
               "subgroup": "會議",
@@ -230,6 +246,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t17",
+              "n": 17,
               "name": "DVT 移行會議＋審議簽核",
               "type": "里程碑",
               "subgroup": "會議",
@@ -240,6 +257,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t18",
+              "n": 18,
               "name": "軟體協議文件提供",
               "type": "任務",
               "subgroup": "文件",
@@ -250,6 +268,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t19",
+              "n": 19,
               "name": "專案計畫書（含損益）",
               "type": "任務",
               "subgroup": "文件",
@@ -260,6 +279,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t20",
+              "n": 20,
               "name": "供應商 EMI 測試報告",
               "type": "任務",
               "subgroup": "電性驗證",
@@ -270,6 +290,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t21",
+              "n": 21,
               "name": "性能試驗 — 機種型號內測",
               "type": "任務",
               "subgroup": "試驗",
@@ -286,6 +307,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t22",
+              "n": 22,
               "name": "DVT 樣機備料",
               "type": "任務",
               "subgroup": "備料",
@@ -296,6 +318,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t23",
+              "n": 23,
               "name": "DVT 樣機組立",
               "type": "任務",
               "subgroup": "組立",
@@ -306,6 +329,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t24",
+              "n": 24,
               "name": "DVT 內部評審（設計＋性能數據）",
               "type": "里程碑",
               "subgroup": "會議",
@@ -316,6 +340,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t25",
+              "n": 25,
               "name": "DVT 全廠評審（含服務）",
               "type": "里程碑",
               "subgroup": "會議",
@@ -326,6 +351,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t26",
+              "n": 26,
               "name": "性能試驗（全機型）",
               "type": "任務",
               "subgroup": "試驗",
@@ -336,6 +362,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t27",
+              "n": 27,
               "name": "溫升試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -346,6 +373,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t28",
+              "n": 28,
               "name": "噪音試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -356,6 +384,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t29",
+              "n": 29,
               "name": "安規試驗（耐壓／絕緣／接地）",
               "type": "任務",
               "subgroup": "試驗",
@@ -366,6 +395,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t30",
+              "n": 30,
               "name": "EMC／EMI 試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -376,6 +406,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t31",
+              "n": 31,
               "name": "實驗室報告彙整",
               "type": "任務",
               "subgroup": "文件",
@@ -386,6 +417,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t32",
+              "n": 32,
               "name": "PP 移行會議＋審議簽核",
               "type": "里程碑",
               "subgroup": "會議",
@@ -396,6 +428,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t33",
+              "n": 33,
               "name": "長交期物料備料",
               "type": "任務",
               "subgroup": "備料",
@@ -406,6 +439,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t34",
+              "n": 34,
               "name": "部品承認送審申請",
               "type": "任務",
               "subgroup": "文件",
@@ -422,6 +456,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t35",
+              "n": 35,
               "name": "認證計畫送出",
               "type": "任務",
               "subgroup": "樣機",
@@ -432,6 +467,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t36",
+              "n": 36,
               "name": "認證樣品安排（各規格一組）",
               "type": "任務",
               "subgroup": "送測",
@@ -442,6 +478,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t37",
+              "n": 37,
               "name": "EMI＋安規測試物料",
               "type": "任務",
               "subgroup": "送測",
@@ -452,6 +489,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t38",
+              "n": 38,
               "name": "認證文件資料準備",
               "type": "任務",
               "subgroup": "文件",
@@ -462,6 +500,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t39",
+              "n": 39,
               "name": "法規登錄（提出→取得）",
               "type": "任務",
               "subgroup": "強制認證",
@@ -472,6 +511,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t40",
+              "n": 40,
               "name": "能效標章（提出→取得）",
               "type": "任務",
               "subgroup": "強制認證",
@@ -482,6 +522,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t41",
+              "n": 41,
               "name": "產地標章（提出→廠驗→取得）",
               "type": "任務",
               "subgroup": "強制認證",
@@ -492,6 +533,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t42",
+              "n": 42,
               "name": "環保標章（提出→取得）",
               "type": "任務",
               "subgroup": "自願認證",
@@ -502,6 +544,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t43",
+              "n": 43,
               "name": "節能標章（提出→取得）",
               "type": "任務",
               "subgroup": "自願認證",
@@ -518,6 +561,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t44",
+              "n": 44,
               "name": "PP 備料",
               "type": "里程碑",
               "subgroup": "備料",
@@ -528,6 +572,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t45",
+              "n": 45,
               "name": "PP 樣機組立",
               "type": "任務",
               "subgroup": "組立",
@@ -538,6 +583,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t46",
+              "n": 46,
               "name": "PP 設計評審會議",
               "type": "里程碑",
               "subgroup": "會議",
@@ -548,6 +594,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t47",
+              "n": 47,
               "name": "性能試驗（全機型）",
               "type": "任務",
               "subgroup": "試驗",
@@ -558,6 +605,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t48",
+              "n": 48,
               "name": "噪音試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -568,6 +616,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t49",
+              "n": 49,
               "name": "MP 移行會議＋審議簽核",
               "type": "里程碑",
               "subgroup": "會議",
@@ -584,6 +633,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t50",
+              "n": 50,
               "name": "MP 備料",
               "type": "任務",
               "subgroup": "備料",
@@ -594,6 +644,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t51",
+              "n": 51,
               "name": "MP 組立",
               "type": "任務",
               "subgroup": "組立",
@@ -604,6 +655,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t52",
+              "n": 52,
               "name": "性能試驗（全機型）",
               "type": "任務",
               "subgroup": "試驗",
@@ -614,6 +666,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t53",
+              "n": 53,
               "name": "噪音試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -624,6 +677,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t54",
+              "n": 54,
               "name": "量產放行通知",
               "type": "里程碑",
               "subgroup": "會議",
@@ -650,6 +704,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t55",
+              "n": 55,
               "name": "主要零組件齊料",
               "type": "任務",
               "subgroup": "備料",
@@ -660,6 +715,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t56",
+              "n": 56,
               "name": "樣機組立",
               "type": "任務",
               "subgroup": "組立",
@@ -670,6 +726,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t57",
+              "n": 57,
               "name": "EVT 設計評審會議",
               "type": "里程碑",
               "subgroup": "會議",
@@ -680,6 +737,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t58",
+              "n": 58,
               "name": "性能試驗內測",
               "type": "任務",
               "subgroup": "試驗",
@@ -690,6 +748,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t59",
+              "n": 59,
               "name": "噪音試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -700,6 +759,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t60",
+              "n": 60,
               "name": "安規／EMC 試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -710,6 +770,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t61",
+              "n": 61,
               "name": "EVT 報告彙整＋BOM",
               "type": "任務",
               "subgroup": "文件",
@@ -720,6 +781,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t62",
+              "n": 62,
               "name": "PP 移行會議",
               "type": "里程碑",
               "subgroup": "會議",
@@ -736,6 +798,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t63",
+              "n": 63,
               "name": "PP 備料",
               "type": "任務",
               "subgroup": "備料",
@@ -746,6 +809,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t64",
+              "n": 64,
               "name": "PP 樣機組立",
               "type": "任務",
               "subgroup": "組立",
@@ -756,6 +820,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t65",
+              "n": 65,
               "name": "PP 設計評審會議",
               "type": "里程碑",
               "subgroup": "會議",
@@ -766,6 +831,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t66",
+              "n": 66,
               "name": "性能試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -776,6 +842,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t67",
+              "n": 67,
               "name": "噪音試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -786,6 +853,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t68",
+              "n": 68,
               "name": "MP 移行會議",
               "type": "里程碑",
               "subgroup": "會議",
@@ -802,6 +870,7 @@ var PRODUCT_DEV_TEMPLATE =
           "tasks": [
             {
               "tplId": "t69",
+              "n": 69,
               "name": "MP 備料",
               "type": "任務",
               "subgroup": "備料",
@@ -812,6 +881,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t70",
+              "n": 70,
               "name": "物料 IQC 檢驗",
               "type": "任務",
               "subgroup": "IQC",
@@ -822,6 +892,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t71",
+              "n": 71,
               "name": "MP 組立",
               "type": "任務",
               "subgroup": "組立",
@@ -832,6 +903,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t72",
+              "n": 72,
               "name": "性能試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -842,6 +914,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t73",
+              "n": 73,
               "name": "噪音試驗",
               "type": "任務",
               "subgroup": "試驗",
@@ -852,6 +925,7 @@ var PRODUCT_DEV_TEMPLATE =
             },
             {
               "tplId": "t74",
+              "n": 74,
               "name": "量產放行通知",
               "type": "里程碑",
               "subgroup": "會議",
