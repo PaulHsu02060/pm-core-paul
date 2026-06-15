@@ -1487,7 +1487,33 @@ App.applyTemplate = function(template, userInput) {
     });
   });
 
-  return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings: [] };
+  // ⑥ 依賴重指：predecessor(raw序號) → 剝除指向被砍階段的前置(+warning) → translatePredToId 譯新id
+  const wbsToIdMap = buildWbsToIdMap(tasks);
+  const excludedSet = new Set(excludedNs);
+  const nToName = {};
+  (template && template.cases ? template.cases : []).forEach(tc => {
+    (tc.modules || []).forEach(mod => {
+      (mod.tasks || []).forEach(tk => { nToName[tk.n] = tk.name || ''; });
+    });
+  });
+  const warnings = [];
+  function relinkPred(rawPred, selfName) {
+    const parts = String(rawPred || '').split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
+    const kept = [];
+    for (const part of parts) {
+      const m = part.match(/^(\d+)/);
+      if (m && excludedSet.has(parseInt(m[1], 10))) {
+        const depName = nToName[m[1]] || ('#' + m[1]);
+        warnings.push('「' + selfName + '」的前置「' + depName + '」因所在階段未選，已自動移除');
+        continue;
+      }
+      kept.push(part);
+    }
+    return translatePredToId(kept.join(','), wbsToIdMap);
+  }
+  tasks.forEach(t => { t.predecessor = relinkPred(t.predecessor, t.name); });
+
+  return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings };
 };
 
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────

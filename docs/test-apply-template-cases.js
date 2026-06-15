@@ -1,17 +1,18 @@
 /**
- * applyTemplate 範本套用引擎 — 測試案例（§8d.6 批1：①②③ / 批2a：④⑤⑦）
+ * applyTemplate 範本套用引擎 — 測試案例（§8d.6 批1：①②③ / 批2a：④⑤⑦ / 批2b：⑥）
  * ─────────────────────────────────────────────────────────────
  * 執行：node docs/test-apply-template-cases.js
  * 逐案印 PASS / FAIL，最後印總計；全過 exit 0，有失敗 exit 1。
  *
  * 涵蓋：①建專案 ②variants(含schedule)+對照表 ③depts(role→人)
- *       ④篩選勾選階段+收集excludedNs ⑤id重產 ⑦task組裝(38欄,predecessor暫留raw序號)。
- *   依賴重指⑥(批2b) / 排程⑧(批3) 後批補測。
+ *       ④篩選勾選階段+收集excludedNs ⑤id重產 ⑦task組裝(38欄)
+ *       ⑥依賴重指(剝excluded+warning、translatePredToId 譯id)。
+ *   排程⑧(批3) 後批補測；真範本砍階回歸走 pre-commit sanity（非此檔）。
  *
- * ⚠ sync 複本：app.js 非 module，node 無法 require。下方 applyTemplate body 為 app.js
- *   App.applyTemplate 的同步複本——改 app.js 引擎請同步此處，否則驗到舊邏輯。
+ * ⚠ sync 複本：app.js 非 module，node 無法 require。下方 applyTemplate body +
+ *   buildWbsToIdMap / translatePredToId 為 app.js 同步複本——改 app.js 引擎請同步此處。
  * ⚠ U.id 用遞增 stub（id_1,id_2…）取代 app.js 的 Date.now/Math.random 版，使測試決定性；
- *   測「結構與關聯」（variantNameToId 對得上 variants[i].id）非測字面 id。
+ *   測「結構與關聯」非測字面 id。
  */
 
 // ── stubs（測試環境，對齊 app.js 介面） ──
@@ -27,18 +28,43 @@ function ensurePdcaData(project) {
   if (p.summary === undefined) p.summary = '';
   return project;
 }
+// ── buildWbsToIdMap / translatePredToId 同步複本（app.js 964 / 981） ──
+function buildWbsToIdMap(tasks) {
+  const map = new Map();
+  for (const t of (tasks || [])) {
+    if (!t) continue;
+    if (t.wbs !== '' && t.wbs != null) {
+      const k = String(t.wbs).trim();
+      if (!map.has(k)) map.set(k, t.id);
+    }
+  }
+  return map;
+}
+function translatePredToId(predStr, wbsToIdMap) {
+  if (predStr === null || predStr === undefined) return '';
+  const s = String(predStr).trim();
+  if (!s) return '';
+  const parts = s.split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
+  const out = [];
+  for (const part of parts) {
+    const m = part.match(/^(\d+)\s*([A-Za-z]{2})?\s*([+-]\s*\d+)?$/);
+    if (!m) { out.push(part); continue; }
+    const id = wbsToIdMap && wbsToIdMap.get(String(m[1]).trim());
+    if (!id) { out.push(part); continue; }
+    const type = m[2] ? m[2] : '';
+    const lag = m[3] ? m[3].replace(/\s+/g, '') : '';
+    out.push(id + '#' + type + lag);
+  }
+  return out.join(',');
+}
 const App = {};
 
-// ════ applyTemplate 同步複本（批1：①②③ / 批2a：④⑤⑦） ════════════════
+// ════ applyTemplate 同步複本（批1：①②③ / 批2a：④⑤⑦ / 批2b：⑥） ════════
 App.applyTemplate = function(template, userInput) {
   const ui = userInput || {};
   const project = {
-    id: U.id(),
-    name: (ui.projectName || '').trim(),
-    color: ui.color || PROJ_COLORS[0],
-    note: (ui.note || '').trim(),
-    synced: false,
-    createdAt: new Date().toISOString(),
+    id: U.id(), name: (ui.projectName || '').trim(), color: ui.color || PROJ_COLORS[0],
+    note: (ui.note || '').trim(), synced: false, createdAt: new Date().toISOString(),
   };
   ensurePdcaData(project);
   const variants = [];
@@ -46,15 +72,7 @@ App.applyTemplate = function(template, userInput) {
   (ui.cases || []).forEach(c => {
     const id = U.id();
     const name = (c.variantName || '').trim();
-    variants.push({
-      id, name,
-      schedule: {
-        startDate: c.startDate || '',
-        endDate: c.endDate || '',
-        direction: c.direction || 'forward',
-      },
-      stages: c.selectedStages ? c.selectedStages.slice() : [],
-    });
+    variants.push({ id, name, schedule: { startDate: c.startDate || '', endDate: c.endDate || '', direction: c.direction || 'forward' }, stages: c.selectedStages ? c.selectedStages.slice() : [] });
     variantNameToId[name] = id;
   });
   const depts = [];
@@ -66,14 +84,12 @@ App.applyTemplate = function(template, userInput) {
     depts.push({ id: U.id(), name: r, members: [{ id: U.id(), name: person }] });
   });
 
-  // ④ 篩選勾選階段 + 收集 excludedNs / ⑤ id重產 / ⑦ task組裝（38欄）
-  //   predecessor 暫留 raw 序號字串，批2b 才譯 id（excludedNs 斷依賴+warning）
+  // ④⑤⑦ 篩選 + id重產 + 組裝
   const roleToDeptId = {};
   depts.forEach(d => { roleToDeptId[d.name] = d.id; });
   const uiCaseByName = {};
   (ui.cases || []).forEach(c => { uiCaseByName[(c.variantName || '').trim()] = c; });
   const dailyHours = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.dailyHours) || 6;
-
   const tasks = [];
   const excludedNs = [];
   (template && template.cases ? template.cases : []).forEach(tc => {
@@ -86,50 +102,48 @@ App.applyTemplate = function(template, userInput) {
       (mod.tasks || []).forEach(tk => {
         if (!included) { excludedNs.push(tk.n); return; }
         tasks.push({
-          id: U.id(),
-          project: project.id,
-          wbs: tk.n,
-          parentWbsId: '',
-          name: tk.name || '',
+          id: U.id(), project: project.id, wbs: tk.n, parentWbsId: '', name: tk.name || '',
           desc: mod.stage ? (mod.stage + ' / ' + (tk.subgroup || '')) : (tk.subgroup || ''),
           category: (tk.type || '').indexOf('里程碑') >= 0 ? 'meeting' : 'deep',
-          taskType: tk.type || '任務',
-          predecessor: tk.predecessor || '',
-          durationDays: tk.durationDays,
-          owner: '',
-          dept: roleToDeptId[(tk.role || '').trim()] || '',
-          variant: variantId,
-          start: '',
-          end: '',
-          plannedStart: '',
-          plannedEnd: '',
-          actualStart: '',
-          actualEnd: '',
-          progress: 0,
-          status: 'pending',
-          urgency: 'med',
-          estHours: parseFloat(tk.durationDays || 0) * dailyHours || 4,
-          method: '',
-          canSplit: false,
-          completedAt: null,
-          createdAt: new Date().toISOString(),
-          scheduledStart: '',
-          scheduledEnd: '',
-          synced: false,
-          stage: mod.stage || '',
-          subgroup: tk.subgroup || '',
-          mustDeliver: false,
-          deliverable: tk.deliverable || '',
-          riskIssue: '',
-          delivered: '',
-          deliverableLink: '',
-          note: '',
+          taskType: tk.type || '任務', predecessor: tk.predecessor || '', durationDays: tk.durationDays,
+          owner: '', dept: roleToDeptId[(tk.role || '').trim()] || '', variant: variantId,
+          start: '', end: '', plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '',
+          progress: 0, status: 'pending', urgency: 'med', estHours: parseFloat(tk.durationDays || 0) * dailyHours || 4,
+          method: '', canSplit: false, completedAt: null, createdAt: new Date().toISOString(),
+          scheduledStart: '', scheduledEnd: '', synced: false, stage: mod.stage || '', subgroup: tk.subgroup || '',
+          mustDeliver: false, deliverable: tk.deliverable || '', riskIssue: '', delivered: '', deliverableLink: '', note: '',
         });
       });
     });
   });
 
-  return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings: [] };
+  // ⑥ 依賴重指：predecessor(raw序號) → 剝除指向被砍階段的前置(+warning) → translatePredToId 譯新id
+  const wbsToIdMap = buildWbsToIdMap(tasks);
+  const excludedSet = new Set(excludedNs);
+  const nToName = {};
+  (template && template.cases ? template.cases : []).forEach(tc => {
+    (tc.modules || []).forEach(mod => {
+      (mod.tasks || []).forEach(tk => { nToName[tk.n] = tk.name || ''; });
+    });
+  });
+  const warnings = [];
+  function relinkPred(rawPred, selfName) {
+    const parts = String(rawPred || '').split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
+    const kept = [];
+    for (const part of parts) {
+      const m = part.match(/^(\d+)/);
+      if (m && excludedSet.has(parseInt(m[1], 10))) {
+        const depName = nToName[m[1]] || ('#' + m[1]);
+        warnings.push('「' + selfName + '」的前置「' + depName + '」因所在階段未選，已自動移除');
+        continue;
+      }
+      kept.push(part);
+    }
+    return translatePredToId(kept.join(','), wbsToIdMap);
+  }
+  tasks.forEach(t => { t.predecessor = relinkPred(t.predecessor, t.name); });
+
+  return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings };
 };
 
 // ════ check ════════════════════════════════════════════════
@@ -151,7 +165,7 @@ const UI = {
     { variantName: '主案', startDate: '2026-07-01', endDate: '', direction: 'forward', selectedStages: ['Prototype', 'EVT'] },
     { variantName: '另案', startDate: '2026-08-01', endDate: '2026-12-01', direction: 'backward', selectedStages: ['EVT'] },
   ],
-  roleMap: { PM: '王小明', ME: '李大華', EE: '' },   // EE 無人 → 不建
+  roleMap: { PM: '王小明', ME: '李大華', EE: '' },
 };
 
 // ════ 1. 專案欄位 ════
@@ -216,7 +230,7 @@ const TPL2 = { cases: [
 const UI2 = {
   projectName: 'P',
   cases: [
-    { variantName: '主案', startDate: '2026-07-01', direction: 'forward', selectedStages: ['Prototype'] }, // 砍 EVT(t3)
+    { variantName: '主案', startDate: '2026-07-01', direction: 'forward', selectedStages: ['Prototype'] },
     { variantName: '另案', startDate: '2026-08-01', direction: 'forward', selectedStages: ['EVT'] },
   ],
   roleMap: { PM: '王', EE: '李' },
@@ -236,7 +250,8 @@ check('2a-9 dept=role反查deptId', byWbs(1).dept, a.depts.find(d => d.name === 
 check('2a-10 空role→dept空', byWbs(2).dept, '');
 check('2a-11 variant=主案id', byWbs(1).variant, a.variantNameToId['主案']);
 check('2a-12 另案task variant=另案id', byWbs(4).variant, a.variantNameToId['另案']);
-check('2a-13 predecessor暫留raw序號', byWbs(2).predecessor, '1');
+// 2a-13 改：批2b 後 predecessor 已譯 id（t2 前置 t1 在同階段未砍 → id#）
+check('2a-13 predecessor譯id(t2→t1)', byWbs(2).predecessor, byWbs(1).id + '#');
 check('2a-14 日期欄清空', [byWbs(1).start, byWbs(1).plannedStart, byWbs(1).scheduledStart], ['', '', '']);
 
 // 邊界：全選→excludedNs空
@@ -246,6 +261,43 @@ const aFull = App.applyTemplate(TPL2, { projectName: 'P', cases: [
 ], roleMap: { PM: '王', EE: '李' } });
 check('2a-15 全選→excludedNs空', aFull.excludedNs, []);
 check('2a-16 全選→task數4', aFull.tasks.length, 4);
+
+// ════════ 批2b：依賴重指⑥ ════════
+const TPL3 = { cases: [
+  { variant: '主案', stages: ['S1', 'S2'], modules: [
+    { stage: 'S1', tasks: [
+      { tplId: 't1', n: 1, name: '規格', type: '任務', subgroup: '', durationDays: 5, predecessor: '', deliverable: '', role: 'PM' },
+      { tplId: 't2', n: 2, name: '設計', type: '任務', subgroup: '', durationDays: 5, predecessor: '1', deliverable: '', role: 'PM' },
+    ]},
+    { stage: 'S2', tasks: [
+      { tplId: 't3', n: 3, name: '打樣', type: '任務', subgroup: '', durationDays: 8, predecessor: '2FS+2', deliverable: '', role: 'ME' },
+      { tplId: 't4', n: 4, name: '測試', type: '任務', subgroup: '', durationDays: 3, predecessor: '2,3', deliverable: '', role: 'ME' },
+    ]},
+  ]},
+]};
+const ROLE = { PM: '甲', ME: '乙' };
+
+// 全選（無排除）
+const bAll = App.applyTemplate(TPL3, { projectName: 'P', cases: [{ variantName: '主案', selectedStages: ['S1', 'S2'] }], roleMap: ROLE });
+const bw = w => bAll.tasks.find(t => t.wbs === w);
+check('B-1 純序號譯id', bw(2).predecessor, bw(1).id + '#');
+check('B-2 FS+lag保留譯id', bw(3).predecessor, bw(2).id + '#FS+2');
+check('B-3 多前置全留兩段都譯', bw(4).predecessor, bw(2).id + '#,' + bw(3).id + '#');
+check('B-4 全選warnings空', bAll.warnings, []);
+
+// 砍 S1（排除 t1,t2 / n 1,2）
+const bCut = App.applyTemplate(TPL3, { projectName: 'P', cases: [{ variantName: '主案', selectedStages: ['S2'] }], roleMap: ROLE });
+const cw = w => bCut.tasks.find(t => t.wbs === w);
+check('B-5 多前置部分斷(2,3砍2只剩3)', cw(4).predecessor, cw(3).id + '#');
+check('B-6 指向excluded全斷→空', cw(3).predecessor, '');
+check('B-7 warnings數=2', bCut.warnings.length, 2);
+check('B-8 warning文案(含X/Y名)', bCut.warnings.includes('「打樣」的前置「設計」因所在階段未選，已自動移除'), true);
+
+// 砍 S2（排除下游 t3,t4；kept 不 reference excluded）
+const bCut2 = App.applyTemplate(TPL3, { projectName: 'P', cases: [{ variantName: '主案', selectedStages: ['S1'] }], roleMap: ROLE });
+const dw = w => bCut2.tasks.find(t => t.wbs === w);
+check('B-9 砍下游→kept不references excluded→warnings空', bCut2.warnings, []);
+check('B-10 kept正常譯id', dw(2).predecessor, dw(1).id + '#');
 
 // ════ 結果 ════
 console.log(`\nPASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
