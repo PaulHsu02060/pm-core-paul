@@ -1424,7 +1424,70 @@ App.applyTemplate = function(template, userInput) {
     depts.push({ id: U.id(), name: r, members: [{ id: U.id(), name: person }] });
   });
 
-  return { project, variants, variantNameToId, depts, tasks: [], warnings: [] };
+  // ④ 篩選勾選階段 + 收集 excludedNs / ⑤ id重產 / ⑦ task組裝（38欄）
+  //   predecessor 暫留 raw 序號字串，批2b 才譯 id（excludedNs 斷依賴+warning）
+  const roleToDeptId = {};
+  depts.forEach(d => { roleToDeptId[d.name] = d.id; });
+  const uiCaseByName = {};
+  (ui.cases || []).forEach(c => { uiCaseByName[(c.variantName || '').trim()] = c; });
+  const dailyHours = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.dailyHours) || 6;
+
+  const tasks = [];
+  const excludedNs = [];
+  (template && template.cases ? template.cases : []).forEach(tc => {
+    const vName = (tc.variant || '').trim();
+    const uiCase = uiCaseByName[vName];
+    const variantId = variantNameToId[vName] || null;
+    const selected = (uiCase && uiCase.selectedStages) ? uiCase.selectedStages : null;
+    (tc.modules || []).forEach(mod => {
+      const included = !selected || selected.indexOf(mod.stage) >= 0;
+      (mod.tasks || []).forEach(tk => {
+        if (!included) { excludedNs.push(tk.n); return; }
+        tasks.push({
+          id: U.id(),
+          project: project.id,
+          wbs: tk.n,
+          parentWbsId: '',
+          name: tk.name || '',
+          desc: mod.stage ? (mod.stage + ' / ' + (tk.subgroup || '')) : (tk.subgroup || ''),
+          category: (tk.type || '').indexOf('里程碑') >= 0 ? 'meeting' : 'deep',
+          taskType: tk.type || '任務',
+          predecessor: tk.predecessor || '',
+          durationDays: tk.durationDays,
+          owner: '',
+          dept: roleToDeptId[(tk.role || '').trim()] || '',
+          variant: variantId,
+          start: '',
+          end: '',
+          plannedStart: '',
+          plannedEnd: '',
+          actualStart: '',
+          actualEnd: '',
+          progress: 0,
+          status: 'pending',
+          urgency: 'med',
+          estHours: parseFloat(tk.durationDays || 0) * dailyHours || 4,
+          method: '',
+          canSplit: false,
+          completedAt: null,
+          createdAt: new Date().toISOString(),
+          scheduledStart: '',
+          scheduledEnd: '',
+          synced: false,
+          stage: mod.stage || '',
+          subgroup: tk.subgroup || '',
+          mustDeliver: false,
+          deliverable: tk.deliverable || '',
+          riskIssue: '',
+          delivered: '',
+          deliverableLink: '',
+          note: '',
+        });
+      });
+    });
+  });
+
+  return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings: [] };
 };
 
 // ─── SMART SCHEDULE GENERATOR ──────────────────────────
