@@ -4780,6 +4780,16 @@ App.deleteTask = function(id) {
 };
 
 // ─── PROJECT CRUD ───
+App._stagePickHtml = function() {
+  if (typeof PRODUCT_DEV_TEMPLATE === 'undefined') return '';
+  const cn = {};
+  (PRODUCT_DEV_TEMPLATE.stageDefaults || []).forEach(s => { cn[s.stage] = s.stageNameCN; });
+  const pills = (PRODUCT_DEV_TEMPLATE.cases[0].stages || []).map(st =>
+    `<button type="button" class="stage-pick on" data-stage="${st}" onclick="this.classList.toggle('on')">${cn[st] || st}</button>`
+  ).join('');
+  return `<div class="form-field"><label>選擇階段（不選=不建該階段）</label><div class="stage-pick-row">${pills}</div></div>`;
+};
+
 App.openProjectDialog = function(projId) {
   const editing = projId ? this.getProj(projId) : null;
   const isEdit = !!editing;
@@ -4828,6 +4838,7 @@ App.openProjectDialog = function(projId) {
             <option value="backward" disabled>逆推（從結束日，尚未開放）</option>
           </select>
         </div>
+        ${App._stagePickHtml()}
       </div>
       ` : ''}
         ${isEdit ? `
@@ -4881,6 +4892,8 @@ App.saveProject = function(id) {
       if (!tpl) { U.toast('⚠ 找不到範本', 'warning'); return; }
       const start = document.getElementById('pf-start').value;
       if (!start) { U.toast('⚠ 套用範本請填主案開始日', 'warning'); return; }   // 開始日必填 guard
+      const pickedStages = [...document.querySelectorAll('#pf-tplBox .stage-pick.on')].map(b => b.dataset.stage);
+      if (!pickedStages.length) { U.toast('⚠ 套用範本請至少選一個階段', 'warning'); return; }   // min-1 guard
       const mainCase = tpl.cases[0];   // 甲-1：只接主案
       const userInput = {
         projectName: name, color, note,
@@ -4889,7 +4902,7 @@ App.saveProject = function(id) {
           startDate: start,
           endDate: document.getElementById('pf-end').value,
           direction: document.getElementById('pf-direction').value,
-          selectedStages: mainCase.stages,   // 全選範本主案宣告的階段
+          selectedStages: pickedStages,   // 讀 UI 勾選的階段膠囊
         }],
         roleMap: {},                          // 甲-1：部門列 UI 未刻，留空
       };
