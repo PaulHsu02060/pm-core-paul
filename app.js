@@ -199,6 +199,7 @@ const Storage = {
       DATA.projects.forEach(ensurePdcaData);
       DATA.tasks.forEach(ensureTaskPdcaGroup);
       DATA.tasks.forEach(ensureTaskType);
+      DATA.tasks.forEach(ensureDeliverFields);
       runMigrations();
     } catch(e) { console.error('Load failed', e); }
   },
@@ -588,6 +589,16 @@ function mapTaskType(rawType) {
 function ensureTaskType(task) {
   if (!task) return task;
   if (typeof task.taskType !== 'string' || !task.taskType) task.taskType = 'task';
+  return task;
+}
+
+// §7.1：四繳付欄位 schema 兜底（mustDeliver 既有，此處補三新欄）。照 ensureTaskType 模式：
+// 每次 load 跑、只補缺不蓋值。布林用 typeof 判缺（false 是合法值，不可被預設蓋掉）。
+function ensureDeliverFields(task) {
+  if (!task) return task;
+  if (typeof task.deliverableType !== 'string') task.deliverableType = '';     // 繳付件類型
+  if (typeof task.requiredTask !== 'boolean')    task.requiredTask = true;     // 必要任務（預設全必要）
+  if (typeof task.mustIssue !== 'boolean')       task.mustIssue = false;       // 繳付物必須發行
   return task;
 }
 
@@ -1865,6 +1876,9 @@ const Sync = {
           status: realStatus,
           progress: realProgress,
           note: row.note || '',
+          deliverableType: '',   // §7.1（不接 UI，預設值）
+          requiredTask: true,    // §7.1（預設全必要）
+          mustIssue: false,      // §7.1
           locked: true,
           createdAt: new Date().toISOString(),  // 形狀統一：四條建任務路徑都帶 createdAt
           completedAt: realCompletedAt,
@@ -2382,6 +2396,9 @@ App.applyTemplate = function(template, userInput) {
           stage: mod.stage || '',
           subgroup: tk.subgroup || '',
           mustDeliver: false,
+          deliverableType: '',   // §7.1（不接 UI，預設值）
+          requiredTask: true,    // §7.1（預設全必要）
+          mustIssue: false,      // §7.1
           deliverable: tk.deliverable || '',
           riskIssue: '',
           delivered: '',
@@ -4488,6 +4505,9 @@ App.saveNewTask = function(projId) {
     riskIssue: document.getElementById('tf-riskIssue').value.trim(),
     deliverable: document.getElementById('tf-deliverable').value.trim(),
     deliverableLink: document.getElementById('tf-deliverableLink').value.trim(),
+    deliverableType: '',   // §7.1（不接 UI，預設值）
+    requiredTask: true,    // §7.1（預設全必要）
+    mustIssue: false,      // §7.1
     note: document.getElementById('tf-note').value.trim(),
     canSplit: document.getElementById('tf-split').checked,
     scheduleToCalendar: document.getElementById('tf-cal').checked,
@@ -4692,6 +4712,7 @@ App.saveTask = function(id) {
   t.note      = document.getElementById('tf-note').value.trim();
   t.canSplit  = document.getElementById('tf-split').checked;
   t.scheduleToCalendar = document.getElementById('tf-cal').checked;
+  ensureDeliverFields(t);   // §7.1：UI 未接，只補缺不蓋既有值（單一兜底，不寫死預設覆蓋）
 
   let newStatus = document.getElementById('tf-status').value;
   // 自動邏輯：實際完成日有填 → 強制標為已完成
@@ -7938,6 +7959,9 @@ async function parseWbsExcel(file) {
       const noteRaw = cell(r, '備註');
       const deliveredRaw = cell(r, '已交付');
       const linkRaw = cell(r, '繳付連結');
+      const dtypeRaw = cell(r, '繳付件類型');      // §7.1 deliverableType
+      const reqRaw = cell(r, '必要任務');           // §7.1 requiredTask（預設全必要）
+      const issueRaw = cell(r, '繳付物必須發行');   // §7.1 mustIssue
 
       rows.push({
         wbs: wbsRaw != null ? String(wbsRaw).trim() : '',
@@ -7958,6 +7982,12 @@ async function parseWbsExcel(file) {
         progress: typeof progRaw === 'number' ? Math.round(progRaw * 100) : 0,
         status: statusRaw != null ? String(statusRaw).trim() : '',
         mustDeliver: mustRaw === '✓' || mustRaw === true || String(mustRaw).trim() === '✓',
+        deliverableType: dtypeRaw != null ? String(dtypeRaw).trim() : '',
+        // 必要任務預設 true：空白/未填＝必要；明確非✓（如✗）＝非必要
+        requiredTask: reqRaw == null || String(reqRaw).trim() === ''
+          ? true
+          : (reqRaw === '✓' || reqRaw === true || String(reqRaw).trim() === '✓'),
+        mustIssue: issueRaw === '✓' || issueRaw === true || String(issueRaw).trim() === '✓',
         deliverable: deliverableRaw != null ? String(deliverableRaw).trim() : '',
         riskIssue: riskRaw != null ? String(riskRaw).trim() : '',
         note: noteRaw != null ? String(noteRaw).trim() : '',
@@ -8038,6 +8068,9 @@ function performWbsImport(parsed) {
       stage: row.stage,
       subgroup: row.subgroup,
       mustDeliver: row.mustDeliver,
+      deliverableType: row.deliverableType,   // §7.1
+      requiredTask: row.requiredTask,         // §7.1
+      mustIssue: row.mustIssue,               // §7.1
       deliverable: row.deliverable,
       riskIssue: row.riskIssue,
       delivered: row.delivered,
