@@ -32,6 +32,9 @@
   --amber-ink: #6B4423; --slate-ink: #2E3F4D;   /* -l 淺底上的深字(與 -l 成對) */
   /* 待辦篩選膠囊選中底（中淺階，比各色 -l 深一階）*/
   --sage-chip: #C7DDB8; --slate-chip: #BBCEDB; --terracotta-chip: #EBC79E; --rose-chip: #EBBBBA;
+  /* 專案識別色 PROJ_COLORS，主題系統用（亮版）*/
+  --proj-c1: #4CAF7D; --proj-c2: #E8853A; --proj-c3: #3E8FD8; --proj-c4: #9B6FC4;
+  --proj-c5: #E0B53C; --proj-c6: #E25B5B; --proj-c7: #3DB8B0; --proj-c8: #E86FA0;
 
   /* 行事曆事件語意色族(漸層 from/to、邊框、字;-ink 為其上深字) */
   --navy: #4A6B85; --navy-from: #DCE7EF; --navy-to: #C8D8E4; --navy-ink: #1F3848;   /* 會議 meeting/auto-meeting */

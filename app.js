@@ -115,10 +115,12 @@ const DEFAULT_SETTINGS = {
 };
 
 // ─── COLORS FOR PROJECTS ───────────────────────────────
-const PROJ_COLORS = [
-  '#4A7C5C', '#C4633E', '#5C7A8B', '#8B5E73',
-  '#C4956C', '#B8504D', '#3A6B4E', '#2D4A3A',
-];
+// 專案識別色：讀 :root 的 --proj-c1~8（亮版），不寫死 hex（消 CSS 鐵則重複）。
+// CSS 於 <head> 先載、app.js 在 body 末執行 → getComputedStyle 此刻已能解析變數。
+const PROJ_COLORS = (() => {
+  const _root = getComputedStyle(document.documentElement);
+  return [1, 2, 3, 4, 5, 6, 7, 8].map(n => _root.getPropertyValue(`--proj-c${n}`).trim());
+})();
 const MEMO_COLORS = ['memo-y', 'memo-p', 'memo-b', 'memo-g', 'memo-o'];
 
 // ─── DATA ──────────────────────────────────────────────
