@@ -4847,7 +4847,7 @@ App._tplAddOtherCase = function() {
   card.dataset.case = 'other';
   card.innerHTML =
       `<div class="case-card-head">`
-    +   `<input type="text" class="case-variant-name" placeholder="案別名稱（例：2.2kW）">`
+    +   `<div class="form-field"><label>案別名稱</label><input type="text" class="case-variant-name" placeholder="案別名稱（例：2.2kW）"></div>`
     +   `<button type="button" class="tb-action ghost case-del" onclick="this.closest('.case-card').remove()">刪除</button>`
     + `</div>`
     + `<div class="form-row">`
@@ -4900,7 +4900,7 @@ App.openProjectDialog = function(projId) {
     body: `
       <div class="form-field">
         <label>專案名稱 *</label>
-        <input type="text" id="pf-name" value="${editing ? U.esc(editing.name) : ''}" placeholder="e.g. ${CFG('PROJECT_INPUT_EXAMPLE', '範例品項')}">
+        <input type="text" id="pf-name" value="${editing ? U.esc(editing.name) : ''}" placeholder="e.g. ${CFG('PROJECT_INPUT_EXAMPLE', '範例品項')}" oninput="App._syncMainName()">
       </div>
       <div class="form-field">
         <label>顏色</label>
@@ -4930,7 +4930,11 @@ App.openProjectDialog = function(projId) {
         </div>
         <div class="case-card case-main" data-case="main">
           <div class="case-card-head">
-            <input type="text" class="case-variant-name" id="pf-mainName" placeholder="主案名稱（例：7.3kW，留空為「主案」）" value="主案">
+            <div class="form-field">
+              <label>案別名稱</label>
+              <input type="text" class="case-variant-name" id="pf-mainName" placeholder="主案名稱（例：7.3kW）" value="" oninput="this.dataset.touched='1'">
+              <div class="case-name-hint">已帶入專案名，可自行修改</div>
+            </div>
           </div>
           <div class="form-row">
             <div class="form-field"><label>主案開始日</label><input type="date" id="pf-start" class="case-start"></div>
@@ -4984,6 +4988,14 @@ App.pickColor = function(color, el) {
   el.classList.add('on');
 };
 
+// 主案名鏡像專案名：未被手動編輯（無 dataset.touched）時跟著專案名走；編輯模式無 #pf-mainName → 早返。
+App._syncMainName = function() {
+  const proj = document.getElementById('pf-name');
+  const main = document.getElementById('pf-mainName');
+  if (!proj || !main) return;
+  if (!main.dataset.touched) main.value = proj.value;
+};
+
 // 套範本提醒清單：把 applyTemplate 回傳的 warnings 字串陣列列在 #content 頂部常駐 banner
 // （不進 page-project，避開 renderProject 整段重繪洗掉）。空陣列不 render。
 App._showTplWarnings = function(warnings) {
@@ -5028,8 +5040,8 @@ App.saveProject = function(id) {
       for (const card of cards) {
         const isMain = card.dataset.case === 'main';
         const nameEl = card.querySelector('.case-variant-name');
-        const variantName = isMain ? ((nameEl && nameEl.value.trim()) || '主案') : (nameEl ? nameEl.value.trim() : '');
-        if (!isMain && !variantName) { U.toast('⚠️請填另案名稱', 'warning'); return; }   // 另案名稱必填
+        const variantName = nameEl ? nameEl.value.trim() : '';   // 純讀欄位，無兜底
+        if (!variantName) { U.toast(isMain ? '⚠️請填主案的案別名稱' : '⚠️請填另案的案別名稱', 'warning'); return; }   // 統一：任一卡名稱空就擋
         const startEl = card.querySelector('.case-start');
         const startDate = startEl ? startEl.value : '';
         if (isMain && !startDate) { U.toast('⚠ 套用範本請填主案開始日', 'warning'); return; }   // 保留既有：主案開始日必填

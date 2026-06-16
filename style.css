@@ -361,6 +361,17 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
   color: var(--ink); font: inherit;
 }
 .tpl-role-del { flex: 0 0 auto; }
+/* 案別卡（主案/另案）：左側色條區分，圓角讓出左側給色條 */
+.case-card {
+  border: 1px solid var(--rule); border-left: 4px solid var(--rule);
+  border-radius: 0 var(--r12) var(--r12) 0;
+  padding: var(--r10) var(--r12); margin: var(--r10) 0;
+}
+.case-main  { border-left-color: var(--proj-c1); }
+.case-other { border-left-color: var(--proj-c3); }
+.case-card-head { display: flex; align-items: flex-end; gap: var(--r8); }
+.case-card-head .form-field { flex: 1; }
+.case-name-hint { font-size: 11px; color: var(--ink3); margin-top: var(--r4); }
 .stage-cap-rule { flex: 1; height: 0; border-top: 1px solid var(--rule); }
 
 /* 表頭小字 */
