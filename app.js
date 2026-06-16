@@ -4901,6 +4901,27 @@ App.pickColor = function(color, el) {
   el.classList.add('on');
 };
 
+// 套範本提醒清單：把 applyTemplate 回傳的 warnings 字串陣列列在 #content 頂部常駐 banner
+// （不進 page-project，避開 renderProject 整段重繪洗掉）。空陣列不 render。
+App._showTplWarnings = function(warnings) {
+  if (!warnings || !warnings.length) return;
+  const old = document.getElementById('tpl-warn-banner');
+  if (old) old.remove();                               // 已存在先移除避免堆疊
+  const banner = document.createElement('div');
+  banner.id = 'tpl-warn-banner';
+  banner.className = 'tpl-warn-banner';
+  banner.innerHTML =
+    '<div class="tpl-warn-head">' +
+      '<span>套用範本提醒（' + warnings.length + ' 項）</span>' +
+      '<button class="tb-action ghost" onclick="document.getElementById(\'tpl-warn-banner\').remove()">✕</button>' +
+    '</div>' +
+    '<ul class="tpl-warn-list">' +
+      warnings.map(w => '<li>' + U.esc(w) + '</li>').join('') +
+    '</ul>';
+  const content = document.getElementById('content');
+  content.insertBefore(banner, content.firstChild);    // 塞 #content 最頂端、不進 page-project
+};
+
 App.saveProject = function(id) {
   const name = document.getElementById('pf-name').value.trim();
   if (!name) { U.toast('⚠ 請填專案名稱', 'warning'); return; }
@@ -4944,7 +4965,8 @@ App.saveProject = function(id) {
       this.refreshAll();
       if (res.warnings.length) {
         console.warn('套範本提醒:', res.warnings);
-        U.toast('✓ 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒，見 console）', 'warning');
+        this._showTplWarnings(res.warnings);
+        U.toast('✓ 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒見上方）', 'warning');
       } else {
         U.toast('✓ 已用範本建立 ' + res.tasks.length + ' 筆任務', 'success');
       }
