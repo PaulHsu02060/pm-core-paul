@@ -4830,13 +4830,18 @@ App._stagePickHtml = function() {
   return `<div class="form-field"><label>選擇階段（不選=不建該階段）</label><div class="stage-pick-row">${pills}</div></div>`;
 };
 
-// 部門／負責人 UI 殼（純 render，不接建立流程；roleMap 接線見 saveProject TODO）
-App._tplRoleRowInner = function() {
-  return `<input type="text" class="tpl-role-name" placeholder="部門名"><input type="text" class="tpl-role-person" placeholder="負責人"><button type="button" class="tb-action ghost tpl-role-del" onclick="App._tplDelRoleRow(this)">刪</button>`;
+// 部門／負責人 UI（預載範本 roles：部門名帶出、負責人留空待填；roleMap 由 saveProject 收集）
+App._tplRoleRowInner = function(deptName) {
+  return `<input type="text" class="tpl-role-name" placeholder="部門名" value="${U.esc(deptName || '')}"><input type="text" class="tpl-role-person" placeholder="負責人"><button type="button" class="tb-action ghost tpl-role-del" onclick="App._tplDelRoleRow(this)">刪</button>`;
 };
 App._tplRoleRowsHtml = function() {
+  // 預設帶出範本所有 role（§8d.14：清單從範本長出，涵蓋所有任務負責人，第二階段配對不失敗）。
+  const roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles) ? PRODUCT_DEV_TEMPLATE.roles : [];
+  const rows = (roles.length ? roles : ['']).map(r =>
+    `<div class="tpl-role-row">${App._tplRoleRowInner(r)}</div>`
+  ).join('');
   return `<div class="form-field"><label>部門與負責人（可自由增減）</label>`
-    + `<div id="pf-roleRows"><div class="tpl-role-row">${App._tplRoleRowInner()}</div></div>`
+    + `<div id="pf-roleRows">${rows}</div>`
     + `<button type="button" class="tb-action ghost tpl-role-add" onclick="App._tplAddRoleRow()">＋ 新增部門列</button></div>`;
 };
 App._tplAddRoleRow = function() {
@@ -4982,6 +4987,16 @@ App.saveProject = function(id) {
       const pickedStages = [...document.querySelectorAll('#pf-tplBox .stage-pick.on')].map(b => b.dataset.stage);
       if (!pickedStages.length) { U.toast('⚠ 套用範本請至少選一個階段', 'warning'); return; }   // min-1 guard
       const mainCase = tpl.cases[0];   // 甲-1：只接主案
+      // 從 #pf-roleRows 各列收集 roleMap（部門名→負責人）；部門名=role 字面，對上 task.role。
+      // 空人名列：仍寫入 key，引擎 ③ 遇空人名自會跳過不建 dept（單一兜底，不在此重判）。
+      const roleMap = {};
+      document.querySelectorAll('#pf-tplBox .tpl-role-row').forEach(row => {
+        const nameEl = row.querySelector('.tpl-role-name');
+        const personEl = row.querySelector('.tpl-role-person');
+        const dept = (nameEl ? nameEl.value : '').trim();
+        const person = (personEl ? personEl.value : '').trim();
+        if (dept) roleMap[dept] = person;
+      });
       const userInput = {
         projectName: name, color, note,
         cases: [{
@@ -4991,8 +5006,7 @@ App.saveProject = function(id) {
           direction: document.getElementById('pf-direction').value,
           selectedStages: pickedStages,   // 讀 UI 勾選的階段膠囊
         }],
-        // TODO 接線(回家)：從 #pf-roleRows 各列撈 部門名+負責人 組 roleMap，取代下方寫死的 {}
-        roleMap: {},                          // 甲-1：部門列 UI 未刻，留空
+        roleMap,                          // 甲-2 第3塊：部門列收集（部門名=role 字面 → 對上 task.role）
       };
       const res = App.applyTemplate(tpl, userInput);
       res.project.depts = res.depts;          // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到
