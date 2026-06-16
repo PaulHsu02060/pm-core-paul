@@ -2300,8 +2300,10 @@ const App = {
 //   批1：①建專案 ②建 variants(含 schedule)+對照表 ③建 depts(role→人,空role/無人跳過)。
 //   task/warnings 暫留空；步驟④~⑧(篩階段/id重產/依賴重指/排程)後批接入。
 //   userInput = { projectName, color?, note,
-//     cases:[{variantName,startDate,endDate,direction,selectedStages,stageRenames}],
+//     cases:[{variantName,templateVariant,startDate,endDate,direction,selectedStages,stageRenames}],
 //     roleMap:{role:人名} }；cases[0]=主案。
+//   templateVariant=範本來源 key（對 template.cases[].variant，如「主案」/「另案」）；無則退回 variantName。
+//   ④ 跑 ui.cases（非 template.cases）：多個自訂名另案各用 templateVariant 反查同一範本來源、各生成一份。
 App.applyTemplate = function(template, userInput) {
   const ui = userInput || {};
 
@@ -2348,8 +2350,6 @@ App.applyTemplate = function(template, userInput) {
   //   predecessor 暫留 raw 序號字串，批2b 才譯 id（excludedNs 斷依賴+warning）
   const roleToDeptId = {};
   depts.forEach(d => { roleToDeptId[d.name] = d.id; });
-  const uiCaseByName = {};
-  (ui.cases || []).forEach(c => { uiCaseByName[(c.variantName || '').trim()] = c; });
   const dailyHours = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.dailyHours) || 6;
 
   const tasks = [];
@@ -2357,12 +2357,14 @@ App.applyTemplate = function(template, userInput) {
   // 同源範本兩案 n 重複，全域 Set 會跨案誤砍另案前置，故分案。
   const excludedByVariant = {};
   const variantKey = (v) => (v == null ? '' : v);
-  (template && template.cases ? template.cases : []).forEach(tc => {
-    const vName = (tc.variant || '').trim();
-    const uiCase = uiCaseByName[vName];
-    if (!uiCase) return;   // 該案別未選入 userInput → 整案不生成（§8d.4 另案不選則不建）
-    const variantId = variantNameToId[vName] || null;
-    const selected = (uiCase && uiCase.selectedStages) ? uiCase.selectedStages : null;
+  // 跑 ui.cases（非 template.cases）：每個使用者案別用 templateVariant 反查範本來源，
+  // 多個自訂名另案各生成一份（templateVariant 無則退回 variantName，向後相容舊測試）。
+  (ui.cases || []).forEach(uiCase => {
+    const srcKey = (uiCase.templateVariant || uiCase.variantName || '').trim();
+    const tc = (template && template.cases ? template.cases : []).find(t => (t.variant || '').trim() === srcKey);
+    if (!tc) return;   // 找不到對應範本來源 → 不生成（§8d.4 另案不選則不建）
+    const variantId = variantNameToId[(uiCase.variantName || '').trim()] || null;
+    const selected = uiCase.selectedStages || null;
     (tc.modules || []).forEach(mod => {
       const included = !selected || selected.indexOf(mod.stage) >= 0;
       (mod.tasks || []).forEach(tk => {
@@ -4822,14 +4824,41 @@ App.deleteTask = function(id) {
 };
 
 // ─── PROJECT CRUD ───
-App._stagePickHtml = function() {
+App._stagePickHtml = function(stages) {
   if (typeof PRODUCT_DEV_TEMPLATE === 'undefined') return '';
   const cn = {};
   (PRODUCT_DEV_TEMPLATE.stageDefaults || []).forEach(s => { cn[s.stage] = s.stageNameCN; });
-  const pills = (PRODUCT_DEV_TEMPLATE.cases[0].stages || []).map(st =>
+  // 預設主案階段；另案卡餵 cases[1].stages（單一膠囊產生器，不複製兩份 HTML）
+  const list = stages || (PRODUCT_DEV_TEMPLATE.cases[0] ? PRODUCT_DEV_TEMPLATE.cases[0].stages : []) || [];
+  const pills = list.map(st =>
     `<button type="button" class="stage-pick on" data-stage="${st}" onclick="this.classList.toggle('on')">${cn[st] || st}</button>`
   ).join('');
   return `<div class="form-field"><label>選擇階段（不選=不建該階段）</label><div class="stage-pick-row">${pills}</div></div>`;
+};
+
+// 另案卡：動態 append 進 #pf-otherCases（可加 0~N 張）。膠囊餵另案範本階段 cases[1].stages。
+App._tplAddOtherCase = function() {
+  const box = document.getElementById('pf-otherCases');
+  if (!box) return;
+  const otherStages = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.cases[1])
+    ? PRODUCT_DEV_TEMPLATE.cases[1].stages : undefined;
+  const card = document.createElement('div');
+  card.className = 'case-card case-other';
+  card.dataset.case = 'other';
+  card.innerHTML =
+      `<div class="case-card-head">`
+    +   `<input type="text" class="case-variant-name" placeholder="案別名稱（例：2.2kW）">`
+    +   `<button type="button" class="tb-action ghost case-del" onclick="this.closest('.case-card').remove()">刪除</button>`
+    + `</div>`
+    + `<div class="form-row">`
+    +   `<div class="form-field"><label>開始日</label><input type="date" class="case-start"></div>`
+    +   `<div class="form-field"><label>結束日</label><input type="date" class="case-end"></div>`
+    + `</div>`
+    + `<div class="form-field"><label>排程方向</label>`
+    +   `<select class="case-direction"><option value="forward">順推（從開始日）</option><option value="backward" disabled>逆推（從結束日，尚未開放）</option></select>`
+    + `</div>`
+    + App._stagePickHtml(otherStages);
+  box.appendChild(card);
 };
 
 // 部門／負責人 UI（預載範本 roles：部門名帶出、負責人留空待填；roleMap 由 saveProject 收集）
@@ -4899,18 +4928,23 @@ App.openProjectDialog = function(projId) {
           <label>選擇範本</label>
           <select id="pf-tpl"><option value="product-dev-v1">${typeof PRODUCT_DEV_TEMPLATE!=='undefined' ? PRODUCT_DEV_TEMPLATE.templateName : '產品開發範本'}</option></select>
         </div>
-        <div class="form-row">
-          <div class="form-field"><label>主案開始日</label><input type="date" id="pf-start"></div>
-          <div class="form-field"><label>主案結束日</label><input type="date" id="pf-end"></div>
+        <div class="case-card case-main" data-case="main">
+          <div class="case-card-title">主案</div>
+          <div class="form-row">
+            <div class="form-field"><label>主案開始日</label><input type="date" id="pf-start" class="case-start"></div>
+            <div class="form-field"><label>主案結束日</label><input type="date" id="pf-end" class="case-end"></div>
+          </div>
+          <div class="form-field">
+            <label>排程方向</label>
+            <select id="pf-direction" class="case-direction">
+              <option value="forward">順推（從開始日）</option>
+              <option value="backward" disabled>逆推（從結束日，尚未開放）</option>
+            </select>
+          </div>
+          ${App._stagePickHtml()}
         </div>
-        <div class="form-field">
-          <label>排程方向</label>
-          <select id="pf-direction">
-            <option value="forward">順推（從開始日）</option>
-            <option value="backward" disabled>逆推（從結束日，尚未開放）</option>
-          </select>
-        </div>
-        ${App._stagePickHtml()}
+        <div id="pf-otherCases"></div>
+        <button type="button" class="tb-action ghost" onclick="App._tplAddOtherCase()">＋ 新增另案</button>
         ${App._tplRoleRowsHtml()}
       </div>
       ` : ''}
@@ -4984,11 +5018,30 @@ App.saveProject = function(id) {
     if (mode === 'template') {
       const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
       if (!tpl) { U.toast('⚠ 找不到範本', 'warning'); return; }
-      const start = document.getElementById('pf-start').value;
-      if (!start) { U.toast('⚠ 套用範本請填主案開始日', 'warning'); return; }   // 開始日必填 guard
-      const pickedStages = [...document.querySelectorAll('#pf-tplBox .stage-pick.on')].map(b => b.dataset.stage);
-      if (!pickedStages.length) { U.toast('⚠ 套用範本請至少選一個階段', 'warning'); return; }   // min-1 guard
-      const mainCase = tpl.cases[0];   // 甲-1：只接主案
+      // 統一 per-card 掃法：主案卡 + 0~N 另案卡各組一個 case entry（只讀自己卡內欄位，不跨卡）。
+      // variantName=顯示名(分 id)、templateVariant=範本來源 key(引擎反查)——兩欄分開，餵錯多案會撞回一起。
+      // cards 順序＝DOM 序：主案卡在 #pf-otherCases 之前 → cases[0] 恆主案。
+      const cards = document.querySelectorAll('#pf-tplBox .case-card');
+      const cases = [];
+      for (const card of cards) {
+        const isMain = card.dataset.case === 'main';
+        const nameEl = card.querySelector('.case-variant-name');
+        const variantName = isMain ? '主案' : (nameEl ? nameEl.value.trim() : '');
+        if (!isMain && !variantName) { U.toast('⚠️請填另案名稱', 'warning'); return; }   // 另案名稱必填
+        const startEl = card.querySelector('.case-start');
+        const startDate = startEl ? startEl.value : '';
+        if (isMain && !startDate) { U.toast('⚠ 套用範本請填主案開始日', 'warning'); return; }   // 保留既有：主案開始日必填
+        const stages = [...card.querySelectorAll('.stage-pick.on')].map(b => b.dataset.stage);
+        if (!stages.length) { U.toast('⚠️請為「' + variantName + '」至少選一個階段', 'warning'); return; }   // 每案 min-1 階段
+        cases.push({
+          variantName,
+          templateVariant: isMain ? '主案' : '另案',
+          startDate,
+          endDate: (card.querySelector('.case-end') || {}).value || '',
+          direction: (card.querySelector('.case-direction') || {}).value || 'forward',
+          selectedStages: stages,
+        });
+      }
       // 從 #pf-roleRows 各列收集 roleMap（部門名→負責人）；部門名=role 字面，對上 task.role。
       // 空人名列：仍寫入 key，引擎 ③ 遇空人名自會跳過不建 dept（單一兜底，不在此重判）。
       const roleMap = {};
@@ -4999,17 +5052,7 @@ App.saveProject = function(id) {
         const person = (personEl ? personEl.value : '').trim();
         if (dept) roleMap[dept] = person;
       });
-      const userInput = {
-        projectName: name, color, note,
-        cases: [{
-          variantName: mainCase.variant,
-          startDate: start,
-          endDate: document.getElementById('pf-end').value,
-          direction: document.getElementById('pf-direction').value,
-          selectedStages: pickedStages,   // 讀 UI 勾選的階段膠囊
-        }],
-        roleMap,                          // 甲-2 第3塊：部門列收集（部門名=role 字面 → 對上 task.role）
-      };
+      const userInput = { projectName: name, color, note, cases, roleMap };
       const res = App.applyTemplate(tpl, userInput);
       res.project.depts = res.depts;          // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到
       res.project.variants = res.variants;

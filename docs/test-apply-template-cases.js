@@ -345,20 +345,20 @@ App.applyTemplate = function(template, userInput) {
   // ④⑤⑦ 篩選 + id重產 + 組裝
   const roleToDeptId = {};
   depts.forEach(d => { roleToDeptId[d.name] = d.id; });
-  const uiCaseByName = {};
-  (ui.cases || []).forEach(c => { uiCaseByName[(c.variantName || '').trim()] = c; });
   const dailyHours = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.dailyHours) || 6;
   const tasks = [];
   // 被砍階段的 n 改「按案別」收集（variantId→Set(n)；null/通案 → 空字串 key）。
   // 同源範本兩案 n 重複，全域 Set 會跨案誤砍另案前置，故分案。
   const excludedByVariant = {};
   const variantKey = (v) => (v == null ? '' : v);
-  (template && template.cases ? template.cases : []).forEach(tc => {
-    const vName = (tc.variant || '').trim();
-    const uiCase = uiCaseByName[vName];
-    if (!uiCase) return;   // 該案別未選入 userInput → 整案不生成（§8d.4 另案不選則不建）
-    const variantId = variantNameToId[vName] || null;
-    const selected = (uiCase && uiCase.selectedStages) ? uiCase.selectedStages : null;
+  // 跑 ui.cases（非 template.cases）：每個使用者案別用 templateVariant 反查範本來源，
+  // 多個自訂名另案各生成一份（templateVariant 無則退回 variantName，向後相容舊測試）。
+  (ui.cases || []).forEach(uiCase => {
+    const srcKey = (uiCase.templateVariant || uiCase.variantName || '').trim();
+    const tc = (template && template.cases ? template.cases : []).find(t => (t.variant || '').trim() === srcKey);
+    if (!tc) return;   // 找不到對應範本來源 → 不生成（§8d.4 另案不選則不建）
+    const variantId = variantNameToId[(uiCase.variantName || '').trim()] || null;
+    const selected = uiCase.selectedStages || null;
     (tc.modules || []).forEach(mod => {
       const included = !selected || selected.indexOf(mod.stage) >= 0;
       (mod.tasks || []).forEach(tk => {
