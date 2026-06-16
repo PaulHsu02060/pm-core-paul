@@ -330,6 +330,21 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .stage-pick { font-size: 12.5px; font-weight: 500; padding: 4px 12px; border-radius: 99px; cursor: pointer; border: 1px dashed var(--rule2); background: var(--surface2); color: var(--ink3); transition: background .12s, color .12s, border-color .12s; }
 .stage-pick:hover { border-color: var(--ink4); }
 .stage-pick.on { background: var(--sage-50); color: var(--sage-700); border: 1px solid var(--sage-100); }
+.tpl-role-row {
+  display: flex; align-items: center; gap: var(--r6);
+  padding: var(--r8); border: 1px solid var(--rule);
+  border-radius: var(--r8); background: var(--surface2);
+  margin-bottom: var(--r6);
+}
+.tpl-role-name   { flex: 1 1 140px; }
+.tpl-role-person { flex: 1 1 110px; }
+.tpl-role-row .tpl-role-name,
+.tpl-role-row .tpl-role-person {
+  padding: var(--r4) var(--r6); border: 1px solid var(--rule2);
+  border-radius: var(--r4); background: var(--surface);
+  color: var(--ink); font: inherit;
+}
+.tpl-role-del { flex: 0 0 auto; }
 .stage-cap-rule { flex: 1; height: 0; border-top: 1px solid var(--rule); }
 
 /* 表頭小字 */

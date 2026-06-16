@@ -4790,6 +4790,31 @@ App._stagePickHtml = function() {
   return `<div class="form-field"><label>選擇階段（不選=不建該階段）</label><div class="stage-pick-row">${pills}</div></div>`;
 };
 
+// 部門／負責人 UI 殼（純 render，不接建立流程；roleMap 接線見 saveProject TODO）
+App._tplRoleRowInner = function() {
+  return `<input type="text" class="tpl-role-name" placeholder="部門名"><input type="text" class="tpl-role-person" placeholder="負責人"><button type="button" class="tb-action ghost tpl-role-del" onclick="App._tplDelRoleRow(this)">刪</button>`;
+};
+App._tplRoleRowsHtml = function() {
+  return `<div class="form-field"><label>部門與負責人（可自由增減）</label>`
+    + `<div id="pf-roleRows"><div class="tpl-role-row">${App._tplRoleRowInner()}</div></div>`
+    + `<button type="button" class="tb-action ghost tpl-role-add" onclick="App._tplAddRoleRow()">＋ 新增部門列</button></div>`;
+};
+App._tplAddRoleRow = function() {
+  const box = document.getElementById('pf-roleRows');
+  if (!box) return;
+  const div = document.createElement('div');
+  div.className = 'tpl-role-row';
+  div.innerHTML = App._tplRoleRowInner();
+  box.appendChild(div);
+};
+App._tplDelRoleRow = function(btn) {
+  const row = btn.closest('.tpl-role-row');
+  if (!row) return;
+  const box = document.getElementById('pf-roleRows');
+  row.remove();
+  if (box && box.querySelectorAll('.tpl-role-row').length === 0) App._tplAddRoleRow();   // 維持至少 1 列
+};
+
 App.openProjectDialog = function(projId) {
   const editing = projId ? this.getProj(projId) : null;
   const isEdit = !!editing;
@@ -4839,6 +4864,7 @@ App.openProjectDialog = function(projId) {
           </select>
         </div>
         ${App._stagePickHtml()}
+        ${App._tplRoleRowsHtml()}
       </div>
       ` : ''}
         ${isEdit ? `
@@ -4904,6 +4930,7 @@ App.saveProject = function(id) {
           direction: document.getElementById('pf-direction').value,
           selectedStages: pickedStages,   // 讀 UI 勾選的階段膠囊
         }],
+        // TODO 接線(回家)：從 #pf-roleRows 各列撈 部門名+負責人 組 roleMap，取代下方寫死的 {}
         roleMap: {},                          // 甲-1：部門列 UI 未刻，留空
       };
       const res = App.applyTemplate(tpl, userInput);
