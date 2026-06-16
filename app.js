@@ -4929,7 +4929,9 @@ App.openProjectDialog = function(projId) {
           <select id="pf-tpl"><option value="product-dev-v1">${typeof PRODUCT_DEV_TEMPLATE!=='undefined' ? PRODUCT_DEV_TEMPLATE.templateName : '產品開發範本'}</option></select>
         </div>
         <div class="case-card case-main" data-case="main">
-          <div class="case-card-title">主案</div>
+          <div class="case-card-head">
+            <input type="text" class="case-variant-name" id="pf-mainName" placeholder="主案名稱（例：7.3kW，留空為「主案」）" value="主案">
+          </div>
           <div class="form-row">
             <div class="form-field"><label>主案開始日</label><input type="date" id="pf-start" class="case-start"></div>
             <div class="form-field"><label>主案結束日</label><input type="date" id="pf-end" class="case-end"></div>
@@ -5026,7 +5028,7 @@ App.saveProject = function(id) {
       for (const card of cards) {
         const isMain = card.dataset.case === 'main';
         const nameEl = card.querySelector('.case-variant-name');
-        const variantName = isMain ? '主案' : (nameEl ? nameEl.value.trim() : '');
+        const variantName = isMain ? ((nameEl && nameEl.value.trim()) || '主案') : (nameEl ? nameEl.value.trim() : '');
         if (!isMain && !variantName) { U.toast('⚠️請填另案名稱', 'warning'); return; }   // 另案名稱必填
         const startEl = card.querySelector('.case-start');
         const startDate = startEl ? startEl.value : '';
