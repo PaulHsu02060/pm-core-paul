@@ -349,7 +349,10 @@ App.applyTemplate = function(template, userInput) {
   (ui.cases || []).forEach(c => { uiCaseByName[(c.variantName || '').trim()] = c; });
   const dailyHours = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings.dailyHours) || 6;
   const tasks = [];
-  const excludedNs = [];
+  // 被砍階段的 n 改「按案別」收集（variantId→Set(n)；null/通案 → 空字串 key）。
+  // 同源範本兩案 n 重複，全域 Set 會跨案誤砍另案前置，故分案。
+  const excludedByVariant = {};
+  const variantKey = (v) => (v == null ? '' : v);
   (template && template.cases ? template.cases : []).forEach(tc => {
     const vName = (tc.variant || '').trim();
     const uiCase = uiCaseByName[vName];
@@ -359,7 +362,11 @@ App.applyTemplate = function(template, userInput) {
     (tc.modules || []).forEach(mod => {
       const included = !selected || selected.indexOf(mod.stage) >= 0;
       (mod.tasks || []).forEach(tk => {
-        if (!included) { excludedNs.push(tk.n); return; }
+        if (!included) {
+          const _vk = variantKey(variantId);
+          (excludedByVariant[_vk] || (excludedByVariant[_vk] = new Set())).add(tk.n);
+          return;
+        }
         tasks.push({
           id: U.id(), project: project.id, wbs: tk.n, parentWbsId: '', name: tk.name || '',
           desc: mod.stage ? (mod.stage + ' / ' + (tk.subgroup || '')) : (tk.subgroup || ''),
@@ -376,9 +383,16 @@ App.applyTemplate = function(template, userInput) {
     });
   });
 
-  // ⑥ 依賴重指
-  const wbsToIdMap = buildWbsToIdMap(tasks);
-  const excludedSet = new Set(excludedNs);
+  // 衍生扁平 excludedNs（各案 Set 的 union）供回傳契約（test 斷言 res.excludedNs；回傳形狀不變）
+  const excludedNs = [].concat(...Object.values(excludedByVariant).map(s => [...s]));
+
+  // ⑥ 依賴重指：map 改「按案別」各 build 一張（variantKey→Map），翻譯吃 task 自己 variant 的 map
+  const wbsToIdMapByVariant = {};
+  {
+    const tasksByVariant = {};
+    tasks.forEach(t => { const k = variantKey(t.variant); (tasksByVariant[k] || (tasksByVariant[k] = [])).push(t); });
+    Object.keys(tasksByVariant).forEach(k => { wbsToIdMapByVariant[k] = buildWbsToIdMap(tasksByVariant[k]); });
+  }
   const nToName = {};
   (template && template.cases ? template.cases : []).forEach(tc => {
     (tc.modules || []).forEach(mod => {
@@ -386,21 +400,24 @@ App.applyTemplate = function(template, userInput) {
     });
   });
   const warnings = [];
-  function relinkPred(rawPred, selfName) {
+  function relinkPred(rawPred, selfName, vMap, vExcluded) {
     const parts = String(rawPred || '').split(/[,，;；]/).map(p => p.trim()).filter(Boolean);
     const kept = [];
     for (const part of parts) {
       const m = part.match(/^(\d+)/);
-      if (m && excludedSet.has(parseInt(m[1], 10))) {
+      if (m && vExcluded && vExcluded.has(parseInt(m[1], 10))) {
         const depName = nToName[m[1]] || ('#' + m[1]);
         warnings.push('「' + selfName + '」的前置「' + depName + '」因所在階段未選，已自動移除');
         continue;
       }
       kept.push(part);
     }
-    return translatePredToId(kept.join(','), wbsToIdMap);
+    return translatePredToId(kept.join(','), vMap);
   }
-  tasks.forEach(t => { t.predecessor = relinkPred(t.predecessor, t.name); });
+  tasks.forEach(t => {
+    const k = variantKey(t.variant);
+    t.predecessor = relinkPred(t.predecessor, t.name, wbsToIdMapByVariant[k], excludedByVariant[k]);
+  });
 
   // ⑧ 各案別順推排程 + 6b 溢出
   const variantStart = {}, variantEnd = {}, variantDir = {};
