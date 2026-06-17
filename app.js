@@ -2151,6 +2151,7 @@ const App = {
       // admin 或 editor → 編輯模式（_role 供 isAdmin() 判 admin 功能）
       DATA.settings.userName = name;
       DATA.settings._role = role;
+      document.getElementById('userMode').textContent = role === 'admin' ? 'ADMIN' : 'EDITOR';
       DATA.settings._loggedInEmail = email;
       DATA.settings._loggedInPicture = picture;
       Storage.save();
