@@ -4642,8 +4642,10 @@ App.saveNewTask = function(projId) {
   };
 
   if (App._insertAfterId) {
+    // 第二刀-B 選項1：列間➕＝接在上一列後。表單前置為空才自動帶入，不覆蓋使用者明填。
+    if (!task.predecessor) task.predecessor = App._insertAfterId + '#FS';
     const _i = DATA.tasks.findIndex(x => x.id === App._insertAfterId);
-    if (_i >= 0) { DATA.tasks.splice(_i + 1, 0, task); }
+    if (_i >= 0) { DATA.tasks.splice(_i + 1, 0, task); }   // 保留：同日 tiebreak
     else { DATA.tasks.push(task); }
     App._insertAfterId = null;
   } else {
