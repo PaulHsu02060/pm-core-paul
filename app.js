@@ -3261,7 +3261,7 @@ App.renderProject = function() {
 App.renderProjectDashboard = function(proj) {
   const allTasks = this.getTasksOf(proj.id);
   const today = D.today();
-  // 序基準（同源）：orderedProjectTasks 陣列序、排除 deleted、含 done（done 佔號）。外層+前置下拉共用。
+  // 序基準（同源）：orderedProjectTasks 日期序（dispStart 升序、待排殿後）、排除 deleted、含 done（done 佔號）。外層+前置下拉共用。
   const ordered = this.orderedProjectTasks(proj.id);
   // 第二刀-A：篩選只在 render 局部過濾。filtered 是 const 局部變數，絕不回寫 orderedProjectTasks 本體
   // （本體被 _seqOf／前置下拉共用，需維持全量）。下游 counts／預覽切點／visible／firstUndated 全吃 filtered。
@@ -4214,7 +4214,7 @@ App.predCandidates = function(projId, selfId, currentStage) {
 
   const S = idxOf(currentStage);   // 本任務階段序（全新階段名 → stages.length，視為最後）
 
-  // 同源序：陣列序、含 done、排除 deleted；seq = 位置+1
+  // 同源序：日期序（orderTasksByDispStart）、含 done、排除 deleted；seq = 日期序位置+1
   const ordered = App.orderedProjectTasks(projId);
   const selfPos = selfId ? ordered.findIndex(t => t.id === selfId) : -1;
   const selfBefore = selfPos < 0 ? Infinity : selfPos;   // 新建自己不在序中 → 視為在尾，同階段全收
@@ -4225,7 +4225,7 @@ App.predCandidates = function(projId, selfId, currentStage) {
       if (t.id === selfId) return false;                 // 排自己
       if (t.measureType === 'hours') return false;       // 對齊 S5c：小時 Task 不可當工期前置
       const d = S - idxOf(t.stage);                      // 候選比自己早幾個階段
-      if (d === 0) return pos < selfBefore;              // 同階段 → 只列自己之前
+      if (d === 0) return pos < selfBefore;              // 同階段 → 只列開始日早於自己（第一刀後 pos 為日期序位置）
       if (d === 1 || d === 2) return true;               // 前 1-2 階段 → 全收
       return false;                                      // d>=3（太早）/ d<0（同後或更晚）→ 擋
     })
