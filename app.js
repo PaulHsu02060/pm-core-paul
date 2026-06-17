@@ -36,12 +36,6 @@ function SEED(key, fallback) {
 const APP_BUILD_SIGNATURE = CFG('APP_BUILD_SIGNATURE', 'PM-Core');
 
 // ─── ADMIN / DEFAULT OAUTH ─────────────────────────────
-// Admin Gmail 名單：登入後能看到 WBS 同步等管理者功能
-// 非 admin 看不到也用不到（WBS Sheet 由公司權限自行管控）
-const ADMIN_EMAILS = CFG('ADMIN_EMAILS', []);
-// 白名單 Gmail：在名單內 → Editor（可編輯，無 admin 功能）。空陣列 = 只有 Admin 能編（安全預設）。
-const ALLOWED_EMAILS = CFG('ALLOWED_EMAILS', []);
-
 // 預設 OAuth Client ID：hardcode 在這，同事零設定就能 Google 登入
 // 安全性：OAuth Client ID 本來就是公開資訊，配 redirect_uri 白名單防呆
 // 來源：https://console.cloud.google.com/apis/credentials  (你的 GitHub Pages 網域)
@@ -49,13 +43,8 @@ const DEFAULT_OAUTH_CLIENT_ID = CFG('OAUTH_CLIENT_ID', 'PASTE_YOUR_OAUTH_CLIENT_
 
 // helper：當前登入的 Gmail 是不是 admin
 function isAdmin() {
-  const email = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings._loggedInEmail) || '';
-  return ADMIN_EMAILS.includes(String(email).toLowerCase());
-}
-// helper：email 是否在白名單（Editor 權限）。⚠ 空名單 → false（安全預設：寧可擋過頭，不放過頭）。
-function isAllowed(email) {
-  if (!ALLOWED_EMAILS.length) return false;
-  return ALLOWED_EMAILS.includes(String(email || '').toLowerCase());
+  // role 由後台 ROLE_CHECK_URL 查得後存 _role（接 Auth 三層）；不再讀 config ADMIN_EMAILS（線上空）。
+  return (typeof DATA !== 'undefined' && DATA.settings && DATA.settings._role === 'admin');
 }
 
 // build hash 用於辨識：把作者名 + 重要常數 hash 起來
@@ -257,7 +246,7 @@ const CloudSync = {
       // ★安全：上傳前剝掉機密/PII，避免「公開讀」時雲端 blob 外洩。
       //   cloudSyncToken 仍以 payload.token 帶出做寫入驗證，但不可進 data.settings（否則任何人 download 就讀到 token → 寫入防線破功）。
       //   _loggedInEmail/_loggedInPicture 為 PII，一併剔除。
-      const { cloudSyncToken, _loggedInEmail, _loggedInPicture, ...safeSettings } = DATA.settings;
+      const { cloudSyncToken, _loggedInEmail, _loggedInPicture, _role, ...safeSettings } = DATA.settings;
       const payload = {
         token: DATA.settings.cloudSyncToken || '',
         data: {
@@ -2122,7 +2111,7 @@ const App = {
     tryInit();
   },
 
-  handleGoogleCredential(resp) {
+  async handleGoogleCredential(resp) {
     try {
       // Decode JWT payload (no verify needed for client-side, Google has issued it)
       const parts = resp.credential.split('.');
@@ -2131,20 +2120,32 @@ const App = {
       const name = payload.name || payload.given_name || 'User';
       const picture = payload.picture || '';
 
-      // ─── 三層權限判斷（Admin > Editor > Viewonly）───
-      // 用剛解出的 email 直接比對兩名單，在設 _loggedInEmail「之前」判斷（不走 isAdmin()，它讀 settings 尚未設）。
-      // email 已 toLowerCase（上方），兩名單條目須為小寫。
-      const admin = ADMIN_EMAILS.includes(email);
-      const editor = isAllowed(email);
-      if (!admin && !editor) {
-        // 都不在 → 唯讀，不設 _loggedInEmail（PII 不留）、不 remove viewonly
+      // ─── 三層權限判斷（Admin > Editor > Viewonly）：問後台 role（名單存 Script Properties，不在前端）───
+      // 安全防線：fetch 任何失敗（連不到/逾時/非 JSON）→ role='none' → 唯讀，絕不放行。
+      let role = 'none';
+      try {
+        const roleUrl = CFG('ROLE_CHECK_URL', '');
+        if (roleUrl) {
+          const r = await fetch(roleUrl + '?action=role&email=' + encodeURIComponent(email), {
+            method: 'GET', mode: 'cors', redirect: 'follow',
+          });
+          const j = await r.json();
+          role = (j && j.role) || 'none';
+        }
+      } catch (err) {
+        console.error('Role check failed', err);
+        role = 'none';   // 後台連不到 → 往安全倒（唯讀）
+      }
+      if (role !== 'admin' && role !== 'editor') {
+        // none / 未知 → 唯讀，不設 _loggedInEmail（PII 不留）、不 remove viewonly
         this.enterViewOnly();
         U.toast('此帳號僅供檢視', 'warning');
         return;
       }
 
-      // admin 或 editor → 編輯模式（isAdmin() 下游讀 _loggedInEmail 自會重判 admin 功能）
+      // admin 或 editor → 編輯模式（_role 供 isAdmin() 判 admin 功能）
       DATA.settings.userName = name;
+      DATA.settings._role = role;
       DATA.settings._loggedInEmail = email;
       DATA.settings._loggedInPicture = picture;
       Storage.save();

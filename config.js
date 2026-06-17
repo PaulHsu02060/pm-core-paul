@@ -16,6 +16,7 @@
 var APP_CONFIG = {
   CLOUD_SHEET_ID: 'PASTE_YOUR_SHEET_ID_HERE',
   CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbwDzSs44F4AENfeQKEBX_xrYH7Y38wsvAn4iYY9lXLewQUppbyaKRgBQVmAfU1W2uYNSg/exec',  // 公開讀 doGet exec URL（進 git、全公開；非 token）
+  ROLE_CHECK_URL: 'https://script.google.com/macros/s/AKfycbx6pD0mKpntDx6VNsun7RJnCiLHVIj_Ikdc-gp3mgbPddzLvrd-DBmo06dJJ8UkKuM4jQ/exec',  // Auth 三層角色查詢：前端接 ?action=role&email=，後端只回單一 email 的 role（名單存 Script Properties 不入 git；此 exec URL 公開可進 git）
   WBS_SHEET_NAME: 'WBS主表',
   ADMIN_EMAILS: [],
   ALLOWED_EMAILS: [],
