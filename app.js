@@ -5145,8 +5145,28 @@ App._renderStage2 = function() {
 // 上一步：退回第一階段新增專案 modal（重開；欄位不保值＝第一版，保值後續再議）。
 App._stage2Back = function() { this.showPage('dashboard'); this.openProjectDialog(); };
 
-// 建立專案：步驟5 接 push/save（depts/variants 掛回 res.project + DATA push + Storage.save）。先留呼叫點。
-App._stage2Commit = function() { U.toast('建立流程（步驟5 落地）待接', 'warning'); };
+// 建立專案：步驟5 落地，吃 _tplPreview push/save（depts/variants 掛回 res.project + DATA push + Storage.save + 清 preview 防重複建）。
+App._stage2Commit = function() {
+  const res = this._tplPreview;
+  if (!res) { U.toast('\u26a0 無範本預覽資料，請重新套用範本', 'warning'); return; }
+  // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到（步驟1 從 saveProject 挪來此落地步）
+  res.project.depts = res.depts;
+  res.project.variants = res.variants;
+  DATA.projects.push(res.project);
+  res.tasks.forEach(t => DATA.tasks.push(t));
+  this.currentProjectId = res.project.id;
+  Storage.save();
+  this._tplPreview = null;               // 清 preview，防重複建
+  this.refreshAll();
+  if (res.warnings.length) {
+    console.warn('套範本提醒:', res.warnings);
+    this._showTplWarnings(res.warnings);
+    U.toast('\u2713 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒見上方）', 'warning');
+  } else {
+    U.toast('\u2713 已用範本建立 ' + res.tasks.length + ' 筆任務', 'success');
+  }
+  this.showPage('project', null);
+};
 
 App.deptEdit = {
   _getProj(projId) {
