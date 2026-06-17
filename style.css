@@ -1411,9 +1411,12 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .s2-all { font-size: 11.5px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .s2-sub { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--stone-400); background: var(--stone-50); padding: 1px 7px; border-radius: 99px; }
 .s2-owner-sel { font-size: 12px; padding: 3px 6px; border: 1px solid var(--stone-200); border-radius: var(--r6); background: var(--paper); color: var(--stone-600); max-width: 150px; }
+.s2-name-inp { width: 100%; min-width: 150px; font-size: 12.5px; padding: 3px 6px; border: 1px solid var(--stone-200); border-radius: var(--r6); background: var(--paper); color: var(--stone-600); }
+.s2-name-inp:focus { border-color: var(--sage-500); outline: none; }
 .s2-pred { color: var(--stone-500); }
 .s2-dur, .s2-date { color: var(--stone-400); font-size: 12px; white-space: nowrap; }
-.s2-deliver { text-align: center; }
+.s2-deliver { text-align: right; }
+.s2-tbl thead th:last-child { text-align: right; width: 92px; }
 
 /* ── 範本第二階段 步驟3：Gantt 階段軸（點階段切換清單）── */
 .s2-gantt-axis { margin: 4px 0 12px; }
@@ -1426,4 +1429,4 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .s2-gbar { position: absolute; top: 0; height: 14px; border-radius: 99px; background: var(--proj-c1); }
 .s2-case-other .s2-gbar { background: var(--proj-c3); }
 .s2-gbar-none { left: 0; width: 100%; background: var(--stone-200); opacity: .5; }
-.s2-gdate { flex: 0 0 150px; text-align: right; font-size: 11px; color: var(--stone-400); white-space: nowrap; }
+.s2-gdate { flex: 0 0 112px; text-align: right; font-size: 11px; color: var(--stone-400); white-space: nowrap; cursor: help; }

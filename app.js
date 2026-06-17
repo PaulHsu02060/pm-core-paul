@@ -5233,16 +5233,15 @@ App._s2ListHtml = function(variantId) {
   let rows =
     '<tr class="s2-stage-row">' +
       '<td colspan="6">' + U.esc(sel) + '</td>' +
-      '<td class="s2-deliver"><label class="s2-all"><input type="checkbox"' + (allDeliver ? ' checked' : '') +
-        ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"> 全選</label></td>' +
+      '<td class="s2-deliver"><label class="s2-all">全選 <input type="checkbox"' + (allDeliver ? ' checked' : '') +
+        ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"></label></td>' +
     '</tr>';
   group.forEach((t, gi) => {
     const seq = seqBase + gi + 1;
-    const sub = t.subgroup ? '<span class="s2-sub">' + U.esc(t.subgroup) + '</span>' : '';
     rows +=
       '<tr>' +
         '<td>' + seq + '</td>' +
-        '<td>' + U.esc(t.name) + sub + '</td>' +
+        '<td><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
         '<td><select class="s2-owner-sel" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
         '<td class="s2-pred">' + U.esc(this._s2PredText(t)) + '</td>' +
         '<td class="s2-dur">' + (t.durationDays != null ? t.durationDays : '') + '</td>' +
@@ -5259,6 +5258,15 @@ App._s2SetOwner = function(taskId, value) {
   const res = this._tplPreview; if (!res) return;
   const t = (res.tasks || []).find(x => x.id === taskId);
   if (t) t.owner = value;
+};
+// 寫回 preview：任務名（只改顯示名）→ 從 task 反查 variant 重繪該案，讓前置白話即時同步。
+// ⚠ 只動 t.name，不碰 t.predecessor / t.id / t.wbs(n)——前置鏈靠 id 串，改名只改顯示。
+App._s2SetName = function(taskId, value) {
+  const res = this._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId);
+  if (!t) return;
+  t.name = value;
+  this._s2RefreshCase(t.variant);
 };
 // 寫回 preview：需交付（單筆）
 App._s2SetDeliver = function(taskId, checked) {
@@ -5310,12 +5318,17 @@ App._s2GanttHtml = function(variantId) {
       const width = Math.max(((b - a) / span) * 100, 1.5);
       bar = '<div class="s2-gbar-track"><div class="s2-gbar" style="left:' + left + '%;width:' + width + '%"></div></div>';
     }
-    const dateLbl = (r.start || r.end) ? (fmtD(r.start) + ' → ' + fmtD(r.end)) : '待排';
+    // 顯示短日期：同年 MM/DD、跨年 YY/MM/DD；title hover 看完整 YYYY/MM/DD
+    const shortD = (x) => { if (!x) return ''; const p = String(x).split('-'); return (p[1] || '') + '/' + (p[2] || ''); };
+    const sameYr = r.start && r.end && r.start.slice(0, 4) === r.end.slice(0, 4);
+    const oneD = (x) => x ? (sameYr ? shortD(x) : (String(x).slice(2, 4) + '/' + shortD(x))) : '';
+    const dateLbl = (r.start || r.end) ? (oneD(r.start) + ' → ' + oneD(r.end)) : '待排';
+    const dateFull = (r.start || r.end) ? (fmtD(r.start) + ' → ' + fmtD(r.end)) : '待排';
     rows +=
       '<div class="s2-grow' + (isSel ? ' on' : '') + '" onclick="App._s2SelectStage(\'' + variantId + '\', ' + si + ')">' +
         '<div class="s2-gname">' + U.esc(r.stage) + '</div>' +
         bar +
-        '<div class="s2-gdate">' + dateLbl + '</div>' +
+        '<div class="s2-gdate" title="' + dateFull + '">' + dateLbl + '</div>' +
       '</div>';
   });
   return '<div class="s2-gantt-axis">' + rows + '</div>';
