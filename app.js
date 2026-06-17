@@ -5235,22 +5235,24 @@ App._s2ListHtml = function(variantId) {
       '<td colspan="6">' + U.esc(sel) + '</td>' +
       '<td class="s2-deliver"><label class="s2-all">全選 <input type="checkbox"' + (allDeliver ? ' checked' : '') +
         ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"></label></td>' +
+      '<td></td>' +
     '</tr>';
   group.forEach((t, gi) => {
     const seq = seqBase + gi + 1;
     rows +=
-      '<tr>' +
+      '<tr data-taskid="' + t.id + '">' +
         '<td>' + seq + '</td>' +
         '<td><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
-        '<td><select class="s2-owner-sel" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
+        '<td><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
         '<td class="s2-pred">' + U.esc(this._s2PredText(t)) + '</td>' +
         '<td class="s2-dur">' + (t.durationDays != null ? t.durationDays : '') + '</td>' +
         '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
         '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
+        '<td class="s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button></td>' +
       '</tr>';
   });
   return '<table class="s2-tbl"><thead><tr>' +
-    '<th>序</th><th>任務名</th><th>負責人</th><th>前置</th><th>工期</th><th>日期（起訖）</th><th>需交付</th>' +
+    '<th>序</th><th>任務名</th><th>負責人</th><th>前置</th><th>工期</th><th>日期（起訖）</th><th>需交付</th><th></th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
 };
 // 寫回 preview（不落地、不重算）：負責人
@@ -5267,6 +5269,16 @@ App._s2SetName = function(taskId, value) {
   if (!t) return;
   t.name = value;
   this._s2RefreshCase(t.variant);
+};
+// 刪除該列（preview 陣列 filter）→ 重繪該案。懸空前置不清，建立時 relinkPred 收尾。
+// ⚠ 先取 variant 再 filter（filter 後找不到該筆拿不到 variant）。
+App._s2DelRow = function(taskId) {
+  const res = this._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId);
+  if (!t) return;
+  const variantId = t.variant;
+  res.tasks = res.tasks.filter(x => x.id !== taskId);
+  this._s2RefreshCase(variantId);
 };
 // 寫回 preview：需交付（單筆）
 App._s2SetDeliver = function(taskId, checked) {
