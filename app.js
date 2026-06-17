@@ -3263,24 +3263,29 @@ App.renderProjectDashboard = function(proj) {
   const today = D.today();
   // 序基準（同源）：orderedProjectTasks 陣列序、排除 deleted、含 done（done 佔號）。外層+前置下拉共用。
   const ordered = this.orderedProjectTasks(proj.id);
-  const activeCount = ordered.filter(t => t.status !== 'done').length;
-  const doneCount = ordered.length - activeCount;
+  // 第二刀-A：篩選只在 render 局部過濾。filtered 是 const 局部變數，絕不回寫 orderedProjectTasks 本體
+  // （本體被 _seqOf／前置下拉共用，需維持全量）。下游 counts／預覽切點／visible／firstUndated 全吃 filtered。
+  const taskFilter = this.getTaskFilter(proj.id);
+  const hasFilter = ['stages', 'owners', 'urg', 'status'].some(k => taskFilter[k] && taskFilter[k].size > 0);   // 2甲：任一維 Set 非空＝篩選啟用
+  const filtered = applyTaskFilter(ordered, taskFilter);
+  const activeCount = filtered.filter(t => t.status !== 'done').length;
+  const doneCount = filtered.length - activeCount;
   const deletedTasks = allTasks.filter(t => t._deleted).sort((a, b) => (b._deletedAt || '').localeCompare(a._deletedAt || ''));
 
   // 預覽切到「第 15 個未完成」位置（done 不佔額度、夾在中間者原位保留）
   const PREVIEW_ACTIVE_LIMIT = 15;
   this._projectExpanded = this._projectExpanded || {};
   const isExpanded = !!this._projectExpanded[proj.id];
-  let activeSeen = 0, cutIdx = ordered.length - 1;
-  for (let p = 0; p < ordered.length; p++) {
-    if (ordered[p].status !== 'done') {
+  let activeSeen = 0, cutIdx = filtered.length - 1;
+  for (let p = 0; p < filtered.length; p++) {
+    if (filtered[p].status !== 'done') {
       activeSeen++;
       if (activeSeen === PREVIEW_ACTIVE_LIMIT) { cutIdx = p; break; }
     }
   }
   const overflow = activeCount > PREVIEW_ACTIVE_LIMIT;
-  const showAll = isExpanded || !overflow;
-  const visible = showAll ? ordered : ordered.slice(0, cutIdx + 1);
+  const showAll = hasFilter || isExpanded || !overflow;   // 2甲：篩選啟用 → 不套 15 筆預覽上限，顯示全部篩後集
+  const visible = showAll ? filtered : filtered.slice(0, cutIdx + 1);
 
   this._doneVisible = this._doneVisible || {};
   const doneVisible = !!this._doneVisible[proj.id];
@@ -3292,12 +3297,14 @@ App.renderProjectDashboard = function(proj) {
   const tsCollapsed = toScheduleVisible ? '' : 'collapsed';
   let activeListInner;
   if (visible.length === 0) {
-    activeListInner = '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>';
+    activeListInner = hasFilter
+      ? '<div class="empty-task-list"><div class="empty-task-list-icon">🔍</div>無符合篩選條件的任務</div>'
+      : '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>';
   } else if (firstUndated < 0) {
-    activeListInner = visible.map((t, pos) => this.buildTaskRowHtml(t, pos)).join('');
+    activeListInner = visible.map(t => this.buildTaskRowHtml(t)).join('');
   } else {
-    const datedRows = visible.slice(0, firstUndated).map((t, pos) => this.buildTaskRowHtml(t, pos)).join('');
-    const undatedRows = visible.slice(firstUndated).map((t, k) => this.buildTaskRowHtml(t, firstUndated + k)).join('');
+    const datedRows = visible.slice(0, firstUndated).map(t => this.buildTaskRowHtml(t)).join('');
+    const undatedRows = visible.slice(firstUndated).map(t => this.buildTaskRowHtml(t)).join('');
     const undatedCount = visible.length - firstUndated;
     activeListInner = datedRows +
       `<div class="toschedule-bar ${tsCollapsed}" onclick="App.toggleToScheduleVisible('${proj.id}')">
@@ -3345,7 +3352,7 @@ App.renderProjectDashboard = function(proj) {
             <span class="done-head-count">${doneCount}</span>
             <span class="done-toggle-note">${doneVisible ? '原位顯示（灰字刪除線）' : '已收合'}</span>
           </div>` : ''}
-          <!-- TODO 接線(乙案):render 待辦清單時用 getTaskFilter(proj.id) 四 Set 過濾 ordered/visible，獨立過濾不碰 filterTasks，回家做。本批 UI 殼不過濾，照舊全量渲染。 -->
+          <!-- 第二刀-A 已接線：applyTaskFilter(ordered, getTaskFilter) 四 Set 過濾 → filtered，下游 counts／預覽／visible 全吃 filtered；獨立過濾不碰 filterTasks（看板專用）。 -->
           <div id="activeTaskList" class="${doneVisible ? '' : 'hide-done'}">
             ${activeListInner}
           </div>
@@ -3465,6 +3472,7 @@ App.toggleTaskFilterPanel = function(projId, key) {
   const willOpen = !wrap.classList.contains('open');
   document.querySelectorAll('.tf-chip-wrap.open').forEach(w => w.classList.remove('open'));
   if (willOpen) wrap.classList.add('open');
+  else this.renderProject();   // 選項2：關閉面板＝套用篩選（套用鈕/再點 chip 都走這條）→ 重繪待辦列吃 getTaskFilter
 };
 
 // chip 勾選:更新 Set + 即時改 DOM 樣式/膠囊文字（本批不觸發過濾）
@@ -3488,6 +3496,7 @@ App.clearTaskFilterKey = function(projId, key) {
   if (wrap) wrap.querySelectorAll('input[type=checkbox]').forEach(cb => {
     cb.checked = false; cb.dispatchEvent(new Event('change'));
   });
+  this.renderProject();   // 選項2：清完該維 Set → 重繪套用（重讀空 Set＝該維全顯示），面板隨整頁重繪收合
 };
 
 App.clearTaskFilter = function(projId) {
@@ -3496,6 +3505,7 @@ App.clearTaskFilter = function(projId) {
   document.querySelectorAll('.task-filter-bar input[type=checkbox]').forEach(cb => {
     cb.checked = false; cb.dispatchEvent(new Event('change'));
   });
+  this.renderProject();   // 選項2：四維 Set 全清 → 重繪套用（全部重讀空 Set＝清單全顯示）
 };
 
 // 顯示用任務進度(Dashboard 口徑,KPI OVERALL 與階段進度卡共用,改必同步兩處呼叫端):
@@ -3793,7 +3803,7 @@ App.cleanExpiredDeletedTasks = function() {
   }
 };
 
-App.buildTaskRowHtml = function(t, i) {
+App.buildTaskRowHtml = function(t) {
   const sch = getEffectiveSchedule(t);
   const cat = t.taskType === 'milestone' ? 'milestone' : (t.category || 'deep');  // M2-T3：milestone 優先於 category，修 WBS 里程碑誤顯「會議」tag
   const isPreview = !DATA.settings.previewWeeks ? false : (
@@ -3842,7 +3852,7 @@ App.buildTaskRowHtml = function(t, i) {
   }
 
   return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
-    <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${i + 1}</span>
+    <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${App._seqOf(t.id)}</span>
     <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.stage || '—')}</span>
     <div class="task-info">
       <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -4157,6 +4167,21 @@ function orderTasksByDispStart(list) {
   const dated   = dec.filter(x => x.ds !== '').sort((a, b) => (a.ds < b.ds ? -1 : (a.ds > b.ds ? 1 : a.i - b.i)));
   const undated = dec.filter(x => x.ds === '');   // 待排：filter 保原陣列序
   return dated.map(x => x.t).concat(undated.map(x => x.t));
+}
+
+// 待辦列篩選（第二刀-A 接線）：純函式，吃四 Set 篩選器，.filter 保序（不重排，待排殿後不破）。
+// 每維 Set 空 → 該維不篩；非空 → t 對應值 ∈ Set 才留（同維多選＝OR，跨維＝AND 交集）。
+// ⚠ status 為待辦列純四枚舉（pending/wip/done/hold），不含看板 filterTasks 的 'delayed' 特例。
+function applyTaskFilter(tasks, filter) {
+  const f = filter || {};
+  const has = (s) => s && s.size > 0;
+  return (tasks || []).filter(t => {
+    if (has(f.stages) && !f.stages.has(t.stage)) return false;
+    if (has(f.owners) && !f.owners.has(t.owner)) return false;
+    if (has(f.urg)    && !f.urg.has(t.urgency || 'medium')) return false;
+    if (has(f.status) && !f.status.has(t.status)) return false;
+    return true;
+  });
 }
 
 // 序基準（單一真實來源）：專案任務按 dispStart 升序、待排殿後（orderTasksByDispStart）。

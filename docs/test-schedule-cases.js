@@ -1266,6 +1266,46 @@ function orderTasksByDispStart(list) {
   check('案11.4 dispStart 依 getEffectiveSchedule 優先序取對', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'ac,sc,ov,pl', 'ac=actual01-01 < sc=scheduled02-01 < ov=override03-01 < pl=planned07-01；證明取 dispStart 非 plannedStart');
 }
 
+// ════ 12. applyTaskFilter — 待辦列篩選接線（四 Set 多選／交集／空不篩／保序） ═══
+console.log('\n===== 12. applyTaskFilter 篩選 =====');
+// ⚠ 與 app.js function applyTaskFilter 同步複本（改一邊兩邊改）
+function applyTaskFilter(tasks, filter) {
+  const f = filter || {};
+  const has = (s) => s && s.size > 0;
+  return (tasks || []).filter(t => {
+    if (has(f.stages) && !f.stages.has(t.stage)) return false;
+    if (has(f.owners) && !f.owners.has(t.owner)) return false;
+    if (has(f.urg)    && !f.urg.has(t.urgency || 'medium')) return false;
+    if (has(f.status) && !f.status.has(t.status)) return false;
+    return true;
+  });
+}
+const ef = () => ({ stages: new Set(), owners: new Set(), urg: new Set(), status: new Set() });
+{
+  const list = [ mk({wbs:'1',stage:'手工機'}), mk({wbs:'2',stage:'性試機'}), mk({wbs:'3',stage:'手工機'}) ];
+  const f = ef(); f.stages.add('手工機');
+  check('案12.1 單維篩階段', applyTaskFilter(list, f).map(t=>t.wbs).join(','), '1,3', '只留 stage==手工機');
+}
+{
+  const list = [ mk({wbs:'1',stage:'手工機'}), mk({wbs:'2',stage:'性試機'}), mk({wbs:'3',stage:'量產機'}) ];
+  const f = ef(); f.stages.add('手工機'); f.stages.add('性試機');
+  check('案12.2 多選同維 OR', applyTaskFilter(list, f).map(t=>t.wbs).join(','), '1,2', '同維多選=OR：手工機或性試機都留');
+}
+{
+  const list = [ mk({wbs:'1',stage:'手工機',owner:'王'}), mk({wbs:'2',stage:'手工機',owner:'李'}), mk({wbs:'3',stage:'性試機',owner:'王'}) ];
+  const f = ef(); f.stages.add('手工機'); f.owners.add('王');
+  check('案12.3 多維交集 AND', applyTaskFilter(list, f).map(t=>t.wbs).join(','), '1', '跨維=AND：手工機 且 owner==王');
+}
+{
+  const list = [ mk({wbs:'1',stage:'手工機'}), mk({wbs:'2',stage:'性試機'}) ];
+  check('案12.4 全空 Set 不篩', applyTaskFilter(list, ef()).map(t=>t.wbs).join(','), '1,2', '四維皆空→不篩，原樣全留');
+}
+{
+  const list = [ mk({wbs:'a',status:'wip'}), mk({wbs:'b',status:'done'}), mk({wbs:'c',status:'wip'}), mk({wbs:'d',status:'wip'}) ];
+  const f = ef(); f.status.add('wip');
+  check('案12.5 篩後保持原序（不重排）', applyTaskFilter(list, f).map(t=>t.wbs).join(','), 'a,c,d', '.filter 保序：篩 wip 後 a,c,d 維持輸入相對順序');
+}
+
 console.log('\n===== 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
 process.exit(fail === 0 ? 0 : 1);
