@@ -202,6 +202,9 @@ const Storage = {
     } catch(e) { console.error('Load failed', e); }
   },
   save() {
+    // 唯讀防線（咽喉）：viewonly 一律不落地。鎖 body.viewonly（非 _role——密碼解鎖編輯者只清 viewonly、無 _role，鎖 _role 會誤擋）。
+    // 靜默 return（不 toast）：save 也被 migration/download 等內部流程呼叫，toast 會誤報；UX 提示放各編輯動作入口（第 3 處）。
+    if (document.body.classList.contains('viewonly')) return;
     localStorage.setItem(STORE.projects, JSON.stringify(DATA.projects));
     localStorage.setItem(STORE.tasks,    JSON.stringify(DATA.tasks));
     localStorage.setItem(STORE.meetings, JSON.stringify(DATA.meetings));
@@ -233,6 +236,8 @@ const CloudSync = {
 
   // 上傳本地資料到雲端
   async upload(silent = false) {
+    // 唯讀防線（咽喉）：viewonly 一律不上傳雲端（堵共用 blob 外洩真向量）。鎖 body.viewonly，靜默 return false。
+    if (document.body.classList.contains('viewonly')) return false;
     const url = DATA.settings.cloudSyncUrl;
     if (!url) {
       if (!silent) U.toast('⚠ 尚未設定雲端 URL', 'warning');
@@ -2198,6 +2203,13 @@ const App = {
     document.getElementById('userMode').textContent = 'VIEW ONLY';
   },
 
+  // 唯讀編輯守門（UX）：viewonly 時 toast 提示並回 true，呼叫端 `if (App._roGuard()) return;`。
+  // 單一真實來源：toast 文字只此一處。安全防線在 Storage.save/upload 咽喉（此僅 UX 提示、非安全層）。
+  _roGuard() {
+    if (document.body.classList.contains('viewonly')) { U.toast('唯讀模式，無法編輯', 'warning'); return true; }
+    return false;
+  },
+
   // ─── PAGE NAV ───
   showPage(name, btn) {
     this.currentPage = name;
@@ -2968,6 +2980,7 @@ App.handleScheduleDrop = function(e, toDate, toStart) {
 
 // 【需求 A】釘選 / 取消釘選「本週」：只動 DATA.settings.pinnedWeekTaskIds（不碰 task、不碰 J 同步）
 App.pinTaskToWeek = function(taskId) {
+  if (App._roGuard()) return;
   if (!taskId) return;
   const s = DATA.settings;
   if (!Array.isArray(s.pinnedWeekTaskIds)) s.pinnedWeekTaskIds = [];
@@ -2979,6 +2992,7 @@ App.pinTaskToWeek = function(taskId) {
 };
 
 App.unpinTaskFromWeek = function(taskId) {
+  if (App._roGuard()) return;
   if (!taskId) return;
   const s = DATA.settings;
   s.pinnedWeekTaskIds = (s.pinnedWeekTaskIds || []).filter(id => id !== taskId);
@@ -3119,6 +3133,7 @@ App.attachMemoDrag = function() {
 };
 
 App.addMemo = function() {
+  if (App._roGuard()) return;
   const text = prompt('便利貼內容：');
   if (!text) return;
   const memo = {
@@ -3158,6 +3173,7 @@ App.editMemo = function(id) {
 };
 
 App.deleteMemo = function(id) {
+  if (App._roGuard()) return;
   if (!confirm('刪除這張便利貼？')) return;
   DATA.memos = DATA.memos.filter(m => m.id !== id);
   Storage.save();
@@ -3954,12 +3970,14 @@ App.switchAmTab = function(btn, name) {
 };
 
 App.deleteMeeting = function(id) {
+  if (App._roGuard()) return;
   DATA.meetings = DATA.meetings.filter(m => m.id !== id);
   Storage.save();
   this.renderProject();
 };
 
 App.addManualMeeting = function() {
+  if (App._roGuard()) return;
   const dayNum = parseInt(document.getElementById('mDay').value);
   const start = document.getElementById('mStart').value;
   const end = document.getElementById('mEnd').value;
@@ -3982,6 +4000,7 @@ App.addManualMeeting = function() {
 };
 
 App.parseAndAddMeetings = function() {
+  if (App._roGuard()) return;
   const text = document.getElementById('pasteText').value;
   if (!text.trim()) { U.toast('⚠ 請貼上會議資訊', 'warning'); return; }
   const parsed = parseMeetingText(text);
@@ -3999,6 +4018,7 @@ App.parseAndAddMeetings = function() {
 };
 
 App.generateNow = function() {
+  if (App._roGuard()) return;
   if (DATA.tasks.filter(t => t.status !== 'done' && t.status !== 'hold').length === 0) {
     U.toast('⚠ 沒有任務可排程', 'warning');
     return;
@@ -4046,6 +4066,7 @@ App.generateGlobalSchedule = function() {
 //  PAGE: PROJECT — Quick add + task modal + screenshot OCR
 // ═══════════════════════════════════════════════════════
 App.quickAddTask = function(projId, input) {
+  if (App._roGuard()) return;
   const name = input.value.trim();
   if (!name) {
     // Input 是空 → 直接打開完整新增任務對話框
@@ -4504,6 +4525,7 @@ App.openHoursTaskDialog = function() {
 };
 
 App.saveNewTask = function(projId) {
+  if (App._roGuard()) return;
   // M2 表單改造：必填檢查（專案/名稱/擔當/類型/階段/預計開始；house style：toast warning + return）
   if (!(document.getElementById('tf-project').value || '').trim()) { U.toast('⚠ 請選擇專案', 'warning'); return; }
   const name = document.getElementById('tf-name').value.trim();
@@ -4570,6 +4592,7 @@ App.saveNewTask = function(projId) {
 };
 
 App.toggleTaskDone = function(id) {
+  if (App._roGuard()) return;
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
   if (t.locked) {
@@ -4715,6 +4738,7 @@ App.openTaskModal = function(id) {
 };
 
 App.saveTask = function(id) {
+  if (App._roGuard()) return;
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
   // M2 表單改造：必填檢查（名稱/擔當/類型/階段/預計開始；編輯版專案是唯讀 div 無 tf-project，不檢查）
@@ -4822,6 +4846,7 @@ App.resetAllJOverrides = function() {
 };
 
 App.deleteTask = function(id) {
+  if (App._roGuard()) return;
   if (!confirm('刪除任務？\n\n刪除的任務會移到專案下方「🗑 已刪除」區塊保留 14 天，期間可隨時還原。')) return;
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
@@ -5032,6 +5057,7 @@ App._showTplWarnings = function(warnings) {
 };
 
 App.saveProject = function(id) {
+  if (App._roGuard()) return;
   const name = document.getElementById('pf-name').value.trim();
   if (!name) { U.toast('⚠ 請填專案名稱', 'warning'); return; }
   const colorEl = document.querySelector('.cp-swatch.on');
@@ -5167,6 +5193,7 @@ App._stage2Back = function() { this.showPage('dashboard'); this.openProjectDialo
 
 // 建立專案：步驟5 落地，吃 _tplPreview push/save（depts/variants 掛回 res.project + DATA push + Storage.save + 清 preview 防重複建）。
 App._stage2Commit = function() {
+  if (App._roGuard()) return;
   const res = this._tplPreview;
   if (!res) { U.toast('\u26a0 無範本預覽資料，請重新套用範本', 'warning'); return; }
   // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到（步驟1 從 saveProject 挪來此落地步）
@@ -6965,6 +6992,7 @@ App.getPdcaGroupMeta = function(projectId, groupName) {
 };
 
 App.updatePdcaGroupMeta = function(el, field) {
+  if (App._roGuard()) return;
   const projectId = el.dataset.pproj, groupName = el.dataset.pgroup;
   if (!projectId || groupName === undefined) return;
   ensurePdcaGroupsRoot();
