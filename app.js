@@ -5093,6 +5093,12 @@ App._renderStage2 = function() {
   if (!res) { U.toast('\u26a0 無範本預覽資料，請重新套用範本', 'warning'); return; }
   const variants = res.variants || [];
   const tasks = res.tasks || [];
+  // 預設每案選中第一個階段（既有有效選擇保留；新 preview/失效選擇 → 回第一階段）
+  if (!this._s2Stage) this._s2Stage = {};
+  variants.forEach(v => {
+    const g = this._s2GroupByStage(v.id);
+    if (g.order.length && g.order.indexOf(this._s2Stage[v.id]) < 0) this._s2Stage[v.id] = g.order[0];
+  });
   const fmtD = (s) => s ? String(s).replace(/-/g, '/') : '';
   // 案別總區間：純讀該案 preview tasks 的 min plannedStart \u2192 max plannedEnd（引擎\u2467已順推寫入，不落地）。
   const caseRange = (vid) => {
@@ -5122,7 +5128,7 @@ App._renderStage2 = function() {
           '<span class="s2-case-name">' + U.esc(v.name || '') + '</span>' +
           '<span class="s2-case-range">' + caseRange(v.id) + '</span>' +
         '</div>' +
-        '<div class="s2-gantt-ph s2-ph" data-variant="' + v.id + '">Gantt 階段軸（步驟 3）</div>' +
+        '<div class="s2-gantt" data-variant="' + v.id + '">' + this._s2GanttHtml(v.id) + '</div>' +
         '<div class="s2-list" data-variant="' + v.id + '">' + this._s2ListHtml(v.id) + '</div>' +
       '</div>';
   }).join('');
@@ -5216,31 +5222,33 @@ App._s2ListHtml = function(variantId) {
   const res = this._tplPreview; if (!res) return '';
   const g = this._s2GroupByStage(variantId);
   if (!g.order.length) return '<div class="s2-ph">此案別無任務</div>';
+  const sel = (this._s2Stage && this._s2Stage[variantId]) || g.order[0];
+  const selIdx = g.order.indexOf(sel);
+  const group = g.byStage[sel] || [];
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
-  let seq = 0, rows = '';
-  g.order.forEach((st, si) => {
-    const group = g.byStage[st];
-    const allDeliver = group.every(t => t.mustDeliver);
+  // 序＝案內跨階段累計（前面各階段任務數加總），切階段不重編號
+  let seqBase = 0;
+  for (let i = 0; i < selIdx; i++) seqBase += (g.byStage[g.order[i]] || []).length;
+  const allDeliver = group.length > 0 && group.every(t => t.mustDeliver);
+  let rows =
+    '<tr class="s2-stage-row">' +
+      '<td colspan="6">' + U.esc(sel) + '</td>' +
+      '<td class="s2-deliver"><label class="s2-all"><input type="checkbox"' + (allDeliver ? ' checked' : '') +
+        ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"> 全選</label></td>' +
+    '</tr>';
+  group.forEach((t, gi) => {
+    const seq = seqBase + gi + 1;
+    const sub = t.subgroup ? '<span class="s2-sub">' + U.esc(t.subgroup) + '</span>' : '';
     rows +=
-      '<tr class="s2-stage-row">' +
-        '<td colspan="6">' + U.esc(st) + '</td>' +
-        '<td class="s2-deliver"><label class="s2-all"><input type="checkbox"' + (allDeliver ? ' checked' : '') +
-          ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + si + ', this.checked)"> 全選</label></td>' +
+      '<tr>' +
+        '<td>' + seq + '</td>' +
+        '<td>' + U.esc(t.name) + sub + '</td>' +
+        '<td><select class="s2-owner-sel" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
+        '<td class="s2-pred">' + U.esc(this._s2PredText(t)) + '</td>' +
+        '<td class="s2-dur">' + (t.durationDays != null ? t.durationDays : '') + '</td>' +
+        '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
+        '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
       '</tr>';
-    group.forEach(t => {
-      seq++;
-      const sub = t.subgroup ? '<span class="s2-sub">' + U.esc(t.subgroup) + '</span>' : '';
-      rows +=
-        '<tr>' +
-          '<td>' + seq + '</td>' +
-          '<td>' + U.esc(t.name) + sub + '</td>' +
-          '<td><select class="s2-owner-sel" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
-          '<td class="s2-pred">' + U.esc(this._s2PredText(t)) + '</td>' +
-          '<td class="s2-dur">' + (t.durationDays != null ? t.durationDays : '') + '</td>' +
-          '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
-          '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
-        '</tr>';
-    });
   });
   return '<table class="s2-tbl"><thead><tr>' +
     '<th>序</th><th>任務名</th><th>負責人</th><th>前置</th><th>工期</th><th>日期（起訖）</th><th>需交付</th>' +
@@ -5263,7 +5271,69 @@ App._s2DeliverAll = function(variantId, si, checked) {
   const g = this._s2GroupByStage(variantId);
   const st = g.order[si]; if (st == null) return;
   g.byStage[st].forEach(t => { t.mustDeliver = !!checked; });
-  this._renderStage2();
+  this._s2RefreshCase(variantId);
+};
+// ─── 步驟3：Gantt 階段軸 + 點階段切換清單 ───
+// 各階段起迄：純讀該案 preview tasks 的 min plannedStart → max plannedEnd（不落地）。
+App._s2StageRanges = function(variantId) {
+  const g = this._s2GroupByStage(variantId);
+  const ranges = g.order.map(st => {
+    const ts = g.byStage[st];
+    const starts = ts.map(t => t.plannedStart).filter(Boolean).sort();
+    const ends = ts.map(t => t.plannedEnd).filter(Boolean).sort();
+    return { stage: st, start: starts[0] || '', end: ends[ends.length - 1] || '' };
+  });
+  return { order: g.order, ranges };
+};
+// Gantt 階段軸：每階段一列(名+橫條+日期)，橫條 left/width 相對該案總區間；選中階段加 .on 高亮。
+App._s2GanttHtml = function(variantId) {
+  const data = this._s2StageRanges(variantId);
+  const order = data.order, ranges = data.ranges;
+  if (!order.length) return '';
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  const toNum = (d) => d ? Date.parse(d) : NaN;
+  const sel = (this._s2Stage && this._s2Stage[variantId]) || order[0];
+  const allStarts = ranges.map(r => toNum(r.start)).filter(n => !isNaN(n));
+  const allEnds = ranges.map(r => toNum(r.end)).filter(n => !isNaN(n));
+  const minN = allStarts.length ? Math.min.apply(null, allStarts) : 0;
+  const maxN = allEnds.length ? Math.max.apply(null, allEnds) : 0;
+  const span = (maxN - minN) || 1;
+  let rows = '';
+  ranges.forEach((r, si) => {
+    const isSel = r.stage === sel;
+    const a = toNum(r.start), b = toNum(r.end);
+    let bar;
+    if (isNaN(a) || isNaN(b)) {
+      bar = '<div class="s2-gbar-track"><div class="s2-gbar s2-gbar-none"></div></div>';
+    } else {
+      const left = ((a - minN) / span) * 100;
+      const width = Math.max(((b - a) / span) * 100, 1.5);
+      bar = '<div class="s2-gbar-track"><div class="s2-gbar" style="left:' + left + '%;width:' + width + '%"></div></div>';
+    }
+    const dateLbl = (r.start || r.end) ? (fmtD(r.start) + ' → ' + fmtD(r.end)) : '待排';
+    rows +=
+      '<div class="s2-grow' + (isSel ? ' on' : '') + '" onclick="App._s2SelectStage(\'' + variantId + '\', ' + si + ')">' +
+        '<div class="s2-gname">' + U.esc(r.stage) + '</div>' +
+        bar +
+        '<div class="s2-gdate">' + dateLbl + '</div>' +
+      '</div>';
+  });
+  return '<div class="s2-gantt-axis">' + rows + '</div>';
+};
+// 點階段：設選中 → 只重繪該案（軸高亮 + 清單篩選），不洗整頁（已改 owner/mustDeliver 存 _tplPreview 不掉）。
+App._s2SelectStage = function(variantId, si) {
+  const g = this._s2GroupByStage(variantId);
+  const st = g.order[si]; if (st == null) return;
+  if (!this._s2Stage) this._s2Stage = {};
+  this._s2Stage[variantId] = st;
+  this._s2RefreshCase(variantId);
+};
+// 只重繪單一案別的 Gantt 軸 + 任務清單（讀 _tplPreview，已改值不掉）。
+App._s2RefreshCase = function(variantId) {
+  const gantt = document.querySelector('.s2-gantt[data-variant="' + variantId + '"]');
+  if (gantt) gantt.innerHTML = this._s2GanttHtml(variantId);
+  const list = document.querySelector('.s2-list[data-variant="' + variantId + '"]');
+  if (list) list.innerHTML = this._s2ListHtml(variantId);
 };
 
 App.deptEdit = {

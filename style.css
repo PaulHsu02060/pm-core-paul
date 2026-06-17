@@ -1414,3 +1414,16 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .s2-pred { color: var(--stone-500); }
 .s2-dur, .s2-date { color: var(--stone-400); font-size: 12px; white-space: nowrap; }
 .s2-deliver { text-align: center; }
+
+/* ── 範本第二階段 步驟3：Gantt 階段軸（點階段切換清單）── */
+.s2-gantt-axis { margin: 4px 0 12px; }
+.s2-grow { display: flex; align-items: center; gap: 10px; padding: 4px 6px; border-radius: var(--r6); cursor: pointer; }
+.s2-grow:hover { background: var(--stone-50); }
+.s2-grow.on { background: var(--sage-50); box-shadow: inset 0 0 0 1.5px var(--sage-400); }
+.s2-case-other .s2-grow.on { background: var(--slate-l); box-shadow: inset 0 0 0 1.5px var(--slate); }
+.s2-gname { flex: 0 0 96px; font-size: 12px; font-weight: 500; color: var(--stone-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s2-gbar-track { flex: 1 1 auto; position: relative; height: 14px; background: var(--stone-50); border-radius: 99px; }
+.s2-gbar { position: absolute; top: 0; height: 14px; border-radius: 99px; background: var(--proj-c1); }
+.s2-case-other .s2-gbar { background: var(--proj-c3); }
+.s2-gbar-none { left: 0; width: 100%; background: var(--stone-200); opacity: .5; }
+.s2-gdate { flex: 0 0 150px; text-align: right; font-size: 11px; color: var(--stone-400); white-space: nowrap; }
