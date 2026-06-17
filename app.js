@@ -39,6 +39,8 @@ const APP_BUILD_SIGNATURE = CFG('APP_BUILD_SIGNATURE', 'PM-Core');
 // Admin Gmail 名單：登入後能看到 WBS 同步等管理者功能
 // 非 admin 看不到也用不到（WBS Sheet 由公司權限自行管控）
 const ADMIN_EMAILS = CFG('ADMIN_EMAILS', []);
+// 白名單 Gmail：在名單內 → Editor（可編輯，無 admin 功能）。空陣列 = 只有 Admin 能編（安全預設）。
+const ALLOWED_EMAILS = CFG('ALLOWED_EMAILS', []);
 
 // 預設 OAuth Client ID：hardcode 在這，同事零設定就能 Google 登入
 // 安全性：OAuth Client ID 本來就是公開資訊，配 redirect_uri 白名單防呆
@@ -49,6 +51,11 @@ const DEFAULT_OAUTH_CLIENT_ID = CFG('OAUTH_CLIENT_ID', 'PASTE_YOUR_OAUTH_CLIENT_
 function isAdmin() {
   const email = (typeof DATA !== 'undefined' && DATA.settings && DATA.settings._loggedInEmail) || '';
   return ADMIN_EMAILS.includes(String(email).toLowerCase());
+}
+// helper：email 是否在白名單（Editor 權限）。⚠ 空名單 → false（安全預設：寧可擋過頭，不放過頭）。
+function isAllowed(email) {
+  if (!ALLOWED_EMAILS.length) return false;
+  return ALLOWED_EMAILS.includes(String(email || '').toLowerCase());
 }
 
 // build hash 用於辨識：把作者名 + 重要常數 hash 起來
@@ -2059,8 +2066,6 @@ const App = {
         localStorage.removeItem(STORE.editUnlock);  // 過期 / hash 不符 → 清掉
       }
     } catch (e) { localStorage.removeItem(STORE.editUnlock); }
-    // [方案B] 停用 Google auth，開機進唯讀。要接回 Google：刪本行 early return。
-    this.enterViewOnly(); return;
     // Fallback：若使用者沒設過 OAuth Client ID，用 hardcode 的預設值
     // 這讓「拿到 URL 的同事」零設定就能 Google 登入
     const clientId = DATA.settings.googleClientId || DEFAULT_OAUTH_CLIENT_ID;
@@ -2126,11 +2131,19 @@ const App = {
       const name = payload.name || payload.given_name || 'User';
       const picture = payload.picture || '';
 
-      // 個人獨立模式：所有 Google 登入都進入 editor 模式
-      // 資料以 Gmail 區分（透過 localStorage 命名空間），各看各的
-      // WBS 同步等 admin 功能由 isAdmin() 控制，不再依賴白名單擋人
+      // ─── 三層權限判斷（Admin > Editor > Viewonly）───
+      // 用剛解出的 email 直接比對兩名單，在設 _loggedInEmail「之前」判斷（不走 isAdmin()，它讀 settings 尚未設）。
+      // email 已 toLowerCase（上方），兩名單條目須為小寫。
+      const admin = ADMIN_EMAILS.includes(email);
+      const editor = isAllowed(email);
+      if (!admin && !editor) {
+        // 都不在 → 唯讀，不設 _loggedInEmail（PII 不留）、不 remove viewonly
+        this.enterViewOnly();
+        U.toast('此帳號僅供檢視', 'warning');
+        return;
+      }
 
-      // 通過 → 編輯模式
+      // admin 或 editor → 編輯模式（isAdmin() 下游讀 _loggedInEmail 自會重判 admin 功能）
       DATA.settings.userName = name;
       DATA.settings._loggedInEmail = email;
       DATA.settings._loggedInPicture = picture;
