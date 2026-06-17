@@ -3285,6 +3285,30 @@ App.renderProjectDashboard = function(proj) {
   this._doneVisible = this._doneVisible || {};
   const doneVisible = !!this._doneVisible[proj.id];
 
+  this._toScheduleVisible = this._toScheduleVisible || {};
+  const toScheduleVisible = this._toScheduleVisible[proj.id] !== false;   // 待排區預設展開（未設過 = true）
+  // 待排分隔：orderTasksByDispStart 已把空 dispStart 殿後 → visible 尾段連續；找第一筆切點
+  const firstUndated = visible.findIndex(t => getEffectiveSchedule(t).start === '');
+  const tsCollapsed = toScheduleVisible ? '' : 'collapsed';
+  let activeListInner;
+  if (visible.length === 0) {
+    activeListInner = '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>';
+  } else if (firstUndated < 0) {
+    activeListInner = visible.map((t, pos) => this.buildTaskRowHtml(t, pos)).join('');
+  } else {
+    const datedRows = visible.slice(0, firstUndated).map((t, pos) => this.buildTaskRowHtml(t, pos)).join('');
+    const undatedRows = visible.slice(firstUndated).map((t, k) => this.buildTaskRowHtml(t, firstUndated + k)).join('');
+    const undatedCount = visible.length - firstUndated;
+    activeListInner = datedRows +
+      `<div class="toschedule-bar ${tsCollapsed}" onclick="App.toggleToScheduleVisible('${proj.id}')">
+            <span class="done-head-chevron">▼</span>
+            <span class="done-head-title">待排</span>
+            <span class="done-head-count">${undatedCount}</span>
+            <span class="done-toggle-note">${toScheduleVisible ? '未填開始日（補開始日或前置即排入）' : '已收合'}</span>
+          </div>
+          <div class="toschedule-group ${tsCollapsed}">${undatedRows}</div>`;
+  }
+
   return `    ${this.buildProjKpiHtml(proj)}
 
     <div class="proj-dash-grid">
@@ -3323,10 +3347,7 @@ App.renderProjectDashboard = function(proj) {
           </div>` : ''}
           <!-- TODO 接線(乙案):render 待辦清單時用 getTaskFilter(proj.id) 四 Set 過濾 ordered/visible，獨立過濾不碰 filterTasks，回家做。本批 UI 殼不過濾，照舊全量渲染。 -->
           <div id="activeTaskList" class="${doneVisible ? '' : 'hide-done'}">
-            ${visible.length === 0 ?
-              '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>' :
-              visible.map((t, pos) => this.buildTaskRowHtml(t, pos)).join('')
-            }
+            ${activeListInner}
           </div>
           ${!showAll ? `
           <div style="padding:10px 16px; border-top:1px solid var(--rule); text-align:center; background:var(--surface2);">
@@ -3727,6 +3748,14 @@ App.toggleDoneVisible = function(projId) {
   this.renderProject();
 };
 
+App.toggleToScheduleVisible = function(projId) {
+  this._toScheduleVisible = this._toScheduleVisible || {};
+  // 預設展開：未設過視為 true，第一次點 → false（收合）
+  const cur = this._toScheduleVisible[projId] !== false;
+  this._toScheduleVisible[projId] = !cur;
+  this.renderProject();
+};
+
 // ─── Soft delete / restore ───
 App.restoreTask = function(id) {
   const t = DATA.tasks.find(x => x.id === id);
@@ -4118,10 +4147,22 @@ App.PRED_RELATIONS = [
   { code: 'SF', label: '它開始後，本任務才能完成' },
 ];
 
-// 序基準（單一真實來源）：專案任務陣列序（= Excel/wbs 升冪 for 匯入，且保中間插入位置）。
+// 序排序（第一刀，2026-06-17 序改日期排序）：純函式，吃 list 回排序後 list。
+// 規則：有有效開始日（dispStart = getEffectiveSchedule(t).start，全系統 ISO YYYY-MM-DD，字串比=時序）→ 升序；
+//   空值（待排：無 dispStart）顯式歸殿後組、不參與字串比（空字串字典序最小，naive 比會頂最前）；
+//   同 dispStart / 待排組內 → 維持原陣列序（decorate index 穩定排序，不依賴引擎 sort 穩定性）。
+// ⚠ 測試副本：test-schedule-cases.js §11，改此函式要兩邊同步。
+function orderTasksByDispStart(list) {
+  const dec = (list || []).map((t, i) => ({ t, i, ds: getEffectiveSchedule(t).start || '' }));
+  const dated   = dec.filter(x => x.ds !== '').sort((a, b) => (a.ds < b.ds ? -1 : (a.ds > b.ds ? 1 : a.i - b.i)));
+  const undated = dec.filter(x => x.ds === '');   // 待排：filter 保原陣列序
+  return dated.map(x => x.t).concat(undated.map(x => x.t));
+}
+
+// 序基準（單一真實來源）：專案任務按 dispStart 升序、待排殿後（orderTasksByDispStart）。
 // 排除已刪除、含 done（done 佔號）。外層待辦列與前置下拉共用此排序與 seq（同源）。
 App.orderedProjectTasks = function(projId) {
-  return (DATA.tasks || []).filter(t => t.project === projId && !t._deleted);
+  return orderTasksByDispStart((DATA.tasks || []).filter(t => t.project === projId && !t._deleted));
 };
 
 // 任務在其專案 ordered 序中的 seq（同源，1-based）；查無回 '?'（供超範圍前置顯示標籤）

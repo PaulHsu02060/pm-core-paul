@@ -1240,6 +1240,32 @@ function fillAcrossDays(availSlots, N, isDeep) {
   }
 }
 
+// ════ 11. orderTasksByDispStart — 序改日期排序（待排殿後／同日期穩定／dispStart 取對） ═══
+console.log('\n===== 11. orderTasksByDispStart 序排序 =====');
+// ⚠ 與 app.js function orderTasksByDispStart 同步複本（改一邊兩邊改）
+function orderTasksByDispStart(list) {
+  const dec = (list || []).map((t, i) => ({ t, i, ds: getEffectiveSchedule(t).start || '' }));
+  const dated   = dec.filter(x => x.ds !== '').sort((a, b) => (a.ds < b.ds ? -1 : (a.ds > b.ds ? 1 : a.i - b.i)));
+  const undated = dec.filter(x => x.ds === '');
+  return dated.map(x => x.t).concat(undated.map(x => x.t));
+}
+{
+  const list = [ mk({ wbs: 'A', plannedStart: '2026-03-10' }), mk({ wbs: 'B', plannedStart: '2026-01-05' }), mk({ wbs: 'C', plannedStart: '2026-02-20' }) ];
+  check('案11.1 有日期按 dispStart ISO 升序', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'B,C,A', '01-05 < 02-20 < 03-10，ISO 字串升序=時序');
+}
+{
+  const list = [ mk({ wbs: 'X' }), mk({ wbs: 'Y', plannedStart: '2026-05-01' }), mk({ wbs: 'Z' }), mk({ wbs: 'W', plannedStart: '2026-04-01' }) ];
+  check('案11.2 待排（空dispStart）殿後不頂前', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'W,Y,X,Z', '有日期 W(04-01)<Y(05-01) 在前；待排 X,Z 殿後且維持原陣列序（非空字串頂最前）');
+}
+{
+  const list = [ mk({ wbs: 'P1', plannedStart: '2026-06-10' }), mk({ wbs: 'P2', plannedStart: '2026-06-10' }), mk({ wbs: 'P3', plannedStart: '2026-06-10' }) ];
+  check('案11.3 同 dispStart 維持原陣列序（穩定）', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'P1,P2,P3', '三筆同日 06-10 → decorate index 平手回原序');
+}
+{
+  const list = [ mk({ wbs: 'pl', plannedStart: '2026-07-01' }), mk({ wbs: 'sc', plannedStart: '2026-07-01', scheduledStart: '2026-02-01' }), mk({ wbs: 'ac', plannedStart: '2026-07-01', actualStart: '2026-01-01' }), mk({ wbs: 'ov', __isJ: true, _localStart: '2026-03-01', plannedStart: '2026-07-01' }) ];
+  check('案11.4 dispStart 依 getEffectiveSchedule 優先序取對', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'ac,sc,ov,pl', 'ac=actual01-01 < sc=scheduled02-01 < ov=override03-01 < pl=planned07-01；證明取 dispStart 非 plannedStart');
+}
+
 console.log('\n===== 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fail}  （總計 ${pass + fail}）`);
 process.exit(fail === 0 ? 0 : 1);
