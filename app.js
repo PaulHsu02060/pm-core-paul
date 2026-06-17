@@ -5123,7 +5123,7 @@ App._renderStage2 = function() {
           '<span class="s2-case-range">' + caseRange(v.id) + '</span>' +
         '</div>' +
         '<div class="s2-gantt-ph s2-ph" data-variant="' + v.id + '">Gantt 階段軸（步驟 3）</div>' +
-        '<div class="s2-list-ph s2-ph" data-variant="' + v.id + '">任務清單（步驟 4）</div>' +
+        '<div class="s2-list" data-variant="' + v.id + '">' + this._s2ListHtml(v.id) + '</div>' +
       '</div>';
   }).join('');
   document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
@@ -5166,6 +5166,104 @@ App._stage2Commit = function() {
     U.toast('\u2713 已用範本建立 ' + res.tasks.length + ' 筆任務', 'success');
   }
   this.showPage('project', null);
+};
+
+// ─── 範本第二階段 步驟4：任務清單可編輯（負責人下拉＋需交付勾選，不碰工期/不重算）───
+// 全部讀寫 this._tplPreview（preview 未落地，建立時才 push）；負責人/需交付不影響日期，故只寫值不重算。
+App._s2GroupByStage = function(variantId) {
+  const res = this._tplPreview;
+  const order = [], byStage = {};
+  ((res && res.tasks) || []).filter(t => t.variant === variantId).forEach(t => {
+    const st = t.stage || '（未分階段）';
+    if (!byStage[st]) { byStage[st] = []; order.push(st); }
+    byStage[st].push(t);
+  });
+  return { order, byStage };
+};
+// 負責人下拉：該任務所屬部門(task.dept)的人排最前(本部門・)，其餘在後；首列未指派。只選不可手打(select)。
+App._s2OwnerOptions = function(t) {
+  const res = this._tplPreview; if (!res) return '';
+  const depts = res.depts || [];
+  const cur = t.owner || '';
+  const ownDeptId = t.dept || '';
+  let html = '<option value=""' + (cur === '' ? ' selected' : '') + '>未指派</option>';
+  const ordered = depts.slice().sort((a, b) => (a.id === ownDeptId ? -1 : (b.id === ownDeptId ? 1 : 0)));
+  ordered.forEach(d => {
+    const members = d.members || [];
+    if (!members.length) return;
+    html += '<optgroup label="' + U.esc((d.id === ownDeptId ? '本部門・' : '') + d.name) + '">';
+    members.forEach(m => {
+      html += '<option value="' + U.esc(m.name) + '"' + (m.name === cur ? ' selected' : '') + '>' + U.esc(m.name) + '</option>';
+    });
+    html += '</optgroup>';
+  });
+  return html;
+};
+// 前置白話：無→「無」/單→「接在《X》後」(id 反查 name)/多→「接在 N 項後」。predecessor 為 id#關係 格式(取 # 前 id)。
+App._s2PredText = function(t) {
+  const res = this._tplPreview; if (!res) return '無';
+  const parts = String(t.predecessor || '').split(/[,，;；]/).map(x => x.trim()).filter(Boolean);
+  if (!parts.length) return '無';
+  if (parts.length === 1) {
+    const pid = parts[0].split('#')[0];
+    const dep = (res.tasks || []).find(x => x.id === pid);
+    return dep ? ('接在《' + dep.name + '》後') : '接在 1 項後';
+  }
+  return '接在 ' + parts.length + ' 項後';
+};
+// 任務清單表（單一案別）：按 stage 正常序分組，每組標題列含「全選需交付」；每列 序/任務名+子群組/負責人下拉/前置白話/工期(唯讀)/日期(唯讀)/需交付勾。
+App._s2ListHtml = function(variantId) {
+  const res = this._tplPreview; if (!res) return '';
+  const g = this._s2GroupByStage(variantId);
+  if (!g.order.length) return '<div class="s2-ph">此案別無任務</div>';
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  let seq = 0, rows = '';
+  g.order.forEach((st, si) => {
+    const group = g.byStage[st];
+    const allDeliver = group.every(t => t.mustDeliver);
+    rows +=
+      '<tr class="s2-stage-row">' +
+        '<td colspan="6">' + U.esc(st) + '</td>' +
+        '<td class="s2-deliver"><label class="s2-all"><input type="checkbox"' + (allDeliver ? ' checked' : '') +
+          ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + si + ', this.checked)"> 全選</label></td>' +
+      '</tr>';
+    group.forEach(t => {
+      seq++;
+      const sub = t.subgroup ? '<span class="s2-sub">' + U.esc(t.subgroup) + '</span>' : '';
+      rows +=
+        '<tr>' +
+          '<td>' + seq + '</td>' +
+          '<td>' + U.esc(t.name) + sub + '</td>' +
+          '<td><select class="s2-owner-sel" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
+          '<td class="s2-pred">' + U.esc(this._s2PredText(t)) + '</td>' +
+          '<td class="s2-dur">' + (t.durationDays != null ? t.durationDays : '') + '</td>' +
+          '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
+          '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
+        '</tr>';
+    });
+  });
+  return '<table class="s2-tbl"><thead><tr>' +
+    '<th>序</th><th>任務名</th><th>負責人</th><th>前置</th><th>工期</th><th>日期（起訖）</th><th>需交付</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+};
+// 寫回 preview（不落地、不重算）：負責人
+App._s2SetOwner = function(taskId, value) {
+  const res = this._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId);
+  if (t) t.owner = value;
+};
+// 寫回 preview：需交付（單筆）
+App._s2SetDeliver = function(taskId, checked) {
+  const res = this._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId);
+  if (t) t.mustDeliver = !!checked;
+};
+// 寫回 preview：需交付（該階段全選）→ 重繪同步子勾選
+App._s2DeliverAll = function(variantId, si, checked) {
+  const g = this._s2GroupByStage(variantId);
+  const st = g.order[si]; if (st == null) return;
+  g.byStage[st].forEach(t => { t.mustDeliver = !!checked; });
+  this._renderStage2();
 };
 
 App.deptEdit = {
