@@ -1381,3 +1381,21 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
   border: 1px solid var(--rule2); border-radius: var(--r4);
   background: var(--surface); color: var(--ink); font: inherit;
 }
+
+/* ── 範本第二階段 編輯任務骨架頁殼（§8d.15 B：頁殼+標頭；Gantt軸/清單步驟3/4）── */
+.stage2-wrap { max-width: 1080px; margin: 0 auto; padding: 6px 4px 48px; }
+.stage2-head { display: flex; align-items: center; font-size: 18px; font-weight: 600; color: var(--sage-700); margin-bottom: 16px; }
+.stage2-head .s2-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--sage-600); color: var(--ink-inverse); font-size: 13px; margin-right: 8px; }
+.stage2-help { background: var(--sage-50); border: 1px solid var(--sage-100); border-radius: var(--r8); padding: 10px 14px; font-size: 12.5px; line-height: 1.7; color: var(--stone-600); margin-bottom: 20px; }
+.stage2-help-head { font-weight: 600; color: var(--sage-700); margin-bottom: 4px; }
+.stage2-help-block { padding: 7px 0; }
+.stage2-help-block + .stage2-help-block { border-top: 1px solid var(--sage-100); }
+.stage2-help-block b { color: var(--sage-700); }
+.s2-case { background: var(--paper); border: 1px solid var(--stone-100); border-left-width: 4px; border-radius: var(--r8); padding: 14px 16px; margin-bottom: 18px; }
+.s2-case-main  { border-left-color: var(--proj-c1); }
+.s2-case-other { border-left-color: var(--proj-c3); }
+.s2-case-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.s2-case-name { font-size: 14px; font-weight: 600; color: var(--stone-600); }
+.s2-case-range { margin-left: auto; font-size: 12px; color: var(--stone-400); }
+.s2-ph { border: 1px dashed var(--stone-200); border-radius: var(--r6); padding: 14px; margin-top: 8px; font-size: 12px; color: var(--stone-400); text-align: center; }
+.stage2-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 26px; }

@@ -4918,7 +4918,7 @@ App.openProjectDialog = function(projId) {
       ${!isEdit ? `
       <div class="form-field">
         <label>建立方式</label>
-        <select id="pf-mode" onchange="document.getElementById('pf-tplBox').style.display=this.value==='template'?'':'none'">
+        <select id="pf-mode" onchange="document.getElementById('pf-tplBox').style.display=this.value==='template'?'':'none';document.getElementById('pf-submitBtn').textContent=this.value==='template'?'下一步：檢視任務':'建立'">
           <option value="blank">空白專案</option>
           <option value="template">套用範本</option>
         </select>
@@ -4976,7 +4976,7 @@ App.openProjectDialog = function(projId) {
     footer: `
       ${isEdit ? `<button class="tb-action danger" onclick="App.deleteProject('${projId}')" style="margin-right:auto;">刪除專案</button>` : ''}
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-      <button class="tb-action" onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
+      <button class="tb-action" id="pf-submitBtn" onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
     `,
   });
 };
@@ -5067,23 +5067,11 @@ App.saveProject = function(id) {
         if (dept) roleMap[dept] = person;
       });
       const userInput = { projectName: name, color, note, cases, roleMap };
-      const res = App.applyTemplate(tpl, userInput);
-      res.project.depts = res.depts;          // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到
-      res.project.variants = res.variants;
-      DATA.projects.push(res.project);
-      res.tasks.forEach(t => DATA.tasks.push(t));
-      this.currentProjectId = res.project.id;
-      Storage.save();
+      // B 步驟1：preview-then-commit（§8d.15 N.1）——算出 res 不落地，整包存 _tplPreview，
+      // 關第一階段 modal、開第二階段頁；depts/variants 掛回 + push/save 留到「建立專案」鈕。
+      this._tplPreview = App.applyTemplate(tpl, userInput);
       this.closeModal();
-      this.refreshAll();
-      if (res.warnings.length) {
-        console.warn('套範本提醒:', res.warnings);
-        this._showTplWarnings(res.warnings);
-        U.toast('✓ 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒見上方）', 'warning');
-      } else {
-        U.toast('✓ 已用範本建立 ' + res.tasks.length + ' 筆任務', 'success');
-      }
-      this.showPage('project', null);
+      this._renderStage2();
       return;
     }
     const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
@@ -5097,6 +5085,68 @@ App.saveProject = function(id) {
   U.toast(id ? '✓ 專案已更新' : '✓ 專案已建立');
   if (!id) this.showPage('project', null);
 };
+
+// ─── 範本第二階段：編輯任務骨架頁（§8d.15）。B 步驟2：頁殼+標頭+案別區塊；Gantt軸/任務清單留步驟3/4。───
+// 吃 this._tplPreview（applyTemplate 回傳的 res，未落地）；render 進 #page-stage2，仿 showPage 切 .active。
+App._renderStage2 = function() {
+  const res = this._tplPreview;
+  if (!res) { U.toast('\u26a0 無範本預覽資料，請重新套用範本', 'warning'); return; }
+  const variants = res.variants || [];
+  const tasks = res.tasks || [];
+  const fmtD = (s) => s ? String(s).replace(/-/g, '/') : '';
+  // 案別總區間：純讀該案 preview tasks 的 min plannedStart \u2192 max plannedEnd（引擎\u2467已順推寫入，不落地）。
+  const caseRange = (vid) => {
+    const ts = tasks.filter(t => t.variant === vid);
+    const starts = ts.map(t => t.plannedStart).filter(Boolean).sort();
+    const ends = ts.map(t => t.plannedEnd).filter(Boolean).sort();
+    const a = starts[0], b = ends[ends.length - 1];
+    return (a || b) ? (fmtD(a) + ' \u2192 ' + fmtD(b)) : '（待排程）';
+  };
+  const help =
+    '<div class="stage2-help">' +
+      '<div class="stage2-help-head">\u2753 填寫說明</div>' +
+      '<div class="stage2-help-block"><b>日期（起訖）</b>：系統自動計算，不直接填；請以「前置任務 \uff0b 工期」調整。</div>' +
+      '<div class="stage2-help-block"><b>需交付</b>：此任務是否須繳交付件（如報告、樣品）。可逐筆勾或整階段全選。</div>' +
+      '<div class="stage2-help-block"><b>前置任務</b>三種設定：' +
+        '<br>\u30fb接在《A》後 \u2014 等 A 做完，隔天才開始。例：樣機組裝 接在《零件到料》後' +
+        '<br>\u30fb接在《A》後 \uff0b2天 \u2014 等 A 做完，再多等 2 天才開始。例：塗裝 接在《組裝》後 \uff0b2天（等乾）' +
+        '<br>\u30fb無前置 \u2014 不用等其他項目，從專案開始日就排入。例：規格訂定' +
+      '</div>' +
+    '</div>';
+  const blocks = variants.map((v, i) => {
+    const isMain = i === 0;
+    return '' +
+      '<div class="s2-case ' + (isMain ? 's2-case-main' : 's2-case-other') + '" data-variant="' + v.id + '">' +
+        '<div class="s2-case-head">' +
+          '<span class="stage-cap-pill cap-' + (i % 3) + '">' + U.esc(v.name || (isMain ? '主案' : '另案')) + '</span>' +
+          '<span class="s2-case-name">' + U.esc(v.name || '') + '</span>' +
+          '<span class="s2-case-range">' + caseRange(v.id) + '</span>' +
+        '</div>' +
+        '<div class="s2-gantt-ph s2-ph" data-variant="' + v.id + '">Gantt 階段軸（步驟 3）</div>' +
+        '<div class="s2-list-ph s2-ph" data-variant="' + v.id + '">任務清單（步驟 4）</div>' +
+      '</div>';
+  }).join('');
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  const page = document.getElementById('page-stage2');
+  page.classList.add('active');
+  page.innerHTML =
+    '<div class="stage2-wrap">' +
+      '<div class="stage2-head"><span class="s2-num">2</span>編輯任務骨架</div>' +
+      help +
+      blocks +
+      '<div class="stage2-foot">' +
+        '<button class="tb-action ghost" onclick="App._stage2Back()">上一步</button>' +
+        '<button class="tb-action" onclick="App._stage2Commit()">建立專案</button>' +
+      '</div>' +
+    '</div>';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// 上一步：退回第一階段新增專案 modal（重開；欄位不保值＝第一版，保值後續再議）。
+App._stage2Back = function() { this.showPage('dashboard'); this.openProjectDialog(); };
+
+// 建立專案：步驟5 接 push/save（depts/variants 掛回 res.project + DATA push + Storage.save）。先留呼叫點。
+App._stage2Commit = function() { U.toast('建立流程（步驟5 落地）待接', 'warning'); };
 
 App.deptEdit = {
   _getProj(projId) {
