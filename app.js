@@ -5786,8 +5786,21 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
   for (const d of days) {
     const isHol = !D.isWorkday(d);
     const isToday = D.isSameDay(d, today);
+    const holName = (() => {
+      if (!isHol) return '';
+      const hols = (DATA.calendars?.base?.holidays) || {};
+      const selfKey = D.fmt(d, 'iso');
+      if (hols[selfKey]) return hols[selfKey].slice(0,2);
+      for (let back = 1; back <= 4; back++) {
+        const prev = new Date(d); prev.setDate(prev.getDate() - back);
+        if (D.isWorkday(prev)) break;
+        const prevKey = D.fmt(prev, 'iso');
+        if (hols[prevKey]) return hols[prevKey].slice(0,2);
+      }
+      return '';
+    })();
     headerHtml += `<div class="gantt-day-header ${isHol ? 'holiday' : ''} ${isToday ? 'today' : ''}">
-      <span class="gd-day">${d.getDate()}</span>${wd[d.getDay()]}
+      <span class="gd-day">${d.getDate()}</span>${wd[d.getDay()]}${holName ? `<span class="gd-hol">${holName}</span>` : ''}
     </div>`;
   }
 
