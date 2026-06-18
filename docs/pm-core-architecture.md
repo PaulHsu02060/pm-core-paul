@@ -1085,8 +1085,15 @@ deadline 欄）。因 `task.deadline` 仍不存在（§6.6 未做），落地改
 - `5c99868` §12 補 :root 三變數（--gantt-plan/done/holiday）
 - `d492248` §12.4 假日底色（讀 D.isWorkday，週末併入假日）[線上已驗：假日欄暖灰、今日紅、補班不灰]
 - `b048a93` §12.2 Plan/Actual 雙態條（plan 虛框+actual 填色、done/wip/逾期狀態色白字、未開始空框、逾期爆框標天數、里程碑菱形、收 inline 進 class）[線上已驗：未開始空框、逾期爆框+天數、膠囊收 class 沒掉色]
-- §12 剩餘：12.3 連接線（四段折線+跨階段膠囊）未做，下次開
-- 基準 HEAD：`b048a93`
+- `c6ebd0b` §12.3 甘特連接線骨架（SVG overlay + data-link-id 錨點，僅專案頁）
+- `7fcf1d9` §12.4 甘特表頭顯示假日名稱（讀 base.holidays，連假往前歸名）
+- `4f09453` §12.4 假日名加大加粗（8.5→10px/600/ink2）
+- `2aa9b87` §12.3 Hunk2 跨階段前置 clay 膠囊 badge（_ganttPreds + ti-link 計數）
+- `c7d8fc0` §12.3 badge 位置修正 + z-index 防遮蔽
+- `42c896c` §12.3 badge 改用既有 initTooltip + 移回填色層（單一 tooltip 來源）
+- `f796414` 甘特 bar tooltip 全面改走 initTooltip（data-tip="甘特狀態|..."）[線上已驗]
+- `dbb3dd7` 甘特專案配色圖例改只在總儀表板顯示（專案頁隱藏）[線上已驗]
+- 基準 HEAD：`dbb3dd7`（§12.3 Hunk3 同階段 SVG 折線尚未實作）
 
 **2026-06-17~18（序改日期排序主線，家裡桌機 Node 驗）：**
 - `15ecfde`（06-17）第一刀：序改日期排序 + 待排區
