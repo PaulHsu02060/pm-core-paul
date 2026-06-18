@@ -5878,9 +5878,9 @@ App.buildGanttHeaderHtml = function(days) {
     <div class="gantt-period">${periodStr}</div>
     <div style="flex:1"></div>
     <div class="gantt-nav">
-      <button onclick="App.ganttShift(-14)">‹‹ 上兩週</button>
+      <button onclick="App.ganttShift(-7)">« 上週</button>
       <button onclick="App.ganttToday()">今天</button>
-      <button onclick="App.ganttShift(14)">下兩週 ››</button>
+      <button onclick="App.ganttShift(7)">下週 »</button>
     </div>
   </div>`;
 };
