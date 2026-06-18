@@ -42,6 +42,9 @@
   --clay: #8B7355; --clay-from: #E8E1D4; --clay-to: #D4C9B5; --clay-ink: #4A3B2B;    /* 清潔 cleaning */
   --terracotta-d: #A85230; --terracotta-ink: #8B3A1D; --terracotta-l-hover: #F5DDC8; /* terracotta hover深色 / -l底深字 / -l hover */
   --amber-border: #E8C794;                                                           /* report-next amber 邊框 */
+  --gantt-plan: #7FA08C;     /* 甘特計畫虛框（值同 --sidebar-ink2，語意獨立不借） */
+  --gantt-done: #3B6B4A;     /* 甘特完成（號誌燈綠，不借 --sage-600） */
+  --gantt-holiday: #EFEAE2;  /* 甘特假日底色 */
 
   --memo-y: #FFF4B8; --memo-p: #FFD9E0; --memo-b: #C8E4F0;
   --memo-g: #D9EBC8; --memo-o: #FFD8B5;
