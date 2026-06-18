@@ -995,6 +995,8 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .gantt-corner, .gantt-day-header { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); padding: 6px 0; text-align: center; border-bottom: 2px solid var(--rule); background: var(--surface2); }
 .gantt-corner { font-size: 11px; color: var(--ink2); padding: 8px 6px; }
 .gd-hol { display: block; font-size: 10px; font-weight: 600; color: var(--ink2); margin-top: 1px; }
+.gantt-xstage-badge { display:inline-flex; align-items:center; gap:2px; background:var(--clay); color:var(--clay-ink); font-size:9px; font-weight:600; padding:1px 5px; border-radius:99px; margin-right:4px; vertical-align:middle; cursor:default; }
+.gantt-xstage-badge .ti { font-size:10px; }
 .gantt-day-header { border-left: 1px solid var(--rule); }
 .gantt-day-header.holiday { background: var(--gantt-holiday); color: var(--ink4); }
 .gantt-day-header.today { color: var(--terracotta); background: var(--terracotta-l); }

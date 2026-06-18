@@ -6032,7 +6032,11 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
     html += `<div class="gantt-cell" style="grid-column: span ${span}; position:relative;">
       <div class="gantt-plan-frame" data-link-id="${task.id}" style="${frameStyle}"></div>
       <div class="gantt-actual-fill ${showFill ? fillClass : ''}" style="${fillStyle}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}>
-        ${statusTagHtml}${warnHtml}${showFill ? `${U.esc(task.name)} <span class="pill">${overdueDays > 0 ? `逾期+${overdueDays}天` : progress + '%'}</span>` : ''}
+        ${statusTagHtml}${warnHtml}${(() => {
+          const xPreds = App._ganttPreds(task).filter(p => p.stage !== task.stage);
+          const badge = xPreds.length ? `<span class="gantt-xstage-badge" title="${U.esc(xPreds.map(p=>p.name).join('、'))}"><i class="ti ti-link"></i>${xPreds.length}</span>` : '';
+          return badge;
+        })()}${showFill ? `${U.esc(task.name)} <span class="pill">${overdueDays > 0 ? `逾期+${overdueDays}天` : progress + '%'}</span>` : ''}
       </div>
     </div>`;
   }
@@ -6046,8 +6050,18 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
   return html;
 };
 
+// §12.3 _ganttPreds：回傳此 task 的所有 FS 前置 task 物件（跨/同階段都含）。
+// 供 buildGanttRowHtml（跨階段 badge）與 _drawGanttLinks（同階段 SVG 線）共用。
+App._ganttPreds = function(task) {
+  if (!task.predecessor) return [];
+  return parsePredecessors(task.predecessor)
+    .filter(p => p.type === 'FS')
+    .map(p => DATA.tasks.find(t => t.id === p.dep))
+    .filter(Boolean);
+};
+
 // §12.3 連接線（僅專案頁）：render 完量每根 bar 的 DOM 位置，疊 SVG 畫 FS 依賴折線。
-// Hunk 1 先放空 stub（骨架就緒、暫不畫）；幾何與同/跨階段分流見 Hunk 2/3。
+// Hunk 2 跨階段改走 clay 膠囊 badge（此函式處理同階段 SVG 線，Hunk 3 實作）。
 App._drawGanttLinks = function(targetId) {};
 
 // ═══════════════════════════════════════════════════════
