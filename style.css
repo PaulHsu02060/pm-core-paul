@@ -989,7 +989,9 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .gantt-nav button { padding: 5px 10px; background: var(--surface2); border: 1px solid var(--rule); border-radius: var(--r6); font-size: 12px; color: var(--ink2); }
 .gantt-nav button:hover { background: var(--stone-100); }
 .gantt-period { font-family: var(--sans); font-weight: 600; font-size: 16px; color: var(--ink); }
-.gantt { display: grid; grid-template-columns: 200px repeat(14, minmax(38px, 1fr)); gap: 0; min-width: 760px; }
+.gantt { display: grid; grid-template-columns: 200px repeat(14, minmax(38px, 1fr)); gap: 0; min-width: 760px; position: relative; }
+/* §12.3 連接線 overlay：絕對定位脫離 grid 流、不佔格；pointer-events 關，點擊穿透到 bar。 */
+.gantt-links { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: var(--z-sticky); overflow: visible; }
 .gantt-corner, .gantt-day-header { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); padding: 6px 0; text-align: center; border-bottom: 2px solid var(--rule); background: var(--surface2); }
 .gantt-corner { padding: 8px 6px; }
 .gantt-day-header { border-left: 1px solid var(--rule); }

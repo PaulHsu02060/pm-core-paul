@@ -5845,6 +5845,7 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
       <div class="gantt">
         ${headerHtml}
         ${rowsHtml}
+        <svg class="gantt-links" aria-hidden="true"></svg>
       </div>
       <div class="legend-row" style="border-top:1px solid var(--rule); margin-top:18px; padding-top:14px;">
         ${DATA.projects.map(p => `
@@ -5854,6 +5855,8 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
       </div>
     </div>
   `;
+  // §12.3 連接線：僅專案頁畫（總儀表板無線，見 §12.1）。render 完量 DOM 再疊 SVG（方案甲）。
+  if (singleProject) this._drawGanttLinks(targetId);
 };
 
 App.buildGanttHeaderHtml = function(days) {
@@ -6006,7 +6009,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
 
   if (isMilestone) {
     html += `<div class="gantt-cell" style="position:relative;">
-      <div class="gantt-bar milestone" style="left:50%; transform:translateX(-50%);" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}></div>
+      <div class="gantt-bar milestone" data-link-id="${task.id}" style="left:50%; transform:translateX(-50%);" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}></div>
     </div>`;
   } else {
     // §12.2 雙層：plan 虛框（一律畫，plannedStart/End）+ actual 填色（showFill 才有底色；
@@ -6014,7 +6017,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
     const frameStyle = `left:${leftPct(psIdx).toFixed(2)}%; right:${(100 - rightPct(peIdx)).toFixed(2)}%;`;
     const fillStyle  = `left:${leftPct(aSIdx).toFixed(2)}%; right:${(100 - rightPct(aEIdx)).toFixed(2)}%;`;
     html += `<div class="gantt-cell" style="grid-column: span ${span}; position:relative;">
-      <div class="gantt-plan-frame" style="${frameStyle}"></div>
+      <div class="gantt-plan-frame" data-link-id="${task.id}" style="${frameStyle}"></div>
       <div class="gantt-actual-fill ${showFill ? fillClass : ''}" style="${fillStyle}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}>
         ${statusTagHtml}${warnHtml}${showFill ? `${U.esc(task.name)} <span class="pill">${overdueDays > 0 ? `逾期+${overdueDays}天` : progress + '%'}</span>` : ''}
       </div>
@@ -6029,6 +6032,10 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
 
   return html;
 };
+
+// §12.3 連接線（僅專案頁）：render 完量每根 bar 的 DOM 位置，疊 SVG 畫 FS 依賴折線。
+// Hunk 1 先放空 stub（骨架就緒、暫不畫）；幾何與同/跨階段分流見 Hunk 2/3。
+App._drawGanttLinks = function(targetId) {};
 
 // ═══════════════════════════════════════════════════════
 //  PAGE: MONTH
