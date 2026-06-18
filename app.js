@@ -5344,6 +5344,27 @@ App._s2PredText = function(t) {
   }
   return '接在 ' + parts.length + ' 項後';
 };
+// 前置候選下拉：同案別、序之前（flat 跨階段序）的任務 → <option>（含「無」＋目前選中）。
+App._s2PredOptions = function(t, variantId) {
+  const g = this._s2GroupByStage(variantId);
+  const flat = g.order.reduce((a, st) => a.concat(g.byStage[st] || []), []);
+  const idx = flat.findIndex(x => x.id === t.id);
+  const cur = String(t.predecessor || '').split('#')[0];
+  let html = '<option value=""' + (cur ? '' : ' selected') + '>無</option>';
+  for (let i = 0; i < idx; i++) {
+    const x = flat[i];
+    html += '<option value="' + x.id + '"' + (x.id === cur ? ' selected' : '') + '>' + U.esc((i + 1) + '·' + x.name) + '</option>';
+  }
+  return html;
+};
+// 寫回 preview：前置（單選 FS，存 id#FS）→ 重排所有案。predId 空＝清前置。多前置任務走唯讀、不進此函式。
+App._s2SetPred = function(taskId, predId) {
+  const res = this._tplPreview; if (!res) return;
+  const t = res.tasks.find(t => t.id === taskId); if (!t) return;
+  t.predecessor = predId ? (predId + '#FS') : '';
+  App._reschedulePreview(res.tasks, res.variants, []);
+  res.variants.forEach(v => this._s2RefreshCase(v.id));
+};
 // 任務清單表（單一案別）：按 stage 正常序分組，每組標題列含「全選需交付」；每列 序/任務名+子群組/負責人下拉/前置白話/工期(唯讀)/日期(唯讀)/需交付勾。
 App._s2ListHtml = function(variantId) {
   const res = this._tplPreview; if (!res) return '';
@@ -5371,7 +5392,7 @@ App._s2ListHtml = function(variantId) {
         '<td>' + seq + '</td>' +
         '<td><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
         '<td><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
-        '<td class="s2-pred" data-preds="' + String(t.predecessor || '').split(/[,，;；]/).map(x => x.split('#')[0].trim()).filter(Boolean).join(',') + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + U.esc(this._s2PredText(t)) + '</td>' +
+        '<td class="s2-pred" data-preds="' + String(t.predecessor || '').split(/[,，;；]/).map(x => x.split('#')[0].trim()).filter(Boolean).join(',') + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + (String(t.predecessor || '').split(/[,，;；]/).filter(Boolean).length >= 2 ? U.esc(this._s2PredText(t)) : '<select class="s2-pred-sel" onchange="App._s2SetPred(\'' + t.id + '\', this.value)">' + this._s2PredOptions(t, variantId) + '</select>') + '</td>' +
         '<td class="s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
         '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
         '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
