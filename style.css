@@ -985,6 +985,8 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .gantt-filter-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink2); cursor: pointer; }
 .gantt-filter-item input { width: auto; cursor: pointer; }
 .gantt-filter-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.gantt-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.gantt-filter-bar .gantt-filter { margin-bottom: 0; }
 .gantt-nav { display: flex; align-items: center; gap: 6px; }
 .gantt-nav button { padding: 5px 10px; background: var(--surface2); border: 1px solid var(--rule); border-radius: var(--r6); font-size: 12px; color: var(--ink2); }
 .gantt-nav button:hover { background: var(--stone-100); }

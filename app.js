@@ -2240,7 +2240,7 @@ const App = {
     }
 
     // Render the active page（進甘特頁重設專案篩選＝全選；切週 ganttShift 不重設）
-    if (name === 'gantt') this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
+    if (name === 'gantt') { this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id)); this.ganttStageFilter = null; this.ganttOwnerFilter = null; }
     this.renderPage(name);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
@@ -2248,7 +2248,7 @@ const App = {
   switchView(view) {
     this.currentView = view;
     if (view === 'dashboard') { this.renderDashboard(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-    if (view === 'gantt') this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
+    if (view === 'gantt') { this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id)); this.ganttStageFilter = null; this.ganttOwnerFilter = null; }
     document.getElementById('page-dashboard').innerHTML = `<div class="view-tabs-bar">${this.buildViewTabsHtml()}</div><div id="view-body"></div>`;
     if (view === 'gantt') this.renderGantt('view-body');
     if (view === 'month') this.renderMonth('view-body');
@@ -2258,7 +2258,7 @@ const App = {
   switchProjectView(view) {
     this.projectView = view;
     if (view === 'dashboard') { this.renderProject(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-    if (view === 'gantt') this.ganttProjectFilter = new Set([this.currentProjectId]);
+    if (view === 'gantt') { this.ganttProjectFilter = new Set([this.currentProjectId]); this.ganttStageFilter = null; this.ganttOwnerFilter = null; }
     document.getElementById('page-project').innerHTML = '<div class="view-tabs-bar">' + this.buildProjectViewTabsHtml() + '</div><div id="proj-view-body"></div>';
     if (view === 'gantt') this.renderGantt('proj-view-body', true);
     if (view === 'month') this.renderMonth('proj-view-body', this.currentProjectId);
@@ -5809,6 +5809,11 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
   const tasks = DATA.tasks.filter(t => {
     if (t._deleted) return false;
     if (!projFilter.has(t.project)) return false;
+    if (this.ganttStageFilter && !this.ganttStageFilter.has(t.stage)) return false;
+    if (this.ganttOwnerFilter) {
+      const owners = (t.owner || '').split(/[、\/＋+]/).map(s => s.trim()).filter(Boolean);
+      if (!owners.some(o => this.ganttOwnerFilter.has(o))) return false;
+    }
     if (t.status === 'hold') return false;
     const sch = getEffectiveSchedule(t);
     if (!sch.start && !sch.end) return false;
@@ -5822,7 +5827,7 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
     document.getElementById(targetId).innerHTML = `
       <div class="gantt-card">
         ${this.buildGanttHeaderHtml(days)}
-        ${singleProject ? '' : this.buildGanttFilterHtml()}
+        ${this.buildGanttFilterHtml(singleProject)}
         <div class="empty-task-list" style="grid-column: 1 / -1;">
           <div class="empty-task-list-icon">📊</div>
           ${singleProject ? '此專案目前沒有任務' : '目前篩選沒有任務<br><span style="font-size:11px;">請勾選至少一個專案</span>'}
@@ -5854,7 +5859,7 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
   document.getElementById(targetId).innerHTML = `
     <div class="gantt-card">
       ${this.buildGanttHeaderHtml(days)}
-      ${singleProject ? '' : this.buildGanttFilterHtml()}
+      ${this.buildGanttFilterHtml(singleProject)}
       <div class="gantt">
         ${headerHtml}
         ${rowsHtml}
@@ -5894,25 +5899,77 @@ App.ganttToday = function() {
   this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
 };
 
-App.buildGanttFilterHtml = function() {
-  const f = this.ganttProjectFilter || new Set();
-  const open = this.ganttFilterOpen;
-  const menuHtml = open ? `<div class="gantt-filter-menu">
+App.buildGanttFilterHtml = function(singleProject) {
+  const tasks = DATA.tasks.filter(t => !t._deleted);
+  // 階段選項：動態收集（去重、保序）
+  const stages = [...new Set(tasks.map(t => t.stage).filter(Boolean))];
+  // 負責人選項：動態收集 + 拆多人分隔符
+  const owners = [...new Set(tasks.flatMap(t =>
+    (t.owner || '').split(/[、\/＋+]/).map(s => s.trim()).filter(Boolean)
+  ))].sort();
+
+  const sf = this.ganttStageFilter;
+  const of_ = this.ganttOwnerFilter;
+  const pf = this.ganttProjectFilter || new Set();
+
+  // 專案多選（總儀表板專屬）
+  const projOpen = this.ganttFilterOpen;
+  const projMenu = projOpen ? `<div class="gantt-filter-menu">
     ${DATA.projects.map(p => `
       <label class="gantt-filter-item">
-        <input type="checkbox" ${f.has(p.id) ? 'checked' : ''} onchange="App.toggleGanttProject('${p.id}')">
+        <input type="checkbox" ${pf.has(p.id) ? 'checked' : ''} onchange="App.toggleGanttProject('${p.id}')">
         <span class="gantt-filter-sw" style="background:${p.color}"></span>${U.esc(p.name)}${p.synced ? ' 🔗' : ''}
       </label>
     `).join('')}
   </div>` : '';
-  return `<div class="gantt-filter">
-    <button class="gantt-filter-field ${open ? 'open' : ''}" onclick="App.toggleGanttFilterOpen()">
+  const projFilter = singleProject ? '' : `<div class="gantt-filter">
+    <button class="gantt-filter-field ${projOpen ? 'open' : ''}" onclick="App.toggleGanttFilterOpen()">
       <span class="gantt-filter-label">by 專案</span>
-      <span class="gantt-filter-summary">已選 ${f.size} 個專案</span>
+      <span class="gantt-filter-summary">已選 ${pf.size} 個</span>
       <span class="gantt-filter-chevron">▼</span>
     </button>
-    ${menuHtml}
+    ${projMenu}
   </div>`;
+
+  // 階段下拉
+  const stageOpen = this.ganttStageOpen;
+  const stageMenu = stageOpen ? `<div class="gantt-filter-menu">
+    ${stages.map(s => `
+      <label class="gantt-filter-item">
+        <input type="checkbox" ${!sf || sf.has(s) ? 'checked' : ''} onchange="App.toggleGanttStage('${U.esc(s)}')">
+        ${U.esc(s)}
+      </label>
+    `).join('')}
+  </div>` : '';
+  const stageFilter = `<div class="gantt-filter">
+    <button class="gantt-filter-field ${stageOpen ? 'open' : ''}" onclick="App.toggleGanttStageOpen()">
+      <span class="gantt-filter-label">階段</span>
+      <span class="gantt-filter-summary">${sf ? `已選 ${sf.size} 個` : '全部'}</span>
+      <span class="gantt-filter-chevron">▼</span>
+    </button>
+    ${stageMenu}
+  </div>`;
+
+  // 負責人下拉
+  const ownerOpen = this.ganttOwnerOpen;
+  const ownerMenu = ownerOpen ? `<div class="gantt-filter-menu">
+    ${owners.map(o => `
+      <label class="gantt-filter-item">
+        <input type="checkbox" ${!of_ || of_.has(o) ? 'checked' : ''} onchange="App.toggleGanttOwner('${U.esc(o)}')">
+        ${U.esc(o)}
+      </label>
+    `).join('')}
+  </div>` : '';
+  const ownerFilter = `<div class="gantt-filter">
+    <button class="gantt-filter-field ${ownerOpen ? 'open' : ''}" onclick="App.toggleGanttOwnerOpen()">
+      <span class="gantt-filter-label">負責人</span>
+      <span class="gantt-filter-summary">${of_ ? `已選 ${of_.size} 人` : '全部'}</span>
+      <span class="gantt-filter-chevron">▼</span>
+    </button>
+    ${ownerMenu}
+  </div>`;
+
+  return `<div class="gantt-filter-bar">${projFilter}${stageFilter}${ownerFilter}</div>`;
 };
 
 App.toggleGanttFilterOpen = function() {
@@ -5924,6 +5981,29 @@ App.toggleGanttProject = function(id) {
   if (!this.ganttProjectFilter) this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id));
   if (this.ganttProjectFilter.has(id)) this.ganttProjectFilter.delete(id);
   else this.ganttProjectFilter.add(id);
+  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
+};
+
+App.toggleGanttStageOpen = function() { this.ganttStageOpen = !this.ganttStageOpen; this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject); };
+App.toggleGanttOwnerOpen = function() { this.ganttOwnerOpen = !this.ganttOwnerOpen; this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject); };
+
+App.toggleGanttStage = function(s) {
+  const all = [...new Set(DATA.tasks.filter(t => !t._deleted).map(t => t.stage).filter(Boolean))];
+  if (!this.ganttStageFilter) this.ganttStageFilter = new Set(all);
+  if (this.ganttStageFilter.has(s)) this.ganttStageFilter.delete(s);
+  else this.ganttStageFilter.add(s);
+  if (this.ganttStageFilter.size === 0 || this.ganttStageFilter.size === all.length) this.ganttStageFilter = null;
+  this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
+};
+
+App.toggleGanttOwner = function(o) {
+  const all = [...new Set(DATA.tasks.filter(t => !t._deleted).flatMap(t =>
+    (t.owner || '').split(/[、\/＋+]/).map(s => s.trim()).filter(Boolean)
+  ))];
+  if (!this.ganttOwnerFilter) this.ganttOwnerFilter = new Set(all);
+  if (this.ganttOwnerFilter.has(o)) this.ganttOwnerFilter.delete(o);
+  else this.ganttOwnerFilter.add(o);
+  if (this.ganttOwnerFilter.size === 0 || this.ganttOwnerFilter.size === all.length) this.ganttOwnerFilter = null;
   this.renderGantt(this.ganttScope.targetId, this.ganttScope.singleProject);
 };
 
