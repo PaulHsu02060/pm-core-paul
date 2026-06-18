@@ -993,16 +993,16 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .gantt-corner, .gantt-day-header { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); padding: 6px 0; text-align: center; border-bottom: 2px solid var(--rule); background: var(--surface2); }
 .gantt-corner { padding: 8px 6px; }
 .gantt-day-header { border-left: 1px solid var(--rule); }
-.gantt-day-header.weekend { background: var(--stone-50); color: var(--ink4); }
+.gantt-day-header.holiday { background: var(--gantt-holiday); color: var(--ink4); }
 .gantt-day-header.today { color: var(--terracotta); background: var(--terracotta-l); }
 .gantt-day-header .gd-day { font-family: var(--sans); font-weight: 600; font-size: 13px; color: var(--ink2); display: block; margin-bottom: 1px; }
 .gantt-day-header.today .gd-day { color: var(--terracotta); }
-.gantt-day-header.weekend .gd-day { color: var(--ink3); }
+.gantt-day-header.holiday .gd-day { color: var(--ink3); }
 .gantt-row-label { padding: 8px 6px; font-size: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--rule); background: var(--surface); min-width: 0; }
 .gantt-row-label .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .gantt-row-label-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gantt-cell { border-bottom: 1px solid var(--rule); border-left: 1px solid var(--rule); min-height: 36px; position: relative; background: var(--surface); }
-.gantt-cell.weekend { background: var(--stone-50); }
+.gantt-cell.holiday { background: var(--gantt-holiday); }
 .gantt-cell.today { background: rgba(196,99,62,.04); }
 .gantt-bar { position: absolute; top: 6px; bottom: 6px; border-radius: var(--r6); padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 500; color: var(--ink-inverse); cursor: pointer; transition: filter .15s, transform .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 3; }
 .gantt-bar:hover { filter: brightness(1.08); transform: translateY(-1px); }

@@ -5784,9 +5784,9 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
   // Header
   let headerHtml = '<div class="gantt-corner">任務</div>';
   for (const d of days) {
-    const isWk = D.isWeekend(d);
+    const isHol = !D.isWorkday(d);
     const isToday = D.isSameDay(d, today);
-    headerHtml += `<div class="gantt-day-header ${isWk ? 'weekend' : ''} ${isToday ? 'today' : ''}">
+    headerHtml += `<div class="gantt-day-header ${isHol ? 'holiday' : ''} ${isToday ? 'today' : ''}">
       <span class="gd-day">${d.getDate()}</span>${wd[d.getDay()]}
     </div>`;
   }
@@ -5976,7 +5976,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
   // Empty cells before
   for (let i = 0; i < startCol; i++) {
     const d = days[i];
-    html += `<div class="gantt-cell ${D.isWeekend(d) ? 'weekend' : ''} ${D.isSameDay(d, D.today()) ? 'today' : ''}"></div>`;
+    html += `<div class="gantt-cell ${!D.isWorkday(d) ? 'holiday' : ''} ${D.isSameDay(d, D.today()) ? 'today' : ''}"></div>`;
   }
 
   // Bar cell
@@ -6000,7 +6000,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
   // Empty cells after
   for (let i = endCol + 1; i < 14; i++) {
     const d = days[i];
-    html += `<div class="gantt-cell ${D.isWeekend(d) ? 'weekend' : ''}"></div>`;
+    html += `<div class="gantt-cell ${!D.isWorkday(d) ? 'holiday' : ''}"></div>`;
   }
 
   return html;
