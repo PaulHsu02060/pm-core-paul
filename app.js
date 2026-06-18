@@ -5396,7 +5396,7 @@ App._s2ListHtml = function(variantId) {
         '<td class="s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
         '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
         '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
-        '<td class="s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button></td>' +
+        '<td class="s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button><button class="s2-ins" title="在此列後插入" onclick="App._s2InsertRow(\'' + t.id + '\', \'' + variantId + '\')">＋</button></td>' +
       '</tr>';
   });
   return '<table class="s2-tbl"><thead><tr>' +
@@ -5438,6 +5438,29 @@ App._s2DelRow = function(taskId) {
   const variantId = t.variant;
   res.tasks = res.tasks.filter(x => x.id !== taskId);
   this._s2RefreshCase(variantId);
+};
+// 列間插入：在指定列之後 splice 新任務（全 schema，照 applyTemplate 欄位）→ 重排 → 重繪所有案。
+// 前置留空＝落待排（§8d.15 N.6）；owner 空＝吃未指派橘標。
+App._s2InsertRow = function(taskId, variantId) {
+  const res = this._tplPreview; if (!res) return;
+  const idx = res.tasks.findIndex(x => x.id === taskId);
+  if (idx < 0) return;
+  const ref = res.tasks[idx];
+  const dailyHours = (DATA.settings && DATA.settings.dailyHours) || 6;
+  const newTask = {
+    id: U.id(), project: res.project.id, wbs: '', parentWbsId: '',
+    name: '新任務', desc: ref.stage || '', category: 'deep', taskType: '任務',
+    predecessor: '', durationDays: 1, owner: '', dept: '', variant: variantId,
+    start: '', end: '', plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '',
+    progress: 0, status: 'pending', urgency: 'med', estHours: dailyHours,
+    method: '', canSplit: false, completedAt: null, createdAt: new Date().toISOString(),
+    scheduledStart: '', scheduledEnd: '', synced: false, stage: ref.stage || '', subgroup: '',
+    mustDeliver: false, deliverableType: '', requiredTask: true, mustIssue: false,
+    deliverable: '', riskIssue: '', delivered: '', deliverableLink: '', note: ''
+  };
+  res.tasks.splice(idx + 1, 0, newTask);
+  App._reschedulePreview(res.tasks, res.variants, []);
+  res.variants.forEach(v => this._s2RefreshCase(v.id));
 };
 // 寫回 preview：需交付（單筆）
 App._s2SetDeliver = function(taskId, checked) {

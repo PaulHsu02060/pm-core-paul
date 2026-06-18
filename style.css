@@ -1450,6 +1450,8 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .s2-del-cell { text-align: center; }
 .s2-del { border: none; background: none; cursor: pointer; color: var(--stone-400); font-size: 13px; line-height: 1; padding: 2px 6px; border-radius: var(--r6); }
 .s2-del:hover { color: var(--terracotta); background: var(--terracotta-l); }
+.s2-ins { border: none; background: none; cursor: pointer; color: var(--stone-400); font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: var(--r6); }
+.s2-ins:hover { color: var(--sage-600); background: var(--sage-100); }
 .s2-tbl thead th:nth-last-child(2) { text-align: right; width: 92px; }
 .s2-tbl thead th:last-child { width: 36px; }
 
