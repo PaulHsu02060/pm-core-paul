@@ -1426,6 +1426,7 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .s2-case-range { margin-left: auto; font-size: 12px; color: var(--stone-400); }
 .s2-ph { border: 1px dashed var(--stone-200); border-radius: var(--r6); padding: 14px; margin-top: 8px; font-size: 12px; color: var(--stone-400); text-align: center; }
 .stage2-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 26px; }
+.s2-unassigned-bar { margin: 18px 0 0; padding: 10px 12px; background: var(--terracotta-l); border-left: 3px solid var(--terracotta); border-radius: var(--r6); font-size: 12px; color: var(--terracotta-ink); }
 
 /* ── 範本第二階段 步驟4：任務清單可編輯（負責人下拉＋需交付勾選）── */
 .s2-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }

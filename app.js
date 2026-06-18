@@ -5252,6 +5252,7 @@ App._renderStage2 = function() {
       '<div class="stage2-head"><span class="s2-num">2</span>編輯任務骨架</div>' +
       help +
       blocks +
+      (n => n > 0 ? '<div class="s2-unassigned-bar">⚠ 還有 ' + n + ' 個任務未指派負責人</div>' : '')((res.tasks || []).filter(t => !t.owner).length) +
       '<div class="stage2-foot">' +
         '<button class="tb-action ghost" onclick="App._stage2Back()">上一步</button>' +
         '<button class="tb-action" onclick="App._stage2Commit()">建立專案</button>' +
@@ -5268,6 +5269,8 @@ App._stage2Commit = function() {
   if (App._roGuard()) return;
   const res = this._tplPreview;
   if (!res) { U.toast('\u26a0 無範本預覽資料，請重新套用範本', 'warning'); return; }
+  const unassigned = res.tasks.filter(t => !t.owner).length;
+  if (unassigned > 0 && !confirm('還有 ' + unassigned + ' 個任務未指派負責人，確定建立？')) return;
   // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到（步驟1 從 saveProject 挪來此落地步）
   res.project.depts = res.depts;
   res.project.variants = res.variants;
