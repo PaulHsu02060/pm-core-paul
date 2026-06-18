@@ -5321,6 +5321,17 @@ App._s2OwnerOptions = function(t) {
   });
   return html;
 };
+// 前置 hover 高亮：滑入前置欄 → 依 data-preds（render 時 baked 的前置 id 清單）反色高亮被指向的列；滑出清除。純 UI。
+App._s2PredHlOn = function(td) {
+  (td.dataset.preds || '').split(',').filter(Boolean).forEach(id => {
+    const r = document.querySelector('[data-taskid="' + id + '"]');
+    if (r) r.classList.add('s2-pred-hl');
+  });
+};
+App._s2PredHlOff = function() {
+  document.querySelectorAll('.s2-pred-hl').forEach(e => e.classList.remove('s2-pred-hl'));
+};
+
 // 前置白話：無→「無」/單→「接在《X》後」(id 反查 name)/多→「接在 N 項後」。predecessor 為 id#關係 格式(取 # 前 id)。
 App._s2PredText = function(t) {
   const res = this._tplPreview; if (!res) return '無';
@@ -5360,7 +5371,7 @@ App._s2ListHtml = function(variantId) {
         '<td>' + seq + '</td>' +
         '<td><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
         '<td><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
-        '<td class="s2-pred">' + U.esc(this._s2PredText(t)) + '</td>' +
+        '<td class="s2-pred" data-preds="' + String(t.predecessor || '').split(/[,，;；]/).map(x => x.split('#')[0].trim()).filter(Boolean).join(',') + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + U.esc(this._s2PredText(t)) + '</td>' +
         '<td class="s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
         '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
         '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +

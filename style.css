@@ -1443,6 +1443,7 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .s2-name-inp:focus { border-color: var(--sage-500); outline: none; }
 .s2-owner-unassigned { border-color: var(--terracotta); color: var(--terracotta); }
 .s2-pred { color: var(--stone-500); }
+.s2-pred-hl { background: var(--terracotta-l); }
 .s2-dur, .s2-date { color: var(--stone-400); font-size: 12px; white-space: nowrap; }
 .s2-deliver { text-align: right; }
 .s2-del-cell { text-align: center; }
