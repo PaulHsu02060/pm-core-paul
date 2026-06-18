@@ -58,7 +58,7 @@
   --mono: 'JetBrains Mono', monospace;
   --hand: 'Caveat', 'Noto Sans TC', cursive;
 
-  --r4:4px; --r6:6px; --r8:8px; --r10:10px; --r12:12px; --r16:16px;
+  --r3:3px; --r4:4px; --r6:6px; --r8:8px; --r10:10px; --r12:12px; --r16:16px;
   --shadow-sm: 0 1px 2px rgba(58,51,42,.04);
   --shadow: 0 1px 3px rgba(58,51,42,.06), 0 4px 12px rgba(58,51,42,.04);
   --shadow-lg: 0 8px 24px rgba(58,51,42,.10);
@@ -1006,15 +1006,22 @@ body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後
 .gantt-cell.today { background: rgba(196,99,62,.04); }
 .gantt-bar { position: absolute; top: 6px; bottom: 6px; border-radius: var(--r6); padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 500; color: var(--ink-inverse); cursor: pointer; transition: filter .15s, transform .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 3; }
 .gantt-bar:hover { filter: brightness(1.08); transform: translateY(-1px); }
-.gantt-bar.bar-sage { background: var(--sage-500); }
-.gantt-bar.bar-terracotta { background: var(--terracotta); }
-.gantt-bar.bar-slate { background: var(--slate); }
-.gantt-bar.bar-amber { background: var(--amber); }
-.gantt-bar.bar-plum { background: var(--plum); }
-.gantt-bar .pill { background: rgba(255,255,255,.22); padding: 1px 7px; border-radius: 99px; font-size: 9.5px; margin-left: 6px; font-family: var(--mono); }
-.gantt-bar .progress { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,.18); border-radius: var(--r6) 0 0 var(--r6); pointer-events: none; }
 .gantt-bar.milestone { background: none; padding: 0; display: flex; align-items: center; }
 .gantt-bar.milestone::before { content: ""; width: 14px; height: 14px; background: var(--terracotta); transform: rotate(45deg); margin: auto; }
+/* §12.2 雙態條：plan 虛框 + actual 填色（取代單條實心 bar-*） */
+.gantt-plan-frame { position: absolute; top: 6px; bottom: 6px; border: 1.5px dashed var(--gantt-plan); background: none; border-radius: var(--r6); z-index: 2; pointer-events: none; }
+.gantt-actual-fill { position: absolute; top: 6px; bottom: 6px; border-radius: var(--r6); padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 500; color: var(--ink-inverse); cursor: pointer; transition: filter .15s, transform .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 3; }
+.gantt-actual-fill:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.gantt-actual-fill.fill-wip { background: var(--navy); }
+.gantt-actual-fill.fill-done { background: var(--gantt-done); }
+.gantt-actual-fill.fill-over { background: var(--terracotta); }
+.gantt-actual-fill .pill { background: rgba(255,255,255,.22); padding: 1px 7px; border-radius: 99px; font-size: 9.5px; margin-left: 6px; font-family: var(--mono); }
+/* §12.2 Hunk4：狀態膠囊/warn 收 inline 進 class（取代 GANTT_STATUS_COLORS） */
+.gantt-status-tag { display: inline-block; font-size: 10px; line-height: 1.4; padding: 0 5px; border-radius: var(--r3); margin-right: 4px; color: var(--ink-inverse); }
+.gantt-status-tag.tag-manual { background: var(--gray-mid); }
+.gantt-status-tag.tag-scheduled { background: var(--slate); }
+.gantt-status-tag.tag-override { background: var(--amber); }
+.gantt-warn { color: var(--rose); font-weight: 700; margin-right: 4px; }
 
 /* ─── MONTH ─── */
 .month-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 20px; }

@@ -5914,31 +5914,53 @@ App.toggleGanttProject = function(id) {
 // ─── 甘特狀態標籤（暫定樣式，集中於此；要改字/調色改這裡，勿散落到渲染中）───
 // 標籤來源 = computeSchedule result 的 anchorSource（manual/override）或「可排」推導出的 scheduled。
 const GANTT_STATUS_LABELS = { manual: '手動', override: '鎖', scheduled: '排程' };
-const GANTT_STATUS_COLORS = {
-  manual:    { bg: 'var(--gray-mid)', fg: 'var(--ink-inverse)' },  // 灰：使用者手填錨點
-  scheduled: { bg: 'var(--slate)', fg: 'var(--ink-inverse)' },  // 藍：引擎連動算出
-  override:  { bg: 'var(--amber)', fg: 'var(--ink-inverse)' },  // 琥珀：本地鎖定 override
-  warn:      { fg: 'var(--rose)' },                  // 紅：! 圖示（循環/blocked/待排）
-};
+// §12.2 Hunk4：狀態膠囊/warn 顏色收進 CSS class（.gantt-status-tag.tag-* / .gantt-warn），不再 inline。
 const GANTT_SOURCE_DESC = { manual: '手動錨點', override: '本地鎖定（override）', scheduled: '機器排程連動' };
 
 App.buildGanttRowHtml = function(task, start, days, schedById) {
   const proj = this.getProj(task.project);
-  const colorIdx = proj ? PROJ_COLORS.indexOf(proj.color) : -1;
-  const colorClass = ['bar-sage','bar-terracotta','bar-slate','bar-plum','bar-amber','bar-rose','bar-sage','bar-sage'][colorIdx % 8] || 'bar-sage';
   const sch = getEffectiveSchedule(task);
   const isMilestone = task.taskType === 'milestone';  // M2-T3：類型正本，不再靠 category==='meeting' 啟發式誤判
-  const tsDate = new Date(sch.start || sch.end);
-  // 里程碑=節點(工期0)：強制 te=ts 單格錨在 start(start 空退 end)，日期跨度視為髒資料不畫長條；
-  // 亦保證 startCol===endCol → 前後空格迴圈恰好補滿 14 格，格線不塌
-  const teDate = isMilestone ? tsDate : new Date(sch.end || sch.start);
-  const tsIdx = D.daysBetween(start, tsDate);
-  const teIdx = D.daysBetween(start, teDate);
-  const startCol = Math.max(0, tsIdx);
-  const endCol = Math.min(13, teIdx);
+  // §12.2 union-span 雙座標：plan 框（plannedStart/End）+ actual 填，合併格涵蓋兩者聯集。
+  // 里程碑=節點(工期0)：座標基準維持 sch.start||end 單格(peIdx=psIdx)，日期跨度視為髒資料不畫長條，
+  // startCol===endCol → 前後空格迴圈恰好補滿 14 格，格線不塌。
+  const col = (d) => D.daysBetween(start, new Date(d));
+  const clampIdx = (n) => Math.max(0, Math.min(13, n));
+  // 框 = plan 範圍（plannedStart/End；退無則回 sch.start/end）。里程碑用有效日單格、不動。
+  const psIdx = isMilestone ? col(sch.start || sch.end) : col(sch.plannedStart || sch.start || sch.end);
+  const peIdx = isMilestone ? psIdx : col(sch.plannedEnd || sch.end || sch.start);
+  // §12.2 actual 填色狀態（precedence: done > 逾期 > wip > 未開始）。aSIdx/aEIdx 須在 startCol/endCol 前算定，
+  // union 才涵蓋爆框。里程碑無進度填色 → 維持框佔位、不畫 fill（HTML 走 isMilestone 菱形分支）。
+  let aSIdx = psIdx, aEIdx = peIdx;   // 預設＝框（未開始/里程碑時 union 退化成框）
+  let fillClass = '', showFill = false, overdueDays = 0;
+  const todayD = D.today();
+  if (!isMilestone) {
+    if (task.status === 'done' || task.actualEnd) {            // 完成：actualStart→actualEnd
+      aSIdx = col(task.actualStart || sch.plannedStart || sch.start);
+      aEIdx = col(task.actualEnd   || sch.plannedEnd   || sch.end);
+      fillClass = 'fill-done'; showFill = true;
+    } else if (isTaskDelayed(task, todayD)) {                  // 逾期：計畫段填滿框＋爆出到今天
+      aSIdx = psIdx;
+      aEIdx = col(todayD);
+      fillClass = 'fill-over'; showFill = true;
+      overdueDays = -D.daysBetween(todayD, new Date(sch.end)); // 資料層真實逾期天數（日曆天，比照既有 ws tip）
+    } else if (task.actualStart) {                             // 進行中：actualStart→今天（每天跟今天長）
+      aSIdx = col(task.actualStart);
+      aEIdx = col(todayD);
+      fillClass = 'fill-wip'; showFill = true;
+    }
+    // else 未開始：showFill=false，框內不填不寫名（膠囊/warn 仍掛透明載體層，見 HTML）
+  }
+  // 合併格 = 框 ∪ 填，右界截斷在 14 格窗（aEIdx>13 爆框 → endCol 卡 13）。
+  const startCol = Math.max(0, Math.min(psIdx, aSIdx));
+  const endCol = Math.min(13, Math.max(peIdx, aEIdx));
   const span = endCol - startCol + 1;
 
   if (startCol > 13 || endCol < 0) return '';
+
+  // 格內 % 定位（idx 左緣 / idx+1 右緣，對齊 inclusive 語意）；超窗 idx 先 clampIdx 再算。
+  const leftPct = (idx) => (clampIdx(idx) - startCol) / span * 100;
+  const rightPct = (idx) => (clampIdx(idx) + 1 - startCol) / span * 100;
 
   // ─ 狀態標籤 + 警示（唯讀查排程快取；無快取則不標，不影響既有顯示）─
   const r = schedById && schedById.get(task.id);
@@ -5951,10 +5973,10 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
   // ! 只對排程「異常」三態亮（循環/blocked/待排）；warnings 如「前置未完成」是進度狀態，不亮 !
   const hasIssue = !!(r && (r.error === 'circular' || r.blocked || r.toSchedule));
   const statusTagHtml = statusKey
-    ? `<span class="gantt-status-tag" style="display:inline-block;font-size:10px;line-height:1.4;padding:0 5px;border-radius:3px;margin-right:4px;background:${GANTT_STATUS_COLORS[statusKey].bg};color:${GANTT_STATUS_COLORS[statusKey].fg};">${GANTT_STATUS_LABELS[statusKey]}</span>`
+    ? `<span class="gantt-status-tag tag-${statusKey}">${GANTT_STATUS_LABELS[statusKey]}</span>`
     : '';
   const warnHtml = hasIssue
-    ? `<span class="gantt-warn" style="color:${GANTT_STATUS_COLORS.warn.fg};font-weight:700;margin-right:4px;" title="排程異常">!</span>`
+    ? `<span class="gantt-warn" title="排程異常">!</span>`
     : '';
   // tooltip：來源 + 異常 + warnings（warnings 僅作資訊列出，不亮 !）
   const titleLines = [];
@@ -5980,7 +6002,6 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
   }
 
   // Bar cell
-  const isPreview = sch.end && D.daysBetween(D.today(), new Date(sch.end)) > 7 && D.daysBetween(D.today(), new Date(sch.end)) <= 14;
   const progress = task.progress || (task.status === 'done' ? 100 : task.status === 'wip' ? 30 : 0);
 
   if (isMilestone) {
@@ -5988,13 +6009,16 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
       <div class="gantt-bar milestone" style="left:50%; transform:translateX(-50%);" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}></div>
     </div>`;
   } else {
+    // §12.2 雙層：plan 虛框（一律畫，plannedStart/End）+ actual 填色（showFill 才有底色；
+    // 未開始＝透明載體層，只掛膠囊/warn、不寫名不顯 pill → 視覺＝空框＋左側小標）。
+    const frameStyle = `left:${leftPct(psIdx).toFixed(2)}%; right:${(100 - rightPct(peIdx)).toFixed(2)}%;`;
+    const fillStyle  = `left:${leftPct(aSIdx).toFixed(2)}%; right:${(100 - rightPct(aEIdx)).toFixed(2)}%;`;
     html += `<div class="gantt-cell" style="grid-column: span ${span}; position:relative;">
-      <div class="gantt-bar ${colorClass}" style="left:4px; right:4px; ${isPreview ? 'opacity:0.7;' : ''}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}>
-        ${progress > 0 ? `<div class="progress" style="width:${progress}%;"></div>` : ''}
-        ${statusTagHtml}${warnHtml}${U.esc(task.name)} <span class="pill">${progress}%</span>
+      <div class="gantt-plan-frame" style="${frameStyle}"></div>
+      <div class="gantt-actual-fill ${showFill ? fillClass : ''}" style="${fillStyle}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}>
+        ${statusTagHtml}${warnHtml}${showFill ? `${U.esc(task.name)} <span class="pill">${overdueDays > 0 ? `逾期+${overdueDays}天` : progress + '%'}</span>` : ''}
       </div>
     </div>`;
-    // Fill the rest of the spanned cells (no extra cells needed because of grid-column span)
   }
 
   // Empty cells after
