@@ -5860,12 +5860,12 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
         ${rowsHtml}
         <svg class="gantt-links" aria-hidden="true"></svg>
       </div>
-      <div class="legend-row" style="border-top:1px solid var(--rule); margin-top:18px; padding-top:14px;">
+      ${!singleProject ? `<div class="legend-row" style="border-top:1px solid var(--rule); margin-top:18px; padding-top:14px;">
         ${DATA.projects.map(p => `
           <span class="legend-item"><span class="legend-sw" style="background:${p.color}"></span>${U.esc(p.name)}${p.synced ? ' 🔗' : ''}</span>
         `).join('')}
         <span style="margin-left:auto; font-size:10.5px;">◆ 里程碑 · 進度條顯示完成度</span>
-      </div>
+      </div>` : ''}
     </div>
   `;
   // §12.3 連接線：僅專案頁畫（總儀表板無線，見 §12.1）。render 完量 DOM 再疊 SVG（方案甲）。
