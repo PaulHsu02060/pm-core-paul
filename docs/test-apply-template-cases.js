@@ -317,6 +317,46 @@ function computeSchedule(tasks) {
 
 const App = {};
 
+// _reschedulePreview：applyTemplate ⑧+6b 抽出的純排程段，供 applyTemplate 與 _s2SetDuration 共用。
+// 直接 mutate tasks[].plannedStart/End（純資料層，不碰 DOM/Storage）；warnings 由呼叫端傳入收集。
+App._reschedulePreview = function(tasks, variants, warnings) {
+  const variantStart = {}, variantEnd = {}, variantDir = {};
+  variants.forEach(v => {
+    variantStart[v.id] = v.schedule.startDate || '';
+    variantEnd[v.id] = v.schedule.endDate || '';
+    variantDir[v.id] = v.schedule.direction || 'forward';
+  });
+  variants.forEach(v => {
+    if (variantDir[v.id] === 'backward') {
+      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
+    }
+  });
+  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
+  const sch = computeSchedule(tasks);
+  const schById = new Map();
+  sch.results.forEach(r => schById.set(r.taskId, r));
+  tasks.forEach(t => {
+    const r = schById.get(t.id);
+    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
+    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
+  });
+  // 6b 溢出偵測：per 案別 computedEnd=max(plannedEnd) vs 設定結束日（有填才比）
+  variants.forEach(v => {
+    const endLimit = variantEnd[v.id];
+    if (!endLimit) return;
+    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
+    if (!vts.length) return;
+    let binding = vts[0];
+    vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
+    const computedEnd = binding.plannedEnd;
+    if (computedEnd > endLimit) {
+      const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
+      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
+        '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
+    }
+  });
+};
+
 // ════ applyTemplate 同步複本（批1①②③ / 批2a④⑤⑦ / 批2b⑥ / 批3⑧+6b） ════
 App.applyTemplate = function(template, userInput) {
   const ui = userInput || {};
@@ -419,41 +459,8 @@ App.applyTemplate = function(template, userInput) {
     t.predecessor = relinkPred(t.predecessor, t.name, wbsToIdMapByVariant[k], excludedByVariant[k]);
   });
 
-  // ⑧ 各案別順推排程 + 6b 溢出
-  const variantStart = {}, variantEnd = {}, variantDir = {};
-  variants.forEach(v => {
-    variantStart[v.id] = v.schedule.startDate || '';
-    variantEnd[v.id] = v.schedule.endDate || '';
-    variantDir[v.id] = v.schedule.direction || 'forward';
-  });
-  variants.forEach(v => {
-    if (variantDir[v.id] === 'backward') {
-      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
-    }
-  });
-  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
-  const sch = computeSchedule(tasks);
-  const schById = new Map();
-  sch.results.forEach(r => schById.set(r.taskId, r));
-  tasks.forEach(t => {
-    const r = schById.get(t.id);
-    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
-    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
-  });
-  variants.forEach(v => {
-    const endLimit = variantEnd[v.id];
-    if (!endLimit) return;
-    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
-    if (!vts.length) return;
-    let binding = vts[0];
-    vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
-    const computedEnd = binding.plannedEnd;
-    if (computedEnd > endLimit) {
-      const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
-      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
-        '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
-    }
-  });
+  // ⑧ 各案別順推排程（抽共用函式 _reschedulePreview，與 app.js 同步）
+  App._reschedulePreview(tasks, variants, warnings);
 
   return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings };
 };

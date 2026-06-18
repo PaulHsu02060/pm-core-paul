@@ -2323,6 +2323,46 @@ const App = {
 };
 
 // ═══ 範本套用引擎（§8d.6）═══════════════════════════════════
+// _reschedulePreview：applyTemplate ⑧+6b 抽出的純排程段，供 applyTemplate 與 _s2SetDuration 共用。
+// 直接 mutate tasks[].plannedStart/End（純資料層，不碰 DOM/Storage）；warnings 由呼叫端傳入收集。
+App._reschedulePreview = function(tasks, variants, warnings) {
+  const variantStart = {}, variantEnd = {}, variantDir = {};
+  variants.forEach(v => {
+    variantStart[v.id] = v.schedule.startDate || '';
+    variantEnd[v.id] = v.schedule.endDate || '';
+    variantDir[v.id] = v.schedule.direction || 'forward';
+  });
+  variants.forEach(v => {
+    if (variantDir[v.id] === 'backward') {
+      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
+    }
+  });
+  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
+  const sch = computeSchedule(tasks);
+  const schById = new Map();
+  sch.results.forEach(r => schById.set(r.taskId, r));
+  tasks.forEach(t => {
+    const r = schById.get(t.id);
+    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
+    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
+  });
+  // 6b 溢出偵測：per 案別 computedEnd=max(plannedEnd) vs 設定結束日（有填才比）
+  variants.forEach(v => {
+    const endLimit = variantEnd[v.id];
+    if (!endLimit) return;
+    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
+    if (!vts.length) return;
+    let binding = vts[0];
+    vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
+    const computedEnd = binding.plannedEnd;
+    if (computedEnd > endLimit) {
+      const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
+      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
+        '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
+    }
+  });
+};
+
 // App.applyTemplate(template, userInput)：純函式，只回傳資料、不碰 DOM/Storage（[CORE]）。
 //   批1：①建專案 ②建 variants(含 schedule)+對照表 ③建 depts(role→人,空role/無人跳過)。
 //   task/warnings 暫留空；步驟④~⑧(篩階段/id重產/依賴重指/排程)後批接入。
@@ -2485,45 +2525,8 @@ App.applyTemplate = function(template, userInput) {
     t.predecessor = relinkPred(t.predecessor, t.name, wbsToIdMapByVariant[k], excludedByVariant[k]);
   });
 
-  // ⑧ 各案別順推排程：seed 無前置 task=該案開始日 → computeSchedule → 寫回 planned*（§8d.6 第一版只順推）
-  const variantStart = {}, variantEnd = {}, variantDir = {};
-  variants.forEach(v => {
-    variantStart[v.id] = v.schedule.startDate || '';
-    variantEnd[v.id] = v.schedule.endDate || '';
-    variantDir[v.id] = v.schedule.direction || 'forward';
-  });
-  // 逆推 v1 disabled（UI 已 disable，此為防呆）：方向 backward → warning，仍以開始日當順推
-  variants.forEach(v => {
-    if (variantDir[v.id] === 'backward') {
-      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
-    }
-  });
-  // seed：無前置(relink 後 predecessor==='') 的 task → plannedStart = 該案開始日
-  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
-  // computeSchedule 跑一次（兩案獨立子圖、另案前置全指內部，已驗）→ 純算不 mutate
-  const sch = computeSchedule(tasks);
-  const schById = new Map();
-  sch.results.forEach(r => schById.set(r.taskId, r));
-  tasks.forEach(t => {
-    const r = schById.get(t.id);
-    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
-    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
-  });
-  // 6b 溢出偵測：per 案別 computedEnd=max(plannedEnd) vs 設定結束日（有填才比）
-  variants.forEach(v => {
-    const endLimit = variantEnd[v.id];
-    if (!endLimit) return;
-    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
-    if (!vts.length) return;
-    let binding = vts[0];
-    vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
-    const computedEnd = binding.plannedEnd;
-    if (computedEnd > endLimit) {
-      const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
-      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
-        '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
-    }
-  });
+  // ⑧ 各案別順推排程（抽共用純函式 _reschedulePreview，applyTemplate 與 _s2SetDuration 共用）
+  App._reschedulePreview(tasks, variants, warnings);
 
   return { project, variants, variantNameToId, depts, tasks, excludedNs, warnings };
 };
@@ -5355,7 +5358,7 @@ App._s2ListHtml = function(variantId) {
         '<td><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
         '<td><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
         '<td class="s2-pred">' + U.esc(this._s2PredText(t)) + '</td>' +
-        '<td class="s2-dur">' + (t.durationDays != null ? t.durationDays : '') + '</td>' +
+        '<td class="s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
         '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
         '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
         '<td class="s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button></td>' +
@@ -5365,6 +5368,17 @@ App._s2ListHtml = function(variantId) {
     '<th>序</th><th>任務名</th><th>負責人</th><th>前置</th><th>工期</th><th>日期（起訖）</th><th>需交付</th><th></th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
 };
+// 寫回 preview：工期 → 重排所有案別（呼叫共用 _reschedulePreview 重算 plannedStart/End）。
+// parseInt 防呆（負值/NaN→0）；warnings 此處丟棄（preview 不顯示，建立時 applyTemplate 會重算收集）。
+App._s2SetDuration = function(taskId, value) {
+  const res = this._tplPreview; if (!res) return;
+  const t = res.tasks.find(t => t.id === taskId); if (!t) return;
+  t.durationDays = Math.max(0, parseInt(value) || 0);
+  App._reschedulePreview(res.tasks, res.variants, []);
+  // 重繪所有案別（前置鏈跨案/跨階段連動，不能只重繪單一案）
+  res.variants.forEach(v => this._s2RefreshCase(v.id));
+};
+
 // 寫回 preview（不落地、不重算）：負責人
 App._s2SetOwner = function(taskId, value) {
   const res = this._tplPreview; if (!res) return;
