@@ -6031,12 +6031,11 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
     const fillStyle  = `left:${leftPct(aSIdx).toFixed(2)}%; right:${(100 - rightPct(aEIdx)).toFixed(2)}%;`;
     html += `<div class="gantt-cell" style="grid-column: span ${span}; position:relative;">
       <div class="gantt-plan-frame" data-link-id="${task.id}" style="${frameStyle}"></div>
-      ${(() => {
-          const xPreds = App._ganttPreds(task).filter(p => p.stage !== task.stage);
-          return xPreds.length ? `<span class="gantt-xstage-badge" title="${U.esc(xPreds.map(p=>p.name).join('、'))}"><i class="ti ti-link"></i>${xPreds.length}</span>` : '';
-        })()}
       <div class="gantt-actual-fill ${showFill ? fillClass : ''}" style="${fillStyle}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}>
-        ${statusTagHtml}${warnHtml}${showFill ? `${U.esc(task.name)} <span class="pill">${overdueDays > 0 ? `逾期+${overdueDays}天` : progress + '%'}</span>` : ''}
+        ${statusTagHtml}${warnHtml}${(() => {
+          const xPreds = App._ganttPreds(task).filter(p => p.stage !== task.stage);
+          return xPreds.length ? `<span class="gantt-xstage-badge" data-tip="跨階段前置|${U.esc(xPreds.map(p=>p.name).join('、'))}"><i class="ti ti-link"></i>${xPreds.length}</span>` : '';
+        })()}${showFill ? `${U.esc(task.name)} <span class="pill">${overdueDays > 0 ? `逾期+${overdueDays}天` : progress + '%'}</span>` : ''}
       </div>
     </div>`;
   }
