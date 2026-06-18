@@ -6003,7 +6003,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
     else if (r.toSchedule) titleLines.push('⚠ 待排：無前置且未填開始日');
     if (r.warnings && r.warnings.length) titleLines.push('提醒：' + r.warnings.join('；'));
   }
-  const barTitle = titleLines.join('\n');
+  const barTitle = titleLines.join('|');
 
   // Row label
   let html = `<div class="gantt-row-label">
@@ -6022,7 +6022,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
 
   if (isMilestone) {
     html += `<div class="gantt-cell" style="position:relative;">
-      <div class="gantt-bar milestone" data-link-id="${task.id}" style="left:50%; transform:translateX(-50%);" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}></div>
+      <div class="gantt-bar milestone" data-link-id="${task.id}" style="left:50%; transform:translateX(-50%);" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` data-tip="甘特狀態|${U.esc(barTitle)}"` : ''}></div>
     </div>`;
   } else {
     // §12.2 雙層：plan 虛框（一律畫，plannedStart/End）+ actual 填色（showFill 才有底色；
@@ -6031,7 +6031,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
     const fillStyle  = `left:${leftPct(aSIdx).toFixed(2)}%; right:${(100 - rightPct(aEIdx)).toFixed(2)}%;`;
     html += `<div class="gantt-cell" style="grid-column: span ${span}; position:relative;">
       <div class="gantt-plan-frame" data-link-id="${task.id}" style="${frameStyle}"></div>
-      <div class="gantt-actual-fill ${showFill ? fillClass : ''}" style="${fillStyle}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` title="${U.esc(barTitle)}"` : ''}>
+      <div class="gantt-actual-fill ${showFill ? fillClass : ''}" style="${fillStyle}" onclick="App.openTaskModal('${task.id}')"${barTitle ? ` data-tip="甘特狀態|${U.esc(barTitle)}"` : ''}>
         ${statusTagHtml}${warnHtml}${(() => {
           const xPreds = App._ganttPreds(task).filter(p => p.stage !== task.stage);
           return xPreds.length ? `<span class="gantt-xstage-badge" data-tip="跨階段前置|${U.esc(xPreds.map(p=>p.name).join('、'))}"><i class="ti ti-link"></i>${xPreds.length}</span>` : '';
