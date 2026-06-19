@@ -84,6 +84,62 @@ function _list(props, key) {
   return (props.getProperty(key) || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
 }
 
+// 純讀身份（無首登綁定、無 isForeign、回字串）：給 setlist 等權限判斷用，與 _checkRole 共用 _list/名單來源。
+function _roleOf(email) {
+  const target = String(email || '').toLowerCase().trim();
+  if (!target) return 'none';
+  const props = PropertiesService.getScriptProperties();
+  const superEmail = String(props.getProperty('SUPERADMIN_EMAIL') || '').toLowerCase().trim();
+  if (superEmail && target === superEmail) return 'superadmin';
+  if (_list(props, 'ADMIN_EMAILS').indexOf(target) >= 0) return 'admin';
+  if (_list(props, 'ALLOWED_EMAILS').indexOf(target) >= 0) return 'editor';
+  if (_list(props, 'VIEWONLY_EMAILS').indexOf(target) >= 0) return 'viewonly';
+  return 'none';
+}
+
+// 名單寫入：email 只信 Google id_token 解出的；驗 aud + email_verified；
+// 該 email 須 admin/superadmin 才准寫；只能寫 editor/viewonly，絕不寫 ADMIN_EMAILS（防提權）。
+function _setList(body) {
+  // 1. 驗 JWT：tokeninfo，email 只信這裡解出的（絕不用 body 傳的 email）
+  const idToken = String(body.id_token || '');
+  if (!idToken) return _json({ error: 'Missing id_token' });
+  let info;
+  try {
+    const resp = UrlFetchApp.fetch(
+      'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
+      { muteHttpExceptions: true }
+    );
+    if (resp.getResponseCode() !== 200) return _json({ error: 'Invalid token' }); // 過期/壞 token → 非 200
+    info = JSON.parse(resp.getContentText());
+  } catch (err) {
+    return _json({ error: 'Token verify failed' });
+  }
+  if (info.error) return _json({ error: 'Invalid token' });
+
+  // 2. 驗 aud === OAuth Client ID（讀 Script Property，不寫死）→ 防別 app token 冒用
+  const clientId = String(PropertiesService.getScriptProperties().getProperty('OAUTH_CLIENT_ID') || '');
+  if (!clientId || info.aud !== clientId) return _json({ error: 'aud mismatch' });
+
+  // 3. 驗 email_verified（過期已在上面非 200 擋掉）
+  if (String(info.email_verified) !== 'true') return _json({ error: 'email not verified' });
+  const callerEmail = String(info.email || '').toLowerCase().trim();
+  if (!callerEmail) return _json({ error: 'no email' });
+
+  // 4. 寫入權限：caller 須 admin/superadmin（用 tokeninfo 的 email）
+  const role = _roleOf(callerEmail);
+  if (role !== 'admin' && role !== 'superadmin') return _json({ error: 'Forbidden' });
+
+  // 5. 只准寫 editor/viewonly；ADMIN_EMAILS 不開放 setlist 寫（防把自己加 admin 提權）
+  const keyMap = { editor: 'ALLOWED_EMAILS', viewonly: 'VIEWONLY_EMAILS' };
+  const propKey = keyMap[String(body.listType || '')];
+  if (!propKey) return _json({ error: 'Invalid listType' });
+
+  const emails = (Array.isArray(body.emails) ? body.emails : [])
+    .map(s => String(s || '').toLowerCase().trim()).filter(Boolean);
+  PropertiesService.getScriptProperties().setProperty(propKey, emails.join(','));
+  return _json({ ok: true });   // 不回名單內容
+}
+
 function doPost(e) {
   try {
     let body;
@@ -91,6 +147,11 @@ function doPost(e) {
       body = JSON.parse(e.postData.contents);
     } catch (parseErr) {
       return _json({ error: 'Invalid JSON: ' + parseErr });
+    }
+
+    // 名單寫入端點（JWT 驗證路；與同步寫入的 CHECK_TOKEN 路分開）
+    if (body.action === 'setlist') {
+      return _setList(body);
     }
 
     if (ENABLE_TOKEN) {
