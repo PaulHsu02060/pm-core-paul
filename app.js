@@ -2029,6 +2029,65 @@ const Auth = {
   showForeignWarning() {
     U.toast('⚠️ 你正以 SuperAdmin 身份進入他人副本，請小心避免誤改資料', 'warning');
   },
+
+  // ④ 白名單：editor/viewonly 兩名單，localStorage 暫存（auth_* 裸 key，塊三接後端換來源）
+  _getList(key) {
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); }
+    catch (e) { return []; }
+  },
+  _setList(key, arr) {
+    localStorage.setItem(key, JSON.stringify(arr));
+  },
+  checkWhitelist(email) {
+    // 純判斷：回 editor / viewonly / none（後端接上後換 fetch）
+    const e = (email || '').trim().toLowerCase();
+    if (!e) return 'none';
+    if (this._getList('auth_editor_list').includes(e)) return 'editor';
+    if (this._getList('auth_viewonly_list').includes(e)) return 'viewonly';
+    return 'none';
+  },
+
+  // ④ 重畫兩個名單容器（僅在設定頁有容器時動作；不碰 task/project）
+  renderLists() {
+    const draw = (key, type, elId) => {
+      const box = document.getElementById(elId);
+      if (!box) return;                                  // 不在設定頁 → 容器不存在 → 防呆 return
+      const list = this._getList(key);
+      if (!list.length) { box.innerHTML = '<div class="wl-empty">尚無</div>'; return; }
+      box.innerHTML = list.map(e =>
+        '<div class="wl-item"><span>' + U.esc(e) + '</span>' +
+        '<button class="wl-del" onclick="Auth.removeFromList(\'' + type + '\',\'' + U.esc(e) + '\')">✕</button></div>'
+      ).join('');
+    };
+    draw('auth_editor_list', 'editor', 'wl-editor-list');
+    draw('auth_viewonly_list', 'viewonly', 'wl-viewonly-list');
+  },
+
+  // ④ 加入名單：正規化 + 格式驗證 + 同名單去重 + 跨名單互斥（同 email 不同時在兩名單）
+  addToList(listType, inputId) {
+    const input = document.getElementById(inputId);
+    const email = (input ? input.value : '').trim().toLowerCase();
+    if (!email) { U.toast('請輸入 email', 'warning'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { U.toast('email 格式不對', 'error'); return; }
+    const key = listType === 'editor' ? 'auth_editor_list' : 'auth_viewonly_list';
+    const otherKey = listType === 'editor' ? 'auth_viewonly_list' : 'auth_editor_list';
+    if (this._getList(key).includes(email)) { U.toast('已在名單', 'warning'); return; }
+    if (this._getList(otherKey).includes(email)) { U.toast('已在另一名單，請先移除', 'warning'); return; }
+    const list = this._getList(key);
+    list.push(email);
+    this._setList(key, list);
+    if (input) input.value = '';
+    this.renderLists();
+    U.toast('✓ 已加入名單');
+  },
+
+  // ④ 移除名單：filter 掉、存、重畫
+  removeFromList(listType, email) {
+    const key = listType === 'editor' ? 'auth_editor_list' : 'auth_viewonly_list';
+    const list = this._getList(key).filter(e => e !== email);
+    this._setList(key, list);
+    this.renderLists();
+  },
 };
 
 const App = {
@@ -7955,6 +8014,33 @@ App.renderSettings = function() {
           <button class="tb-action" onclick="App.unlockEdit()">解鎖編輯</button>
         </div>
       </div>
+      <!-- ④ 編輯權限名單（editor/viewonly，localStorage 暫存；此 tab 已限 Admin） -->
+      <div class="settings-section">
+        <div class="ss-title">👥 編輯權限名單</div>
+        <div class="ss-desc">加入後該 Google 帳號登入即得對應權限（暫存本機，塊三接後端後改由名單同步）</div>
+
+        <div class="ss-field">
+          <label>編輯者 Editor</label>
+          <div>
+            <div class="wl-add">
+              <input type="email" id="wl-editor-input" placeholder="name@example.com">
+              <button class="tb-action" onclick="Auth.addToList('editor','wl-editor-input')">加入</button>
+            </div>
+            <div id="wl-editor-list" class="wl-list"></div>
+          </div>
+        </div>
+
+        <div class="ss-field">
+          <label>檢視者 Viewonly</label>
+          <div>
+            <div class="wl-add">
+              <input type="email" id="wl-viewonly-input" placeholder="name@example.com">
+              <button class="tb-action" onclick="Auth.addToList('viewonly','wl-viewonly-input')">加入</button>
+            </div>
+            <div id="wl-viewonly-list" class="wl-list"></div>
+          </div>
+        </div>
+      </div>
       <!-- /編輯權限 --></div></div>
     <div class="tab-panel" id="關於"><div class="settings-grid">
       <!-- Personal -->
@@ -8038,6 +8124,7 @@ App.renderSettings = function() {
       <button class="tb-action" onclick="App.saveSettings()" style="padding:12px 32px;">💾 儲存所有設定</button>
     </div>
   `;
+  Auth.renderLists();   // ④ 名單容器在「編輯權限」tab 模板，innerHTML 設好後即時填
 };
 
 App.saveSettings = function() {

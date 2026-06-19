@@ -1144,6 +1144,14 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ss-field input, .ss-field select { padding: 7px 10px; border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface2); outline: none; font-size: 13px; width: 100%; transition: all .15s; }
 .ss-field input:focus, .ss-field select:focus { border-color: var(--sage-500); background: var(--surface); box-shadow: 0 0 0 3px rgba(74,124,92,.1); }
 .ss-field .help { font-size: 11px; color: var(--ink3); margin-top: 4px; line-height: 1.5; }
+/* ④ 編輯權限白名單管理（editor/viewonly 雙名單） */
+.wl-add { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.wl-add input { flex: 1; }
+.wl-list { display: flex; flex-direction: column; gap: 6px; }
+.wl-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; background: var(--surface2); border: 1px solid var(--rule); border-radius: var(--r6); font-size: 13px; color: var(--ink2); }
+.wl-del { border: none; background: none; color: var(--rose); font-size: 13px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--r4); }
+.wl-del:hover { background: var(--rose-l); }
+.wl-empty { font-size: 12px; color: var(--ink4); padding: 4px 2px; }
 /* 工作日曆（公休/補班）匯入區（§之二.9 第3步） */
 .cal-import { display: flex; flex-direction: column; gap: 10px; }
 .cal-label { font-size: 12px; color: var(--ink2); font-weight: 500; }
