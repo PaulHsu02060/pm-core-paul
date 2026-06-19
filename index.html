@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.44.0/dist/tabler-icons.min.css">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<link rel="stylesheet" href="style.css?v=20260619-5">
+<link rel="stylesheet" href="style.css?v=20260619-6">
 </head>
 <body>
 
@@ -21,28 +21,14 @@
     <div class="login-logo js-brand-name">PM-Core</div>
     <div class="login-sub">Personal Task Board</div>
 
-    <!-- Google login mode (preferred) -->
+    <!-- ① 登入並成為管理員（Gmail + 首登密鑰）／② 以檢視模式進入 -->
     <div id="loginGoogleMode">
       <div class="login-google-hint">使用 Google 帳號登入</div>
       <div id="gSignInBtn" style="display:flex; justify-content:center; margin-bottom: 14px;"></div>
+      <input type="password" id="loginSetupKey" placeholder="首登密鑰（選填）" autocomplete="off">
+      <div class="login-hint">首次將自己設為管理員才需填，一般登入留空</div>
       <div class="login-divider"><span>或</span></div>
-      <button class="login-view-only" onclick="App.enterViewOnly()">👁 不登入，僅檢視</button>
-      <div class="login-hint" id="googleSetupHint" style="display:none;">
-        💡 尚未設定 Google OAuth Client ID。可<br>
-        <a href="#" onclick="App.enterViewOnly(); setTimeout(()=>App.showPage('settings', document.querySelector('[data-page=settings]')), 100); return false;" style="color:var(--sage-600);">先以檢視模式進入，到設定頁填寫</a>
-      </div>
-    </div>
-
-    <!-- Password fallback mode -->
-    <div id="loginPwMode" style="display:none;">
-      <div class="login-form">
-        <input type="password" id="loginPw" placeholder="輸入編輯密碼">
-        <button onclick="App.doLogin()">登入並編輯</button>
-      </div>
-      <div class="login-hint">
-        首次使用：直接按「登入並編輯」設定密碼（可在設定頁更改）
-      </div>
-      <button class="login-view-only" onclick="App.enterViewOnly()">👁 不登入，僅檢視</button>
+      <button class="login-view-only" onclick="App.enterViewOnly()">👁 以檢視模式進入</button>
     </div>
   </div>
 </div>
@@ -156,6 +142,6 @@
 <script src="seed.sample.js?v=20260605-1"></script>
 <script src="seed.local.js?v=20260605-1"></script>
 <script src="templates/product-dev-template.js?v=20260615-4"></script>
-<script src="app.js?v=20260619-14"></script>
+<script src="app.js?v=20260619-17"></script>
 </body>
 </html>

@@ -110,6 +110,9 @@ button { cursor: pointer; }
   background: var(--surface); outline: none; transition: border-color .2s;
 }
 .login-form input:focus { border-color: var(--sage-500); box-shadow: 0 0 0 3px rgba(74,124,92,.1); }
+/* ⑤ landing 首登密鑰 input（比照 .login-form input 樣式） */
+#loginSetupKey { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface); outline: none; font-size: 13px; transition: border-color .2s; }
+#loginSetupKey:focus { border-color: var(--sage-500); box-shadow: 0 0 0 3px rgba(74,124,92,.1); }
 .login-form button {
   padding: 12px; background: var(--sage-500); color: var(--ink-inverse); border: none;
   border-radius: var(--r8); font-weight: 500; transition: background .2s;

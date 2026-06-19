@@ -65,7 +65,6 @@ const STORE = {
   weekNotes: `pmw::${PATH_KEY}::weeknotes`,
   pdcaGroups: `pmw::${PATH_KEY}::pdcagroups`,
   calendars: `pmw::${PATH_KEY}::calendars`,
-  editUnlock: `pmw::${PATH_KEY}::editunlock`,
 };
 
 // ─── DEFAULT SETTINGS ──────────────────────────────────
@@ -202,7 +201,7 @@ const Storage = {
     } catch(e) { console.error('Load failed', e); }
   },
   save() {
-    // 唯讀防線（咽喉）：viewonly 一律不落地。鎖 body.viewonly（非 _role——密碼解鎖編輯者只清 viewonly、無 _role，鎖 _role 會誤擋）。
+    // 唯讀防線（咽喉）：viewonly 一律不落地。鎖 body.viewonly（非 _role——viewonly 進來只設 body class、無 _role，鎖 _role 會誤擋）。
     // 靜默 return（不 toast）：save 也被 migration/download 等內部流程呼叫，toast 會誤報；UX 提示放各編輯動作入口（第 3 處）。
     if (document.body.classList.contains('viewonly')) return;
     localStorage.setItem(STORE.projects, JSON.stringify(DATA.projects));
@@ -1970,6 +1969,7 @@ function mapStatus(status, progress) {
 const Auth = {
   // 開發測試用 role 切換器：後端接上前，本地切五種身份測四層畫面。後端接上後 DEV_MODE 設 false 關閉（保留當 debug 工具）。
   DEV_MODE: true,
+  DEV_FIRST_KEY: 'pmcore-setup-2026',   // ⑤ 本地首登密鑰假值（塊三接後端後移除，改後端驗證）
 
   // 切換測試身份（superadmin/admin/editor/viewonly/none），寫 localStorage + 設 _role + body class + 重繪
   setDevRole(role) {
@@ -2088,6 +2088,26 @@ const Auth = {
     this._setList(key, list);
     this.renderLists();
   },
+
+  // ⑤ 本地首登綁定：記此 email 為本機 admin（一次性，塊三換後端 Script Properties）
+  bindAdmin(email) {
+    localStorage.setItem('auth_admin_bound', (email || '').trim().toLowerCase());
+  },
+
+  // ⑤ 本地 role 判斷（無後端時的 fallback，對齊 §8f.3 順序）：
+  //   1. 已綁定本機 admin → admin
+  //   2. 首登密鑰對 + 本機尚無 admin → 綁定 + admin（一次性）
+  //   3. 否則查名單 → editor/viewonly/none
+  tryLocalRole(email, setupKey) {
+    const e = (email || '').trim().toLowerCase();
+    const bound = (localStorage.getItem('auth_admin_bound') || '').trim().toLowerCase();
+    if (bound && bound === e) return 'admin';
+    if (!bound && setupKey && setupKey === this.DEV_FIRST_KEY) {
+      this.bindAdmin(e);
+      return 'admin';
+    }
+    return this.checkWhitelist(e);
+  },
 };
 
 const App = {
@@ -2180,43 +2200,10 @@ const App = {
 
   // ─── LOGIN ───
   checkLoginState() {
-    // [乙方案] 記住我：localStorage 有未過期且 hash 相符的憑證 → 自動解鎖、跳過 viewonly
-    //   hash 改變（管理者改了編輯密碼）→ 不符 → 自動失效；過期亦同，順手清掉
-    try {
-      const raw = localStorage.getItem(STORE.editUnlock);
-      if (raw) {
-        const c = JSON.parse(raw);
-        if (c && c.until > Date.now() && c.h === CFG('editPasswordHash', '')) {
-          this.refreshUserBadge();
-          document.getElementById('loginOverlay').classList.add('hidden');
-          return;                                   // 有效 → 不進 viewonly（保持可編輯）
-        }
-        localStorage.removeItem(STORE.editUnlock);  // 過期 / hash 不符 → 清掉
-      }
-    } catch (e) { localStorage.removeItem(STORE.editUnlock); }
-    // Fallback：若使用者沒設過 OAuth Client ID，用 hardcode 的預設值
-    // 這讓「拿到 URL 的同事」零設定就能 Google 登入
+    // landing 只剩單一 Google 登入 + 首登密鑰 + 檢視模式（loginPwMode/googleSetupHint 已拔，無顯隱分支）
+    // ★ overlay 預設可見、登入成功才 hide；clientId + initGoogleSignIn 必須留 = 顯示登入框+掛 Google 按鈕本身
     const clientId = DATA.settings.googleClientId || DEFAULT_OAUTH_CLIENT_ID;
-    const pwMode = document.getElementById('loginPwMode');
-    const googleMode = document.getElementById('loginGoogleMode');
-    const googleSetupHint = document.getElementById('googleSetupHint');
-
-    if (clientId) {
-      // Google OAuth mode
-      googleMode.style.display = '';
-      pwMode.style.display = 'none';
-      googleSetupHint.style.display = 'none';
-      // Render Google sign-in button when API is ready
-      this.initGoogleSignIn(clientId);
-    } else {
-      // No Google client id configured yet → show password fallback OR hint
-      googleMode.style.display = '';
-      pwMode.style.display = 'none';
-      // Show only "view only" + hint to set up Google OAuth
-      googleSetupHint.style.display = '';
-      const btn = document.getElementById('gSignInBtn');
-      if (btn) btn.style.display = 'none';
-    }
+    this.initGoogleSignIn(clientId);
   },
 
   initGoogleSignIn(clientId) {
@@ -2259,21 +2246,28 @@ const App = {
       const name = payload.name || payload.given_name || 'User';
       const picture = payload.picture || '';
 
-      // ─── 三層權限判斷（Admin > Editor > Viewonly）：問後台 role（名單存 Script Properties，不在前端）───
-      // 安全防線：fetch 任何失敗（連不到/逾時/非 JSON）→ role='none' → 唯讀，絕不放行。
+      // ─── 四層權限判斷（Admin > Editor > Viewonly > none）───
+      // 安全紀律：有後端 roleUrl → 一律走後端，fetch 任何失敗（連不到/逾時/非 JSON）→ role='none' → 絕不放行。
+      //   本地 fallback 只在「無 roleUrl」（純前端塊二階段）啟用，不是後端失敗的備胎——
+      //   否則塊三上線後，切斷後端網路即可讓登入掉進本地判斷繞過授權。
       let role = 'none';
-      try {
-        const roleUrl = CFG('ROLE_CHECK_URL', '');
-        if (roleUrl) {
+      const roleUrl = CFG('ROLE_CHECK_URL', '');
+      if (roleUrl) {
+        // 有後端 → 一律走後端，失敗往 none 倒（原安全紀律不變）
+        try {
           const r = await fetch(roleUrl + '?action=role&email=' + encodeURIComponent(email), {
             method: 'GET', mode: 'cors', redirect: 'follow',
           });
           const j = await r.json();
           role = (j && j.role) || 'none';
+        } catch (err) {
+          console.error('Role check failed', err);
+          role = 'none';   // 後端失敗 → 絕不放行
         }
-      } catch (err) {
-        console.error('Role check failed', err);
-        role = 'none';   // 後台連不到 → 往安全倒（唯讀）
+      } else {
+        // 無後端（塊二純前端階段）→ 本地 fallback 判斷
+        const setupKey = (document.getElementById('loginSetupKey') || {}).value || '';  // landing input，子塊2才有，現在讀不到回空
+        role = Auth.tryLocalRole(email, setupKey);
       }
       if (role === 'viewonly') {
         // viewonly → 唯讀可看（§8f.4），不設 _loggedInEmail（PII 不留）
@@ -2307,32 +2301,6 @@ const App = {
     } catch (e) {
       console.error('Login failed', e);
       U.toast('❌ 登入失敗：' + e.message, 'error');
-    }
-  },
-
-  // ─── LEGACY PASSWORD LOGIN (備援) ───
-  doLogin() {
-    const input = document.getElementById('loginPw');
-    const entered = input ? input.value.trim() : '';
-    const stored = localStorage.getItem(STORE.password);
-
-    if (!stored) {
-      if (!entered) {
-        localStorage.setItem(STORE.password, '');
-      } else {
-        localStorage.setItem(STORE.password, U.hash(entered).toString());
-      }
-      document.body.classList.remove('viewonly');
-      document.getElementById('loginOverlay').classList.add('hidden');
-      U.toast(entered ? '✓ 密碼已設定' : '✓ 已登入（未設密碼）');
-    } else {
-      const enteredHash = entered ? U.hash(entered).toString() : '';
-      if (stored === '' || enteredHash === stored) {
-        document.body.classList.remove('viewonly');
-        document.getElementById('loginOverlay').classList.add('hidden');
-      } else {
-        U.toast('❌ 密碼錯誤', 'error');
-      }
     }
   },
 
@@ -7606,7 +7574,7 @@ App.buildPdcaGroupCard = function(project, name, tasks) {
 //  PAGE: SETTINGS
 // ═══════════════════════════════════════════════════════
 // 設定頁子分頁切換：純切 .active class（CSS display 控制顯隱），不 re-render。
-//   → 4 個 tab 的 set-*/unlock-* 元素永遠留在 DOM，saveSettings/unlockEdit 跨 tab 讀取不會 crash。
+//   → 各 tab 的 set-* 元素永遠留在 DOM，saveSettings 跨 tab 讀取不會 crash。
 //   querySelectorAll 限定 #page-settings，避免動到儀表板/專案頁的 .tab-btn。
 App.showSettingsTab = function(btn, id) {
   document.querySelectorAll('#page-settings .tab-btn').forEach(b => b.classList.remove('active'));
@@ -7891,7 +7859,7 @@ App.renderSettings = function() {
         </div>
       </div>
       ` : ''}
-      <!-- 雲端同步（訪客唯讀時隱藏，解鎖編輯後才顯示：CSS body.viewonly .cloud-sync-sec） -->
+      <!-- 雲端同步（訪客唯讀時隱藏，editor/admin 才顯示：CSS body.viewonly .cloud-sync-sec） -->
       <div class="settings-section cloud-sync-sec">
         <div class="ss-title">☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步</div>
         <div class="ss-desc">透過你自己的 Google Sheet + Apps Script，把 ${CFG('APP_NAME', 'PM-Core')} 個人資料同步到多台裝置<br>
@@ -7989,31 +7957,6 @@ App.renderSettings = function() {
       </div>
       <!-- /資料 --></div></div>
     <div class="tab-panel" id="編輯權限"><div class="settings-grid">
-      <!-- Unlock edit (訪客唯讀 → 輸入密碼解鎖) -->
-      <div class="settings-section">
-        <div class="ss-title">🔓 解鎖編輯</div>
-        <div class="ss-desc">輸入密碼，解除唯讀模式開始編輯</div>
-
-        <div class="ss-field">
-          <label>編輯密碼</label>
-          <div>
-            <input type="password" id="unlock-pw" placeholder="輸入密碼以解鎖編輯">
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>記住我</label>
-          <div>
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink2);">
-              <input type="checkbox" id="unlock-remember" style="width:auto;"> 在此設備記住我 5 天
-            </label>
-          </div>
-        </div>
-
-        <div>
-          <button class="tb-action" onclick="App.unlockEdit()">解鎖編輯</button>
-        </div>
-      </div>
       <!-- ④ 編輯權限名單（editor/viewonly，localStorage 暫存；此 tab 已限 Admin） -->
       <div class="settings-section">
         <div class="ss-title">👥 編輯權限名單</div>
@@ -8563,26 +8506,6 @@ App.saveAndSync = function() {
     return;
   }
   Sync.syncJSeries();
-};
-
-// 設定頁「輸入密碼解鎖編輯」：訪客唯讀，比對 config.editPasswordHash 後解除 viewonly。
-// 比對沿用 doLogin 同套（U.hash(輸入).toString() === 目標 hash），不碰 doLogin/遮罩流程。
-App.unlockEdit = function() {
-  const input = document.getElementById('unlock-pw');
-  const entered = input ? input.value.trim() : '';
-  const target = CFG('editPasswordHash', '');
-  if (entered && U.hash(entered).toString() === target) {
-    document.body.classList.remove('viewonly');
-    App.refreshUserBadge();
-    if (input) input.value = '';
-    // 乙方案：勾「記住我」才寫憑證（公開 hash + 到期5天）；不勾不寫、也不清既有憑證
-    if (document.getElementById('unlock-remember')?.checked) {
-      localStorage.setItem(STORE.editUnlock, JSON.stringify({ h: target, until: Date.now() + 5*24*60*60*1000 }));
-    }
-    U.toast('✓ 已解鎖編輯');
-  } else {
-    U.toast('✗ 密碼錯誤', 'error');
-  }
 };
 
 // ─── EXCEL HISTORY IMPORT (Weekly Report) ───
@@ -9610,7 +9533,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ESC closes modal
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') App.closeModal();
-    if (e.key === 'Enter' && e.target.id === 'loginPw') App.doLogin();
   });
   initTooltip();
 });
