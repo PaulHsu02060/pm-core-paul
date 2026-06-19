@@ -41,6 +41,10 @@ const APP_BUILD_SIGNATURE = CFG('APP_BUILD_SIGNATURE', 'PM-Core');
 // 來源：https://console.cloud.google.com/apis/credentials  (你的 GitHub Pages 網域)
 const DEFAULT_OAUTH_CLIENT_ID = CFG('OAUTH_CLIENT_ID', 'PASTE_YOUR_OAUTH_CLIENT_ID');
 
+// 本地開發偵測：file://（OAuth 無法完成）或 localhost → 跳過 Google、自動 admin、顯示 DEV 切換器。
+// 線上 github.io 為 https + hostname 非 localhost → 必為 false，bypass 與 DEV 面板皆不啟用（線上零影響）。
+const isLocalDev = (location.protocol === 'file:') || ['localhost', '127.0.0.1'].includes(location.hostname);
+
 // helper：當前登入的 Gmail 是不是 admin
 function isAdmin() {
   // role 由後台 ROLE_CHECK_URL 查得後存 _role（接 Auth 三層）；不再讀 config ADMIN_EMAILS（線上空）。
@@ -1985,8 +1989,8 @@ function mapStatus(status, progress) {
 // ═══════════════════════════════════════════════════════
 // ═══ Auth：權限層（§8f.8b 隔離紀律——只判斷、不碰核心資料/排程；未來剪下成獨立檔）═══
 const Auth = {
-  // 開發測試用 role 切換器：後端已接上，DEV_MODE 關閉（面板不顯示）；tryLocalRole/DEV_FIRST_KEY 保留作本地無後端 fallback/debug。
-  DEV_MODE: false,
+  // 開發測試用 role 切換器：DEV_MODE = isLocalDev → 本地（file:///localhost）才顯示切換器測四層；線上 https 必 false（面板不顯示）。
+  DEV_MODE: isLocalDev,
   DEV_FIRST_KEY: 'pmcore-setup-2026',   // ⑤ 本地首登密鑰假值（塊三接後端後移除，改後端驗證）
 
   // 切換測試身份（superadmin/admin/editor/viewonly/none），寫 localStorage + 設 _role + body class + 重繪
@@ -2270,6 +2274,18 @@ const App = {
 
   // ─── LOGIN ───
   checkLoginState() {
+    // 本地開發（file:// 或 localhost）：OAuth 在 file:// 無法完成 → 跳過 Google，自動 admin 直接可編輯。
+    //   ★ 在 initGoogleSignIn 之前 return，本地不碰 Google（避免 file:// 上初始化卡住）。
+    //   ★ 線上 github.io 為 https，isLocalDev=false → 絕不進此分支，照常走後端四層 role。
+    if (isLocalDev) {
+      DATA.settings._role = 'admin';
+      document.body.classList.remove('viewonly');
+      const ov = document.getElementById('loginOverlay'); if (ov) ov.classList.add('hidden');
+      const bo = document.getElementById('authBlockout'); if (bo) bo.classList.add('hidden');
+      this.refreshUserBadge();
+      this.refreshAll();   // _role 設後重畫側邊欄（設定鈕顯隱在 renderSidebar），比照 handleGoogleCredential
+      return;
+    }
     // landing 只剩單一 Google 登入 + 首登密鑰 + 檢視模式（loginPwMode/googleSetupHint 已拔，無顯隱分支）
     // ★ overlay 預設可見、登入成功才 hide；clientId + initGoogleSignIn 必須留 = 顯示登入框+掛 Google 按鈕本身
     const clientId = DATA.settings.googleClientId || DEFAULT_OAUTH_CLIENT_ID;
