@@ -1966,6 +1966,46 @@ function mapStatus(status, progress) {
 // ═══════════════════════════════════════════════════════
 //  APP CONTROLLER
 // ═══════════════════════════════════════════════════════
+// ═══ Auth：權限層（§8f.8b 隔離紀律——只判斷、不碰核心資料/排程；未來剪下成獨立檔）═══
+const Auth = {
+  // 開發測試用 role 切換器：後端接上前，本地切五種身份測四層畫面。後端接上後 DEV_MODE 設 false 關閉（保留當 debug 工具）。
+  DEV_MODE: true,
+
+  // 切換測試身份（superadmin/admin/editor/viewonly/none），寫 localStorage + 設 _role + body class + 重繪
+  setDevRole(role) {
+    localStorage.setItem('auth_dev_role', role);
+    DATA.settings._role = (role === 'admin' || role === 'superadmin' || role === 'editor') ? role : undefined;
+    if (role === 'viewonly' || role === 'none') {
+      document.body.classList.add('viewonly');
+    } else {
+      document.body.classList.remove('viewonly');
+    }
+    // none → 之後（②）會接 enterBlockout；本階段先當 viewonly 處理，②再拆
+    Storage.save();
+    App.refreshUserBadge();
+    App.refreshAll();
+    U.toast('🔧 [DEV] 切換身份：' + role, 'info');
+  },
+
+  // 渲染浮動切換面板（DEV_MODE 才顯示，角落固定）
+  renderDevPanel() {
+    if (!this.DEV_MODE) return;
+    let panel = document.getElementById('authDevPanel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'authDevPanel';
+      document.body.appendChild(panel);
+    }
+    const cur = localStorage.getItem('auth_dev_role') || '(未設)';
+    panel.innerHTML =
+      '<div class="adp-title">🔧 DEV 身份</div>' +
+      '<div class="adp-cur">目前：' + cur + '</div>' +
+      ['superadmin', 'admin', 'editor', 'viewonly', 'none'].map(r =>
+        '<button class="adp-btn" onclick="Auth.setDevRole(\'' + r + '\')">' + r + '</button>'
+      ).join('');
+  },
+};
+
 const App = {
   currentPage: 'dashboard',
   currentProjectId: null,
@@ -1993,6 +2033,7 @@ const App = {
 
     // Login check
     this.checkLoginState();
+    Auth.renderDevPanel();   // 🔧 DEV 身份面板（DEV_MODE 才顯示）
 
     // ☁ 雲端同步：開啟時先拉最新資料
     if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudSyncUrl) {
