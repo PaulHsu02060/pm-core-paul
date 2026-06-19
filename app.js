@@ -5095,6 +5095,31 @@ App.openProjectDialog = function(projId) {
       <button class="tb-action pf-btn-next" id="pf-nextBtn" onclick="App.saveProject('${projId || ''}')" style="display:none">下一步：檢視任務</button>
     `,
   });
+
+  // §8f.9 viewonly 第一階段：自動帶標準模板假資料 + 欄位 disabled（純展示，不可改）
+  if (!isEdit && document.body.classList.contains('viewonly')) {
+    const modeEl = document.getElementById('pf-mode');
+    if (modeEl) {
+      modeEl.value = 'template';
+      modeEl.dispatchEvent(new Event('change'));   // 觸發既有 onchange：展開 tplBox、切鈕
+      modeEl.disabled = true;
+    }
+    const nameEl = document.getElementById('pf-name');
+    if (nameEl) nameEl.value = CFG('PROJECT_INPUT_EXAMPLE', '範例品項');
+    const mainNameEl = document.getElementById('pf-mainName');
+    if (mainNameEl) mainNameEl.value = CFG('PROJECT_INPUT_EXAMPLE', '範例品項');
+    const startEl = document.getElementById('pf-start');
+    if (startEl) startEl.value = D.fmt(new Date(), 'iso');
+    // 主案卡與表單欄位 disabled（展示用，不可改）；下一步鈕在 footer 不受影響
+    ['pf-name', 'pf-note', 'pf-mainName', 'pf-start', 'pf-end', 'pf-direction', 'pf-tpl'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = true;
+    });
+    // 階段勾選膠囊(button.stage-pick)、部門列(.tpl-role-row input + 增刪鈕) disabled
+    document.querySelectorAll('#pf-tplBox .stage-pick, #pf-tplBox .tpl-role-row input, #pf-tplBox .tpl-role-add, #pf-tplBox .tpl-role-del').forEach(el => el.disabled = true);
+    const addCaseBtn = document.querySelector('#pf-tplBox button[onclick*="_tplAddOtherCase"]');
+    if (addCaseBtn) addCaseBtn.style.display = 'none';
+  }
 };
 
 App.editProject = function(id) { this.openProjectDialog(id); };
