@@ -692,6 +692,24 @@ body.viewonly .cloud-sync-sec { display: none; }
   font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--ink-inverse); text-transform: uppercase;
 }
 
+/* subgrid 自動欄寬：單一 grid 父，表頭+各列共用欄軌（跨列一致、依內容自動算）。步1 dormant（DOM 尚無 .task-grid）；步2 render 包進後生效。 */
+.task-grid {
+  display: grid;
+  grid-template-columns:
+    auto minmax(auto, 120px) minmax(160px, 3fr) auto
+    minmax(auto, 110px) minmax(auto, 120px) auto auto auto auto;
+  gap: 0 14px;
+}
+.task-grid > .done-toggle-bar,
+.task-grid > .toschedule-bar,
+.task-grid > .empty-task-list { grid-column: 1 / -1; }
+.task-grid.hide-done .task-row.done { display: none; }
+.task-grid.ts-collapsed .task-row.undated { display: none; }
+.task-grid .task-row.done { opacity: .65; }
+.task-grid .task-row .row-insert { display: flex; }
+.task-grid .task-row:last-child .row-insert { display: none; }
+.task-grid .task-row:hover .row-insert { opacity: 1; }
+
 /* ─── 待辦清單篩選列（§塊3 UI 殼：膠囊多選 + 展開面板，本批不接過濾）─── */
 .task-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; background: var(--surface2); border-bottom: 1px solid var(--rule); }
 .tf-chip-wrap { position: relative; }
