@@ -18,8 +18,6 @@ var APP_CONFIG = {
   CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbwDzSs44F4AENfeQKEBX_xrYH7Y38wsvAn4iYY9lXLewQUppbyaKRgBQVmAfU1W2uYNSg/exec',  // 公開讀 doGet exec URL（進 git、全公開；非 token）
   ROLE_CHECK_URL: 'https://script.google.com/macros/s/AKfycbx6pD0mKpntDx6VNsun7RJnCiLHVIj_Ikdc-gp3mgbPddzLvrd-DBmo06dJJ8UkKuM4jQ/exec',  // Auth 三層角色查詢：前端接 ?action=role&email=，後端只回單一 email 的 role（名單存 Script Properties 不入 git；此 exec URL 公開可進 git）
   WBS_SHEET_NAME: 'WBS主表',
-  ADMIN_EMAILS: [],
-  ALLOWED_EMAILS: [],
   OAUTH_CLIENT_ID: '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com',
   SYNC_TOKEN: 'CHANGE_THIS_TOKEN',
   COMPANY_NAME: 'My Company',
@@ -38,9 +36,6 @@ var APP_CONFIG = {
 
   // ─── 其他 UI 範例字 ───
   PROJECT_INPUT_EXAMPLE: '範例品項',   // 新增專案輸入框 placeholder 範例
-
-  // ── 編輯鎖（訪客唯讀）──
-  editPasswordHash: '935817361',
 };
 
 // 選用保險：Node / 打包器環境也能 require。

@@ -1967,8 +1967,8 @@ function mapStatus(status, progress) {
 // ═══════════════════════════════════════════════════════
 // ═══ Auth：權限層（§8f.8b 隔離紀律——只判斷、不碰核心資料/排程；未來剪下成獨立檔）═══
 const Auth = {
-  // 開發測試用 role 切換器：後端接上前，本地切五種身份測四層畫面。後端接上後 DEV_MODE 設 false 關閉（保留當 debug 工具）。
-  DEV_MODE: true,
+  // 開發測試用 role 切換器：後端已接上，DEV_MODE 關閉（面板不顯示）；tryLocalRole/DEV_FIRST_KEY 保留作本地無後端 fallback/debug。
+  DEV_MODE: false,
   DEV_FIRST_KEY: 'pmcore-setup-2026',   // ⑤ 本地首登密鑰假值（塊三接後端後移除，改後端驗證）
 
   // 切換測試身份（superadmin/admin/editor/viewonly/none），寫 localStorage + 設 _role + body class + 重繪
@@ -2035,9 +2035,6 @@ const Auth = {
     try { return JSON.parse(localStorage.getItem(key) || '[]'); }
     catch (e) { return []; }
   },
-  _setList(key, arr) {
-    localStorage.setItem(key, JSON.stringify(arr));
-  },
   checkWhitelist(email) {
     // 純判斷：回 editor / viewonly / none（後端接上後換 fetch）
     const e = (email || '').trim().toLowerCase();
@@ -2047,46 +2044,101 @@ const Auth = {
     return 'none';
   },
 
-  // ④ 重畫兩個名單容器（僅在設定頁有容器時動作；不碰 task/project）
-  renderLists() {
-    const draw = (key, type, elId) => {
+  // ④ 名單管理改打後端（getlists/setlist）。in-memory 快取 + id_token（不寫 localStorage）。
+  _idToken: '',
+  _lists: { editor: [], viewonly: [] },
+
+  // POST 後端（ROLE_CHECK_URL 同一部署的 doPost）。text/plain 免 CORS preflight；回 parsed JSON，網路失敗 throw。
+  async _postBackend(payload) {
+    const url = CFG('ROLE_CHECK_URL', '');
+    if (!url) throw new Error('no-backend');
+    const r = await fetch(url, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+    return await r.json();
+  },
+
+  // 後端錯誤 → 對應 toast；token 相關 → 提示重新登入。回 true=有錯（呼叫端 return）。
+  _backendErr(j) {
+    if (!j || j.ok !== true) {
+      const e = (j && j.error) || '';
+      if (e === 'Invalid token' || e === 'Missing id_token' || e === 'Token verify failed') {
+        U.toast('登入已過期，請重新登入', 'error');
+      } else if (e === 'Forbidden' || e === 'aud mismatch' || e === 'email not verified') {
+        U.toast('沒有管理權限', 'error');
+      } else {
+        U.toast('名單操作失敗：' + (e || '未知錯誤'), 'error');
+      }
+      return true;
+    }
+    return false;
+  },
+
+  // ④ 從後端拉兩份名單 → 快取 + 畫。失敗：toast、不洗掉現有顯示。
+  async renderLists() {
+    if (!document.getElementById('wl-editor-list')) return;   // 不在設定頁 → 防呆
+    let j;
+    try {
+      j = await this._postBackend({ action: 'getlists', id_token: this._idToken });
+    } catch (err) {
+      U.toast('讀取名單失敗（連不到後端）', 'error');
+      return;   // 不洗掉現有顯示
+    }
+    if (this._backendErr(j)) return;
+    this._lists = { editor: j.editor || [], viewonly: j.viewonly || [] };
+    this._drawLists();
+  },
+
+  // 純畫（從 _lists 快取，不 fetch）
+  _drawLists() {
+    const draw = (type, elId) => {
       const box = document.getElementById(elId);
-      if (!box) return;                                  // 不在設定頁 → 容器不存在 → 防呆 return
-      const list = this._getList(key);
+      if (!box) return;
+      const list = this._lists[type] || [];
       if (!list.length) { box.innerHTML = '<div class="wl-empty">尚無</div>'; return; }
       box.innerHTML = list.map(e =>
         '<div class="wl-item"><span>' + U.esc(e) + '</span>' +
         '<button class="wl-del" onclick="Auth.removeFromList(\'' + type + '\',\'' + U.esc(e) + '\')">✕</button></div>'
       ).join('');
     };
-    draw('auth_editor_list', 'editor', 'wl-editor-list');
-    draw('auth_viewonly_list', 'viewonly', 'wl-viewonly-list');
+    draw('editor', 'wl-editor-list');
+    draw('viewonly', 'wl-viewonly-list');
   },
 
-  // ④ 加入名單：正規化 + 格式驗證 + 同名單去重 + 跨名單互斥（同 email 不同時在兩名單）
-  addToList(listType, inputId) {
+  // ④ 加入名單：前端驗格式/去重/跨名單互斥 → 算新整份 → POST setlist → 成功才更新
+  async addToList(listType, inputId) {
     const input = document.getElementById(inputId);
     const email = (input ? input.value : '').trim().toLowerCase();
     if (!email) { U.toast('請輸入 email', 'warning'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { U.toast('email 格式不對', 'error'); return; }
-    const key = listType === 'editor' ? 'auth_editor_list' : 'auth_viewonly_list';
-    const otherKey = listType === 'editor' ? 'auth_viewonly_list' : 'auth_editor_list';
-    if (this._getList(key).includes(email)) { U.toast('已在名單', 'warning'); return; }
-    if (this._getList(otherKey).includes(email)) { U.toast('已在另一名單，請先移除', 'warning'); return; }
-    const list = this._getList(key);
-    list.push(email);
-    this._setList(key, list);
+    const other = listType === 'editor' ? 'viewonly' : 'editor';
+    if ((this._lists[listType] || []).includes(email)) { U.toast('已在名單', 'warning'); return; }
+    if ((this._lists[other] || []).includes(email)) { U.toast('已在另一名單，請先移除', 'warning'); return; }
+
+    const newList = (this._lists[listType] || []).concat(email);
+    let j;
+    try {
+      j = await this._postBackend({ action: 'setlist', id_token: this._idToken, listType: listType, emails: newList });
+    } catch (err) { U.toast('寫入失敗（連不到後端）', 'error'); return; }
+    if (this._backendErr(j)) return;
+    this._lists[listType] = newList;
     if (input) input.value = '';
-    this.renderLists();
+    this._drawLists();
     U.toast('✓ 已加入名單');
   },
 
-  // ④ 移除名單：filter 掉、存、重畫
-  removeFromList(listType, email) {
-    const key = listType === 'editor' ? 'auth_editor_list' : 'auth_viewonly_list';
-    const list = this._getList(key).filter(e => e !== email);
-    this._setList(key, list);
-    this.renderLists();
+  // ④ 移除名單：算新整份 → POST setlist → 成功才更新
+  async removeFromList(listType, email) {
+    const newList = (this._lists[listType] || []).filter(e => e !== email);
+    let j;
+    try {
+      j = await this._postBackend({ action: 'setlist', id_token: this._idToken, listType: listType, emails: newList });
+    } catch (err) { U.toast('移除失敗（連不到後端）', 'error'); return; }
+    if (this._backendErr(j)) return;
+    this._lists[listType] = newList;
+    this._drawLists();
   },
 
   // ⑤ 本地首登綁定：記此 email 為本機 admin（一次性，塊三換後端 Script Properties）
@@ -2289,6 +2341,7 @@ const App = {
       Storage.save();
       document.body.classList.remove('viewonly');
       document.getElementById('loginOverlay').classList.add('hidden');
+      Auth._idToken = resp.credential;   // ② 名單管理 setlist/getlists 要送的 id_token（in-memory，不落地）
       this.refreshUserBadge();
       this.refreshAll();   // ★ 重畫側邊欄，登入後即時算 setBtn 顯隱（admin 設定鈕出現），比照 setDevRole
       U.toast(`✓ 歡迎 ${name}`);
