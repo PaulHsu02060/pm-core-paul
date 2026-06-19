@@ -2425,6 +2425,10 @@ const App = {
 
     const setBtn = document.querySelector('[data-page=settings]');
     if (setBtn) setBtn.style.display = isAdmin() ? '' : 'none';
+
+    // 登出鈕：僅真登入身份（有 _role：editor/admin/superadmin）顯示；viewonly/none 無 _role、無 session 可登出
+    const logoutBtn = document.querySelector('.sb-logout');
+    if (logoutBtn) logoutBtn.style.display = (DATA.settings._role === 'editor' || DATA.settings._role === 'admin' || DATA.settings._role === 'superadmin') ? '' : 'none';
   },
 
   openProject(id, btn) {
@@ -8013,7 +8017,6 @@ App.renderSettings = function() {
           <div class="sync-status-text">
             目前登入：<b>${U.esc(s._loggedInEmail)}</b>${isAdmin() ? ' <span style="font-size:10.5px; background:var(--sage-100); color:var(--sage-700); padding:1px 6px; border-radius:8px; margin-left:6px;">👑 ADMIN</span>' : ''}
           </div>
-          <button class="tb-action ghost" onclick="App.googleSignOut()" style="font-size:11px; padding:4px 10px;">登出</button>
         </div>` : ''}
 
         ${isAdmin() ? `
@@ -8493,6 +8496,7 @@ App.googleSignOut = function() {
   if (!confirm('確定要登出？')) return;
   DATA.settings._loggedInEmail = '';
   DATA.settings._loggedInPicture = '';
+  DATA.settings._role = undefined;   // 登出清身份（否則 isAdmin() 仍 true，只是被 overlay 遮住）；auth_admin_bound 保留不清
   Storage.save();
   if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
     google.accounts.id.disableAutoSelect();

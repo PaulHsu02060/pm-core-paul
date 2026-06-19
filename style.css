@@ -192,6 +192,9 @@ button { cursor: pointer; }
 .sb-item.active { background: var(--sage-600); color: var(--sage-100); font-weight: 500; box-shadow: var(--shadow-sm); }
 .sb-item .ico { width: 16px; opacity: .65; }
 .sb-item.active .ico { opacity: 1; color: var(--sage-100); }
+/* 登出：危險色（深底上以淺玫瑰 rose-chip 取得對比，hover 沿用 sb-item 底色高亮） */
+.sb-logout { color: var(--rose-chip); }
+.sb-logout:hover { color: var(--rose-chip); }
 
 .sb-proj {
   display: flex; align-items: center; gap: 10px; padding: 7px 12px;
