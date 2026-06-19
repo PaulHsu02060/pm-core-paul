@@ -111,6 +111,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 欄寬：<col> 吃 token（table-layout:fixed 下生效）。寬度掛 col、對齊掛 td。 */
+.data-table col.col-num    { width: var(--col-num-w); }
+.data-table col.col-mid    { width: var(--col-mid-w); }
+.data-table col.col-action { width: var(--col-action-w); }
 
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
