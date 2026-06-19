@@ -97,39 +97,44 @@ function _roleOf(email) {
   return 'none';
 }
 
-// 名單寫入：email 只信 Google id_token 解出的；驗 aud + email_verified；
-// 該 email 須 admin/superadmin 才准寫；只能寫 editor/viewonly，絕不寫 ADMIN_EMAILS（防提權）。
-function _setList(body) {
-  // 1. 驗 JWT：tokeninfo，email 只信這裡解出的（絕不用 body 傳的 email）
+// 共用認證：驗 Google id_token（tokeninfo + aud + email_verified）+ caller 須 admin/superadmin。
+// 回 { ok:true, email, role } 或 { ok:false, resp:<_json 錯誤> }。setlist/getlists 共用，認證一致不漂移。
+function _authAdmin(body) {
   const idToken = String(body.id_token || '');
-  if (!idToken) return _json({ error: 'Missing id_token' });
+  if (!idToken) return { ok: false, resp: _json({ error: 'Missing id_token' }) };
+
   let info;
   try {
-    const resp = UrlFetchApp.fetch(
+    const r = UrlFetchApp.fetch(
       'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
       { muteHttpExceptions: true }
     );
-    if (resp.getResponseCode() !== 200) return _json({ error: 'Invalid token' }); // 過期/壞 token → 非 200
-    info = JSON.parse(resp.getContentText());
+    if (r.getResponseCode() !== 200) return { ok: false, resp: _json({ error: 'Invalid token' }) }; // 過期/壞 token
+    info = JSON.parse(r.getContentText());
   } catch (err) {
-    return _json({ error: 'Token verify failed' });
+    return { ok: false, resp: _json({ error: 'Token verify failed' }) };
   }
-  if (info.error) return _json({ error: 'Invalid token' });
+  if (info.error) return { ok: false, resp: _json({ error: 'Invalid token' }) };
 
-  // 2. 驗 aud === OAuth Client ID（讀 Script Property，不寫死）→ 防別 app token 冒用
+  // aud === OAuth Client ID（讀 Script Property，不寫死）→ 防別 app token 冒用
   const clientId = String(PropertiesService.getScriptProperties().getProperty('OAUTH_CLIENT_ID') || '');
-  if (!clientId || info.aud !== clientId) return _json({ error: 'aud mismatch' });
+  if (!clientId || info.aud !== clientId) return { ok: false, resp: _json({ error: 'aud mismatch' }) };
 
-  // 3. 驗 email_verified（過期已在上面非 200 擋掉）
-  if (String(info.email_verified) !== 'true') return _json({ error: 'email not verified' });
-  const callerEmail = String(info.email || '').toLowerCase().trim();
-  if (!callerEmail) return _json({ error: 'no email' });
+  if (String(info.email_verified) !== 'true') return { ok: false, resp: _json({ error: 'email not verified' }) };
+  const email = String(info.email || '').toLowerCase().trim();   // email 只信 tokeninfo 解出的
+  if (!email) return { ok: false, resp: _json({ error: 'no email' }) };
 
-  // 4. 寫入權限：caller 須 admin/superadmin（用 tokeninfo 的 email）
-  const role = _roleOf(callerEmail);
-  if (role !== 'admin' && role !== 'superadmin') return _json({ error: 'Forbidden' });
+  const role = _roleOf(email);
+  if (role !== 'admin' && role !== 'superadmin') return { ok: false, resp: _json({ error: 'Forbidden' }) };
 
-  // 5. 只准寫 editor/viewonly；ADMIN_EMAILS 不開放 setlist 寫（防把自己加 admin 提權）
+  return { ok: true, email: email, role: role };
+}
+
+// 名單寫入：只准 admin/superadmin；只能寫 editor/viewonly，絕不寫 ADMIN_EMAILS（防提權）。
+function _setList(body) {
+  const auth = _authAdmin(body);
+  if (!auth.ok) return auth.resp;
+
   const keyMap = { editor: 'ALLOWED_EMAILS', viewonly: 'VIEWONLY_EMAILS' };
   const propKey = keyMap[String(body.listType || '')];
   if (!propKey) return _json({ error: 'Invalid listType' });
@@ -138,6 +143,15 @@ function _setList(body) {
     .map(s => String(s || '').toLowerCase().trim()).filter(Boolean);
   PropertiesService.getScriptProperties().setProperty(propKey, emails.join(','));
   return _json({ ok: true });   // 不回名單內容
+}
+
+// 名單讀取：只准 admin/superadmin；回 editor/viewonly 兩份，絕不回 ADMIN_EMAILS（敏感）。
+function _getLists(body) {
+  const auth = _authAdmin(body);
+  if (!auth.ok) return auth.resp;
+
+  const props = PropertiesService.getScriptProperties();
+  return _json({ ok: true, editor: _list(props, 'ALLOWED_EMAILS'), viewonly: _list(props, 'VIEWONLY_EMAILS') });
 }
 
 function doPost(e) {
@@ -149,9 +163,12 @@ function doPost(e) {
       return _json({ error: 'Invalid JSON: ' + parseErr });
     }
 
-    // 名單寫入端點（JWT 驗證路；與同步寫入的 CHECK_TOKEN 路分開）
+    // 名單端點（JWT 驗證路；與同步寫入的 CHECK_TOKEN 路分開）
     if (body.action === 'setlist') {
       return _setList(body);
+    }
+    if (body.action === 'getlists') {
+      return _getLists(body);
     }
 
     if (ENABLE_TOKEN) {
