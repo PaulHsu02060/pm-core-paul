@@ -3343,7 +3343,7 @@ App.renderProjectDashboard = function(proj) {
           <div class="tlc-head">
             <span class="tlc-title">待辦任務</span>
             <span class="tlc-count">${activeCount}</span>
-            <button class="tb-action" data-edit onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:auto;">＋ 新增任務</button>
+            <button class="tb-action" onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:auto;">＋ 新增任務</button>
           </div>
           ${this.buildTaskFilterBar(proj.id)}
           <div class="task-row-header">
@@ -3887,7 +3887,7 @@ App.buildTaskRowHtml = function(t) {
     </div>
     <span style="font-size:12px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
     <span class="task-deadline ${dlClass}" style="text-align:center; font-size:12px;">${dlText}</span>
-    <div class="row-insert" data-edit>
+    <div class="row-insert">
       <button class="row-insert-btn" tabindex="-1" title="在此列下方插入任務"
               onclick="event.stopPropagation(); App._insertAfterId='${t.id}'; App.openNewTaskDialog('${t.project}');"><i class="ti ti-plus"></i></button>
     </div>
@@ -4812,7 +4812,7 @@ App.openTaskModal = function(id) {
     body: App.buildTaskFormHtml({ ...t, start: sch.start, end: sch.end }, 'edit')
       + `${historyHtml}`,
     footer: `
-      <button class="tb-action danger" onclick="App.deleteTask('${t.id}')" style="margin-right:auto;">刪除任務</button>
+      <button class="tb-action danger" data-edit-hide onclick="App.deleteTask('${t.id}')" style="margin-right:auto;">刪除任務</button>
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
       <button class="tb-action" data-edit-hide onclick="App.saveTask('${t.id}')">儲存</button>
     `,
@@ -5095,7 +5095,7 @@ App.openProjectDialog = function(projId) {
         ` : ''}
     `,
     footer: `
-      ${isEdit ? `<button class="tb-action danger" onclick="App.deleteProject('${projId}')" style="margin-right:auto;">刪除專案</button>` : ''}
+      ${isEdit ? `<button class="tb-action danger" data-edit-hide onclick="App.deleteProject('${projId}')" style="margin-right:auto;">刪除專案</button>` : ''}
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
       <button class="tb-action pf-btn-create" id="pf-submitBtn" data-edit-hide onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
       <button class="tb-action pf-btn-next" id="pf-nextBtn" onclick="App.saveProject('${projId || ''}')" style="display:none">下一步：檢視任務</button>
@@ -5700,6 +5700,7 @@ App.confirmDeptReassign = function(projId, deptId) {
 };
 
 App.deleteProject = function(id) {
+  if (App._roGuard()) return;
   const p = this.getProj(id);
   if (!p) return;
   const taskCnt = this.getTasksOf(id).length;
