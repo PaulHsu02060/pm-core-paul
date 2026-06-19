@@ -2035,6 +2035,13 @@ const App = {
       avatar.style.backgroundImage = '';
       avatar.textContent = name.charAt(0).toUpperCase();
     }
+    // userMode 統一依狀態顯示（單一真實來源）：viewonly > admin > editor
+    const um = document.getElementById('userMode');
+    if (um) {
+      if (document.body.classList.contains('viewonly')) um.textContent = 'VIEW ONLY';
+      else if (DATA.settings._role === 'admin') um.textContent = 'ADMIN';
+      else um.textContent = 'EDITOR';
+    }
   },
 
   updateWeekInfo() {
@@ -2053,7 +2060,7 @@ const App = {
       if (raw) {
         const c = JSON.parse(raw);
         if (c && c.until > Date.now() && c.h === CFG('editPasswordHash', '')) {
-          const um = document.getElementById('userMode'); if (um) um.textContent = 'EDITOR';
+          this.refreshUserBadge();
           document.getElementById('loginOverlay').classList.add('hidden');
           return;                                   // 有效 → 不進 viewonly（保持可編輯）
         }
@@ -2151,7 +2158,6 @@ const App = {
       // admin 或 editor → 編輯模式（_role 供 isAdmin() 判 admin 功能）
       DATA.settings.userName = name;
       DATA.settings._role = role;
-      document.getElementById('userMode').textContent = role === 'admin' ? 'ADMIN' : 'EDITOR';
       DATA.settings._loggedInEmail = email;
       DATA.settings._loggedInPicture = picture;
       Storage.save();
@@ -2201,7 +2207,7 @@ const App = {
   enterViewOnly() {
     document.body.classList.add('viewonly');
     document.getElementById('loginOverlay').classList.add('hidden');
-    document.getElementById('userMode').textContent = 'VIEW ONLY';
+    this.refreshUserBadge();
   },
 
   // 唯讀編輯守門（UX）：viewonly 時 toast 提示並回 true，呼叫端 `if (App._roGuard()) return;`。
@@ -8441,7 +8447,7 @@ App.unlockEdit = function() {
   const target = CFG('editPasswordHash', '');
   if (entered && U.hash(entered).toString() === target) {
     document.body.classList.remove('viewonly');
-    const um = document.getElementById('userMode'); if (um) um.textContent = 'EDITOR';
+    App.refreshUserBadge();
     if (input) input.value = '';
     // 乙方案：勾「記住我」才寫憑證（公開 hash + 到期5天）；不勾不寫、也不清既有憑證
     if (document.getElementById('unlock-remember')?.checked) {
