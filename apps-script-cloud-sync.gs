@@ -1,42 +1,25 @@
 /**
- * PM-Core · Cloud Sync API (v1.0)
- * ─────────────────────────────────────────────────────────
- * 跨裝置同步：把 PM-Core 全部資料存在一個 Google Sheet 裡，
- * 任何一台裝置都可以 GET / POST 同步。
+ * PM-Core · Cloud Sync API (v1.1)
+ * 跨裝置同步 + Google 帳號身份查詢（白名單藏後台 Script Properties）
  *
- * 使用方式：
- *   1. 新建一個 Google Sheet（命名隨意，例如 "PM-Core 雲端同步"）
- *   2. 開啟「擴充功能」→「Apps Script」
- *   3. 把這段程式碼貼到 Code.gs（全選刪除原本內容）
- *   4. 替換下方 SHEET_ID 為你新建 Sheet 的 ID（從網址抓）
- *      網址範例：https://docs.google.com/spreadsheets/d/【這串】/edit
- *   5. 部署 → 新部署 → 類型「網頁應用程式」
- *      - 執行身分：我
- *      - 存取對象：任何人（必要，要不然外部不能呼叫）
- *   6. 取得部署 URL，貼到 PM-Core 設定頁
- *
- * 安全性說明：
- *   - 部署 URL 看似公開，但 URL 本身夠長（128 個字元），無法被猜到
- *   - 若不放心可以加 token 驗證（見下方 CHECK_TOKEN）
- *   - 資料只在你的 Google 帳號中，不會外流
+ * ★ 這是線上實際部署在跑的版本（取代 repo 舊 v1.0 _syncToken 分支），存此建可回溯基準。
+ * ★ 脫敏：CHECK_TOKEN / CLOUD_SHEET_ID 明文已移至 Script Properties（public repo 不留密鑰）。
+ *   部署前置（否則同步/讀取會失效）：Apps Script 後台 → 專案設定 → Script Properties 需設：
+ *     - CHECK_TOKEN   = <同步 token>（與前端 APP_CONFIG.SYNC_TOKEN 成對；舊明文 token 已外露於開發過程，部署時建議換新值）
+ *     - SHEET_ID      = <雲端同步 Sheet 的 ID>
+ *     - ADMIN_EMAILS  = 逗號分隔 email（role 查詢回 admin）
+ *     - ALLOWED_EMAILS= 逗號分隔 email（role 查詢回 editor）
+ * ★ role 邏輯未改：仍為三層 admin/editor/none；§8f.3b superadmin/viewonly/isForeign/首登密鑰 留塊三後續。
  */
 
 // ═══════════════════════════════════════════════════════════════
-// 配置區（必須修改）
+// 配置區（值移至 Script Properties，源碼不留明文）
 // ═══════════════════════════════════════════════════════════════
-const CLOUD_SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE'; // ⚠️ 改成你的 Sheet ID
-const CLOUD_SHEET_NAME = 'data'; // 內部分頁名（自動建立）
+const CLOUD_SHEET_ID = PropertiesService.getScriptProperties().getProperty('SHEET_ID') || '';
+const CLOUD_SHEET_NAME = 'data';
 
-// ═══════════════════════════════════════════════════════════════
-// 可選：簡單 token 驗證（兩端必須一致）
-// 如不需要，把 ENABLE_TOKEN 改為 false
-// ═══════════════════════════════════════════════════════════════
 const ENABLE_TOKEN = true;
-// 與 app.js 的 cloudSyncToken 成對：改在函式內呼叫 _syncToken() 讀 APP_CONFIG.SYNC_TOKEN，
-// 避開 Apps Script 頂層載入順序問題；未載入時退回模板預設。
-function _syncToken() {
-  return (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.SYNC_TOKEN) || 'CHANGE_THIS_TOKEN';
-}
+const CHECK_TOKEN = PropertiesService.getScriptProperties().getProperty('CHECK_TOKEN') || '';
 
 // ═══════════════════════════════════════════════════════════════
 // 不要動以下程式碼
@@ -44,17 +27,27 @@ function _syncToken() {
 
 function doGet(e) {
   try {
-    if (ENABLE_TOKEN) {
-      const token = e?.parameter?.token || '';
-      if (token !== _syncToken()) {
-        return _json({ error: 'Invalid token' });
-      }
+    // 有人來問「我是什麼身份」→ 查櫃子回一個字（不回整份名單）
+    if (e && e.parameter && e.parameter.action === 'role') {
+      return _checkRole(e.parameter.email);
     }
     const data = _readData();
     return _json({ ok: true, data, ts: Date.now() });
   } catch (err) {
     return _json({ error: String(err), stack: err.stack });
   }
+}
+
+// 查櫃子裡的名單，只回 admin / editor / none，永遠不回整份名單
+function _checkRole(email) {
+  const target = String(email || '').toLowerCase().trim();
+  if (!target) return _json({ role: 'none' });
+  const props = PropertiesService.getScriptProperties();
+  const admins = (props.getProperty('ADMIN_EMAILS') || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+  const allowed = (props.getProperty('ALLOWED_EMAILS') || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+  if (admins.indexOf(target) >= 0) return _json({ role: 'admin' });
+  if (allowed.indexOf(target) >= 0) return _json({ role: 'editor' });
+  return _json({ role: 'none' });
 }
 
 function doPost(e) {
@@ -67,7 +60,7 @@ function doPost(e) {
     }
 
     if (ENABLE_TOKEN) {
-      if (body.token !== _syncToken()) {
+      if (body.token !== CHECK_TOKEN) {
         return _json({ error: 'Invalid token' });
       }
     }
@@ -87,7 +80,6 @@ function _readData() {
   const sheet = _getSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return null;
-  // 從 A2 起讀所有 chunks 並組合
   const range = sheet.getRange(2, 1, lastRow - 1, 1);
   const values = range.getValues();
   let json = '';
@@ -105,12 +97,10 @@ function _readData() {
 function _writeData(data) {
   const sheet = _getSheet();
   const ts = new Date().toISOString();
-  // 清空後寫入：第 1 列為 metadata，第 2 列起為 JSON chunks
   sheet.clear();
   sheet.getRange(1, 1).setValue('last_sync_ts');
   sheet.getRange(1, 2).setValue(ts);
 
-  // 把 JSON 字串切成每塊 45000 字元（避免單格 50000 限制）
   const json = JSON.stringify(data);
   const CHUNK_SIZE = 45000;
   const chunks = [];
@@ -118,9 +108,8 @@ function _writeData(data) {
     chunks.push([json.slice(i, i + CHUNK_SIZE)]);
   }
   if (chunks.length === 0) chunks.push(['']);
-  // 一次寫入到 A2:A(N+1)
   sheet.getRange(2, 1, chunks.length, 1).setValues(chunks);
-  console.log(`寫入 ${chunks.length} 個 chunks，總 ${json.length} 字元`);
+  console.log('寫入 ' + chunks.length + ' 個 chunks，總 ' + json.length + ' 字元');
 }
 
 function _getSheet() {
