@@ -2287,9 +2287,10 @@ const App = {
       DATA.settings._loggedInEmail = email;
       DATA.settings._loggedInPicture = picture;
       Storage.save();
-      this.refreshUserBadge();
       document.body.classList.remove('viewonly');
       document.getElementById('loginOverlay').classList.add('hidden');
+      this.refreshUserBadge();
+      this.refreshAll();   // ★ 重畫側邊欄，登入後即時算 setBtn 顯隱（admin 設定鈕出現），比照 setDevRole
       U.toast(`✓ 歡迎 ${name}`);
 
       // 非 admin 首次登入（沒設過雲端同步 URL）→ 顯示 onboarding 提示
