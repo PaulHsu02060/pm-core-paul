@@ -1167,6 +1167,17 @@ deadline 欄）。因 `task.deadline` 仍不存在（§6.6 未做），落地改
 
 ## 附錄：完成的 commit
 
+**2026-06-19（§8f.9 viewonly 可看不可改體驗，線上已驗 pass）：**
+- `7b55e21` 設定頁限 Admin 三道防線（showPage 攔截 + renderSettings 守衛 + 側欄隱藏）
+- `a10e4de` modal 寫入鈕 viewonly 隱藏（data-edit-hide 乙案，8 顆建立/儲存鈕）
+- `20a38c9` 建立專案拆「建立」「下一步」兩鈕（解 data-edit-hide 與預覽切換衝突）
+- `c21d7e8` viewonly 第一階段帶標準模板假資料 + 欄位 disabled
+- `6a1c808` 第二階段 viewonly 反灰（render 後一次 disabled）
+- `2530957` userMode 四處散寫收斂進 refreshUserBadge（單一真實來源）
+- `b856cc3` viewonly 改「入口可開 modal + 內部擋寫入」策略（甲）+ deleteProject 補 _roGuard
+- `6e0e9c6` saveProject _roGuard 下移，viewonly 可進第二階段預覽
+- 基準 HEAD：`6e0e9c6`，§8f.9 viewonly 體驗前端全部線上驗收 pass
+
 **2026-06-18（§12 甘特視圖主線，公司桌機+筆電 UI 直上 main）：**
 - `ac938a3` docs：§12 甘特定案（雙態白字/空框/逾期變色 + 連線依真實前置大階段 + 四單位預設週 + 6 變數對照）
 - `5c99868` §12 補 :root 三變數（--gantt-plan/done/holiday）
