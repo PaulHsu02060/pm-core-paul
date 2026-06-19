@@ -4577,7 +4577,7 @@ App.openNewTaskDialog = function(projId) {
     body: App.buildTaskFormHtml({ project: projId, start: D.fmt(D.today(), 'iso') }, 'new'),
     footer: `
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-      <button class="tb-action" onclick="App.saveNewTask('${projId}')">建立任務</button>
+      <button class="tb-action" data-edit-hide onclick="App.saveNewTask('${projId}')">建立任務</button>
     `,
   });
   // Auto-focus on name field
@@ -4593,7 +4593,7 @@ App.openHoursTaskDialog = function() {
     title: '新增小時 Task',
     body: App.buildTaskFormHtml({ start: D.fmt(D.today(), 'iso') }, 'new', 'hours'),
     footer: `<button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-             <button class="tb-action" onclick="App.saveNewTask()">建立任務</button>`,
+             <button class="tb-action" data-edit-hide onclick="App.saveNewTask()">建立任務</button>`,
   });
   setTimeout(() => { const n = document.getElementById('tf-name'); if (n) n.focus(); }, 50);
 };
@@ -4744,7 +4744,7 @@ App.openTaskModal = function(id) {
       footer: `
         ${hasOverride ? `<button class="tb-action ghost" onclick="App.resetJOverride('${t.id}')" style="margin-right:auto;">↺ 重置為 Sheet 原值</button>` : '<div style="flex:1"></div>'}
         <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-        <button class="tb-action" onclick="App.saveJSchedule('${t.id}')">儲存時程</button>
+        <button class="tb-action" data-edit-hide onclick="App.saveJSchedule('${t.id}')">儲存時程</button>
       `,
     });
     return;
@@ -4808,7 +4808,7 @@ App.openTaskModal = function(id) {
     footer: `
       <button class="tb-action danger" onclick="App.deleteTask('${t.id}')" style="margin-right:auto;">刪除任務</button>
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-      <button class="tb-action" onclick="App.saveTask('${t.id}')">儲存</button>
+      <button class="tb-action" data-edit-hide onclick="App.saveTask('${t.id}')">儲存</button>
     `,
   });
 };
@@ -5091,7 +5091,7 @@ App.openProjectDialog = function(projId) {
     footer: `
       ${isEdit ? `<button class="tb-action danger" onclick="App.deleteProject('${projId}')" style="margin-right:auto;">刪除專案</button>` : ''}
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-      <button class="tb-action" id="pf-submitBtn" onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
+      <button class="tb-action" data-edit-hide id="pf-submitBtn" onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
     `,
   });
 };
@@ -5259,7 +5259,7 @@ App._renderStage2 = function() {
       (n => n > 0 ? '<div class="s2-unassigned-bar">⚠ 還有 ' + n + ' 個任務未指派負責人</div>' : '')((res.tasks || []).filter(t => !t.owner).length) +
       '<div class="stage2-foot">' +
         '<button class="tb-action ghost" onclick="App._stage2Back()">上一步</button>' +
-        '<button class="tb-action" onclick="App._stage2Commit()">建立專案</button>' +
+        '<button class="tb-action" data-edit-hide onclick="App._stage2Commit()">建立專案</button>' +
       '</div>' +
     '</div>';
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -8198,7 +8198,7 @@ App.openRecurringMeetingDialog = function(id) {
     `,
     footer: `
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-      <button class="tb-action" onclick="App.saveRecurringMeeting('${id || ''}')">${isNew ? '新增' : '儲存'}</button>
+      <button class="tb-action" data-edit-hide onclick="App.saveRecurringMeeting('${id || ''}')">${isNew ? '新增' : '儲存'}</button>
     `,
   });
   setTimeout(() => {
@@ -8322,7 +8322,7 @@ App.openSpecialMeetingDialog = function(id) {
     `,
     footer: `
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-      <button class="tb-action" onclick="App.saveSpecialMeeting('${id || ''}')">${isNew ? '新增' : '儲存'}</button>
+      <button class="tb-action" data-edit-hide onclick="App.saveSpecialMeeting('${id || ''}')">${isNew ? '新增' : '儲存'}</button>
     `,
   });
   setTimeout(() => { document.getElementById('smtform-title')?.focus(); }, 50);

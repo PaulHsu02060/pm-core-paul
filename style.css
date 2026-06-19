@@ -271,6 +271,7 @@ button { cursor: pointer; }
 }
 body.viewonly .viewonly-banner { display: flex; }
 body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
+body.viewonly [data-edit-hide] { display: none !important; }
 body.viewonly .cloud-sync-sec { display: none; }
 body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後才顯示（同 cloud-sync-sec 機制） */
 
