@@ -2266,7 +2266,7 @@ const App = {
     this.projectView = view;
     if (view === 'dashboard') { this.renderProject(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (view === 'gantt') { this.ganttProjectFilter = new Set([this.currentProjectId]); this.ganttStageFilter = null; this.ganttOwnerFilter = null; }
-    document.getElementById('page-project').innerHTML = '<div class="view-tabs-bar">' + this.buildProjectViewTabsHtml() + '</div><div id="proj-view-body"></div>';
+    document.getElementById('page-project').innerHTML = this.buildProjectHeaderHtml() + '<div class="view-tabs-bar">' + this.buildProjectViewTabsHtml() + '</div><div id="proj-view-body"></div>';
     if (view === 'gantt') this.renderGantt('proj-view-body', true);
     if (view === 'month') this.renderMonth('proj-view-body', this.currentProjectId);
     if (view === 'kanban') this.renderKanban('proj-view-body', this.currentProjectId);
