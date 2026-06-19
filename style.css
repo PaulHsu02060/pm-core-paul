@@ -696,8 +696,8 @@ body.viewonly .cloud-sync-sec { display: none; }
 .task-grid {
   display: grid;
   grid-template-columns:
-    auto minmax(auto, 120px) minmax(160px, 3fr) auto
-    minmax(auto, 110px) minmax(auto, 120px) auto auto auto auto;
+    auto minmax(auto, 120px) minmax(160px, 2.5fr) auto
+    minmax(auto, 110px) minmax(auto, 120px) auto minmax(150px, 1fr) auto auto;
   gap: 0 14px;
 }
 .task-grid > .done-toggle-bar,
