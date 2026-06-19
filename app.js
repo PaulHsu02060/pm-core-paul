@@ -8971,7 +8971,7 @@ App.openWbsImport = function() {
       <div id="wbsImportPreview" style="display:none; margin-top:14px;">
         <div id="wbsImportStats" style="padding:10px 14px; background:var(--sage-50); border-radius:8px; font-size:12px; margin-bottom:10px;"></div>
         <div style="max-height:280px; overflow-y:auto; border:1px solid var(--rule); border-radius:8px;">
-          <table id="wbsImportTable" style="width:100%; border-collapse:collapse; font-size:11.5px;"></table>
+          <table id="wbsImportTable" class="data-table" style="font-size:11.5px;"></table>
         </div>
       </div>
 
@@ -9012,19 +9012,20 @@ App.openWbsImport = function() {
           `　|　完成 <b>${done}</b>　進行中 <b>${wip}</b>　|　<b style="color:var(--ink3);">確定後將清空舊 J 任務重灌</b>`;
       }
       if (table) {
-        const head = `<thead><tr style="background:var(--surface2); text-align:left;">` +
-          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">N</th>` +
-          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">任務名</th>` +
-          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">前置</th>` +
-          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">進度</th>` +
-          `<th style="padding:6px 8px; border-bottom:1px solid var(--rule);">狀態</th></tr></thead>`;
+        const head = `<colgroup><col class="col-num"><col class="col-flex"><col class="col-mid"><col class="col-num"><col class="col-num"></colgroup>` +
+          `<thead><tr>` +
+          `<th class="col-num">N</th>` +
+          `<th class="col-flex">任務名</th>` +
+          `<th class="col-mid">前置</th>` +
+          `<th class="col-num">進度</th>` +
+          `<th class="col-num">狀態</th></tr></thead>`;
         const body = parsed.rows.slice(0, 8).map(r =>
-          `<tr><td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono);">${U.esc(r.wbs)}</td>` +
-          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${U.esc(r.name)}</td>` +
-          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono);">${U.esc(r.predecessor)}</td>` +
-          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${r.progress}%</td>` +
-          `<td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${U.esc(r.status)}</td></tr>`).join('');
-        const more = parsed.rows.length > 8 ? `<tr><td colspan="5" style="padding:6px 8px; color:var(--ink3);">…還有 ${parsed.rows.length - 8} 筆</td></tr>` : '';
+          `<tr><td class="col-num" style="font-family:var(--mono);">${U.esc(r.wbs)}</td>` +
+          `<td class="col-flex" title="${U.esc(r.name)}">${U.esc(r.name)}</td>` +
+          `<td class="col-mid" style="font-family:var(--mono);" title="${U.esc(r.predecessor)}">${U.esc(r.predecessor)}</td>` +
+          `<td class="col-num">${r.progress}%</td>` +
+          `<td class="col-num">${U.esc(r.status)}</td></tr>`).join('');
+        const more = parsed.rows.length > 8 ? `<tr><td colspan="5" style="color:var(--ink3);">…還有 ${parsed.rows.length - 8} 筆</td></tr>` : '';
         table.innerHTML = head + '<tbody>' + body + more + '</tbody>';
       }
       document.getElementById('wbsImportPreview').style.display = 'block';
