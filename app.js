@@ -5288,6 +5288,10 @@ App._renderStage2 = function() {
         '<button class="tb-action" data-edit-hide onclick="App._stage2Commit()">建立專案</button>' +
       '</div>' +
     '</div>';
+  // §8f.9 viewonly 第二階段：所有可編輯控制項 disabled（純展示，不可改）；建立鈕已 data-edit-hide + _roGuard 雙防
+  if (document.body.classList.contains('viewonly')) {
+    document.querySelectorAll('#page-stage2 input, #page-stage2 select, #page-stage2 .s2-del, #page-stage2 .s2-ins').forEach(el => { el.disabled = true; });
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
