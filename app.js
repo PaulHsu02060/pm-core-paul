@@ -2213,6 +2213,7 @@ const App = {
 
   // ─── PAGE NAV ───
   showPage(name, btn) {
+    if (name === 'settings' && !isAdmin()) { return this.showPage('dashboard', document.querySelector('[data-page=dashboard]')); }
     this.currentPage = name;
     if (name === 'dashboard') this.currentView = 'dashboard';
     if (name === 'project') this.projectView = 'dashboard';
@@ -2314,6 +2315,9 @@ const App = {
     } else {
       syncInfo.style.display = 'none';
     }
+
+    const setBtn = document.querySelector('[data-page=settings]');
+    if (setBtn) setBtn.style.display = isAdmin() ? '' : 'none';
   },
 
   openProject(id, btn) {
@@ -7522,6 +7526,7 @@ App.buildLoadedHolidaysHtml = function() {
 };
 
 App.renderSettings = function() {
+  if (!isAdmin()) return;
   const s = DATA.settings;
   const log = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
   const syncOk = !!log.syncedAt;
