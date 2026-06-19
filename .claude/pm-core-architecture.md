@@ -1319,6 +1319,16 @@ deadline 欄）。因 `task.deadline` 仍不存在（§6.6 未做），落地改
 
 ## 附錄：完成的 commit
 
+**2026-06-20（共用表格規範 .data-table，§8g 治本主線）：**
+- `dcae482`/`0804c8a` 待辦 subgrid 步2 + 剩餘空間分散 `[unverified]`
+- `f8c539f` docs：第八部分之七 規範定案（統一 `<table>` 路線①）
+- `0e4feda` 步1 地基（:root token + .data-table + 4 欄類型 class，dormant）
+- `a25ef64` docs：§8g 補強（col/td 兩用 + ISO 日期歸 col-mid + 遷移序）
+- `8651a4e` 步1.5 colgroup 寬度 CSS（col.col-* 接 token）
+- `504510c` docs：Path X 排除 rp-table + 試金石改 WBS 單表
+- `2b182ed` 步2 試金石：WBS 匯入預覽套 .data-table `[unverified]`
+- 基準 HEAD：`2b182ed`；下次第一件事：補驗步2（硬重整 → 匯入 WBS modal → 拖檔看預覽：深 sage 表頭/五欄對齊/zebra），驗通才接步3（Excel 預覽調欄/任務史/PDCA → cal-row → s2 → 待辦）。
+
 **2026-06-19（§8f.9 viewonly 可看不可改體驗，線上已驗 pass）：**
 - `7b55e21` 設定頁限 Admin 三道防線（showPage 攔截 + renderSettings 守衛 + 側欄隱藏）
 - `a10e4de` modal 寫入鈕 viewonly 隱藏（data-edit-hide 乙案，8 顆建立/儲存鈕）
