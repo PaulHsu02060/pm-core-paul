@@ -5165,7 +5165,6 @@ App._showTplWarnings = function(warnings) {
 };
 
 App.saveProject = function(id) {
-  if (App._roGuard()) return;
   const name = document.getElementById('pf-name').value.trim();
   if (!name) { U.toast('⚠ 請填專案名稱', 'warning'); return; }
   const colorEl = document.querySelector('.cp-swatch.on');
@@ -5173,6 +5172,7 @@ App.saveProject = function(id) {
   const note = document.getElementById('pf-note').value.trim();
 
   if (id) {
+    if (App._roGuard()) return;
     const p = this.getProj(id);
     if (p && !p.synced) { p.name = name; p.color = color; p.note = note; }
   } else {
@@ -5222,6 +5222,7 @@ App.saveProject = function(id) {
       this._renderStage2();
       return;
     }
+    if (App._roGuard()) return;
     const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
     ensurePdcaData(np);
     DATA.projects.push(np);
