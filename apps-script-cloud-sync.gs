@@ -29,7 +29,7 @@ function doGet(e) {
   try {
     // 有人來問「我是什麼身份」→ 查櫃子回一個字（不回整份名單）
     if (e && e.parameter && e.parameter.action === 'role') {
-      return _checkRole(e.parameter.email);
+      return _checkRole(e.parameter.email, e.parameter.setupKey);
     }
     const data = _readData();
     return _json({ ok: true, data, ts: Date.now() });
@@ -38,16 +38,50 @@ function doGet(e) {
   }
 }
 
-// 查櫃子裡的名單，只回 admin / editor / none，永遠不回整份名單
-function _checkRole(email) {
+// 查櫃子裡的名單，只回單一身份字串（superadmin/admin/editor/viewonly/none），永不回整份名單。
+// 首登綁定（§8f.6）：ADMIN_EMAILS 空 + 帶對 SETUP_KEY → 一次性寫入此 email 為 admin。
+function _checkRole(email, setupKey) {
   const target = String(email || '').toLowerCase().trim();
   if (!target) return _json({ role: 'none' });
+
   const props = PropertiesService.getScriptProperties();
-  const admins = (props.getProperty('ADMIN_EMAILS') || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
-  const allowed = (props.getProperty('ALLOWED_EMAILS') || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
-  if (admins.indexOf(target) >= 0) return _json({ role: 'admin' });
-  if (allowed.indexOf(target) >= 0) return _json({ role: 'editor' });
+  const superEmail = String(props.getProperty('SUPERADMIN_EMAIL') || '').toLowerCase().trim();
+  const admins   = _list(props, 'ADMIN_EMAILS');
+  const allowed  = _list(props, 'ALLOWED_EMAILS');
+  const viewonly = _list(props, 'VIEWONLY_EMAILS');
+
+  // a. SuperAdmin（§8f.3b 後門）：進他人副本（已綁 admin 且不含自己）→ isForeign 警示
+  if (superEmail && target === superEmail) {
+    const isForeign = admins.length > 0 && admins.indexOf(superEmail) < 0;
+    return isForeign ? _json({ role: 'superadmin', isForeign: true }) : _json({ role: 'superadmin' });
+  }
+
+  // b. 首登綁定（§8f.6）：本副本尚無 admin + 帶對首登密鑰 → 一次性綁定（LockService 防競爭）
+  const SETUP_KEY = String(props.getProperty('SETUP_KEY') || '');
+  if (admins.length === 0 && SETUP_KEY && String(setupKey || '') === SETUP_KEY) {
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(5000);
+      if (_list(props, 'ADMIN_EMAILS').length === 0) {   // 取鎖後重讀，競爭防護
+        props.setProperty('ADMIN_EMAILS', target);
+        return _json({ role: 'admin' });
+      }
+      // 競爭落敗（已被別人綁）→ 不寫，往下照名單判斷
+    } finally {
+      lock.releaseLock();
+    }
+  }
+
+  // c~f. 名單判斷（admin > editor > viewonly > none）
+  if (admins.indexOf(target) >= 0)   return _json({ role: 'admin' });
+  if (allowed.indexOf(target) >= 0)  return _json({ role: 'editor' });
+  if (viewonly.indexOf(target) >= 0) return _json({ role: 'viewonly' });
   return _json({ role: 'none' });
+}
+
+// Script Property 逗號名單 → 正規化小寫去空陣列
+function _list(props, key) {
+  return (props.getProperty(key) || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
 }
 
 function doPost(e) {
