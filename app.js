@@ -1011,6 +1011,17 @@ function translatePredToId(predStr, wbsToIdMap) {
   return out.join(',');
 }
 
+// 待辦列表前置白話（live，吃 DATA.tasks）：無→「—」/單→「接在《X》後」/多→「接在 N 項後」
+function prettyPredecessor(predStr) {
+  const preds = parsePredecessors(predStr);
+  if (!preds.length) return '—';
+  if (preds.length === 1) {
+    const dep = DATA.tasks.find(x => x.id === preds[0].dep);
+    return dep ? '接在《' + dep.name + '》後' : '接在 1 項後';
+  }
+  return '接在 ' + preds.length + ' 項後';
+}
+
 // 解析 predecessor 前置任務字串 → [{dep, type, lag}]
 // 支援兩種格式（同一字串可用逗號/分號分隔多個前置，可混用）：
 //   1. 純編號：'5' 或 '5,6'        → {dep:'5', type:'FS', lag:0}
@@ -3510,7 +3521,7 @@ App.renderProjectDashboard = function(proj) {
             <span style="text-align:left;">任務</span>
             <span style="text-align:left;">進度%</span>
             <span style="text-align:center;">負責人</span>
-            <span style="text-align:center;">緊急程度</span>
+            <span style="text-align:left;">前置任務</span>
             <span style="text-align:center;">狀態</span>
             <span style="text-align:left;">預計時程（開始→結束）</span>
             <span style="text-align:center;">餘裕（天）</span>
@@ -4037,7 +4048,7 @@ App.buildTaskRowHtml = function(t) {
       <span style="font-family:var(--mono); font-size:10.5px; color:var(--ink3); min-width:30px; text-align:right;">${pct}%</span>
     </div>
     <span style="font-size:12px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
-    <span style="display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; color:var(--ink2);"><span class="task-urg ${t.urgency || 'medium'}"></span>${URGENCY_LABELS_ZH[t.urgency] || URGENCY_LABELS_ZH.medium}</span>
+    <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="點此列可編輯前置">${U.esc(prettyPredecessor(t.predecessor))}</span>
     <span class="rp-status ${statusCls}" style="text-align:center;">${statusTxt}</span>
     <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
       <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
