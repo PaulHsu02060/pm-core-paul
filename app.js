@@ -322,6 +322,7 @@ const CloudSync = {
         cloudSyncToken: DATA.settings.cloudSyncToken,
         cloudSyncEnabled: DATA.settings.cloudSyncEnabled,
         cloudAutoSync: DATA.settings.cloudAutoSync,
+        _role: DATA.settings._role,   // 本地 session 身份，不被沒帶 _role 的雲端 blob 洗掉
       };
 
       DATA.projects = cloud.projects || [];
