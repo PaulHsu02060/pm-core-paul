@@ -1011,10 +1011,17 @@ function translatePredToId(predStr, wbsToIdMap) {
   return out.join(',');
 }
 
-// 待辦列表前置白話（live，吃 DATA.tasks）：無→「—」/單→「接在《X》後」/多→「接在 N 項後」
+// 待辦列表前置：顯示「接在 #N 後」（N=_seqOf）。無→「—」；多筆→「接在 #3、#5 後」。
 function prettyPredecessor(predStr) {
   const preds = parsePredecessors(predStr);
   if (!preds.length) return '—';
+  return '接在 ' + preds.map(p => '#' + App._seqOf(p.dep)).join('、') + ' 後';
+}
+
+// 前置 title 全名白話（序號看不懂時 hover 補救）：無→''；單→「接在《X》後」；多→「接在 N 項後」。
+function predTitleOf(predStr) {
+  const preds = parsePredecessors(predStr);
+  if (!preds.length) return '';
   if (preds.length === 1) {
     const dep = DATA.tasks.find(x => x.id === preds[0].dep);
     return dep ? '接在《' + dep.name + '》後' : '接在 1 項後';
@@ -4033,7 +4040,7 @@ App.buildTaskRowHtml = function(t) {
     }
   }
 
-  return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" onclick="App.openTaskModal('${t.id}')">
+  return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
     <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${App._seqOf(t.id)}</span>
     <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.stage || '—')}</span>
     <div class="task-info">
@@ -4048,7 +4055,7 @@ App.buildTaskRowHtml = function(t) {
       <span style="font-family:var(--mono); font-size:10.5px; color:var(--ink3); min-width:30px; text-align:right;">${pct}%</span>
     </div>
     <span style="font-size:12px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
-    <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="點此列可編輯前置">${U.esc(prettyPredecessor(t.predecessor))}</span>
+    <span class="task-pred" data-preds="${parsePredecessors(t.predecessor).map(p => p.dep).join(',')}" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()" title="${U.esc(predTitleOf(t.predecessor))}" style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:default;">${U.esc(prettyPredecessor(t.predecessor))}</span>
     <span class="rp-status ${statusCls}" style="text-align:center;">${statusTxt}</span>
     <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
       <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>

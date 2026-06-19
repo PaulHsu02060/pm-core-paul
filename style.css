@@ -722,6 +722,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .task-row:hover { background: var(--surface2); }
 .task-row.synced { background: rgba(74,124,92,.02); }
 .task-row.synced:hover { background: var(--sage-50); }
+.task-row.s2-pred-hl { background: var(--terracotta-l); }   /* 前置 hover 反色，特異度(0,2,0)+置於 nth-child 後勝出 */
 /* 列交界 hover 插入（§8b 中間插入 UI 殼；只在 active 清單開、末列不放）*/
 .row-insert {
   position: absolute; left: 0; right: 0; bottom: -9px; height: 18px;
