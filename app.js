@@ -3509,7 +3509,7 @@ App.renderProjectDashboard = function(proj) {
     activeListInner = visible.map(t => this.buildTaskRowHtml(t)).join('');
   } else {
     const datedRows = visible.slice(0, firstUndated).map(t => this.buildTaskRowHtml(t)).join('');
-    const undatedRows = visible.slice(firstUndated).map(t => this.buildTaskRowHtml(t)).join('');
+    const undatedRows = visible.slice(firstUndated).map(t => this.buildTaskRowHtml(t, 'undated')).join('');
     const undatedCount = visible.length - firstUndated;
     activeListInner = datedRows +
       `<div class="toschedule-bar ${tsCollapsed}" onclick="App.toggleToScheduleVisible('${proj.id}')">
@@ -3517,8 +3517,8 @@ App.renderProjectDashboard = function(proj) {
             <span class="done-head-title">待排</span>
             <span class="done-head-count">${undatedCount}</span>
             <span class="done-toggle-note">${toScheduleVisible ? '未填開始日（補開始日或前置即排入）' : '已收合'}</span>
-          </div>
-          <div class="toschedule-group ${tsCollapsed}">${undatedRows}</div>`;
+          </div>` +
+          undatedRows;
   }
 
   return `    ${this.buildProjKpiHtml(proj)}
@@ -3538,27 +3538,28 @@ App.renderProjectDashboard = function(proj) {
             <button class="tb-action" onclick="App.openNewTaskDialog('${proj.id}')" style="margin-left:auto;">＋ 新增任務</button>
           </div>
           ${this.buildTaskFilterBar(proj.id)}
-          <div class="task-row-header">
-            <span style="text-align:center;">序</span>
-            <span style="text-align:left;">階段</span>
-            <span style="text-align:left;">任務</span>
-            <span style="text-align:left;">進度%</span>
-            <span style="text-align:center;">負責人</span>
-            <span style="text-align:left;">前置任務</span>
-            <span style="text-align:center;">狀態</span>
-            <span style="text-align:left;">預計時程（開始→結束）</span>
-            <span style="text-align:center;">餘裕（天）</span>
-            <span style="text-align:center;">截止日</span>
-          </div>
-          ${doneCount > 0 ? `
-          <div class="done-toggle-bar ${doneVisible ? '' : 'collapsed'}" onclick="App.toggleDoneVisible('${proj.id}')">
-            <span class="done-head-chevron">▼</span>
-            <span class="done-head-title">已完成</span>
-            <span class="done-head-count">${doneCount}</span>
-            <span class="done-toggle-note">${doneVisible ? '原位顯示（灰字刪除線）' : '已收合'}</span>
-          </div>` : ''}
           <!-- 第二刀-A 已接線：applyTaskFilter(ordered, getTaskFilter) 四 Set 過濾 → filtered，下游 counts／預覽／visible 全吃 filtered；獨立過濾不碰 filterTasks（看板專用）。 -->
-          <div id="activeTaskList" class="${doneVisible ? '' : 'hide-done'}">
+          <!-- subgrid 步2：單一 .task-grid 父，header/done-bar/各列直屬，欄軌共用自動算；hide-done/ts-collapsed 摺疊 class 烤在父上。 -->
+          <div id="activeTaskList" class="task-grid${doneVisible ? '' : ' hide-done'}${toScheduleVisible ? '' : ' ts-collapsed'}">
+            <div class="task-row-header">
+              <span style="text-align:center;">序</span>
+              <span style="text-align:left;">階段</span>
+              <span style="text-align:left;">任務</span>
+              <span style="text-align:left;">進度%</span>
+              <span style="text-align:center;">負責人</span>
+              <span style="text-align:left;">前置任務</span>
+              <span style="text-align:center;">狀態</span>
+              <span style="text-align:left;">預計時程（開始→結束）</span>
+              <span style="text-align:center;">餘裕（天）</span>
+              <span style="text-align:center;">截止日</span>
+            </div>
+            ${doneCount > 0 ? `
+            <div class="done-toggle-bar ${doneVisible ? '' : 'collapsed'}" onclick="App.toggleDoneVisible('${proj.id}')">
+              <span class="done-head-chevron">▼</span>
+              <span class="done-head-title">已完成</span>
+              <span class="done-head-count">${doneCount}</span>
+              <span class="done-toggle-note">${doneVisible ? '原位顯示（灰字刪除線）' : '已收合'}</span>
+            </div>` : ''}
             ${activeListInner}
           </div>
           ${!showAll ? `
@@ -4008,7 +4009,7 @@ App.cleanExpiredDeletedTasks = function() {
   }
 };
 
-App.buildTaskRowHtml = function(t) {
+App.buildTaskRowHtml = function(t, cls) {
   const sch = getEffectiveSchedule(t);
   const cat = t.taskType === 'milestone' ? 'milestone' : (t.category || 'deep');  // M2-T3：milestone 優先於 category，修 WBS 里程碑誤顯「會議」tag
   const isPreview = !DATA.settings.previewWeeks ? false : (
@@ -4056,7 +4057,7 @@ App.buildTaskRowHtml = function(t) {
     }
   }
 
-  return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
+  return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
     <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${App._seqOf(t.id)}</span>
     <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.stage || '—')}</span>
     <div class="task-info">

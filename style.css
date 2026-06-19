@@ -681,8 +681,8 @@ body.viewonly .cloud-sync-sec { display: none; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
-  display: grid; grid-template-columns: 0.5fr 1.1fr 2.8fr 1.3fr 1.0fr 1.0fr 0.8fr 1.5fr 0.8fr 0.8fr;
-  gap: 14px; align-items: center; padding: 11px 16px;
+  display: grid; grid-template-columns: subgrid; grid-column: 1 / -1;
+  align-items: center; padding: 11px 16px;
 }
 .task-row {
   position: relative; border-bottom: 1px solid var(--rule); transition: background .12s; cursor: pointer;
@@ -736,7 +736,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .tf-panel-foot button { flex: 1; border: 1px solid var(--rule2); background: var(--surface); border-radius: var(--r6); padding: 4px; font-size: 11px; color: var(--ink2); cursor: pointer; }
 .tf-panel-foot button:hover { background: var(--surface2); }
 .task-row:last-child { border-bottom: none; }
-.task-row:nth-child(even) { background: var(--cream); }
+.task-row:nth-child(even of .task-row) { background: var(--cream); }
 .task-row:hover { background: var(--surface2); }
 .task-row.synced { background: rgba(74,124,92,.02); }
 .task-row.synced:hover { background: var(--sage-50); }
