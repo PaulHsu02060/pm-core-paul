@@ -72,7 +72,46 @@
   --blockout-bg: rgba(15, 18, 24, 0.96);   /* 深近不透明遮罩底 */
   --blockout-fg: var(--ink-inverse);        /* 深底反白字，複用既有 */
   --z-blockout: 1050;   /* 高於 login overlay(1000)、低於 DEV 面板(1100) 讓切換器保持可點 */
+  --col-num-w: 4rem;
+  --col-mid-w: 8rem;
+  --col-action-w: 2.5rem;
 }
+
+/* ── 共用表格規範 .data-table（架構文件 §8g）─────────────────
+   寬度由 colgroup + table-layout:fixed 決定（欄寬走上方 --col-*-w token）；
+   欄類型 class 只管對齊/截斷，不含寬度。色彩全複用既有變數，零寫死 hex。*/
+.data-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid var(--rule);
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.data-table thead th {
+  background: var(--head-band-strong);
+  color: var(--ink-inverse);
+  text-align: left;
+  font-weight: 600;
+}
+.data-table tbody tr:nth-child(even) { background: var(--cream); }
+.data-table tbody tr:hover { background: var(--surface2); }
+
+/* 欄類型語彙（只管對齊/截斷；寬度由 colgroup 給）*/
+.data-table .col-num    { text-align: center; }
+.data-table .col-action { text-align: center; }
+.data-table .col-mid,
+.data-table .col-flex {
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; min-height: 100vh; }
