@@ -16,7 +16,7 @@
 var APP_CONFIG = {
   CLOUD_SHEET_ID: 'PASTE_YOUR_SHEET_ID_HERE',
   CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbwDzSs44F4AENfeQKEBX_xrYH7Y38wsvAn4iYY9lXLewQUppbyaKRgBQVmAfU1W2uYNSg/exec',  // 公開讀 doGet exec URL（進 git、全公開；非 token）
-  ROLE_CHECK_URL: 'https://script.google.com/macros/s/AKfycbx6pD0mKpntDx6VNsun7RJnCiLHVIj_Ikdc-gp3mgbPddzLvrd-DBmo06dJJ8UkKuM4jQ/exec',  // Auth 三層角色查詢：前端接 ?action=role&email=，後端只回單一 email 的 role（名單存 Script Properties 不入 git；此 exec URL 公開可進 git）
+  ROLE_CHECK_URL: 'https://script.google.com/macros/s/AKfycbwTvHOgTGkCRPtBbXEVsQx8A46GbWCN2AEeBephTyz_-Kjo2_H4PoE1iumE0syZm7l1LA/exec',  // Auth role 查詢 + 名單 getlists/setlist：含 getlists 的最新 .gs 部署（名單/密鑰存 Script Properties 不入 git；此 exec URL 公開可進 git）
   WBS_SHEET_NAME: 'WBS主表',
   OAUTH_CLIENT_ID: '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com',
   SYNC_TOKEN: 'CHANGE_THIS_TOKEN',
