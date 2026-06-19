@@ -44,7 +44,7 @@ const DEFAULT_OAUTH_CLIENT_ID = CFG('OAUTH_CLIENT_ID', 'PASTE_YOUR_OAUTH_CLIENT_
 // helper：當前登入的 Gmail 是不是 admin
 function isAdmin() {
   // role 由後台 ROLE_CHECK_URL 查得後存 _role（接 Auth 三層）；不再讀 config ADMIN_EMAILS（線上空）。
-  return (typeof DATA !== 'undefined' && DATA.settings && DATA.settings._role === 'admin');
+  return (typeof DATA !== 'undefined' && DATA.settings && (DATA.settings._role === 'admin' || DATA.settings._role === 'superadmin'));
 }
 
 // build hash 用於辨識：把作者名 + 重要常數 hash 起來
@@ -1975,16 +1975,21 @@ const Auth = {
   setDevRole(role) {
     localStorage.setItem('auth_dev_role', role);
     DATA.settings._role = (role === 'admin' || role === 'superadmin' || role === 'editor') ? role : undefined;
-    if (role === 'viewonly' || role === 'none') {
+    if (role === 'viewonly') {
       document.body.classList.add('viewonly');
+    } else if (role === 'none') {
+      Auth.enterBlockout();
     } else {
       document.body.classList.remove('viewonly');
     }
-    // none → 之後（②）會接 enterBlockout；本階段先當 viewonly 處理，②再拆
+    // 切到非 none 身份時收掉殘留擋頁（none→其他身份切回去不殘留）
+    const bo = document.getElementById('authBlockout');
+    if (bo && role !== 'none') bo.classList.add('hidden');
     Storage.save();
     App.refreshUserBadge();
     App.refreshAll();
     U.toast('🔧 [DEV] 切換身份：' + role, 'info');
+    Auth.renderDevPanel(); // 重畫面板讓「目前：」即時更新切後身份
   },
 
   // 渲染浮動切換面板（DEV_MODE 才顯示，角落固定）
@@ -2003,6 +2008,26 @@ const Auth = {
       ['superadmin', 'admin', 'editor', 'viewonly', 'none'].map(r =>
         '<button class="adp-btn" onclick="Auth.setDevRole(\'' + r + '\')">' + r + '</button>'
       ).join('');
+  },
+
+  // none / Can't view：全屏擋頁，只 render 自己、不碰 task/project 資料（§8f.5 / §8f.8b 隔離紀律）
+  enterBlockout() {
+    document.body.classList.remove('viewonly'); // 擋頁不是唯讀，清掉 viewonly class
+    const ov = document.getElementById('loginOverlay');
+    if (ov) ov.classList.add('hidden'); // 登入框也藏掉，只剩擋頁
+    let el = document.getElementById('authBlockout');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'authBlockout';
+      el.innerHTML = '<div>您沒有檢視權限，請聯絡管理員</div>';
+      document.body.appendChild(el);
+    }
+    el.classList.remove('hidden');
+  },
+
+  // §8f.3b：SuperAdmin 進他人副本提醒。後端未接，目前只留介面（DEV 面板手動觸發測）。
+  showForeignWarning() {
+    U.toast('⚠️ 你正以 SuperAdmin 身份進入他人副本，請小心避免誤改資料', 'warning');
   },
 };
 
@@ -2077,10 +2102,11 @@ const App = {
       avatar.style.backgroundImage = '';
       avatar.textContent = name.charAt(0).toUpperCase();
     }
-    // userMode 統一依狀態顯示（單一真實來源）：viewonly > admin > editor
+    // userMode 統一依狀態顯示（單一真實來源）：viewonly > superadmin > admin > editor
     const um = document.getElementById('userMode');
     if (um) {
       if (document.body.classList.contains('viewonly')) um.textContent = 'VIEW ONLY';
+      else if (DATA.settings._role === 'superadmin') um.textContent = 'SUPER ADMIN';
       else if (DATA.settings._role === 'admin') um.textContent = 'ADMIN';
       else um.textContent = 'EDITOR';
     }
@@ -2190,10 +2216,15 @@ const App = {
         console.error('Role check failed', err);
         role = 'none';   // 後台連不到 → 往安全倒（唯讀）
       }
-      if (role !== 'admin' && role !== 'editor') {
-        // none / 未知 → 唯讀，不設 _loggedInEmail（PII 不留）、不 remove viewonly
+      if (role === 'viewonly') {
+        // viewonly → 唯讀可看（§8f.4），不設 _loggedInEmail（PII 不留）
         this.enterViewOnly();
         U.toast('此帳號僅供檢視', 'warning');
+        return;
+      }
+      if (role !== 'admin' && role !== 'editor') {
+        // none / 未知 → Can't view 擋頁（§8f.5），不留 PII、不顯示任何內容
+        Auth.enterBlockout();
         return;
       }
 

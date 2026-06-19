@@ -67,6 +67,11 @@
   --z-sticky: 10; --z-dropdown: 50; --z-modal: 500;
   --z-tooltip: 550; --z-toast: 600; --z-overlay: 1000;   /* tooltip 蓋 modal、不蓋 toast */
   --z-dev: 1100;   /* DEV 身份面板，須蓋過 login overlay 才能在登入頁切身份 */
+
+  /* Can't view 擋頁（§8f.5）：遮罩底 + 反白字 + 層級夾在 login overlay 之上、DEV 面板之下 */
+  --blockout-bg: rgba(15, 18, 24, 0.96);   /* 深近不透明遮罩底 */
+  --blockout-fg: var(--ink-inverse);        /* 深底反白字，複用既有 */
+  --z-blockout: 1050;   /* 高於 login overlay(1000)、低於 DEV 面板(1100) 讓切換器保持可點 */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1475,3 +1480,15 @@ body.viewonly .cloud-sync-sec { display: none; }
 .adp-cur { color: var(--ink3); margin-bottom: 6px; }
 .adp-btn { display: block; width: 100%; margin: 2px 0; padding: 4px 8px; border: 1px solid var(--rule2); border-radius: var(--r6); background: var(--surface); cursor: pointer; font-size: 11px; }
 .adp-btn:hover { background: var(--sage-50); }
+
+/* ─── Can't view 擋頁（§8f.5）：none 全屏擋光，不顯示任何專案內容 ─── */
+#authBlockout {
+  position: fixed; inset: 0;
+  background: var(--blockout-bg);
+  color: var(--blockout-fg);
+  z-index: var(--z-blockout);
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 2rem;
+  font-size: 1.1rem;
+}
+#authBlockout.hidden { display: none; }
