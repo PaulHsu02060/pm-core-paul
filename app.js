@@ -2268,6 +2268,7 @@ const App = {
         google.accounts.id.initialize({
           client_id: clientId,
           callback: (resp) => App.handleGoogleCredential(resp),
+          use_fedcm_for_button: true,   // FedCM 按鈕 UX（Chrome M125+/Android M128+）：瀏覽器原生處理憑證，繞過 COOP 擋 popup postMessage；不支援的瀏覽器自動 fallback 回 popup
         });
         const btnEl = document.getElementById('gSignInBtn');
         if (btnEl) {
