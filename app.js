@@ -7883,27 +7883,6 @@ App.renderSettings = function() {
           <button class="tb-action" onclick="App.unlockEdit()">解鎖編輯</button>
         </div>
       </div>
-
-      ${/* 失效遺留：此區塊接停用的 doLogin（寫 STORE.password），改不到 unlockEdit 比對的 editPasswordHash。
-            整塊（標題 / input#set-pw / 更改密碼按鈕）已註解、DOM 不留。2026-06-11 停用。
-      <!-- Password fallback -->
-      <div class="settings-section editpw-sec">
-        <div class="ss-title">⚙️ 變更編輯密碼</div>
-        <div class="ss-desc">修改解鎖編輯用的密碼</div>
-
-        <div class="ss-field">
-          <label>新密碼</label>
-          <div>
-            <input type="password" id="set-pw" placeholder="留空表示不更動">
-            <div class="help">設成空白 = 不需密碼即可編輯</div>
-          </div>
-        </div>
-
-        <div>
-          <button class="tb-action ghost" onclick="App.changePassword()">更改密碼</button>
-        </div>
-      </div>
-      */ ''}
       <!-- /編輯權限 --></div></div>
     <div class="tab-panel" id="關於"><div class="settings-grid">
       <!-- Personal -->
@@ -8426,21 +8405,6 @@ App.saveAndSync = function() {
   }
   Sync.syncJSeries();
 };
-
-/* 失效遺留：App.changePassword 接停用的 doLogin（寫 STORE.password），改不到 unlockEdit 比對的 editPasswordHash。
-   無別處呼叫、對應 HTML 區塊已註解，此為死碼。2026-06-11 停用。
-App.changePassword = function() {
-  const pw = document.getElementById('set-pw').value;
-  if (pw === '') {
-    if (!confirm('確定設成空白密碼？任何人都能編輯')) return;
-    localStorage.setItem(STORE.password, '');
-  } else {
-    localStorage.setItem(STORE.password, U.hash(pw).toString());
-  }
-  document.getElementById('set-pw').value = '';
-  U.toast('✓ 密碼已更新');
-};
-*/
 
 // 設定頁「輸入密碼解鎖編輯」：訪客唯讀，比對 config.editPasswordHash 後解除 viewonly。
 // 比對沿用 doLogin 同套（U.hash(輸入).toString() === 目標 hash），不碰 doLogin/遮罩流程。

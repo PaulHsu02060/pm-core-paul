@@ -273,7 +273,6 @@ body.viewonly .viewonly-banner { display: flex; }
 body.viewonly [data-edit] { opacity: .35; pointer-events: none; }
 body.viewonly [data-edit-hide] { display: none !important; }
 body.viewonly .cloud-sync-sec { display: none; }
-body.viewonly .editpw-sec { display: none; }   /* 變更編輯密碼：解鎖後才顯示（同 cloud-sync-sec 機制） */
 
 /* ─── 套範本提醒清單（沿用 viewonly-banner amber 版型，常駐於 #content 頂部） ─── */
 .tpl-warn-banner {
