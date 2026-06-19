@@ -681,7 +681,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
 .task-row, .task-row-header {
-  display: grid; grid-template-columns: 0.5fr 1.2fr 2.6fr 1.4fr 0.9fr 1.6fr 1fr 1.6fr 0.8fr 0.8fr;
+  display: grid; grid-template-columns: 0.5fr 1.1fr 2.8fr 1.3fr 1.0fr 1.0fr 0.8fr 1.5fr 0.8fr 0.8fr;
   gap: 14px; align-items: center; padding: 11px 16px;
 }
 .task-row {
