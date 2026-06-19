@@ -5033,7 +5033,7 @@ App.openProjectDialog = function(projId) {
       ${!isEdit ? `
       <div class="form-field">
         <label>建立方式</label>
-        <select id="pf-mode" onchange="document.getElementById('pf-tplBox').style.display=this.value==='template'?'':'none';document.getElementById('pf-submitBtn').textContent=this.value==='template'?'下一步：檢視任務':'建立'">
+        <select id="pf-mode" onchange="document.getElementById('pf-tplBox').style.display=this.value==='template'?'':'none';document.getElementById('pf-submitBtn').style.display=this.value==='template'?'none':'';document.getElementById('pf-nextBtn').style.display=this.value==='template'?'':'none'">
           <option value="blank">空白專案</option>
           <option value="template">套用範本</option>
         </select>
@@ -5091,7 +5091,8 @@ App.openProjectDialog = function(projId) {
     footer: `
       ${isEdit ? `<button class="tb-action danger" onclick="App.deleteProject('${projId}')" style="margin-right:auto;">刪除專案</button>` : ''}
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-      <button class="tb-action" data-edit-hide id="pf-submitBtn" onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
+      <button class="tb-action pf-btn-create" id="pf-submitBtn" data-edit-hide onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
+      <button class="tb-action pf-btn-next" id="pf-nextBtn" onclick="App.saveProject('${projId || ''}')" style="display:none">下一步：檢視任務</button>
     `,
   });
 };
