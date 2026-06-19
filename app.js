@@ -2267,7 +2267,7 @@ const App = {
       try {
         google.accounts.id.initialize({
           client_id: clientId,
-          callback: (resp) => { console.log('[GIS] callback fired', resp); App.handleGoogleCredential(resp); },
+          callback: (resp) => App.handleGoogleCredential(resp),
         });
         const btnEl = document.getElementById('gSignInBtn');
         if (btnEl) {
@@ -2327,8 +2327,8 @@ const App = {
         U.toast('此帳號僅供檢視', 'warning');
         return;
       }
-      if (role !== 'admin' && role !== 'editor') {
-        // none / 未知 → Can't view 擋頁（§8f.5），不留 PII、不顯示任何內容
+      if (role !== 'admin' && role !== 'editor' && role !== 'superadmin') {
+        // none / 未知 → Can't view 擋頁（§8f.5）；superadmin/admin/editor 才放行，不留 PII、不顯示任何內容
         Auth.enterBlockout();
         return;
       }
