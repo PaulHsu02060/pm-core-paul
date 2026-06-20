@@ -1707,61 +1707,6 @@ function generateSchedule() {
   return { taskCount: candidates.length, scheduledCount: items.length, lockedCount: 0 };
 }
 
-// === WBS 本地時程覆蓋（抽象層） ===
-const J_OVERRIDE_FIELDS = ['start', 'end'];
-
-function isJTask(task) {
-  if (!task || !task.synced) return false;
-  const proj = DATA.projects.find(p => p.id === task.project);
-  return proj ? proj.syncSource === 'jSheet' : false;
-}
-
-// ── [CORE] 純計算層：只讀 DATA.tasks、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
-function getJOverride(taskId) {
-  const task = DATA.tasks.find(t => t.id === taskId);
-  if (!task) return null;
-  const result = {};
-  let hasAny = false;
-  J_OVERRIDE_FIELDS.forEach(f => {
-    const key = '_local' + f.charAt(0).toUpperCase() + f.slice(1);
-    if (task[key] !== undefined) {
-      result[f] = task[key];
-      hasAny = true;
-    }
-  });
-  return hasAny ? result : null;
-}
-
-function setJOverride(taskId, fields) {
-  const task = DATA.tasks.find(t => t.id === taskId);
-  if (!task || !isJTask(task)) return false;
-  Object.keys(fields).forEach(f => {
-    if (J_OVERRIDE_FIELDS.includes(f)) {
-      const key = '_local' + f.charAt(0).toUpperCase() + f.slice(1);
-      task[key] = fields[f];
-    }
-  });
-  Storage.save();
-  return true;
-}
-
-function clearJOverride(taskId) {
-  const task = DATA.tasks.find(t => t.id === taskId);
-  if (!task) return false;
-  J_OVERRIDE_FIELDS.forEach(f => {
-    const key = '_local' + f.charAt(0).toUpperCase() + f.slice(1);
-    delete task[key];
-  });
-  Storage.save();
-  return true;
-}
-
-function getAllJOverrides() {
-  return DATA.tasks
-    .filter(t => isJTask(t) && getJOverride(t.id))
-    .map(t => ({ id: t.id, name: t.name, override: getJOverride(t.id) }));
-}
-
 // ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function getEffectiveSchedule(task) {
   if (!task) return null;
@@ -4672,10 +4617,6 @@ App.toggleTaskDone = function(id) {
   if (App._roGuard()) return;
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
-  if (t.locked) {
-    U.toast('🔗 同步來的任務無法修改，請到 Google Sheet 修改', 'warning');
-    return;
-  }
   if (t.status === 'done') {
     t.status = 'pending';
     t.completedAt = null;
@@ -4702,54 +4643,6 @@ App.openTaskInProject = function(id) {
 App.openTaskModal = function(id) {
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
-
-  // For synced tasks: read-only view with editable schedule
-  if (t.locked) {
-    const proj = this.getProj(t.project);
-    const sch = getEffectiveSchedule(t);
-    const hasOverride = !!getJOverride(t.id);
-    this.openModal({
-      title: `🔗 ${U.esc(t.name)}`,
-      body: `
-        <div style="font-size:12px; color:var(--ink3); margin-bottom:12px; padding:8px 12px; background:var(--sage-50); border-radius:8px;">
-          此任務由 Google Sheet 同步。<b>時程可在此調整</b>（不寫回 Sheet）。
-        </div>
-        <div class="form-field"><label>所屬專案</label><div style="padding:8px 0; font-size:13px; display:flex; align-items:center; gap:7px;">${proj?.color ? `<span style="width:10px;height:10px;border-radius:3px;background:${proj.color};display:inline-block;flex-shrink:0;"></span>` : ''}${U.esc(proj?.name || '—')}</div></div>
-        <div class="form-field"><label>WBS 編號</label><div style="padding:8px 0; font-family:var(--mono);">${U.esc(t.syncRef || '')}</div></div>
-        <div class="form-field"><label>說明</label><div style="padding:8px 0;">${U.esc(t.desc || '—')}</div></div>
-        <div class="form-row">
-          <div class="form-field"><label>擔當</label><div style="padding:8px 0;">${U.esc(t.owner || '—')}</div></div>
-          <div class="form-field"><label>進度</label><div style="padding:8px 0; font-weight:600;">${t.progress || 0}%</div></div>
-        </div>
-        <div class="form-row">
-          <div class="form-field"><label>開始日期</label><input type="date" id="tf-start" value="${sch.start || ''}"></div>
-          <div class="form-field"><label>完成日期 / Deadline</label><input type="date" id="tf-end" value="${sch.end || ''}"></div>
-        </div>
-        ${hasOverride ? `<div style="font-size:11px; color:var(--ink3); margin-top:-8px; padding:0 4px;">✎ 已調整（Sheet 原值：${t.start || '—'} ~ ${t.end || '—'}）</div>` : ''}
-        <div class="form-row">
-          <div class="form-field"><label>預計開始（Sheet）</label><div style="padding:8px 0; font-family:var(--mono); ${t.actualStart ? 'color:var(--ink4); text-decoration:line-through;' : ''}">${t.plannedStart ? D.fmt(t.plannedStart, 'ymdShort') : '—'}</div></div>
-          <div class="form-field"><label>預計完成（Sheet）</label><div style="padding:8px 0; font-family:var(--mono); ${t.actualEnd ? 'color:var(--ink4); text-decoration:line-through;' : ''}">${t.plannedEnd ? D.fmt(t.plannedEnd, 'ymdShort') : '—'}</div></div>
-        </div>
-        ${t.actualStart || t.actualEnd ? `
-        <div class="form-row">
-          <div class="form-field"><label>實際開始</label><div style="padding:8px 0; font-family:var(--mono); color:var(--sage-700); font-weight:600;">${t.actualStart ? D.fmt(t.actualStart, 'ymdShort') : '—'}</div></div>
-          <div class="form-field"><label>實際完成</label><div style="padding:8px 0; font-family:var(--mono); color:var(--sage-700); font-weight:600;">${t.actualEnd ? D.fmt(t.actualEnd, 'ymdShort') : '—'}</div></div>
-        </div>` : ''}
-        <div class="form-field"><label>狀態</label><div style="padding:8px 0;">${LABELS.status[t.status] || t.status}${t.actualEnd ? ' ✓（依實際完成日判定）' : t.actualStart ? '（依實際開始日判定）' : ''}</div></div>
-        <div class="form-field">
-          <label>PDCA 大項目</label>
-          <input type="text" id="tf-pdcaGroup" list="tf-pdcaGroup-list" value="${U.esc(t.pdcaGroup || '')}" placeholder="輸入或選擇大項目（空＝未歸類，僅本地、不寫回 Sheet）">
-          <datalist id="tf-pdcaGroup-list">${this.pdcaGroupDatalistOptions(t.project)}</datalist>
-        </div>
-      `,
-      footer: `
-        ${hasOverride ? `<button class="tb-action ghost" onclick="App.resetJOverride('${t.id}')" style="margin-right:auto;">↺ 重置為 Sheet 原值</button>` : '<div style="flex:1"></div>'}
-        <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
-        <button class="tb-action" data-edit-hide onclick="App.saveJSchedule('${t.id}')">儲存時程</button>
-      `,
-    });
-    return;
-  }
 
   // Editable task
   const sch = getEffectiveSchedule(t);
@@ -4873,53 +4766,6 @@ App.saveTask = function(id) {
   this.closeModal();
   this.refreshAll();
   U.toast('✓ 任務已儲存');
-};
-
-App.saveJSchedule = function(id) {
-  const t = DATA.tasks.find(x => x.id === id);
-  if (!t) return;
-  const start = document.getElementById('tf-start').value;
-  const end = document.getElementById('tf-end').value;
-  if (start === t.start && end === t.end) {
-    clearJOverride(id);
-  } else {
-    setJOverride(id, { start, end });
-  }
-  const pgEl = document.getElementById('tf-pdcaGroup');
-  if (pgEl) t.pdcaGroup = pgEl.value.trim();
-  Storage.save();
-  this.closeModal();
-  this.refreshAll();
-  U.toast('✓ 時程已更新');
-};
-
-App.resetJOverride = function(id) {
-  if (!confirm('確定要重置為 Sheet 原始時程？')) return;
-  clearJOverride(id);
-  this.closeModal();
-  this.refreshAll();
-  U.toast('↺ 已重置為 Sheet 原值');
-};
-
-App.resetAllJOverrides = function() {
-  const list = getAllJOverrides();
-  if (list.length === 0) {
-    U.toast('目前沒有本地覆蓋的 ' + CFG('WBS_LABEL', 'WBS') + '時程');
-    return;
-  }
-  if (!confirm(`確定要重置 ${list.length} 筆 ${CFG('WBS_LABEL', 'WBS')}任務的本地時程？此操作不可復原。`)) return;
-  list.forEach(o => {
-    const task = DATA.tasks.find(t => t.id === o.id);
-    if (task) {
-      J_OVERRIDE_FIELDS.forEach(f => {
-        const key = '_local' + f.charAt(0).toUpperCase() + f.slice(1);
-        delete task[key];
-      });
-    }
-  });
-  Storage.save();
-  this.refreshAll();
-  U.toast(`↺ 已重置 ${list.length} 筆 ${CFG('WBS_LABEL', 'WBS')}時程`);
 };
 
 App.deleteTask = function(id) {
