@@ -181,22 +181,6 @@ function isTaskBlocked(task, allTasksMap) {
   return result;
 }
 
-// ════ isJTask / getJOverride 同步複本（測試版 stub，方案 c1） ═════════
-// ⚠ 介面與生產「刻意不同」（對應設計稿第 5 節難題 / 抉擇 C，待 node 驗後拍板）：
-//   - 生產 isJTask 看 proj.syncSource === 'jSheet'；測試無 DATA.projects，
-//     故簡化為看 task.__isJ 旗標（由 mk({ __isJ:true }) 注入）。
-//   - 生產 getJOverride(id) 拿 id 去 DATA.tasks.find 撈 _localStart/_localEnd；
-//     測試無 DATA.tasks，故測試版「直接吃 task 物件」讀其 _localStart/_localEnd。
-//   → 之後 processTask 同步複本呼叫 getJOverride 時須傳「task 物件」而非 id。
-//     此 id-vs-物件 差異是刻意保留並在此明確註記，避免兩邊靜默分歧（見抉擇 C）。
-function isJTask(task) { return !!(task && task.__isJ); }
-function getJOverride(task) {            // 測試版吃 task 物件（生產吃 id）
-  if (!task) return null;
-  const r = {}; let has = false;
-  if (task._localStart !== undefined) { r.start = task._localStart; has = true; }
-  if (task._localEnd !== undefined) { r.end = task._localEnd; has = true; }
-  return has ? r : null;                 // 無任一 _local* → null（= 無 override）
-}
 
 // ════ topoSortTasks 同步複本 ════════════════════════════════════
 function topoSortTasks(tasks) {
@@ -258,19 +242,15 @@ function computeSchedule(tasks) {
     const preds = fullPreds.filter(p => nodes.has(p.dep));
     const missingWarn = fullPreds.filter(p => !nodes.has(p.dep)).map(p => `前置 #${p.dep} 不存在`);
     const dur = durOf(t);
-    // ① 錨點：使用者刻意定的開始日，最高優先、不被推算覆蓋（即使上游有問題也不 block，只警示）
-    //   - 同步任務(J task)：錨點 = override._localStart（前端刻意改的），plannedStart 不算錨點
-    //   - 手動任務：錨點 = t.start（使用者建立時真填的）
-    //   這樣同步進來的(只有 plannedStart、無 override)不會被當錨點 → 可正常連動
-    const ov = isJTask(t) ? getJOverride(t) : null;   // ⚠ 測試版吃 task 物件（生產吃 t.id，見抉擇C）
-    const anchorStart = ov?.start ?? (isJTask(t) ? '' : t.start);
+    // ① 錨點：使用者刻意定的開始日 t.start，最高優先、不被推算覆蓋（即使上游有問題也不 block，只警示）
+    const anchorStart = t.start;
     if (anchorStart) {
       const end = iso(D.addWorkdays(new Date(anchorStart), dur - 1));
       const b = isTaskBlocked(t, nodes);
       const warns = b.reasons.map(r => `前置 #${r.dep}(${r.type}) ${r.conflict}`);
       return { ...ident(t), suggestedStart: anchorStart, suggestedEnd: end,
         blocked: false, error: null, toSchedule: false, blockedCause: null,
-        warnings: warns, anchorSource: ov?.start ? 'override' : 'manual' };
+        warnings: warns, anchorSource: 'manual' };
     }
     const pollutedWarn = [];
     let pollutedCause = null;
@@ -304,7 +284,7 @@ function computeSchedule(tasks) {
       return { ...ident(t), suggestedStart: iso(latest), suggestedEnd: iso(D.addWorkdays(latest, dur - 1)),
         blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
     }
-    const src = isJTask(t) ? t.plannedStart : (t.start || t.plannedStart);
+    const src = t.start || t.plannedStart;
     if (src) {
       return { ...ident(t), suggestedStart: src, suggestedEnd: iso(D.addWorkdays(new Date(src), dur - 1)),
         blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
@@ -341,7 +321,7 @@ function applySchedule(tasks, scope = 'full') {
     }
     // 跳過：錨點任務(override或手動手填)——人的意志，不進機器層scheduled(B定案=不寫)
     //   顯示靠 getEffectiveSchedule 的 override/actual 層補
-    if (r.anchorSource === 'override' || r.anchorSource === 'manual') {
+    if (r.anchorSource === 'manual') {
       skipped.push({ id: r.taskId, reason: 'anchor:' + r.anchorSource });
       return;
     }
@@ -377,23 +357,21 @@ function runTopo(tasks) {
 }
 
 // ════ getEffectiveSchedule 同步複本（dispStart/dispEnd 與 app.js 一字不差） ═══
-// ⚠ 介面差異（抉擇C）：生產 getJOverride(task.id)，測試版 getJOverride(task)（吃物件，同錨點那步）。
 function getEffectiveSchedule(task) {
   if (!task) return null;
-  const override = isJTask(task) ? getJOverride(task) : null;   // ⚠ 測試版吃 task 物件（生產吃 task.id）
-  // 顯示優先序（甲案）：override(人刻意改) > actual(已開工事實) > scheduled(排程算) > planned(初始預計)
-  // ⚠ 用 || 不用 ??（抉擇A）：override 會存空字串(saveJSchedule清空欄位時)，?? 不會 fallback 空字串 → 吃掉下層顯示空白
-  const dispStart = (override?.start || task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
-  const dispEnd   = (override?.end   || task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
+  // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)；J override 層已移除（問題3 步2）
+  // ⚠ 用 || 不用 ??：空字串也要 fallback 到下層
+  const dispStart = (task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
+  const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
   return {
     start: dispStart,
     end: dispEnd,
-    plannedStart: override?.plannedStart ?? task.plannedStart,
-    plannedEnd: override?.plannedEnd ?? task.plannedEnd,
+    plannedStart: task.plannedStart,
+    plannedEnd: task.plannedEnd,
     scheduledStart: task.scheduledStart || '',
     scheduledEnd: task.scheduledEnd || '',
-    hasOverride: !!override,
-    startSource: override?.start ? 'override' : (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
+    hasOverride: false,
+    startSource: (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
   };
 }
 
@@ -687,17 +665,6 @@ console.log('\n===== 7. 錨點分流（α 方案） =====');
     'start=2026-01-08 src=undefined 下游=2026-01-12',
     'J有plannedStart 01-12但無override→不當錨點，依前置101(end 01-07)FS推算→01-08(四)；anchorSource未設(undefined≠override)；下游FS(J end 01-09週五→次工作日01-12週一)');
 }
-// 案例2：同步任務有 override → 錨點釘住、下游照此連動
-{
-  const out = runSchedule([
-    mk({ wbs: '201', __isJ: true, _localStart: '2026-01-15', plannedStart: '2026-01-01', durationDays: 2 }), // J task 有 override
-    mk({ wbs: '202', predecessor: '201', durationDays: 2 }),                                                  // 下游
-  ]);
-  check('案例2 J有override：錨點釘住01-15、下游照此連動',
-    `start=${R(out, '201').suggestedStart} end=${R(out, '201').suggestedEnd} src=${R(out, '201').anchorSource} 下游=${R(out, '202').suggestedStart}`,
-    'start=2026-01-15 end=2026-01-16 src=override 下游=2026-01-19',
-    'override._localStart=01-15(四)當錨點(anchorSource=override)，plannedStart 01-01被無視；end=addWorkdays(01-15,1)=01-16(五)；下游FS→次工作日01-19(一)');
-}
 // 案例3：手動任務有 start → 當錨點(manual)
 {
   const out = runSchedule([
@@ -779,24 +746,22 @@ console.log('\n===== 8. applySchedule 落地 =====');
     '601空=true 602空=true 603空=true r601=circular r603=circular',
     '601/602在環→error=circular跳過；603連鎖blocked(blockedCause=circular)跳過；三者皆不寫scheduled');
 }
-// 案例7：錨點(manual + override)跳過不寫，但其下游正常連動寫入
+// 案例7：錨點(manual)跳過不寫scheduled，但其下游正常連動寫入
 {
   const tasks = [
     mk({ wbs: '701', start: '2026-01-05', durationDays: 2 }),                     // 手動錨點：01-05(一)dur2→end 01-06(二)
     mk({ wbs: '702', predecessor: '701', durationDays: 2 }),                      // 其下游連動
-    mk({ wbs: '703', __isJ: true, _localStart: '2026-01-15', durationDays: 2 }),  // J override錨點：01-15(四)→end 01-16(五)
-    mk({ wbs: '704', predecessor: '703', durationDays: 2 }),                      // 其下游連動
   ];
   const res = runApply(tasks);
   const t = (wbs) => tasks.find(x => x.wbs === wbs);
   const sk = (wbs) => res.skipped.find(s => s.id === t(wbs).id);
   check('案例7 錨點跳過不寫scheduled、但下游連動寫入',
-    `701空=${t('701').scheduledStart === undefined} r701=${sk('701') && sk('701').reason} 702=${t('702').scheduledStart} 703空=${t('703').scheduledStart === undefined} r703=${sk('703') && sk('703').reason} 704=${t('704').scheduledStart}`,
-    '701空=true r701=anchor:manual 702=2026-01-07 703空=true r703=anchor:override 704=2026-01-19',
-    '手動錨點701/override錨點703→skipped(reason=anchor:*)且不寫scheduled(B定案)；下游702(FS 01-07週三)/704(FS J end01-16週五→01-19週一)正常寫入scheduled');
+    `701空=${t('701').scheduledStart === undefined} r701=${sk('701') && sk('701').reason} 702=${t('702').scheduledStart}`,
+    '701空=true r701=anchor:manual 702=2026-01-07',
+    '手動錨點701→skipped(reason=anchor:manual)且不寫scheduled(B定案)；下游702(FS 01-07週三)正常寫入scheduled');
 }
 
-// ════ 9. getEffectiveSchedule — 顯示優先序 override>actual>scheduled>planned ═══
+// ════ 9. getEffectiveSchedule — 顯示優先序 actual>scheduled>planned ═══
 console.log('\n===== 9. getEffectiveSchedule 優先序 =====');
 // 同一 task 物件逐層加值，驗 start 取值與 startSource 依優先序切換
 {
@@ -806,12 +771,10 @@ console.log('\n===== 9. getEffectiveSchedule 優先序 =====');
   const b = getEffectiveSchedule(task);
   task.actualStart = '2026-01-06';                                               // (c) 加 actual
   const c = getEffectiveSchedule(task);
-  task.__isJ = true; task._localStart = '2026-01-15';                             // (d) J task 加 override
-  const d = getEffectiveSchedule(task);
-  check('案例8 getEffectiveSchedule 優先序 override>actual>scheduled>planned',
-    `a=${a.start}/${a.startSource} b=${b.start}/${b.startSource} c=${c.start}/${c.startSource} d=${d.start}/${d.startSource}`,
-    'a=2026-01-05/planned b=2026-01-08/scheduled c=2026-01-06/actual d=2026-01-15/override',
-    '(a)只planned→planned；(b)加scheduled→壓planned；(c)加actual→壓scheduled；(d)J加override(_localStart)→壓全部');
+  check('案例8 getEffectiveSchedule 優先序 actual>scheduled>planned',
+    `a=${a.start}/${a.startSource} b=${b.start}/${b.startSource} c=${c.start}/${c.startSource}`,
+    'a=2026-01-05/planned b=2026-01-08/scheduled c=2026-01-06/actual',
+    '(a)只planned→planned；(b)加scheduled→壓planned；(c)加actual→壓scheduled');
 }
 
 // ════ 10. getEffectiveSchedule — 手動任務 t.start/t.end 鏈尾 fallback（修 KPI DELAYED 漏報） ═══
@@ -1262,8 +1225,8 @@ function orderTasksByDispStart(list) {
   check('案11.3 同 dispStart 維持原陣列序（穩定）', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'P1,P2,P3', '三筆同日 06-10 → decorate index 平手回原序');
 }
 {
-  const list = [ mk({ wbs: 'pl', plannedStart: '2026-07-01' }), mk({ wbs: 'sc', plannedStart: '2026-07-01', scheduledStart: '2026-02-01' }), mk({ wbs: 'ac', plannedStart: '2026-07-01', actualStart: '2026-01-01' }), mk({ wbs: 'ov', __isJ: true, _localStart: '2026-03-01', plannedStart: '2026-07-01' }) ];
-  check('案11.4 dispStart 依 getEffectiveSchedule 優先序取對', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'ac,sc,ov,pl', 'ac=actual01-01 < sc=scheduled02-01 < ov=override03-01 < pl=planned07-01；證明取 dispStart 非 plannedStart');
+  const list = [ mk({ wbs: 'pl', plannedStart: '2026-07-01' }), mk({ wbs: 'sc', plannedStart: '2026-07-01', scheduledStart: '2026-02-01' }), mk({ wbs: 'ac', plannedStart: '2026-07-01', actualStart: '2026-01-01' }) ];
+  check('案11.4 dispStart 依 getEffectiveSchedule 優先序取對', orderTasksByDispStart(list).map(t => t.wbs).join(','), 'ac,sc,pl', 'ac=actual01-01 < sc=scheduled02-01 < pl=planned07-01；證明取 dispStart 非 plannedStart');
 }
 
 // ════ 12. applyTaskFilter — 待辦列篩選接線（四 Set 多選／交集／空不篩／保序） ═══

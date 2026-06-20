@@ -1298,19 +1298,15 @@ function computeSchedule(tasks) {
       .map(p => `前置 #${p.dep} 不存在`);
     const dur = durOf(t);
 
-    // ① 錨點：使用者刻意定的開始日，最高優先、不被推算覆蓋（即使上游有問題也不 block，只警示）
-    //   - 同步任務(J task)：錨點 = override._localStart（前端刻意改的），plannedStart 不算錨點
-    //   - 手動任務：錨點 = t.start（使用者建立時真填的）
-    //   這樣同步進來的 92 筆(只有 plannedStart、無 override)不會被當錨點 → 可正常連動
-    const ov = isJTask(t) ? getJOverride(t.id) : null;
-    const anchorStart = ov?.start ?? (isJTask(t) ? '' : t.start);
+    // ① 錨點：使用者刻意定的開始日 t.start，最高優先、不被推算覆蓋（即使上游有問題也不 block，只警示）
+    const anchorStart = t.start;
     if (anchorStart) {
       const end = iso(D.addWorkdays(new Date(anchorStart), dur - 1));
       const b = isTaskBlocked(t, nodes);
       const warns = b.reasons.map(r => `前置 #${r.dep}(${r.type}) ${r.conflict}`);
       return { ...ident(t), suggestedStart: anchorStart, suggestedEnd: end,
         blocked: false, error: null, toSchedule: false, blockedCause: null,
-        warnings: warns, anchorSource: ov?.start ? 'override' : 'manual' };
+        warnings: warns, anchorSource: 'manual' };
     }
 
     // ② 連鎖污染：前置 circular / 已 blocked / 待排 / 無日期 → 本 task 也 blocked
@@ -1352,7 +1348,7 @@ function computeSchedule(tasks) {
     }
 
     // ④ 無前置：有起算來源(plannedStart) → 從它起算(起算來源，非錨點，仍參與連動)；無起算來源才待排
-    const src = isJTask(t) ? t.plannedStart : (t.start || t.plannedStart);
+    const src = t.start || t.plannedStart;
     if (src) {
       return { ...ident(t), suggestedStart: src, suggestedEnd: iso(D.addWorkdays(new Date(src), dur - 1)),
         blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: missingWarn };
@@ -1395,7 +1391,7 @@ function applySchedule(tasks, scope = 'full') {
     }
     // 跳過：錨點任務(override或手動手填)——人的意志，不進機器層scheduled(B定案=不寫)
     //   顯示靠 getEffectiveSchedule 的 override/actual 層補
-    if (r.anchorSource === 'override' || r.anchorSource === 'manual') {
+    if (r.anchorSource === 'manual') {
       skipped.push({ id: r.taskId, reason: 'anchor:' + r.anchorSource });
       return;
     }
@@ -1769,20 +1765,19 @@ function getAllJOverrides() {
 // ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function getEffectiveSchedule(task) {
   if (!task) return null;
-  const override = isJTask(task) ? getJOverride(task.id) : null;
-  // 顯示優先序（甲案）：override(人刻意改) > actual(已開工事實) > scheduled(排程算) > planned(初始預計)
-  // ⚠ 用 || 不用 ??（抉擇A）：override 會存空字串(saveJSchedule清空欄位時)，?? 不會 fallback 空字串 → 吃掉下層顯示空白
-  const dispStart = (override?.start || task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
-  const dispEnd   = (override?.end   || task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
+  // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)；J override 層已移除（問題3 步2）
+  // ⚠ 用 || 不用 ??：空字串也要 fallback 到下層
+  const dispStart = (task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
+  const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
   return {
     start: dispStart,
     end: dispEnd,
-    plannedStart: override?.plannedStart ?? task.plannedStart,
-    plannedEnd: override?.plannedEnd ?? task.plannedEnd,
+    plannedStart: task.plannedStart,
+    plannedEnd: task.plannedEnd,
     scheduledStart: task.scheduledStart || '',
     scheduledEnd: task.scheduledEnd || '',
-    hasOverride: !!override,
-    startSource: override?.start ? 'override' : (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
+    hasOverride: false,
+    startSource: (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
   };
 }
 
