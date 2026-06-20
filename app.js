@@ -7747,14 +7747,17 @@ App.buildLoadedHolidaysHtml = function() {
   const byYear = {};
   dates.forEach(d => { const y = d.slice(0, 4); (byYear[y] = byYear[y] || []).push(d); });
   const groups = Object.keys(byYear).sort().map(y =>
-    `<div class="cal-year">${y}（${byYear[y].length}）</div>` +
-    byYear[y].map(d =>
-      `<div class="cal-row"><span class="cal-row-date">${d}</span>` +
-      `<span class="cal-row-name">${U.esc(hol[d])}</span>` +
-      `<button class="cal-del" onclick="App.deleteHoliday('${d}')" title="刪除">✕</button></div>`
-    ).join('')
+    `<tbody><tr><td colspan="3" class="cal-year">${y}（${byYear[y].length}）</td></tr>` +
+    byYear[y].map(d => {
+      const nm = U.esc(hol[d]);
+      return `<tr><td class="col-mid"><span class="cal-row-date">${d}</span></td>` +
+        `<td class="col-flex" title="${nm}"><span class="cal-row-name">${nm}</span></td>` +
+        `<td class="col-action"><button class="cal-del" onclick="App.deleteHoliday('${d}')" title="刪除">✕</button></td></tr>`;
+    }).join('') +
+    `</tbody>`
   ).join('');
-  return `<div class="cal-loaded-head">共 ${dates.length} 筆公休</div>${groups}`;
+  return `<div class="cal-loaded-head">共 ${dates.length} 筆公休</div>` +
+    `<table class="data-table cal-table"><colgroup><col class="col-mid"><col class="col-flex"><col class="col-action"></colgroup>${groups}</table>`;
 };
 
 App.renderSettings = function() {
