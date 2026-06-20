@@ -4967,12 +4967,12 @@ App.openTaskModal = function(id) {
     const rows = history.map(h => {
       const statusColor = h.status?.includes('完成') ? 'var(--sage-700)' : h.status?.includes('延遲') ? 'var(--terracotta)' : 'var(--ink2)';
       return `<tr>
-        <td style="padding:6px 8px; font-family:var(--mono); font-size:10.5px; color:var(--ink3); border-bottom:1px solid var(--rule);">${U.esc(h.week || '')}</td>
-        <td style="padding:6px 8px; font-size:11.5px; color:${statusColor}; border-bottom:1px solid var(--rule); white-space:nowrap;">${U.esc(h.status || '')}</td>
-        <td style="padding:6px 8px; font-size:11.5px; border-bottom:1px solid var(--rule); line-height:1.4;">${U.esc(h.work || '—')}</td>
-        <td style="padding:6px 8px; font-family:var(--mono); font-size:10.5px; color:var(--ink3); border-bottom:1px solid var(--rule); white-space:nowrap;">${h.planEnd || '—'}${h.planEndOriginal && h.planEndOriginal !== h.planEnd ? '<br><span style="color:var(--ink4); font-size:10px;">原:' + h.planEndOriginal + '</span>' : ''}</td>
-        <td style="padding:6px 8px; font-family:var(--mono); font-size:10.5px; color:${h.actualEnd ? 'var(--sage-700)' : 'var(--ink3)'}; border-bottom:1px solid var(--rule); white-space:nowrap;">${h.actualEnd || '—'}</td>
-        <td style="padding:6px 8px; font-size:11px; color:var(--terracotta); border-bottom:1px solid var(--rule);">${U.esc(h.delayReason || '')}</td>
+        <td class="col-num" style="font-family:var(--mono); font-size:10.5px; color:var(--ink3);">${U.esc(h.week || '')}</td>
+        <td class="col-num" style="color:${statusColor};">${U.esc(h.status || '')}</td>
+        <td class="col-flex col-wrap" style="line-height:1.4;">${U.esc(h.work || '—')}</td>
+        <td class="col-mid col-wrap" style="font-family:var(--mono); font-size:10.5px; color:var(--ink3);">${h.planEnd || '—'}${h.planEndOriginal && h.planEndOriginal !== h.planEnd ? '<br><span style="color:var(--ink4); font-size:10px;">原:' + h.planEndOriginal + '</span>' : ''}</td>
+        <td class="col-mid" style="font-family:var(--mono); font-size:10.5px; color:${h.actualEnd ? 'var(--sage-700)' : 'var(--ink3)'};">${h.actualEnd || '—'}</td>
+        <td class="col-mid" style="color:var(--terracotta); font-size:11px;" title="${U.esc(h.delayReason || '')}">${U.esc(h.delayReason || '')}</td>
       </tr>`;
     }).join('');
     historyHtml = `
@@ -4982,15 +4982,16 @@ App.openTaskModal = function(id) {
           <span style="font-size:10.5px; color:var(--ink3); font-weight:400;">（共 ${history.length} 週的執行紀錄）</span>
         </label>
         <div style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:220px; overflow-y:auto;">
-          <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
-            <thead style="position:sticky; top:0; background:var(--sage-50);">
+          <table class="data-table compact" style="font-size:11.5px;">
+            <colgroup><col class="col-num"><col class="col-num"><col class="col-flex"><col class="col-mid"><col class="col-mid"><col class="col-mid"></colgroup>
+            <thead>
               <tr>
-                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">週次</th>
-                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">狀態</th>
-                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">本週工作</th>
-                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">預計完成</th>
-                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">實際完成</th>
-                <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule); font-weight:600; font-size:11px;">延誤理由</th>
+                <th class="col-num">週次</th>
+                <th class="col-num">狀態</th>
+                <th class="col-flex">本週工作</th>
+                <th class="col-mid">預計完成</th>
+                <th class="col-mid">實際完成</th>
+                <th class="col-mid">延誤理由</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
