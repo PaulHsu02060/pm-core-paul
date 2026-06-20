@@ -5615,26 +5615,26 @@ App._s2ListHtml = function(variantId) {
   let rows =
     '<tr class="s2-stage-row">' +
       '<td colspan="6">' + U.esc(sel) + '</td>' +
-      '<td class="s2-deliver"><label class="s2-all">全選 <input type="checkbox"' + (allDeliver ? ' checked' : '') +
+      '<td class="col-action s2-deliver"><label class="s2-all">全選 <input type="checkbox"' + (allDeliver ? ' checked' : '') +
         ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"></label></td>' +
-      '<td></td>' +
+      '<td class="col-action"></td>' +
     '</tr>';
   group.forEach((t, gi) => {
     const seq = seqBase + gi + 1;
     rows +=
       '<tr data-taskid="' + t.id + '">' +
-        '<td>' + seq + '</td>' +
-        '<td><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
-        '<td><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
-        '<td class="s2-pred" data-preds="' + String(t.predecessor || '').split(/[,，;；]/).map(x => x.split('#')[0].trim()).filter(Boolean).join(',') + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + (String(t.predecessor || '').split(/[,，;；]/).filter(Boolean).length >= 2 ? U.esc(this._s2PredText(t)) : '<select class="s2-pred-sel" onchange="App._s2SetPred(\'' + t.id + '\', this.value)">' + this._s2PredOptions(t, variantId) + '</select>') + '</td>' +
-        '<td class="s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
-        '<td class="s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
-        '<td class="s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
-        '<td class="s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button><button class="s2-ins" title="在此列後插入" onclick="App._s2InsertRow(\'' + t.id + '\', \'' + variantId + '\')">＋</button></td>' +
+        '<td class="col-num">' + seq + '</td>' +
+        '<td class="col-flex" title="' + U.esc(t.name) + '"><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
+        '<td class="col-mid"><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
+        '<td class="col-mid s2-pred" data-preds="' + String(t.predecessor || '').split(/[,，;；]/).map(x => x.split('#')[0].trim()).filter(Boolean).join(',') + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + (String(t.predecessor || '').split(/[,，;；]/).filter(Boolean).length >= 2 ? U.esc(this._s2PredText(t)) : '<select class="s2-pred-sel" onchange="App._s2SetPred(\'' + t.id + '\', this.value)">' + this._s2PredOptions(t, variantId) + '</select>') + '</td>' +
+        '<td class="col-mid s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
+        '<td class="col-mid s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
+        '<td class="col-action s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
+        '<td class="col-action s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button><button class="s2-ins" title="在此列後插入" onclick="App._s2InsertRow(\'' + t.id + '\', \'' + variantId + '\')">＋</button></td>' +
       '</tr>';
   });
-  return '<table class="s2-tbl"><thead><tr>' +
-    '<th>序</th><th>任務名</th><th>負責人</th><th>前置</th><th>工期</th><th>日期（起訖）</th><th>需交付</th><th></th>' +
+  return '<table class="data-table s2-tbl"><thead><tr>' +
+    '<th class="col-num">序</th><th class="col-flex">任務名</th><th class="col-mid">負責人</th><th class="col-mid">前置</th><th class="col-mid">工期</th><th class="col-mid">日期（起訖）</th><th class="col-action">需交付</th><th class="col-action"></th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
 };
 // 寫回 preview：工期 → 重排所有案別（呼叫共用 _reschedulePreview 重算 plannedStart/End）。
