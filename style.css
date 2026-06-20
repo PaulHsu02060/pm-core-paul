@@ -77,12 +77,13 @@
   --col-action-w: 2.5rem;
 }
 
-/* ── 共用表格規範 .data-table（架構文件 §8g）─────────────────
-   寬度由 colgroup + table-layout:fixed 決定（欄寬走上方 --col-*-w token）；
-   欄類型 class 只管對齊/截斷，不含寬度。色彩全複用既有變數，零寫死 hex。*/
+/* ── 共用表格規範 .data-table（架構文件 §8g：內容自適應）─────────────
+   table-layout:auto，欄寬由內容自動撐，人不管寬度。
+   欄類型 class 只管對齊/截斷傾向。input/select 吃滿欄寬，表單表零設定自適應。
+   色彩全複用既有變數，零寫死 hex。*/
 .data-table {
   width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
   border-collapse: collapse;
   background: var(--surface);
 }
@@ -97,29 +98,32 @@
   color: var(--ink-inverse);
   text-align: left;
   font-weight: 600;
+  white-space: nowrap;
 }
 .data-table tbody tr:nth-child(even) { background: var(--cream); }
 .data-table tbody tr:hover { background: var(--surface2); }
 .data-table.cal-table tbody tr:nth-child(even) { background: transparent; }
 .data-table.cal-table tbody tr:nth-child(odd):not(:first-child) { background: var(--cream); }
 
-/* 欄類型語彙（只管對齊/截斷；寬度由 colgroup 給）*/
+/* 表單欄位自適應：input/select 吃滿所在欄，跟著 auto 欄寬走、不破圖 */
+.data-table td input,
+.data-table td select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 欄類型語彙（只管對齊/截斷傾向，不管寬度）*/
 .data-table .col-num    { text-align: center; }
-.data-table .col-action { text-align: center; }
-.data-table .col-mid,
+.data-table .col-action { text-align: center; white-space: nowrap; }
+.data-table .col-mid    { text-align: left; }
 .data-table .col-flex {
   text-align: left;
+  max-width: 24rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 欄寬：<col> 吃 token（table-layout:fixed 下生效）。寬度掛 col、對齊掛 td。 */
-.data-table col.col-num    { width: var(--col-num-w); }
-.data-table col.col-mid    { width: var(--col-mid-w); }
-.data-table col.col-action { width: var(--col-action-w); }
-/* 窄 modal 變體（§8g.3b）：scoped 覆寫 token，col 規則不動。540 modal 6 欄表用。 */
-.data-table.compact { --col-num-w: 3rem; --col-mid-w: 6rem; }
-/* 多行例外（§8g.4）：解除 col-mid/col-flex 的 nowrap+ellipsis，保留多行 cell（可與 col-* 疊加）。 */
+/* 多行例外（§8g）：解除 col-flex 截斷，允許換行（可疊加）*/
 .data-table .col-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
 
 

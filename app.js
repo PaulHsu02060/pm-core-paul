@@ -4982,8 +4982,7 @@ App.openTaskModal = function(id) {
           <span style="font-size:10.5px; color:var(--ink3); font-weight:400;">（共 ${history.length} 週的執行紀錄）</span>
         </label>
         <div style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:220px; overflow-y:auto;">
-          <table class="data-table compact" style="font-size:11.5px;">
-            <colgroup><col class="col-num"><col class="col-num"><col class="col-flex"><col class="col-mid"><col class="col-mid"><col class="col-mid"></colgroup>
+          <table class="data-table" style="font-size:11.5px;">
             <thead>
               <tr>
                 <th class="col-num">週次</th>
@@ -7757,7 +7756,7 @@ App.buildLoadedHolidaysHtml = function() {
     `</tbody>`
   ).join('');
   return `<div class="cal-loaded-head">共 ${dates.length} 筆公休</div>` +
-    `<table class="data-table cal-table"><colgroup><col class="col-mid"><col class="col-flex"><col class="col-action"></colgroup>${groups}</table>`;
+    `<table class="data-table cal-table">${groups}</table>`;
 };
 
 App.renderSettings = function() {
@@ -8637,7 +8636,7 @@ App.openExcelImport = function() {
       <div id="excelImportPreview" style="display:none; margin-top:14px;">
         <div id="excelImportStats" style="padding:10px 14px; background:var(--sage-50); border-radius:8px; font-size:12px; margin-bottom:10px;"></div>
         <div style="max-height:280px; overflow-y:auto; border:1px solid var(--rule); border-radius:8px;">
-          <table id="excelImportTable" class="data-table compact" style="font-size:11.5px;">
+          <table id="excelImportTable" class="data-table" style="font-size:11.5px;">
           </table>
         </div>
       </div>
@@ -9016,7 +9015,7 @@ App.openWbsImport = function() {
           `　|　完成 <b>${done}</b>　進行中 <b>${wip}</b>　|　<b style="color:var(--ink3);">確定後將清空舊 J 任務重灌</b>`;
       }
       if (table) {
-        const head = `<colgroup><col class="col-num"><col class="col-flex"><col class="col-mid"><col class="col-num"><col class="col-num"></colgroup>` +
+        const head =
           `<thead><tr>` +
           `<th class="col-num">N</th>` +
           `<th class="col-flex">任務名</th>` +
@@ -9177,7 +9176,7 @@ App.renderExcelImportPreview = function() {
     `<b>${App._excelTotalWeeks}</b> 個週次　|　共 <b>${rows.length}</b> 筆　|　<b style="color:var(--sage-700);">${toImport}</b> 將匯入　|　<b style="color:var(--ink4);">${skipped}</b> ${CFG('WBS_LABEL', 'WBS')}跳過　|　<b>${projects.size}</b> 個專案`;
 
   const tbl = document.getElementById('excelImportTable');
-  let html = `<colgroup><col class="col-num"><col class="col-mid"><col class="col-flex"><col class="col-num"><col class="col-mid"><col class="col-mid"></colgroup><thead><tr>
+  let html = `<thead><tr>
     <th class="col-num">週次</th>
     <th class="col-mid">專案</th>
     <th class="col-flex">議題</th>
