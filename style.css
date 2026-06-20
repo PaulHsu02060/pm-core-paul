@@ -45,6 +45,7 @@
   --gantt-plan: #7FA08C;     /* 甘特計畫虛框（值同 --sidebar-ink2，語意獨立不借） */
   --gantt-done: #3B6B4A;     /* 甘特完成（號誌燈綠，不借 --sage-600） */
   --gantt-holiday: #EFEAE2;  /* 甘特假日底色 */
+  --gantt-weekday: #F2F3F5;  /* 甘特平日底色（中性淡灰，比白略深、與假日暖灰區隔提辨識） */
 
   --memo-y: #FFF4B8; --memo-p: #FFD9E0; --memo-b: #C8E4F0;
   --memo-g: #D9EBC8; --memo-o: #FFD8B5;
@@ -1025,30 +1026,30 @@ body.viewonly .cloud-sync-sec { display: none; }
 .gantt { display: grid; grid-template-columns: 200px repeat(14, minmax(38px, 1fr)); gap: 0; min-width: 760px; position: relative; }
 /* §12.3 連接線 overlay：絕對定位脫離 grid 流、不佔格；pointer-events 關，點擊穿透到 bar。 */
 .gantt-links { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: var(--z-sticky); overflow: visible; }
-.gantt-corner, .gantt-day-header { font-family: var(--mono); font-size: 9.5px; color: var(--ink3); padding: 6px 0; text-align: center; border-bottom: 2px solid var(--rule); background: var(--surface2); }
-.gantt-corner { font-size: 11px; color: var(--ink2); padding: 8px 6px; }
-.gd-hol { display: block; font-size: 10px; font-weight: 600; color: var(--ink2); margin-top: 1px; }
+.gantt-corner, .gantt-day-header { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--ink3); padding: 6px 0; text-align: center; border-bottom: 2px solid var(--rule); background: var(--surface2); }
+.gantt-corner { font-size: 14px; font-weight: 600; color: var(--ink2); padding: 8px 6px; }
+.gd-hol { display: block; font-size: 12px; font-weight: 600; color: var(--ink2); margin-top: 1px; }
 .gantt-xstage-badge { display:inline-flex; align-items:center; gap:2px; background:var(--clay); color:var(--clay-ink); font-size:9px; font-weight:600; padding:1px 5px; border-radius:99px; margin-right:4px; vertical-align:middle; cursor:default; }
 .gantt-xstage-badge .ti { font-size:10px; }
 .gantt-day-header { border-left: 1px solid var(--rule); }
 .gantt-day-header.holiday { background: var(--gantt-holiday); color: var(--ink4); }
 .gantt-day-header.today { color: var(--terracotta); background: var(--terracotta-l); }
-.gantt-day-header .gd-day { font-family: var(--sans); font-weight: 600; font-size: 13px; color: var(--ink2); display: block; margin-bottom: 1px; }
+.gantt-day-header .gd-day { font-family: var(--sans); font-weight: 600; font-size: 15px; color: var(--ink2); display: block; margin-bottom: 1px; }
 .gantt-day-header.today .gd-day { color: var(--terracotta); }
 .gantt-day-header.holiday .gd-day { color: var(--ink3); }
-.gantt-row-label { padding: 8px 6px; font-size: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--rule); background: var(--surface); min-width: 0; }
+.gantt-row-label { padding: 8px 6px; font-size: 14px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--rule); background: var(--surface); min-width: 0; }
 .gantt-row-label .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.gantt-row-label-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gantt-cell { border-bottom: 1px solid var(--rule); border-left: 1px solid var(--rule); min-height: 36px; position: relative; background: var(--surface); }
+.gantt-row-label-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.gantt-cell { border-bottom: 1px solid var(--rule); border-left: 1px solid var(--rule); min-height: 36px; position: relative; background: var(--gantt-weekday); }
 .gantt-cell.holiday { background: var(--gantt-holiday); }
 .gantt-cell.today { background: rgba(196,99,62,.04); }
-.gantt-bar { position: absolute; top: 6px; bottom: 6px; border-radius: var(--r6); padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 500; color: var(--ink-inverse); cursor: pointer; transition: filter .15s, transform .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 3; }
+.gantt-bar { position: absolute; top: 6px; bottom: 6px; border-radius: var(--r6); padding: 0 10px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink-inverse); cursor: pointer; transition: filter .15s, transform .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 3; }
 .gantt-bar:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .gantt-bar.milestone { background: none; padding: 0; display: flex; align-items: center; }
 .gantt-bar.milestone::before { content: ""; width: 14px; height: 14px; background: var(--terracotta); transform: rotate(45deg); margin: auto; }
 /* §12.2 雙態條：plan 虛框 + actual 填色（取代單條實心 bar-*） */
 .gantt-plan-frame { position: absolute; top: 6px; bottom: 6px; border: 1.5px dashed var(--gantt-plan); background: none; border-radius: var(--r6); z-index: 2; pointer-events: none; }
-.gantt-actual-fill { position: absolute; top: 6px; bottom: 6px; border-radius: var(--r6); padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 500; color: var(--ink-inverse); cursor: pointer; transition: filter .15s, transform .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 3; }
+.gantt-actual-fill { position: absolute; top: 6px; bottom: 6px; border-radius: var(--r6); padding: 0 10px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink-inverse); cursor: pointer; transition: filter .15s, transform .12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 3; }
 .gantt-actual-fill:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .gantt-actual-fill.fill-wip { background: var(--navy); }
 .gantt-actual-fill.fill-done { background: var(--gantt-done); }
