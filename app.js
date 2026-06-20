@@ -2280,6 +2280,7 @@ const App = {
     if (isLocalDev) {
       DATA.settings._role = 'admin';
       document.body.classList.remove('viewonly');
+      localStorage.setItem('auth_dev_role', 'admin');   // 乙案 session-only：清掉殘留 viewonly，面板顯示=實際 admin，reload 自動復原
       const ov = document.getElementById('loginOverlay'); if (ov) ov.classList.add('hidden');
       const bo = document.getElementById('authBlockout'); if (bo) bo.classList.add('hidden');
       this.refreshUserBadge();
