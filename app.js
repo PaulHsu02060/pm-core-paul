@@ -8633,7 +8633,7 @@ App.openExcelImport = function() {
       <div id="excelImportPreview" style="display:none; margin-top:14px;">
         <div id="excelImportStats" style="padding:10px 14px; background:var(--sage-50); border-radius:8px; font-size:12px; margin-bottom:10px;"></div>
         <div style="max-height:280px; overflow-y:auto; border:1px solid var(--rule); border-radius:8px;">
-          <table id="excelImportTable" style="width:100%; border-collapse:collapse; font-size:11.5px;">
+          <table id="excelImportTable" class="data-table compact" style="font-size:11.5px;">
           </table>
         </div>
       </div>
@@ -9173,23 +9173,23 @@ App.renderExcelImportPreview = function() {
     `<b>${App._excelTotalWeeks}</b> 個週次　|　共 <b>${rows.length}</b> 筆　|　<b style="color:var(--sage-700);">${toImport}</b> 將匯入　|　<b style="color:var(--ink4);">${skipped}</b> ${CFG('WBS_LABEL', 'WBS')}跳過　|　<b>${projects.size}</b> 個專案`;
 
   const tbl = document.getElementById('excelImportTable');
-  let html = `<thead style="position:sticky; top:0; background:var(--sage-50);"><tr>
-    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">週次</th>
-    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">專案</th>
-    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">議題</th>
-    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">狀態</th>
-    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">預計完成</th>
-    <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--rule);">擔當</th>
+  let html = `<colgroup><col class="col-num"><col class="col-mid"><col class="col-flex"><col class="col-num"><col class="col-mid"><col class="col-mid"></colgroup><thead><tr>
+    <th class="col-num">週次</th>
+    <th class="col-mid">專案</th>
+    <th class="col-flex">議題</th>
+    <th class="col-num">狀態</th>
+    <th class="col-mid">預計完成</th>
+    <th class="col-mid">擔當</th>
   </tr></thead><tbody>`;
   for (const r of rows) {
     const opacity = r.skipped ? 'opacity:0.4;' : '';
     html += `<tr style="${opacity}">
-      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono); font-size:10.5px;">${r.sheetName}</td>
-      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-weight:500;">${U.esc(r.projDisplay)}${r.skipped ? ' <span style="color:var(--ink4);">(跳過)</span>' : ''}</td>
-      <td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${U.esc(r.item).slice(0, 22)}</td>
-      <td style="padding:5px 8px; border-bottom:1px solid var(--rule);">${r.status}</td>
-      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-family:var(--mono); font-size:10.5px;">${r.planEnd}</td>
-      <td style="padding:5px 8px; border-bottom:1px solid var(--rule); font-size:10.5px;">${U.esc(r.owner)}</td>
+      <td class="col-num" style="font-family:var(--mono); font-size:10.5px;">${r.sheetName}</td>
+      <td class="col-mid" style="font-weight:500;" title="${U.esc(r.projDisplay)}">${U.esc(r.projDisplay)}${r.skipped ? ' <span style="color:var(--ink4);">(跳過)</span>' : ''}</td>
+      <td class="col-flex" title="${U.esc(r.item)}">${U.esc(r.item)}</td>
+      <td class="col-num">${r.status}</td>
+      <td class="col-mid" style="font-family:var(--mono); font-size:10.5px;">${r.planEnd}</td>
+      <td class="col-mid" style="font-size:10.5px;" title="${U.esc(r.owner)}">${U.esc(r.owner)}</td>
     </tr>`;
   }
   html += '</tbody>';
