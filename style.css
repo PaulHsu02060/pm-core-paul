@@ -126,6 +126,13 @@
 }
 /* 多行例外（§8g）：解除 col-flex 截斷，允許換行（可疊加）*/
 .data-table .col-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
+/* 列間插入元件（通用，§8g B；複刻待辦 .row-insert：sage 線+圓鈕+hover 浮現）*/
+.data-table .dt-insert-cell { position: relative; padding: 0; height: 0; border: none; }
+.data-table .dt-insert { position: absolute; left: 0; right: 0; bottom: -13px; height: 26px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .12s; z-index: var(--z-sticky); pointer-events: none; }
+.data-table .dt-insert::before { content: ''; position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%); height: 2px; background: var(--sage-600); border-radius: 99px; }
+.data-table .dt-insert-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--sage-600); color: var(--ink-inverse); border: none; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); pointer-events: auto; }
+.data-table tbody tr:hover + .dt-insert-row .dt-insert,
+.data-table .dt-insert-row:hover .dt-insert { opacity: 1; }
 
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1540,7 +1547,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-pred-hl { background: var(--terracotta-l); }
 .s2-dur, .s2-date { color: var(--stone-400); font-size: 12px; white-space: nowrap; }
 .s2-dur-inp { width: 4rem; }
-.s2-del-cell { text-align: center; display: flex; justify-content: center; gap: 4px; }
+.s2-del-cell { text-align: center; }
 .s2-del { border: none; background: none; cursor: pointer; color: var(--stone-400); font-size: 13px; line-height: 1; padding: 2px 6px; border-radius: var(--r6); }
 .s2-del:hover { color: var(--terracotta); background: var(--terracotta-l); }
 .s2-ins { border: none; background: none; cursor: pointer; color: var(--stone-400); font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: var(--r6); }

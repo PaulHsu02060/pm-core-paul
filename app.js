@@ -5490,7 +5490,7 @@ App._renderStage2 = function() {
     '</div>';
   // §8f.9 viewonly 第二階段：所有可編輯控制項 disabled（純展示，不可改）；建立鈕已 data-edit-hide + _roGuard 雙防
   if (document.body.classList.contains('viewonly')) {
-    document.querySelectorAll('#page-stage2 input, #page-stage2 select, #page-stage2 .s2-del, #page-stage2 .s2-ins').forEach(el => { el.disabled = true; });
+    document.querySelectorAll('#page-stage2 input, #page-stage2 select, #page-stage2 .s2-del, #page-stage2 .dt-insert-btn').forEach(el => { el.disabled = true; });
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
@@ -5630,8 +5630,9 @@ App._s2ListHtml = function(variantId) {
         '<td class="col-mid s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
         '<td class="col-mid s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
         '<td class="col-mid s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
-        '<td class="col-action s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button><button class="s2-ins" title="在此列後插入" onclick="App._s2InsertRow(\'' + t.id + '\', \'' + variantId + '\')">＋</button></td>' +
-      '</tr>';
+        '<td class="col-action s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button></td>' +
+      '</tr>' +
+      '<tr class="dt-insert-row"><td colspan="8" class="dt-insert-cell"><div class="dt-insert"><button class="dt-insert-btn" title="在此列後插入" onclick="App._s2InsertRow(\'' + t.id + '\', \'' + variantId + '\')">＋</button></div></td></tr>';
   });
   return '<table class="data-table s2-tbl"><thead><tr>' +
     '<th class="col-num">序</th><th class="col-flex">任務名</th><th class="col-mid">負責人</th><th class="col-mid">前置</th><th class="col-mid">工期</th><th class="col-mid">日期（起訖）</th><th class="col-mid">需交付</th><th class="col-action"></th>' +
