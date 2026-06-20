@@ -1337,8 +1337,12 @@ deadline 欄）。因 `task.deadline` 仍不存在（§6.6 未做），落地改
 - `a25ef64` docs：§8g 補強（col/td 兩用 + ISO 日期歸 col-mid + 遷移序）
 - `8651a4e` 步1.5 colgroup 寬度 CSS（col.col-* 接 token）
 - `504510c` docs：Path X 排除 rp-table + 試金石改 WBS 單表
-- `2b182ed` 步2 試金石：WBS 匯入預覽套 .data-table `[unverified]`
-- 基準 HEAD：`2b182ed`；下次第一件事：補驗步2（硬重整 → 匯入 WBS modal → 拖檔看預覽：深 sage 表頭/五欄對齊/zebra），驗通才接步3（Excel 預覽調欄/任務史 → cal-row → s2 → 待辦）。
+- `2b182ed` 步2 試金石：WBS 匯入預覽套 .data-table（已線上驗通：深 sage 表頭/五欄對齊正常）
+- `968aa96` 步3-B1：.data-table.compact + .col-wrap CSS（dormant）
+- `c3ebc3e` 步3-B2a：Excel 匯入預覽套 compact `[unverified]`（匯入流程才顯示，同 WBS pattern）
+- `e578080` 步3-B2b：任務史套 compact + col-wrap（本週工作/預計完成兩欄）`[unverified]`（需有歷史紀錄才顯示）
+- `d438fd2` 步4：公休日表 .cal-row div-grid → .data-table（年份分組 tbody + colspan 年份列 sticky + cal-table 專屬 zebra）已線上驗通
+- 基準 HEAD：`d438fd2`；版號 app.js/style.css `?v=20260620-4`。下一步：步5（stage2 .s2-tbl，扁平 table）→ 步6（待辦 .task-grid，div-grid 大改、高風險壓軸、需逐行核 diff）。步3 兩張 `[unverified]` 之後順手驗。
 
 **2026-06-19（§8f.9 viewonly 可看不可改體驗，線上已驗 pass）：**
 - `7b55e21` 設定頁限 Admin 三道防線（showPage 攔截 + renderSettings 守衛 + 側欄隱藏）
