@@ -115,6 +115,10 @@
 .data-table col.col-num    { width: var(--col-num-w); }
 .data-table col.col-mid    { width: var(--col-mid-w); }
 .data-table col.col-action { width: var(--col-action-w); }
+/* 窄 modal 變體（§8g.3b）：scoped 覆寫 token，col 規則不動。540 modal 6 欄表用。 */
+.data-table.compact { --col-num-w: 3rem; --col-mid-w: 6rem; }
+/* 多行例外（§8g.4）：解除 col-mid/col-flex 的 nowrap+ellipsis，保留多行 cell（可與 col-* 疊加）。 */
+.data-table .col-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
 
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
