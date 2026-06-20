@@ -3503,8 +3503,8 @@ App.renderProjectDashboard = function(proj) {
   let activeListInner;
   if (visible.length === 0) {
     activeListInner = hasFilter
-      ? '<div class="empty-task-list"><div class="empty-task-list-icon">🔍</div>無符合篩選條件的任務</div>'
-      : '<div class="empty-task-list"><div class="empty-task-list-icon">📝</div>尚無待辦任務</div>';
+      ? '<tr class="empty-task-list bar-row"><td colspan="10"><div class="empty-task-list-icon">🔍</div>無符合篩選條件的任務</td></tr>'
+      : '<tr class="empty-task-list bar-row"><td colspan="10"><div class="empty-task-list-icon">📝</div>尚無待辦任務</td></tr>';
   } else if (firstUndated < 0) {
     activeListInner = visible.map(t => this.buildTaskRowHtml(t)).join('');
   } else {
@@ -3512,12 +3512,12 @@ App.renderProjectDashboard = function(proj) {
     const undatedRows = visible.slice(firstUndated).map(t => this.buildTaskRowHtml(t, 'undated')).join('');
     const undatedCount = visible.length - firstUndated;
     activeListInner = datedRows +
-      `<div class="toschedule-bar ${tsCollapsed}" onclick="App.toggleToScheduleVisible('${proj.id}')">
+      `<tr class="toschedule-bar bar-row ${tsCollapsed}" onclick="App.toggleToScheduleVisible('${proj.id}')"><td colspan="10"><div class="bar-inner">
             <span class="done-head-chevron">▼</span>
             <span class="done-head-title">待排</span>
             <span class="done-head-count">${undatedCount}</span>
             <span class="done-toggle-note">${toScheduleVisible ? '未填開始日（補開始日或前置即排入）' : '已收合'}</span>
-          </div>` +
+          </div></td></tr>` +
           undatedRows;
   }
 
@@ -3540,28 +3540,32 @@ App.renderProjectDashboard = function(proj) {
           ${this.buildTaskFilterBar(proj.id)}
           <!-- 第二刀-A 已接線：applyTaskFilter(ordered, getTaskFilter) 四 Set 過濾 → filtered，下游 counts／預覽／visible 全吃 filtered；獨立過濾不碰 filterTasks（看板專用）。 -->
           <!-- subgrid 步2：單一 .task-grid 父，header/done-bar/各列直屬，欄軌共用自動算；hide-done/ts-collapsed 摺疊 class 烤在父上。 -->
-          <div id="activeTaskList" class="task-grid${doneVisible ? '' : ' hide-done'}${toScheduleVisible ? '' : ' ts-collapsed'}">
-            <div class="task-row-header">
-              <span style="text-align:center;">序</span>
-              <span style="text-align:left;">階段</span>
-              <span style="text-align:left;">任務</span>
-              <span style="text-align:left;">進度%</span>
-              <span style="text-align:center;">負責人</span>
-              <span style="text-align:left;">前置任務</span>
-              <span style="text-align:center;">狀態</span>
-              <span style="text-align:left;">預計時程（開始→結束）</span>
-              <span style="text-align:center;">餘裕（天）</span>
-              <span style="text-align:center;">截止日</span>
-            </div>
+          <table id="activeTaskList" class="data-table task-table${doneVisible ? '' : ' hide-done'}${toScheduleVisible ? '' : ' ts-collapsed'}">
+            <thead>
+              <tr class="task-row-header">
+                <th class="col-num">序</th>
+                <th class="col-mid">階段</th>
+                <th class="col-flex">任務</th>
+                <th class="col-mid">進度%</th>
+                <th class="col-mid">負責人</th>
+                <th class="col-mid">前置任務</th>
+                <th class="col-num">狀態</th>
+                <th class="col-mid">預計時程（開始→結束）</th>
+                <th class="col-num">餘裕（天）</th>
+                <th class="col-num">截止日</th>
+              </tr>
+            </thead>
+            <tbody>
             ${doneCount > 0 ? `
-            <div class="done-toggle-bar ${doneVisible ? '' : 'collapsed'}" onclick="App.toggleDoneVisible('${proj.id}')">
+            <tr class="done-toggle-bar bar-row ${doneVisible ? '' : 'collapsed'}" onclick="App.toggleDoneVisible('${proj.id}')"><td colspan="10"><div class="bar-inner">
               <span class="done-head-chevron">▼</span>
               <span class="done-head-title">已完成</span>
               <span class="done-head-count">${doneCount}</span>
               <span class="done-toggle-note">${doneVisible ? '原位顯示（灰字刪除線）' : '已收合'}</span>
-            </div>` : ''}
+            </div></td></tr>` : ''}
             ${activeListInner}
-          </div>
+            </tbody>
+          </table>
           ${!showAll ? `
           <div style="padding:10px 16px; border-top:1px solid var(--rule); text-align:center; background:var(--surface2);">
             <button class="tb-action ghost" onclick="App.toggleProjectExpanded('${proj.id}')" style="font-size:11.5px; padding:5px 14px;">
@@ -4057,34 +4061,37 @@ App.buildTaskRowHtml = function(t, cls) {
     }
   }
 
-  return `<div class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
-    <span style="font-family:var(--mono); font-size:11px; color:var(--ink4); text-align:center;">${App._seqOf(t.id)}</span>
-    <span style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.stage || '—')}</span>
-    <div class="task-info">
-      <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-        ${U.esc(t.name)}
-        ${t.synced ? `<span class="sync-tag">🔗 ${U.esc(t.syncRef || '')}</span>` : ''}
-        ${isPreview ? '<span class="preview-tag">📅 兩週預告</span>' : ''}
+  return `<tr class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
+    <td class="col-num"><span style="font-family:var(--mono); font-size:11px; color:var(--ink4);">${App._seqOf(t.id)}</span></td>
+    <td class="col-mid"><span style="font-size:12px; color:var(--ink2);">${U.esc(t.stage || '—')}</span></td>
+    <td class="col-flex" title="${U.esc(t.name)}">
+      <div class="task-info">
+        <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          ${U.esc(t.name)}
+          ${t.synced ? `<span class="sync-tag">🔗 ${U.esc(t.syncRef || '')}</span>` : ''}
+          ${isPreview ? '<span class="preview-tag">📅 兩週預告</span>' : ''}
+        </div>
       </div>
-    </div>
-    <div style="display:flex; align-items:center; gap:6px;">
-      <div class="stage-bar" style="border:1px solid var(--rule2);"><div class="stage-bar-fill" style="width:${pct}%; background:${barColor};"></div></div>
-      <span style="font-family:var(--mono); font-size:10.5px; color:var(--ink3); min-width:30px; text-align:right;">${pct}%</span>
-    </div>
-    <span style="font-size:12px; color:var(--ink2); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${U.esc(t.owner || '—')}</span>
-    <span class="task-pred" data-preds="${parsePredecessors(t.predecessor).map(p => p.dep).join(',')}" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()" title="${U.esc(predTitleOf(t.predecessor))}" style="font-size:12px; color:var(--ink2); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:default;">${U.esc(prettyPredecessor(t.predecessor))}</span>
-    <span class="rp-status ${statusCls}" style="text-align:center;">${statusTxt}</span>
-    <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
-      <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
-      ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
-    </div>
-    <span style="font-size:12px; font-style:italic; color:var(--ink4); text-align:center;">${slackTxt}</span>
-    <span class="task-deadline ${dlClass}" style="text-align:center; font-size:12px;">${dlText}</span>
-    <div class="row-insert">
-      <button class="row-insert-btn" tabindex="-1" title="在此列下方插入任務"
-              onclick="event.stopPropagation(); App._insertAfterId='${t.id}'; App.openNewTaskDialog('${t.project}');"><i class="ti ti-plus"></i></button>
-    </div>
-  </div>`;
+    </td>
+    <td class="col-mid">
+      <div style="display:flex; justify-content:flex-start; align-items:center; gap:6px;">
+        <div class="stage-bar" style="border:1px solid var(--rule2);"><div class="stage-bar-fill" style="width:${pct}%; background:${barColor};"></div></div>
+        <span style="font-family:var(--mono); font-size:10.5px; color:var(--ink3); min-width:30px; text-align:right;">${pct}%</span>
+      </div>
+    </td>
+    <td class="col-mid"><span style="font-size:12px; color:var(--ink2);">${U.esc(t.owner || '—')}</span></td>
+    <td class="col-mid task-pred" data-preds="${parsePredecessors(t.predecessor).map(p => p.dep).join(',')}" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()" title="${U.esc(predTitleOf(t.predecessor))}">${U.esc(prettyPredecessor(t.predecessor))}</td>
+    <td class="col-num"><span class="rp-status ${statusCls}">${statusTxt}</span></td>
+    <td class="col-mid">
+      <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
+        <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
+        ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
+      </div>
+    </td>
+    <td class="col-num"><span style="font-style:italic; color:var(--ink4); font-size:12px;">${slackTxt}</span></td>
+    <td class="col-num"><span class="task-deadline ${dlClass}" style="font-size:12px;">${dlText}</span></td>
+  </tr>
+  <tr class="dt-insert-row"><td colspan="10" class="dt-insert-cell"><div class="dt-insert"><button class="dt-insert-btn" title="在此列後插入" onclick="event.stopPropagation(); App._insertAfterId='${t.id}'; App.openNewTaskDialog('${t.project}');"><i class="ti ti-plus"></i></button></div></td></tr>`;
 };
 
 // 看板窄卡（§1.7）：dlClass/dlText、進度、前置數皆照抄 buildTaskRowHtml 口徑，顏色走 :root 變數（CSS 另給）。

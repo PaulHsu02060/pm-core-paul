@@ -72,9 +72,6 @@
   --blockout-bg: rgba(15, 18, 24, 0.96);   /* 深近不透明遮罩底 */
   --blockout-fg: var(--ink-inverse);        /* 深底反白字，複用既有 */
   --z-blockout: 1050;   /* 高於 login overlay(1000)、低於 DEV 面板(1100) 讓切換器保持可點 */
-  --col-num-w: 4rem;
-  --col-mid-w: 8rem;
-  --col-action-w: 2.5rem;
 }
 
 /* ── 共用表格規範 .data-table（架構文件 §8g：內容自適應）─────────────
@@ -741,35 +738,20 @@ body.viewonly .cloud-sync-sec { display: none; }
 .tlc-title { font-family: var(--mono); font-size: 14px; color: var(--ink-inverse); letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
 .tlc-count { font-family: var(--mono); font-size: 11px; color: var(--ink2); background: var(--stone-100); padding: 1px 8px; border-radius: 99px; }
 
-.task-row, .task-row-header {
-  display: grid; grid-template-columns: subgrid; grid-column: 1 / -1;
-  align-items: center; padding: 11px 16px;
-}
-.task-row {
-  position: relative; border-bottom: 1px solid var(--rule); transition: background .12s; cursor: pointer;
-}
-.task-row-header {
-  background: var(--head-band-strong); border-bottom: 1px solid var(--rule);
-  font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--ink-inverse); text-transform: uppercase;
-}
-
-/* subgrid 自動欄寬：單一 grid 父，表頭+各列共用欄軌（跨列一致、依內容自動算）。步1 dormant（DOM 尚無 .task-grid）；步2 render 包進後生效。 */
-.task-grid {
-  display: grid;
-  grid-template-columns:
-    auto minmax(auto, 120px) minmax(160px, 2.5fr) auto
-    minmax(auto, 110px) minmax(auto, 120px) auto minmax(150px, 1fr) auto auto;
-  gap: 0 14px;
-}
-.task-grid > .done-toggle-bar,
-.task-grid > .toschedule-bar,
-.task-grid > .empty-task-list { grid-column: 1 / -1; }
-.task-grid.hide-done .task-row.done { display: none; }
-.task-grid.ts-collapsed .task-row.undated { display: none; }
-.task-grid .task-row.done { opacity: .65; }
-.task-grid .task-row .row-insert { display: flex; }
-.task-grid .task-row:last-child .row-insert { display: none; }
-.task-grid .task-row:hover .row-insert { opacity: 1; }
+/* 待辦表（.data-table.task-table）：auto 自適應，grid/subgrid 機制移除（步6）。 */
+.task-table td, .task-table th { padding: 11px 16px; }
+.task-table .task-row { cursor: pointer; transition: background .12s; }
+.task-table .task-row-header th { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+.task-table.hide-done .task-row.done,
+.task-table.hide-done .task-row.done + .dt-insert-row { display: none; }
+.task-table.ts-collapsed .task-row.undated,
+.task-table.ts-collapsed .task-row.undated + .dt-insert-row { display: none; }
+.task-table .task-row.done { opacity: .65; }
+/* 待辦表欄寬/bar 護欄（步6-3，task-table scoped；通用 col/auto/dt-insert 不動）*/
+.task-table .bar-row .bar-inner { display: flex; align-items: center; gap: 8px; }
+.data-table.task-table .stage-bar { width: 72px; flex: none; }
+.data-table.task-table td:nth-child(8), .data-table.task-table th:nth-child(8) { max-width: 120px; }
+.data-table.task-table td:nth-child(7), .data-table.task-table th:nth-child(7) { min-width: 72px; text-align: left; }
 
 /* ─── 待辦清單篩選列（§塊3 UI 殼：膠囊多選 + 展開面板，本批不接過濾）─── */
 .task-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; background: var(--surface2); border-bottom: 1px solid var(--rule); }
@@ -802,27 +784,9 @@ body.viewonly .cloud-sync-sec { display: none; }
 .task-row.synced { background: rgba(74,124,92,.02); }
 .task-row.synced:hover { background: var(--sage-50); }
 .task-row.s2-pred-hl { background: var(--terracotta-l); }   /* 前置 hover 反色，特異度(0,2,0)+置於 nth-child 後勝出 */
-/* 列交界 hover 插入（§8b 中間插入 UI 殼；只在 active 清單開、末列不放）*/
-.row-insert {
-  position: absolute; left: 0; right: 0; bottom: -9px; height: 18px;
-  align-items: center; justify-content: center;
-  opacity: 0; transition: opacity .12s; z-index: var(--z-sticky);
-  pointer-events: none;            /* 熱區不擋列點擊；只有➕按鈕可點 */
-  display: none;                   /* 預設關（done 清單等情境）；只在 active 清單開 */
-}
-.row-insert::before {
-  content: ''; position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
-  height: 2px; background: var(--sage-600); border-radius: 99px;
-}
-.row-insert-btn {
-  position: relative; display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--sage-600); color: var(--ink-inverse); border: none;
-  font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); pointer-events: auto;
-}
-#activeTaskList .task-row .row-insert { display: flex; }
-#activeTaskList .task-row:last-child .row-insert { display: none; }
-#activeTaskList .task-row:hover .row-insert { opacity: 1; }
+/* 通用 zebra 只關 bar/insert 列（不碰資料列自訂 zebra，(0,3,0) 贏通用 (0,2,2)）*/
+.data-table.task-table .bar-row,
+.data-table.task-table .dt-insert-row { background: transparent; }
 .task-check {
   width: 18px; height: 18px; border-radius: var(--r4); border: 1.5px solid var(--rule2);
   display: flex; align-items: center; justify-content: center;
@@ -955,10 +919,8 @@ body.viewonly .cloud-sync-sec { display: none; }
 .deleted-section .done-head:hover { background: rgba(196, 99, 62, 0.12); }
 
 /* commit2 C：done inline 原位 + 收合 toggle bar */
-#activeTaskList.hide-done .task-row.done { display: none; }
-#activeTaskList .task-row.done { opacity: .65; }
-.done-toggle-bar { padding: 11px 14px 11px 11px; margin-top: 0; background: var(--sage-100); border: 1px solid var(--sage-200); border-left: 4px solid var(--sage-500); border-radius: var(--r12); display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; transition: background .15s; }
-.done-toggle-bar:hover { background: var(--sage-200); }
+.done-toggle-bar td { padding: 11px 14px 11px 11px; background: var(--sage-100); border: 1px solid var(--sage-200); border-left: 4px solid var(--sage-500); cursor: pointer; user-select: none; transition: background .15s; }
+.done-toggle-bar:hover td { background: var(--sage-200); }
 .done-toggle-bar .done-head-chevron { margin-left: 0; color: var(--sage-600); }
 .done-toggle-bar .done-head-title { color: var(--sage-800); font-weight: 600; }
 .done-toggle-bar .done-head-count { color: var(--sage-50); background: var(--sage-700); }
@@ -967,14 +929,13 @@ body.viewonly .cloud-sync-sec { display: none; }
 .done-toggle-note { font-size: 11px; color: var(--ink4); }
 
 /* 第一刀：待排分隔 bar（仿 done-toggle-bar，terracotta 系，可摺疊預設展開） */
-.toschedule-bar { padding: 11px 14px 11px 11px; margin-top: 0; background: var(--terracotta-l); border: 1px solid var(--terracotta-chip); border-left: 4px solid var(--terracotta); border-radius: var(--r12); display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; transition: background .15s; }
-.toschedule-bar:hover { background: var(--terracotta-l-hover); }
+.toschedule-bar td { padding: 11px 14px 11px 11px; background: var(--terracotta-l); border: 1px solid var(--terracotta-chip); border-left: 4px solid var(--terracotta); cursor: pointer; user-select: none; transition: background .15s; }
+.toschedule-bar:hover td { background: var(--terracotta-l-hover); }
 .toschedule-bar .done-head-chevron { margin-left: 0; color: var(--terracotta); }
 .toschedule-bar .done-head-title { color: var(--terracotta-ink); font-weight: 600; }
 .toschedule-bar .done-head-count { color: var(--terracotta-l); background: var(--terracotta-d); }
 .toschedule-bar .done-toggle-note { color: var(--terracotta); }
 .toschedule-bar.collapsed .done-head-chevron { transform: rotate(-90deg); }
-.toschedule-group.collapsed { display: none; }
 .deleted-row:last-child { border-bottom: none !important; }
 .deleted-row:hover { background: var(--surface2); }
 
@@ -983,7 +944,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .list-foot input::placeholder { color: var(--ink4); }
 .list-foot button { padding: 5px 12px; background: var(--sage-500); color: var(--ink-inverse); border: none; border-radius: var(--r6); font-size: 12px; font-weight: 500; }
 
-.empty-task-list { padding: 40px 20px; text-align: center; color: var(--ink3); font-size: 13px; }
+.empty-task-list td { padding: 40px 20px; text-align: center; color: var(--ink3); font-size: 13px; }
 .empty-task-list-icon { font-size: 32px; margin-bottom: 8px; opacity: .4; }
 
 /* ─── SIDE CARD (meetings, generate) ─── */
