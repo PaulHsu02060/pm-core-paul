@@ -278,13 +278,6 @@ button { cursor: pointer; }
 
 .sb-bottom { margin-top: auto; padding: 12px 8px 14px; border-top: 1px solid var(--sidebar-rule); }
 .sb-foot { font-family: var(--mono); font-size: 9px; color: var(--sidebar-ink2); text-align: center; padding: 8px 0; letter-spacing: .08em; }
-.sb-sync-info {
-  font-family: var(--mono); font-size: 10px; color: var(--sidebar-ink2);
-  padding: 8px 10px; background: var(--sidebar-card); border-radius: var(--r6);
-  margin: 0 4px 6px; display: flex; align-items: center; gap: 8px;
-}
-.sb-sync-info .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sage-500); box-shadow: 0 0 0 3px rgba(74,124,92,.2); flex-shrink: 0; }
-.sb-sync-info .sync-time { font-size: 9px; opacity: .7; margin-top: 1px; }
 
 /* ─── MAIN ─── */
 .main { display: flex; flex-direction: column; min-height: 100vh; }

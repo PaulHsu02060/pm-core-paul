@@ -65,7 +65,6 @@ const STORE = {
   schedule: `pmw::${PATH_KEY}::schedule`,
   settings: `pmw::${PATH_KEY}::settings`,
   password: `pmw::${PATH_KEY}::password`,
-  syncLog:  `pmw::${PATH_KEY}::synclog`,
   weekNotes: `pmw::${PATH_KEY}::weeknotes`,
   pdcaGroups: `pmw::${PATH_KEY}::pdcagroups`,
   calendars: `pmw::${PATH_KEY}::calendars`,
@@ -87,9 +86,6 @@ const DEFAULT_SETTINGS = {
   previewWeeks: 2,
   // 【需求 A】手動釘選到本週的 task id；釘選後不因 plannedStart 在未來被排程踢出
   pinnedWeekTaskIds: [],
-  jSheetUrl: '',
-  syncTimes: ['09:00', '14:00'],
-  autoSyncEnabled: false,
   // Google OAuth 白名單（只有這些 Gmail 登入後才能編輯）
   allowedEmails: CFG('ALLOWED_EMAILS', []),
   googleClientId: '', // 由使用者在設定頁填入
@@ -1790,190 +1786,6 @@ function getEffectiveSchedule(task) {
   };
 }
 
-// ═══════════════════════════════════════════════════════
-//  GOOGLE SHEETS SYNC (Apps Script)
-// ═══════════════════════════════════════════════════════
-const Sync = {
-  syncing: false,
-
-  async syncJSeries(silent = false) {
-    if (this.syncing) return;
-    const url = DATA.settings.jSheetUrl;
-    if (!url) {
-      if (!silent) U.toast('⚠ 請先在「設定」填入 Apps Script URL', 'warning');
-      return;
-    }
-    this.syncing = true;
-    if (!silent) U.toast('🔄 正在同步 ' + CFG('WBS_LABEL', 'WBS') + '...');
-
-    try {
-      const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (!data.tasks || !Array.isArray(data.tasks)) throw new Error('回應格式錯誤');
-
-      // Find or create WBS project
-      let jProj = DATA.projects.find(p => p.synced && p.syncSource === 'jSheet');
-      if (!jProj) {
-        jProj = {
-          id: U.id(), name: CFG('WBS_PROJECT_NAME', 'WBS 專案'), color: CFG('WBS_PROJECT_COLOR', '#4A7C5C'),
-          note: '從 Google Sheet 自動同步',
-          synced: true, syncSource: 'jSheet',
-          createdAt: new Date().toISOString(),
-        };
-        DATA.projects.unshift(jProj);
-      }
-
-      // Preserve _local* overrides before removing old tasks
-      const savedOverrides = {};
-      DATA.tasks.forEach(t => {
-        if (t.synced && t.project === jProj.id && getJOverride(t.id)) {
-          savedOverrides[t.id] = {};
-          J_OVERRIDE_FIELDS.forEach(f => {
-            const key = '_local' + f.charAt(0).toUpperCase() + f.slice(1);
-            if (t[key] !== undefined) savedOverrides[t.id][key] = t[key];
-          });
-        }
-      });
-
-      // Remove old synced tasks for this project
-      DATA.tasks = DATA.tasks.filter(t => !(t.synced && t.project === jProj.id));
-
-      // Add new tasks from sheet
-      for (const row of data.tasks) {
-        // ─── 即時狀態判定邏輯 ───
-        // 1. 有「實際完成日」 → 強制狀態 = 已完成（不管 sheet 上的狀態欄）
-        // 2. 有「實際開始日」但無實際完成日 → 強制狀態 = 進行中
-        // 3. 兩者都沒有 → 用 sheet 上的狀態欄判定
-        let realStatus;
-        let realCompletedAt = null;
-        if (row.actualEnd) {
-          realStatus = 'done';
-          realCompletedAt = row.actualEnd;
-        } else if (row.actualStart) {
-          realStatus = 'wip';
-        } else {
-          realStatus = mapStatus(row.status, row.progress);
-        }
-
-        // ─── 即時日期判定邏輯 ───
-        // 有實際開始日 → 用實際的，否則用預計的
-        // 有實際完成日 → 用實際的，否則用預計的
-        const effectiveStart = row.actualStart || row.plannedStart || '';
-        const effectiveEnd   = row.actualEnd   || row.plannedEnd   || '';
-
-        // 進度：已完成強制 100%
-        const realProgress = realStatus === 'done' ? 100 : parseFloat(row.progress || 0);
-
-        const task = {
-          id: `sync_${jProj.id}_${row.n}`,
-          project: jProj.id,
-          synced: true,
-          syncRef: `WBS#${row.n}`,
-          name: row.name || `任務 ${row.n}`,
-          desc: row.stage ? `${row.stage} / ${row.subgroup || ''}` : (row.subgroup || ''),
-          stage: row.stage || '',          // PLM 階段（Sheet 第1欄）：一等欄位，供 getProjectStages 分桶
-          subgroup: row.subgroup || '',     // 子群組（Sheet 第2欄）：一併存成欄位，不再只靠 desc 解析
-          owner: row.owner || '',
-          // ─ 階段2 排程引擎欄位 ─
-          predecessor: row.precedence || '',  // 後端「前置任務」欄；格式解析見 parsePredecessors
-          wbs: row.n,                          // WBS 序號（同步任務以此為 WBS 識別）
-          parentWbsId: '',                     // 子綁父；待 Sheet WBS 階層格式確認後填，先留空不亂猜
-          // ⚠ start = effectiveStart = actualStart||plannedStart，語意是「有效顯示日」(混實際/預計兩義)。
-          //   computeSchedule(行1004)目前讀 t.start 當「手填錨點」→ 語意衝突：
-          //   實際已開工(actualStart有值)的任務 start=實際日，會被誤當錨點不推算，非使用者本意。
-          //   定案：錨點應改判斷 override.start(使用者前端刻意改的,見getEffectiveSchedule行1346)，
-          //         plannedStart(Sheet同步進來92筆都有)不算錨點，才能讓「改一筆下游連動」成立。
-          //   待改 computeSchedule 錨點判斷來源 + 加 scheduledStart/End 收排程結果。回家有node再改+驗。
-          start: effectiveStart,           // 用實際的覆蓋預計（顯示用，勿直接當排程錨點，見上）
-          end: effectiveEnd,                // 用實際的覆蓋預計（顯示用）
-          plannedStart: row.plannedStart || '', // 保留預計日期供顯示
-          plannedEnd: row.plannedEnd || '',
-          actualStart: row.actualStart || '',
-          actualEnd: row.actualEnd || '',
-          durationDays: parseFloat(row.workdays) || 0,  // Sheet「工期」欄＝工作天數；排程 end=addWorkdays(start, n-1)
-          scheduledStart: '',  // 排程套用結果（applySchedule寫入/getEffectiveSchedule讀），四條建任務路徑一致
-          scheduledEnd: '',
-          estHours: parseFloat(row.workdays || 0) * (DATA.settings.dailyHours || 6) || 4,  // 每日工時讀 settings（使用者可在設定頁自填），settings 無值才 fallback 6。小時來源最終設計待引擎2
-          category: row.type === '里程碑' ? 'meeting' : 'deep',
-          taskType: mapTaskType(row.type),  // M2-T：類型正本（task/milestone/group）；上行 lossy 映射待消費點全改完後拔除
-          urgency: deduceUrgency(row),
-          status: realStatus,
-          progress: realProgress,
-          note: row.note || '',
-          deliverableType: '',   // §7.1（不接 UI，預設值）
-          requiredTask: true,    // §7.1（預設全必要）
-          mustIssue: false,      // §7.1
-          locked: true,
-          createdAt: new Date().toISOString(),  // 形狀統一：四條建任務路徑都帶 createdAt
-          completedAt: realCompletedAt,
-        };
-        DATA.tasks.push(task);
-        if (savedOverrides[task.id]) {
-          Object.assign(task, savedOverrides[task.id]);
-        }
-      }
-
-      // 第二輪：前置 id 化（§8b.5 層次二，方案 X 覆蓋，與 WBS 匯入同模式）。
-      // ⚠ 每次同步當下重翻，不是 one-shot migration、不設旗標、不擋重跑——上次爆炸根因正是半套 migration 掃存量。
-      // 必須在這批 task 全部 push 完之後做，否則前置指向後面尚未進 map 的 task 會查不到。
-      // 查找來源＝本次同步批次（1698 已清該專案舊 synced task、迴圈只 push 這批，故 filter 即此批），同批互相前置才查得到。
-      const syncedBatch = DATA.tasks.filter(t => t.synced && t.project === jProj.id);
-      const wbsToIdMap = buildWbsToIdMap(syncedBatch);
-      syncedBatch.forEach(t => { t.predecessor = translatePredToId(t.predecessor, wbsToIdMap); });
-
-      // Store sync log
-      const syncedAt = new Date().toISOString();
-      localStorage.setItem(STORE.syncLog, JSON.stringify({ syncedAt, count: data.tasks.length }));
-      jProj.lastSync = syncedAt;
-
-      Storage.save();
-      if (!silent) {
-        U.toast(`✅ ${CFG('WBS_LABEL', 'WBS')}已同步 (${data.tasks.length} 項任務)`, 'success');
-      }
-      App.refreshAll();
-    } catch (e) {
-      console.error('Sync failed:', e);
-      if (!silent) U.toast(`❌ 同步失敗：${e.message}`, 'error');
-    } finally {
-      this.syncing = false;
-    }
-  },
-
-  // Auto-sync at scheduled times
-  startAutoSync() {
-    const check = () => {
-      if (!DATA.settings.autoSyncEnabled || !DATA.settings.jSheetUrl) return;
-      const now = new Date();
-      const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      const lastLog = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
-      const lastDay = lastLog.syncedAt ? new Date(lastLog.syncedAt).toDateString() : '';
-      const todayDay = now.toDateString();
-      const lastTime = lastLog.syncedAt ? `${new Date(lastLog.syncedAt).getHours()}:${new Date(lastLog.syncedAt).getMinutes()}` : '';
-
-      for (const t of DATA.settings.syncTimes) {
-        if (hhmm === t) {
-          const sig = `${todayDay}_${t}`;
-          if (lastLog.lastTriggerSig !== sig) {
-            lastLog.lastTriggerSig = sig;
-            localStorage.setItem(STORE.syncLog, JSON.stringify(lastLog));
-            this.syncJSeries(true);
-          }
-        }
-      }
-    };
-    setInterval(check, 60000); // check every minute
-  },
-};
-
-function deduceUrgency(row) {
-  if (!row.plannedEnd) return 'medium';
-  const days = D.daysBetween(D.today(), new Date(row.plannedEnd));
-  if (days < 0) return 'high';
-  if (days <= 3) return 'high';
-  if (days <= 7) return 'medium';
-  return 'low';
-}
 
 function mapStatus(status, progress) {
   if (!status) return 'pending';
@@ -2206,8 +2018,6 @@ const App = {
     this.renderSidebar();
     this.refreshAll();
 
-    // Auto-sync if enabled
-    Sync.startAutoSync();
 
     // Login check
     this.checkLoginState();
@@ -2497,19 +2307,6 @@ const App = {
       </button>`;
     }).join('');
 
-    // Update sync info display (僅 admin 顯示 WBS 同步徽章 + 頂部立即同步按鈕)
-    const log = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
-    const syncInfo = document.getElementById('syncInfo');
-    const topbarBtn = document.getElementById('topbarJSyncBtn');
-    if (topbarBtn) topbarBtn.style.display = isAdmin() ? '' : 'none';
-    if (isAdmin() && log.syncedAt) {
-      const t = new Date(log.syncedAt);
-      const today = D.isSameDay(t, new Date()) ? '今日' : D.fmt(t, 'md');
-      document.getElementById('syncTime').textContent = `${today} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-      syncInfo.style.display = '';
-    } else {
-      syncInfo.style.display = 'none';
-    }
 
     const setBtn = document.querySelector('[data-page=settings]');
     if (setBtn) setBtn.style.display = isAdmin() ? '' : 'none';
@@ -3434,7 +3231,6 @@ App.buildProjectHeaderHtml = function() {
             ${proj.synced ? '<span class="proj-sync-badge">🔗 從 Google Sheet 同步</span>' : ''}
           </div>
         </div>
-        ${proj.synced ? `<button class="tb-action ghost" data-edit onclick="Sync.syncJSeries()">↻ 立即同步</button>` : ''}
         ${!proj.synced ? `<button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>` : ''}
       </div>`;
 };
@@ -7771,8 +7567,6 @@ App.buildLoadedHolidaysHtml = function() {
 App.renderSettings = function() {
   if (!isAdmin()) return;
   const s = DATA.settings;
-  const log = JSON.parse(localStorage.getItem(STORE.syncLog) || '{}');
-  const syncOk = !!log.syncedAt;
 
   document.getElementById('page-settings').innerHTML = `
     <div class="tabs" style="margin-bottom:18px;">
@@ -7849,6 +7643,17 @@ App.renderSettings = function() {
             <div class="help">超過此工時的任務會自動切分到多天</div>
           </div>
         </div>
+
+        <div class="ss-field">
+          <label>兩週預告</label>
+          <div>
+            <select id="set-preview">
+              <option value="2" ${s.previewWeeks === 2 ? 'selected' : ''}>啟用：14 天內 deadline 出現提示</option>
+              <option value="1" ${s.previewWeeks === 1 ? 'selected' : ''}>啟用：7 天內</option>
+              <option value="0" ${s.previewWeeks === 0 ? 'selected' : ''}>停用</option>
+            </select>
+          </div>
+        </div>
       </div>
       <!-- 工作日曆（公休 / 補班）匯入 -->
       <div class="settings-section">
@@ -7892,78 +7697,6 @@ App.renderSettings = function() {
       </div>
       <!-- /排程 --></div></div>
     <div class="tab-panel" id="資料"><div class="settings-grid">
-      <!-- Sync (WBS 同步：僅 admin 顯示) -->
-      ${isAdmin() ? `
-      <div class="settings-section" id="settings-jsync">
-        <div class="ss-title">🔗 ${CFG('WBS_LABEL', 'WBS')} WBS 同步 <span style="font-size:11px; background:var(--sage-100); color:var(--sage-700); padding:2px 8px; border-radius:10px; margin-left:8px;">👑 ADMIN</span></div>
-        <div class="ss-desc">從公司「${CFG('WBS_LABEL', 'WBS')}整合 WBS」Sheet 唯讀同步任務（每天 2 次 + 同步後自動執行智慧排程）<br>
-          <span style="color:var(--ink4); font-size:11.5px;">⚠️ 僅限${CFG('COMPANY_NAME', 'My Company')}使用，需 ${CFG('WBS_LABEL', 'WBS')} Sheet 的讀取權限</span>
-        </div>
-
-        ${s.jSheetUrl ? `<div class="sync-status ${syncOk ? '' : 'error'}">
-          <div class="sync-pulse"></div>
-          <div class="sync-status-text">
-            ${syncOk ? `<b>已同步</b> · ${log.count || 0} 個任務` : '<b>未同步</b> · 請點「立即同步」測試'}
-          </div>
-          <div class="sync-status-time">${syncOk ? D.fmt(new Date(log.syncedAt),'md') + ' ' + new Date(log.syncedAt).toTimeString().slice(0,5) : ''}</div>
-        </div>` : ''}
-
-        <div class="ss-field">
-          <label>${CFG('WBS_LABEL', 'WBS')} Apps Script URL</label>
-          <div>
-            <input type="text" id="set-url" value="${U.esc(s.jSheetUrl || '')}" placeholder="https://script.google.com/macros/s/.../exec  (${CFG('WBS_LABEL', 'WBS')} WBS API)" style="font-family:var(--mono); font-size:11px;">
-            <div class="help">由你或 RD 部署 Apps Script 後取得（部署方式見 README）</div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>每日同步時間</label>
-          <div>
-            <div class="time-range">
-              <input type="time" id="set-st1" value="${s.syncTimes?.[0] || '09:00'}">
-              <span>+</span>
-              <input type="time" id="set-st2" value="${s.syncTimes?.[1] || '14:00'}">
-            </div>
-            <div class="help">同步完成後會自動執行智慧排程</div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>自動同步</label>
-          <div>
-            <select id="set-autosync">
-              <option value="true" ${s.autoSyncEnabled ? 'selected' : ''}>啟用</option>
-              <option value="false" ${!s.autoSyncEnabled ? 'selected' : ''}>停用（手動）</option>
-            </select>
-            <div class="help">頁面要開著才會自動同步</div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>兩週預告</label>
-          <div>
-            <select id="set-preview">
-              <option value="2" ${s.previewWeeks === 2 ? 'selected' : ''}>啟用：14 天內 deadline 出現提示</option>
-              <option value="1" ${s.previewWeeks === 1 ? 'selected' : ''}>啟用：7 天內</option>
-              <option value="0" ${s.previewWeeks === 0 ? 'selected' : ''}>停用</option>
-            </select>
-          </div>
-        </div>
-
-        <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-          <button class="tb-action" onclick="App.saveAndSync()">↻ 儲存設定並立即同步</button>
-          <button class="tb-action ghost" onclick="App.resetAllJOverrides()">↺ 重置所有 ${CFG('WBS_LABEL', 'WBS')}本地時程</button>
-        </div>
-
-        <div class="tip" style="margin-top:14px;">
-          <b>同步邏輯說明：</b><br>
-          • ${CFG('WBS_LABEL', 'WBS')}任務在 ${CFG('APP_NAME', 'PM-Core')} 為<b>唯讀</b>，如需修改請至 Google Sheet<br>
-          • 衝突原則：<b>以 Sheet 為準</b>，本地修改會被覆蓋<br>
-          • 同步完成後<b>自動執行智慧排程</b>，確保資料一致<br>
-          • 已完成任務同步進「已完成」區，超過 ${s.doneRetentionDays} 天自動清除
-        </div>
-      </div>
-      ` : ''}
       <!-- 雲端同步（訪客唯讀時隱藏，editor/admin 才顯示：CSS body.viewonly .cloud-sync-sec） -->
       <div class="settings-section cloud-sync-sec">
         <div class="ss-title">☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步</div>
@@ -8178,10 +7911,6 @@ App.saveSettings = function() {
   const el = (id) => document.getElementById(id);
   const sv = (id) => { const e = el(id); return e ? e.value : null; };
   let v;
-  if ((v = sv('set-url')) !== null) DATA.settings.jSheetUrl = v.trim();
-  const st1 = sv('set-st1'), st2 = sv('set-st2');
-  if (st1 !== null && st2 !== null) DATA.settings.syncTimes = [st1, st2];
-  if ((v = sv('set-autosync')) !== null) DATA.settings.autoSyncEnabled = v === 'true';
   if ((v = sv('set-preview')) !== null) DATA.settings.previewWeeks = parseInt(v);
   if ((v = sv('set-hours')) !== null) DATA.settings.dailyHours = parseFloat(v);
   if ((v = sv('set-ws1')) !== null) DATA.settings.workStart1 = v;
@@ -8604,14 +8333,6 @@ App.googleSignOut = function() {
   location.reload();
 };
 
-App.saveAndSync = function() {
-  this.saveSettings();
-  if (!DATA.settings.jSheetUrl) {
-    U.toast('⚠ 請先填入 Apps Script URL', 'warning');
-    return;
-  }
-  Sync.syncJSeries();
-};
 
 // ─── EXCEL HISTORY IMPORT (Weekly Report) ───
 App.openExcelImport = function() {
@@ -9634,8 +9355,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.js-brand-name').forEach(el => el.textContent = _appName);
   const _wbsLabel = CFG('WBS_LABEL', 'WBS');
   document.querySelectorAll('.js-wbs-label').forEach(el => el.textContent = _wbsLabel);
-  const _jSyncBtn = document.getElementById('topbarJSyncBtn');
-  if (_jSyncBtn) _jSyncBtn.title = '從 Google Sheet 同步 ' + _wbsLabel;
   // ESC closes modal
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') App.closeModal();

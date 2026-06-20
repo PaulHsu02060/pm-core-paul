@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.44.0/dist/tabler-icons.min.css">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<link rel="stylesheet" href="style.css?v=20260620-16">
+<link rel="stylesheet" href="style.css?v=20260620-17">
 </head>
 <body>
 
@@ -80,14 +80,6 @@
     </div>
 
     <div class="sb-bottom">
-      <div class="sb-sync-info" id="syncInfo" style="display:none; cursor:pointer;" data-edit onclick="Sync.syncJSeries()" title="點擊立即同步">
-        <div class="dot"></div>
-        <div style="flex:1; min-width:0;">
-          <div><span class="js-wbs-label">WBS</span> 已同步</div>
-          <div class="sync-time" id="syncTime">尚未同步</div>
-        </div>
-        <div style="font-size:11px; color:var(--sage-600);">↻</div>
-      </div>
       <div class="sb-foot">v1.0</div>
     </div>
   </aside>
@@ -102,9 +94,6 @@
       <div class="tb-meta-info">
         <span id="weekInfo"></span>
       </div>
-      <button class="tb-action ghost" id="topbarJSyncBtn" data-edit onclick="Sync.syncJSeries()" title="從 Google Sheet 同步 WBS" style="display:none;">
-        🔗 立即同步
-      </button>
       <button class="tb-action" data-edit onclick="App.generateGlobalSchedule()" title="針對所有任務產生本週智慧排程">
         ⚡ 智慧排程
       </button>
@@ -145,6 +134,6 @@
 <script src="seed.sample.js?v=20260605-1"></script>
 <script src="seed.local.js?v=20260605-1"></script>
 <script src="templates/product-dev-template.js?v=20260615-4"></script>
-<script src="app.js?v=20260620-13"></script>
+<script src="app.js?v=20260620-14"></script>
 </body>
 </html>
