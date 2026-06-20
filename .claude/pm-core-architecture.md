@@ -147,13 +147,13 @@ Auth（檢視/編輯/登入）
 
 ### 4.4 α 方案錨點分流
 
-- J 任務讀 `override._localStart`，手動任務讀 `t.start`（修正「92 任務全錨定」bug）。
+- 手動任務錨點讀 `t.start`（修正「92 任務全錨定」bug）；J override 層已移除（問題3 步2），override 群本體 + synced/locked UI 留步3 清。
 - 錨點跳過 scheduled 寫入（scheduled 是純機器層）。
 
 ### 4.5 getEffectiveSchedule 優先序
 
-`override > actual > scheduled > planned`，並帶 `startSource`。
-**用 `||` 不用 `??`**（override 可存空字串，nullish coalescing 會誤判）。
+`actual > scheduled > planned`，並帶 `startSource`。
+**用 `||` 不用 `??`**（空字串也要 fallback 到下層）。
 
 ### 4.6 逾期判定（待施工，§9 第 2 項）
 
