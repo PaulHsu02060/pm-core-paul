@@ -2364,11 +2364,11 @@ App._reschedulePreview = function(tasks, variants, warnings) {
 };
 
 // App.applyTemplate(template, userInput)：純函式，只回傳資料、不碰 DOM/Storage（[CORE]）。
-//   批1：①建專案 ②建 variants(含 schedule)+對照表 ③建 depts(role→人,空role/無人跳過)。
+//   批1：①建專案 ②建 variants(含 schedule)+對照表 ③建 depts(ui.depts→多成員,空部門/無成員跳過)。
 //   task/warnings 暫留空；步驟④~⑧(篩階段/id重產/依賴重指/排程)後批接入。
 //   userInput = { projectName, color?, note,
 //     cases:[{variantName,templateVariant,startDate,endDate,direction,selectedStages,stageRenames}],
-//     roleMap:{role:人名} }；cases[0]=主案。
+//     depts:[{name,members:[{name}]}] }；cases[0]=主案。
 //   templateVariant=範本來源 key（對 template.cases[].variant，如「主案」/「另案」）；無則退回 variantName。
 //   ④ 跑 ui.cases（非 template.cases）：多個自訂名另案各用 templateVariant 反查同一範本來源、各生成一份。
 App.applyTemplate = function(template, userInput) {
@@ -2403,14 +2403,16 @@ App.applyTemplate = function(template, userInput) {
     variantNameToId[name] = id;
   });
 
-  // ③ depts（範本 role → 實際負責人；空 role 或無人 → 跳過不建空部門）
+  // ③ depts（共用部門編輯元件的 ui.depts → 多成員；空部門名 / 無有效成員 → 跳過不建空部門）
   const depts = [];
-  const roleMap = ui.roleMap || {};
-  Object.keys(roleMap).forEach(role => {
-    const r = (role || '').trim();
-    const person = (roleMap[role] || '').trim();
-    if (!r || !person) return;
-    depts.push({ id: U.id(), name: r, members: [{ id: U.id(), name: person }] });
+  (ui.depts || []).forEach(d => {
+    const name = (d.name || '').trim();
+    if (!name) return;
+    const members = (d.members || [])
+      .map(m => (m.name || '').trim()).filter(Boolean)
+      .map(nm => ({ id: U.id(), name: nm }));
+    if (!members.length) return;
+    depts.push({ id: U.id(), name: name, members: members });
   });
 
   // ④ 篩選勾選階段 + 收集 excludedNs / ⑤ id重產 / ⑦ task組裝（38欄）
@@ -4979,39 +4981,14 @@ App._tplAddOtherCase = function() {
   box.appendChild(card);
 };
 
-// 部門／負責人 UI（預載範本 roles：部門名帶出、負責人留空待填；roleMap 由 saveProject 收集）
-App._tplRoleRowInner = function(deptName) {
-  return `<input type="text" class="tpl-role-name" placeholder="部門名" value="${U.esc(deptName || '')}"><input type="text" class="tpl-role-person" placeholder="負責人"><button type="button" class="tb-action ghost tpl-role-del" onclick="App._tplDelRoleRow(this)">刪</button>`;
-};
-App._tplRoleRowsHtml = function() {
-  // 預設帶出範本所有 role（§8d.14：清單從範本長出，涵蓋所有任務負責人，第二階段配對不失敗）。
-  const roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles) ? PRODUCT_DEV_TEMPLATE.roles : [];
-  const rows = (roles.length ? roles : ['']).map(r =>
-    `<div class="tpl-role-row">${App._tplRoleRowInner(r)}</div>`
-  ).join('');
-  return `<div class="form-field"><label>部門與負責人（可自由增減）</label>`
-    + `<div id="pf-roleRows">${rows}</div>`
-    + `<button type="button" class="tb-action ghost tpl-role-add" onclick="App._tplAddRoleRow()">＋ 新增部門列</button></div>`;
-};
-App._tplAddRoleRow = function() {
-  const box = document.getElementById('pf-roleRows');
-  if (!box) return;
-  const div = document.createElement('div');
-  div.className = 'tpl-role-row';
-  div.innerHTML = App._tplRoleRowInner();
-  box.appendChild(div);
-};
-App._tplDelRoleRow = function(btn) {
-  const row = btn.closest('.tpl-role-row');
-  if (!row) return;
-  const box = document.getElementById('pf-roleRows');
-  row.remove();
-  if (box && box.querySelectorAll('.tpl-role-row').length === 0) App._tplAddRoleRow();   // 維持至少 1 列
-};
-
 App.openProjectDialog = function(projId) {
   const editing = projId ? this.getProj(projId) : null;
   const isEdit = !!editing;
+  // 模板第一階段部門編輯暫存：預載範本 roles（每部門帶一空成員列）；下一步由 saveProject 收集、closeModal 清
+  if (!isEdit) {
+    const _roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles && PRODUCT_DEV_TEMPLATE.roles.length) ? PRODUCT_DEV_TEMPLATE.roles : [''];
+    App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
+  }
 
   this.openModal({
     title: isEdit ? '編輯專案' : '新增專案',
@@ -5069,25 +5046,19 @@ App.openProjectDialog = function(projId) {
         </div>
         <div id="pf-otherCases"></div>
         <button type="button" class="tb-action ghost" onclick="App._tplAddOtherCase()">＋ 新增另案</button>
-        ${App._tplRoleRowsHtml()}
+        <div class="form-field"><label>部門與負責人（可自由增減）</label>
+          <div class="dept-editor-head"><span class="dept-head-name">部門名稱</span><span class="dept-head-members">擔當姓名</span></div>
+          <div class="dept-edit-list" id="deptEditorList">${App.buildDeptRowsHtml(App._tplDepts, 'tpl', null)}</div>
+          <button class="tb-action ghost dept-add-btn" onclick="App.deptUI.addDept('tpl', '')">＋ 新增部門</button>
+        </div>
       </div>
       ` : ''}
         ${isEdit ? `
         <div class="form-field">
           <label>部門擔當</label>
-          <div class="dept-edit-list">
-            ${(editing.depts || []).map(d => `
-              <div class="dept-edit-row">
-                <input class="dept-edit-name" value="${U.esc(d.name)}" onchange="App.deptEdit.renameDept('${projId}','${d.id}',this.value)">
-                <button class="tb-action ghost dept-edit-del" onclick="App.deptEdit.removeDept('${projId}','${d.id}')">刪部門</button>
-                <div class="dept-edit-members">
-                  ${(d.members || []).map(m => `<span class="dept-member-chip">${U.esc(m.name)}<button onclick="App.deptEdit.removeMember('${projId}','${d.id}','${m.id}')">×</button></span>`).join('')}
-                  <button class="dept-member-add" onclick="App.deptEdit.addMember('${projId}','${d.id}')">＋成員</button>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-          <button class="tb-action ghost dept-add-btn" onclick="App.deptEdit.addDept('${projId}')">＋ 新增部門</button>
+          <div class="dept-editor-head"><span class="dept-head-name">部門名稱</span><span class="dept-head-members">擔當姓名</span></div>
+          <div class="dept-edit-list" id="deptEditorList">${App.buildDeptRowsHtml(editing.depts || [], 'edit', projId)}</div>
+          <button class="tb-action ghost dept-add-btn" onclick="App.deptUI.addDept('edit', '${projId}')">＋ 新增部門</button>
         </div>
         ` : ''}
     `,
@@ -5118,8 +5089,8 @@ App.openProjectDialog = function(projId) {
       const el = document.getElementById(id);
       if (el) el.disabled = true;
     });
-    // 階段勾選膠囊(button.stage-pick)、部門列(.tpl-role-row input + 增刪鈕) disabled
-    document.querySelectorAll('#pf-tplBox .stage-pick, #pf-tplBox .tpl-role-row input, #pf-tplBox .tpl-role-add, #pf-tplBox .tpl-role-del').forEach(el => el.disabled = true);
+    // 階段勾選膠囊(button.stage-pick)、部門編輯元件(#deptEditorList input/button + ＋新增部門) disabled
+    document.querySelectorAll('#pf-tplBox .stage-pick, #pf-tplBox #deptEditorList input, #pf-tplBox #deptEditorList button, #pf-tplBox .dept-add-btn').forEach(el => el.disabled = true);
     const addCaseBtn = document.querySelector('#pf-tplBox button[onclick*="_tplAddOtherCase"]');
     if (addCaseBtn) addCaseBtn.style.display = 'none';
   }
@@ -5201,17 +5172,8 @@ App.saveProject = function(id) {
           selectedStages: stages,
         });
       }
-      // 從 #pf-roleRows 各列收集 roleMap（部門名→負責人）；部門名=role 字面，對上 task.role。
-      // 空人名列：仍寫入 key，引擎 ③ 遇空人名自會跳過不建 dept（單一兜底，不在此重判）。
-      const roleMap = {};
-      document.querySelectorAll('#pf-tplBox .tpl-role-row').forEach(row => {
-        const nameEl = row.querySelector('.tpl-role-name');
-        const personEl = row.querySelector('.tpl-role-person');
-        const dept = (nameEl ? nameEl.value : '').trim();
-        const person = (personEl ? personEl.value : '').trim();
-        if (dept) roleMap[dept] = person;
-      });
-      const userInput = { projectName: name, color, note, cases, roleMap };
+      // 部門/擔當：直接用 App._tplDepts（共用部門編輯元件即時維護的暫存）；空部門/無成員由引擎 ③ 跳過。
+      const userInput = { projectName: name, color, note, cases, depts: App._tplDepts || [] };
       // B 步驟1：preview-then-commit（§8d.15 N.1）——算出 res 不落地，整包存 _tplPreview，
       // 關第一階段 modal、開第二階段頁；depts/variants 掛回 + push/save 留到「建立專案」鈕。
       this._tplPreview = App.applyTemplate(tpl, userInput);
@@ -5582,63 +5544,111 @@ App._s2RefreshCase = function(variantId) {
   if (list) list.innerHTML = this._s2ListHtml(variantId);
 };
 
-App.deptEdit = {
-  _getProj(projId) {
-    return DATA.projects.find(p => p.id === projId);
-  },
-  _commit(projId) {
-    // 即時生效（D-2c 走 A 案）：存檔 + 重繪整個編輯專案 modal
-    Storage.save();
-    App.openProjectDialog(projId);
-  },
-  addDept(projId) {
-    const p = this._getProj(projId);
-    if (!p) return;
-    if (!p.depts) p.depts = [];
-    p.depts.push({ id: U.id(), name: '新部門', members: [] });
-    this._commit(projId);
-  },
-  renameDept(projId, deptId, newName) {
-    const p = this._getProj(projId);
-    if (!p || !p.depts) return;
-    const d = p.depts.find(x => x.id === deptId);
-    if (!d) return;
-    const v = (newName || '').trim();
-    if (!v) { U.toast('部門名不可空白'); return; }
-    d.name = v;
-    this._commit(projId);
-  },
-  removeDept(projId, deptId) {
-    const p = this._getProj(projId);
-    if (!p || !p.depts) return;
-    const n = DATA.tasks.filter(t => t.dept === deptId).length;
-    if (n === 0) {
-      // 空部門:輕量 confirm 後直接刪
-      const d0 = p.depts.find(x => x.id === deptId);
-      if (!confirm('確定刪除部門「' + (d0 ? d0.name : deptId) + '」?')) return;
-      p.depts = p.depts.filter(x => x.id !== deptId);
-      this._commit(projId);
-      return;
+// ═══ 共用部門編輯 component（buildDeptRowsHtml 渲染 + deptUI 互動；編輯/模板兩端共用）═══
+// 資料結構統一：depts = [{id, name, members:[{id, name}]}]
+// mode='edit'：backing=project.depts，每動即時 Storage.save + 重繪容器
+// mode='tpl' ：backing=App._tplDepts（暫存），每動只重繪容器、不存（下一步由 saveProject 收集）
+App.buildDeptRowsHtml = function(depts, mode, projId) {
+  const pid = projId || '';
+  return (depts || []).map(d => `
+      <div class="dept-edit-row" data-dept-id="${d.id}">
+        <div class="dept-pill">
+          <input class="dept-edit-name" value="${U.esc(d.name)}" placeholder="部門名稱" onchange="App.deptUI.renameDept('${mode}','${pid}','${d.id}',this.value)">
+          <span class="dept-pill-sep"></span>
+          <div class="dept-members">
+            ${(d.members || []).map(m => `<span class="dept-member-chip"><input class="dept-member-name" data-member-id="${m.id}" value="${U.esc(m.name)}" placeholder="擔當姓名" onchange="App.deptUI.renameMember('${mode}','${pid}','${d.id}','${m.id}',this.value)"><button class="dept-member-del" title="刪除擔當" onclick="App.deptUI.removeMember('${mode}','${pid}','${d.id}','${m.id}')">×</button></span>`).join('')}
+            <button class="dept-member-add" onclick="App.deptUI.addMember('${mode}','${pid}','${d.id}')">＋擔當</button>
+          </div>
+        </div>
+        <button class="dept-del-btn" title="刪除部門" onclick="App.deptUI.removeDept('${mode}','${pid}','${d.id}')">×</button>
+      </div>`).join('');
+};
+
+App.deptUI = {
+  // backing store 分流：edit→project.depts（持久）/ tpl→App._tplDepts（暫存）
+  _store(mode, projId) {
+    if (mode === 'edit') {
+      const p = App.getProj(projId);
+      if (!p) return null;
+      if (!p.depts) p.depts = [];
+      return p.depts;
     }
-    // n>0:開批次改派彈窗(不在此寫資料)
-    App.openDeptReassign(projId, deptId);
+    if (!App._tplDepts) App._tplDepts = [];
+    return App._tplDepts;
   },
-  addMember(projId, deptId) {
-    const p = this._getProj(projId);
-    if (!p || !p.depts) return;
-    const d = p.depts.find(x => x.id === deptId);
+  // 寫入時機分流：edit→存檔+重繪 / tpl→只重繪（不存）
+  _after(mode, projId, focusSel) {
+    if (mode === 'edit') Storage.save();
+    this._rerender(mode, projId, focusSel);
+  },
+  // 只重繪部門容器（#deptEditorList），不重開整個 modal → 保住其他未存欄位
+  _rerender(mode, projId, focusSel) {
+    const box = document.getElementById('deptEditorList');
+    if (!box) return;
+    box.innerHTML = App.buildDeptRowsHtml(this._store(mode, projId), mode, projId);
+    if (focusSel) {
+      const el = box.querySelector(focusSel);
+      if (el) el.focus();
+    }
+  },
+  addDept(mode, projId) {
+    const store = this._store(mode, projId);
+    if (!store) return;
+    const id = U.id();
+    store.push({ id: id, name: '', members: [{ id: U.id(), name: '' }] });
+    this._after(mode, projId, '.dept-edit-row[data-dept-id="' + id + '"] .dept-edit-name');
+  },
+  renameDept(mode, projId, deptId, val) {
+    const store = this._store(mode, projId);
+    if (!store) return;
+    const d = store.find(x => x.id === deptId);
+    if (!d) return;
+    const v = (val || '').trim();
+    if (mode === 'edit' && !v) { U.toast('部門名不可空白'); return; }
+    d.name = v;
+    this._after(mode, projId);
+  },
+  removeDept(mode, projId, deptId) {
+    const store = this._store(mode, projId);
+    if (!store) return;
+    if (mode === 'edit') {
+      const n = DATA.tasks.filter(t => t.dept === deptId).length;
+      if (n > 0) { App.openDeptReassign(projId, deptId); return; }   // 有任務掛著 → 改派彈窗（安全網）
+      const d0 = store.find(x => x.id === deptId);
+      if (!confirm('確定刪除部門「' + (d0 ? d0.name : deptId) + '」?')) return;
+    }
+    const i = store.findIndex(x => x.id === deptId);
+    if (i >= 0) store.splice(i, 1);
+    if (mode === 'tpl' && store.length === 0) store.push({ id: U.id(), name: '', members: [{ id: U.id(), name: '' }] });   // 模板維持至少 1 列
+    this._after(mode, projId);
+  },
+  addMember(mode, projId, deptId) {
+    const store = this._store(mode, projId);
+    if (!store) return;
+    const d = store.find(x => x.id === deptId);
     if (!d) return;
     if (!d.members) d.members = [];
-    d.members.push({ id: U.id(), name: '新成員' });
-    this._commit(projId);
+    const mid = U.id();
+    d.members.push({ id: mid, name: '' });
+    this._after(mode, projId, '[data-member-id="' + mid + '"]');
   },
-  removeMember(projId, deptId, memberId) {
-    const p = this._getProj(projId);
-    if (!p || !p.depts) return;
-    const d = p.depts.find(x => x.id === deptId);
+  renameMember(mode, projId, deptId, memberId, val) {   // 修 bug：成員姓名改成可編輯
+    const store = this._store(mode, projId);
+    if (!store) return;
+    const d = store.find(x => x.id === deptId);
     if (!d || !d.members) return;
-    d.members = d.members.filter(m => m.id !== memberId);
-    this._commit(projId);
+    const m = d.members.find(x => x.id === memberId);
+    if (!m) return;
+    m.name = (val || '').trim();
+    this._after(mode, projId);
+  },
+  removeMember(mode, projId, deptId, memberId) {
+    const store = this._store(mode, projId);
+    if (!store) return;
+    const d = store.find(x => x.id === deptId);
+    if (!d || !d.members) return;
+    d.members = d.members.filter(x => x.id !== memberId);
+    this._after(mode, projId);
   }
 };
 
@@ -5695,7 +5705,7 @@ App.confirmDeptReassign = function(projId, deptId) {
     t.dept = (val === '__UNASSIGN__') ? '未指派' : val;
   });
   p.depts = p.depts.filter(x => x.id !== deptId);
-  App.deptEdit._commit(projId);   // = Storage.save() + openProjectDialog(重繪回編輯專案 modal)
+  App.deptUI._after('edit', projId);   // = Storage.save() + 重繪部門容器（取代舊 deptEdit._commit）
 };
 
 App.deleteProject = function(id) {
@@ -9288,6 +9298,7 @@ App.openModal = function({ title, body, footer }) {
 
 App.closeModal = function() {
   App._insertAfterId = null;   // 取消/關閉(含 X、Esc)清插入旗標，避免殘留下次誤插
+  App._tplDepts = null;        // 清模板暫存部門（取消/關閉都清，避免殘留下次誤用）
   document.getElementById('modalOverlay').classList.remove('open');
 };
 

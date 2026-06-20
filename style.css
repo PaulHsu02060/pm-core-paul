@@ -412,21 +412,6 @@ body.viewonly .cloud-sync-sec { display: none; }
 .stage-pick { font-size: 12.5px; font-weight: 500; padding: 4px 12px; border-radius: 99px; cursor: pointer; border: 1px dashed var(--rule2); background: var(--surface2); color: var(--ink3); transition: background .12s, color .12s, border-color .12s; }
 .stage-pick:hover { border-color: var(--ink4); }
 .stage-pick.on { background: var(--sage-50); color: var(--sage-700); border: 1px solid var(--sage-100); }
-.tpl-role-row {
-  display: flex; align-items: center; gap: var(--r6);
-  padding: var(--r8); border: 1px solid var(--rule);
-  border-radius: var(--r8); background: var(--surface2);
-  margin-bottom: var(--r6);
-}
-.tpl-role-name   { flex: 1 1 140px; }
-.tpl-role-person { flex: 1 1 110px; }
-.tpl-role-row .tpl-role-name,
-.tpl-role-row .tpl-role-person {
-  padding: var(--r4) var(--r6); border: 1px solid var(--rule2);
-  border-radius: var(--r4); background: var(--surface);
-  color: var(--ink); font: inherit;
-}
-.tpl-role-del { flex: 0 0 auto; }
 /* 案別卡（主案/另案）：左側色條區分，圓角讓出左側給色條 */
 .case-card {
   border: 1px solid var(--rule); border-left: 4px solid var(--rule);
@@ -1406,43 +1391,59 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* ── D-2c-3 部門擔當表 ───────────────── */
 .dept-edit-list { display: flex; flex-direction: column; gap: var(--r8); }
 
-.dept-edit-row {
-  display: flex; align-items: center; flex-wrap: wrap; gap: var(--r6);
-  padding: var(--r8); border: 1px solid var(--rule);
-  border-radius: var(--r8); background: var(--surface2);
-}
+/* 欄位標題列（小字 muted，約略對齊欄位） */
+.dept-editor-head { display: flex; align-items: center; gap: var(--r8); font-size: 11px; color: var(--ink3); padding: 0 var(--r8) var(--r4); }
+.dept-head-name { flex: 0 0 118px; }
+.dept-head-members { flex: 1 1 auto; }
 
+/* 一列 = 大膠囊 + 獨立刪部門鈕 */
+.dept-edit-row { display: flex; align-items: center; gap: var(--r8); margin-bottom: var(--r6); }
+
+/* 大膠囊（方形鈍角 --r8） */
+.dept-pill {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: var(--r8);
+  padding: var(--r6) var(--r8);
+  border: 1px solid var(--rule2); border-radius: var(--r8);
+  background: var(--surface);
+}
 .dept-edit-name {
-  flex: 1 1 160px; padding: var(--r4) var(--r6);
-  border: 1px solid var(--rule2); border-radius: var(--r4);
-  background: var(--surface); color: var(--ink); font: inherit;
+  flex: 0 0 110px; width: 110px;
+  border: none; background: none; font: inherit; font-weight: 600;
+  color: var(--ink); padding: var(--r4);
 }
+.dept-edit-name:focus { outline: none; }
 
-.dept-edit-members {
-  display: flex; align-items: center; flex-wrap: wrap; gap: var(--r6);
-  flex: 2 1 240px;
-}
+/* 細分隔線 */
+.dept-pill-sep { flex: 0 0 auto; width: 1px; align-self: stretch; background: var(--rule2); }
 
+/* 擔當膠囊群（防爆：min-width:0 + flex-wrap） */
+.dept-members { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--r6); }
+
+/* 擔當小膠囊（方形鈍角 --r6，同風格淡底） */
 .dept-member-chip {
   display: inline-flex; align-items: center; gap: var(--r4);
-  padding: var(--r4) var(--r8); border-radius: 99px;
-  background: var(--surface); border: 1px solid var(--rule);
-  color: var(--ink2); font-size: 13px;
+  padding: var(--r3) var(--r6);
+  border: 1px solid var(--rule); border-radius: var(--r6);
+  background: var(--surface2);
 }
-.dept-member-chip button {
-  border: none; background: none; cursor: pointer;
-  color: var(--ink4); padding: 0; line-height: 1; font-size: 14px;
-}
-.dept-member-chip button:hover { color: var(--rose); }
+.dept-member-name { flex: 0 0 80px; width: 80px; border: none; background: none; font: inherit; color: var(--ink); padding: var(--r3) 0; }
+.dept-member-name:focus { outline: none; }
+.dept-member-del { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--ink4); padding: 0; line-height: 1; font-size: 14px; }
+.dept-member-del:hover { color: var(--rose); }
 
-.dept-member-add {
-  padding: var(--r4) var(--r8); border-radius: 99px;
-  border: 1px dashed var(--rule2); background: none;
-  color: var(--ink3); cursor: pointer; font-size: 13px;
-}
+/* ＋擔當（方形鈍角 --r6 虛線） */
+.dept-member-add { padding: var(--r3) var(--r8); border-radius: var(--r6); border: 1px dashed var(--rule2); background: none; color: var(--ink3); cursor: pointer; font-size: 12px; }
 .dept-member-add:hover { border-color: var(--sage-400); color: var(--sage-600); }
 
-.dept-edit-del:hover { color: var(--rose); }
+/* 獨立刪部門鈕（方形鈍角 --r8，固定 28x28） */
+.dept-del-btn {
+  flex: 0 0 auto; width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--rule2); border-radius: var(--r8);
+  background: var(--surface); color: var(--ink4); cursor: pointer; font-size: 15px; line-height: 1;
+}
+.dept-del-btn:hover { color: var(--rose); border-color: var(--rose); }
 
 /* ── D-2d-3 刪部門改派彈窗 ───────────── */
 .reassign-list {
