@@ -4920,7 +4920,7 @@ App._flowStep2 = function() {
       ${mode === 'blank' ? App._deptEditorHtml() : ''}
       <div class="form-field excel-upload" style="${mode==='excel'?'':'display:none'}">
         <label>WBS Excel 檔</label>
-        <input type="file" id="pf-excelFile" accept=".xlsx,.xls" onchange="App._flowExcelPick(event)">
+        <label class="eu-filebtn"><i class="ti ti-table-import"></i> 選擇檔案<span id="pf-excelName" class="eu-filename">尚未選擇</span><input type="file" id="pf-excelFile" accept=".xlsx,.xls" onchange="App._flowExcelPick(event)"></label>
         <div id="pf-excelStatus" class="excel-status"></div>
       </div>`,
     footer: `<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>
@@ -4948,26 +4948,32 @@ App._flowViewonlyPreview = function() {
 };
 
 // 第②段「下一步/建立」handler：依 _createFlow.mode 分流。空白→落地（_flowBlankCommit，動作D）；Excel→佔位；範本→掃表單成 cases、存 stage1Data、算 preview 進第③段。
+// Excel 上傳狀態三態（wait/ok/err）統一設定：className 重置 + textContent，避免前態 class 殘留。
+App._setExcelStatus = function(text, kind) {
+  const st = document.getElementById('pf-excelStatus');
+  if (st) { st.className = 'excel-status ' + (kind || ''); st.textContent = text; }
+};
+
 // Excel ②選檔：async 解析→存 _createFlow.excelParsed→顯示狀態（下一步讀它進第三段）。
 App._flowExcelPick = async function(e) {
   const file = e.target.files && e.target.files[0];
-  const status = document.getElementById('pf-excelStatus');
   if (!file) return;
-  if (status) status.textContent = '解析中…';
+  App._setExcelStatus('解析中…', 'wait');
   try {
     const parsed = await parseWbsExcel(file);
     if (!parsed || !parsed.ok) {
       if (App._createFlow) App._createFlow.excelParsed = null;
-      if (status) status.textContent = '⚠ 解析失敗：' + ((parsed && parsed.errors && parsed.errors[0]) || '檔案格式不符');
+      App._setExcelStatus('⚠ 解析失敗：' + ((parsed && parsed.errors && parsed.errors[0]) || '檔案格式不符'), 'err');
       return;
     }
     if (App._createFlow) App._createFlow.excelParsed = parsed;
-    if (status) status.textContent = '✓ 已讀取「' + (parsed.projectName || '未命名') + '」共 ' + parsed.rows.length + ' 筆任務，按下一步檢視';
+    App._setExcelStatus('✓ 已讀取「' + (parsed.projectName || '未命名') + '」共 ' + parsed.rows.length + ' 筆任務，按下一步檢視', 'ok');
+    const nameSpan = document.getElementById('pf-excelName'); if (nameSpan && file) nameSpan.textContent = file.name;
     const nameEl = document.getElementById('pf-name');
     if (nameEl && !nameEl.value.trim() && parsed.projectName) nameEl.value = parsed.projectName;
   } catch (err) {
     if (App._createFlow) App._createFlow.excelParsed = null;
-    if (status) status.textContent = '⚠ 解析錯誤：' + (err.message || err);
+    App._setExcelStatus('⚠ 解析錯誤：' + (err.message || err), 'err');
   }
 };
 

@@ -441,8 +441,15 @@ body.viewonly .cloud-sync-sec { display: none; }
 .cm-check { font-size: 20px; color: var(--sage-500); flex: none; opacity: 0; transition: opacity .15s; }
 .cm-card.on .cm-check { opacity: 1; }
 .cm-card.cm-locked { pointer-events: none; opacity: .55; }   /* viewonly:三卡鎖死不可點 */
-/* Excel 佔位（pf-excelBox 內，下一批接真功能） */
-.excel-placeholder { color: var(--ink3); font-size: 12px; padding: 16px; text-align: center; border: 1px dashed var(--rule2); border-radius: var(--r8); }
+
+/* Excel 上傳區（路線B ② 選檔鈕 + 三態狀態） */
+.excel-upload .eu-filebtn { display:inline-flex; align-items:center; gap:var(--r4); padding:var(--r6) var(--r10); border:1px solid var(--rule); border-radius:var(--r6); background:var(--surface); font-size:13px; color:var(--ink); cursor:pointer; }
+.excel-upload input[type="file"] { display:none; }
+.excel-status { margin-top:var(--r8); font-size:13px; padding:var(--r6) var(--r8); border-radius:var(--r6); }
+.excel-status:empty { display:none; }
+.excel-status.ok { color:var(--sage-700); background:var(--sage-50); }
+.excel-status.wait { color:var(--ink3); background:var(--surface2); }
+.excel-status.err { color:var(--rose-ink); background:var(--rose-l); }
 
 /* 案別卡（主案/另案）：左側色條區分，圓角讓出左側給色條 */
 .case-card {
