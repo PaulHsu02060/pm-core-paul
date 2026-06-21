@@ -319,8 +319,8 @@ function applySchedule(tasks, scope = 'full') {
       skipped.push({ id: r.taskId, reason: r.error || r.blockedCause || 'unscheduled', warnings: r.warnings });
       return;
     }
-    // 跳過：錨點任務(override或手動手填)——人的意志，不進機器層scheduled(B定案=不寫)
-    //   顯示靠 getEffectiveSchedule 的 override/actual 層補
+    // 跳過：錨點任務(手動手填)——人的意志，不進機器層scheduled(B定案=不寫)
+    //   顯示靠 getEffectiveSchedule 的 actual 層補
     if (r.anchorSource === 'manual') {
       skipped.push({ id: r.taskId, reason: 'anchor:' + r.anchorSource });
       return;
@@ -359,7 +359,7 @@ function runTopo(tasks) {
 // ════ getEffectiveSchedule 同步複本（dispStart/dispEnd 與 app.js 一字不差） ═══
 function getEffectiveSchedule(task) {
   if (!task) return null;
-  // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)；J override 層已移除（問題3 步2）
+  // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)
   // ⚠ 用 || 不用 ??：空字串也要 fallback 到下層
   const dispStart = (task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
   const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
@@ -370,7 +370,6 @@ function getEffectiveSchedule(task) {
     plannedEnd: task.plannedEnd,
     scheduledStart: task.scheduledStart || '',
     scheduledEnd: task.scheduledEnd || '',
-    hasOverride: false,
     startSource: (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
   };
 }
@@ -425,9 +424,6 @@ function check(name, got, expected, why) {
 // 小工具
 //   選填欄位（本步驟新增，模擬兩種任務；o 在 Object.assign 末位故直接覆寫帶入）：
 //   - __isJ: true            → isJTask 視為同步任務（J task）；未帶=手動任務
-//   - _localStart/_localEnd  → getJOverride 讀出的 override 值
-//     ⚠ 刻意「不」給預設：未帶時為 undefined → getJOverride 回 null（無 override）。
-//       若預設成 '' 會讓每筆手動任務都被當成「有 override」，務必勿加進預設物件。
 const mk = (o) => Object.assign({ id: 't_' + (o.wbs || Math.round(Math.random() * 1e9)), name: 'T' + (o.wbs || ''), predecessor: '', start: '', end: '', status: 'pending', durationDays: 1 }, o);
 const mapOf = (arr) => { const m = new Map(); arr.forEach(t => m.set(String(t.wbs), t)); return m; };
 const R = (out, wbs) => out.results.find(r => String(r.wbs) === String(wbs));

@@ -1371,7 +1371,7 @@ function computeSchedule(tasks) {
 // ═══ applySchedule：把 computeSchedule 算出的建議落地到 task.scheduledStart/End ═══
 // scope: 'full' = 整鏈套用（丙，目前唯一模式；乙/甲未來加）
 // 規則（抉擇 B 定案=「不寫」錨點）：循環/blocked/待排 跳過；錨點任務(override/manual)也跳過，
-//   不進機器層 scheduled——顯示靠 getEffectiveSchedule 的 override/actual 層補；其餘連動任務寫入 scheduled。
+//   不進機器層 scheduled；其餘連動任務寫入 scheduled。
 function applySchedule(tasks, scope = 'full') {
   const { results } = computeSchedule(tasks);
   const byId = new Map(tasks.map(t => [t.id, t]));
@@ -1385,8 +1385,8 @@ function applySchedule(tasks, scope = 'full') {
       skipped.push({ id: r.taskId, reason: r.error || r.blockedCause || 'unscheduled', warnings: r.warnings });
       return;
     }
-    // 跳過：錨點任務(override或手動手填)——人的意志，不進機器層scheduled(B定案=不寫)
-    //   顯示靠 getEffectiveSchedule 的 override/actual 層補
+    // 跳過：錨點任務(手動手填)——人的意志，不進機器層scheduled(B定案=不寫)
+    //   顯示靠 getEffectiveSchedule 的 actual 層補
     if (r.anchorSource === 'manual') {
       skipped.push({ id: r.taskId, reason: 'anchor:' + r.anchorSource });
       return;
@@ -1706,7 +1706,7 @@ function generateSchedule() {
 // ── [CORE] 純計算層：只讀 DATA、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
 function getEffectiveSchedule(task) {
   if (!task) return null;
-  // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)；J override 層已移除（問題3 步2）
+  // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)
   // ⚠ 用 || 不用 ??：空字串也要 fallback 到下層
   const dispStart = (task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
   const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
@@ -1717,7 +1717,6 @@ function getEffectiveSchedule(task) {
     plannedEnd: task.plannedEnd,
     scheduledStart: task.scheduledStart || '',
     scheduledEnd: task.scheduledEnd || '',
-    hasOverride: false,
     startSource: (task.actualStart ? 'actual' : (task.scheduledStart ? 'scheduled' : (task.plannedStart ? 'planned' : (task.start ? 'manual' : 'none')))),
   };
 }
