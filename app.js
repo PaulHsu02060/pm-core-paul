@@ -5258,9 +5258,6 @@ App._renderStage2 = function() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// 上一步：退回第一階段新增專案 modal（重開；欄位不保值＝第一版，保值後續再議）。
-App._stage2Back = function() { this.showPage('dashboard'); this.openProjectDialog(); };
-
 // 第③段上一步（路線B）：退回第②段並用 _createFlow.stage1Data 回填（部門先還原；_flowStep2 因 stage1Data 有值不重設 _tplDepts）。
 App._flowStage3Back = function() {
   if (App._createFlow && App._createFlow.mode === 'excel') {
@@ -5274,7 +5271,7 @@ App._flowStage3Back = function() {
     return;
   }
   const snap = App._createFlow ? App._createFlow.stage1Data : null;
-  // 先把第③段 page 切掉、回到 dashboard（與舊 _stage2Back 一致的退場），再開②
+  // 先把第③段 page 切掉、回到 dashboard（與舊退場一致），再開②
   this.showPage('dashboard');
   if (!snap) { return App._flowStep1(); }   // 無快照（異常），退回①重來
   // 部門先還原（_flowStep2 因 stage1Data 有值不會預載，需手動還原）
