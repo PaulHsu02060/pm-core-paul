@@ -47,6 +47,11 @@
   --gantt-holiday: #EFEAE2;  /* 甘特假日底色 */
   --gantt-weekday: #F2F3F5;  /* 甘特平日底色（中性淡灰，比白略深、與假日暖灰區隔提辨識） */
 
+  --amber-accent: #d99a3c;        /* 琥珀強調色（框/圈底） */
+  --amber-accent-ink: #3a2806;    /* 琥珀底上的深褐字/icon */
+  --amber-accent-hover: #c8862f;  /* hover 實心底略深 */
+  --amber-icon-fg: #3a2806;       /* 亮圈內 icon 顏色 */
+
   --memo-y: #FFF4B8; --memo-p: #FFD9E0; --memo-b: #C8E4F0;
   --memo-g: #D9EBC8; --memo-o: #FFD8B5;
 
@@ -269,12 +274,19 @@ button { cursor: pointer; }
 .sb-add-proj {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 12px; margin: 4px 8px 0;
-  border: 1px dashed var(--sidebar-rule); background: none;
-  color: var(--sage-100); border-radius: var(--r8);
+  border: 1.5px dashed var(--amber-accent); background: transparent;
+  color: var(--ink-inverse); border-radius: var(--r8);
   text-align: left; font-size: 12px; transition: all .15s;
   width: calc(100% - 16px); font-weight: 500;
 }
-.sb-add-proj:hover { border-color: var(--sage-500); color: var(--sage-100); background: rgba(255,255,255,.06); }
+.sb-add-ico {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--amber-accent); color: var(--amber-icon-fg);
+  font-size: 14px; line-height: 1; transition: all .15s;
+}
+.sb-add-proj:hover { background: var(--amber-accent-hover); border: 1.5px solid var(--amber-accent); color: var(--amber-accent-ink); }
+.sb-add-proj:hover .sb-add-ico { color: var(--amber-accent-ink); }
 
 .sb-bottom { margin-top: auto; padding: 12px 8px 14px; border-top: 1px solid var(--sidebar-rule); }
 .sb-foot { font-family: var(--mono); font-size: 9px; color: var(--sidebar-ink2); text-align: center; padding: 8px 0; letter-spacing: .08em; }
