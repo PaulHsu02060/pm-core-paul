@@ -4843,10 +4843,24 @@ App.openProjectDialog = function(projId) {
       ${!isEdit ? `
       <div class="form-field">
         <label>建立方式</label>
-        <select id="pf-mode" onchange="document.getElementById('pf-tplBox').style.display=this.value==='template'?'':'none';document.getElementById('pf-submitBtn').style.display=this.value==='template'?'none':'';document.getElementById('pf-nextBtn').style.display=this.value==='template'?'':'none'">
-          <option value="blank">空白專案</option>
-          <option value="template">套用範本</option>
-        </select>
+        <input type="hidden" id="pf-mode" value="blank">
+        <div class="create-mode-cards">
+          <div class="cm-card on" data-mode="blank" onclick="App._pickCreateMode('blank')">
+            <i class="ti ti-file cm-ico"></i>
+            <div class="cm-text"><div class="cm-title">空白專案</div><div class="cm-desc">從零開始，自行新增任務</div></div>
+            <i class="ti ti-circle-check cm-check"></i>
+          </div>
+          <div class="cm-card" data-mode="template" onclick="App._pickCreateMode('template')">
+            <i class="ti ti-template cm-ico"></i>
+            <div class="cm-text"><div class="cm-title">套用範本</div><div class="cm-desc">產品開發範本，含階段與部門</div></div>
+            <i class="ti ti-circle-check cm-check"></i>
+          </div>
+          <div class="cm-card" data-mode="excel" onclick="App._pickCreateMode('excel')">
+            <i class="ti ti-table-import cm-ico"></i>
+            <div class="cm-text"><div class="cm-title">從 Excel 匯入</div><div class="cm-desc">上傳 WBS Excel 自動建立任務</div></div>
+            <i class="ti ti-circle-check cm-check"></i>
+          </div>
+        </div>
       </div>
       <div id="pf-tplBox" style="display:none">
         <div class="form-field">
@@ -4882,6 +4896,9 @@ App.openProjectDialog = function(projId) {
           <button class="tb-action ghost dept-add-btn" onclick="App.deptUI.addDept('tpl', '')">＋ 新增部門</button>
         </div>
       </div>
+      <div id="pf-excelBox" style="display:none">
+        <div class="form-field excel-placeholder">Excel 上傳與預覽（下一批實作）</div>
+      </div>
       ` : ''}
         ${isEdit ? `
         <div class="form-field">
@@ -4902,12 +4919,8 @@ App.openProjectDialog = function(projId) {
 
   // §8f.9 viewonly 第一階段：自動帶標準模板假資料 + 欄位 disabled（純展示，不可改）
   if (!isEdit && document.body.classList.contains('viewonly')) {
-    const modeEl = document.getElementById('pf-mode');
-    if (modeEl) {
-      modeEl.value = 'template';
-      modeEl.dispatchEvent(new Event('change'));   // 觸發既有 onchange：展開 tplBox、切鈕
-      modeEl.disabled = true;
-    }
+    App._pickCreateMode('template');   // 模擬點範本卡：展開 tplBox、切鈕、選中態（取代舊 select value+dispatch）
+    document.querySelectorAll('.create-mode-cards .cm-card').forEach(c => c.classList.add('cm-locked'));   // 三卡鎖死不可點（pointer-events:none + 反灰，見 CSS）
     const nameEl = document.getElementById('pf-name');
     if (nameEl) nameEl.value = CFG('PROJECT_INPUT_EXAMPLE', '範例品項');
     const mainNameEl = document.getElementById('pf-mainName');
@@ -4924,6 +4937,21 @@ App.openProjectDialog = function(projId) {
     const addCaseBtn = document.querySelector('#pf-tplBox button[onclick*="_tplAddOtherCase"]');
     if (addCaseBtn) addCaseBtn.style.display = 'none';
   }
+};
+
+// 建立方式三卡：更新隱藏 input#pf-mode 值、卡片選中態(.on)、展開區與 footer 鈕切換（取代原 select onchange）。
+App._pickCreateMode = function(mode) {
+  const hid = document.getElementById('pf-mode');
+  if (hid) hid.value = mode;
+  document.querySelectorAll('.create-mode-cards .cm-card').forEach(c => c.classList.toggle('on', c.dataset.mode === mode));
+  const tplBox = document.getElementById('pf-tplBox');
+  const excelBox = document.getElementById('pf-excelBox');
+  const submitBtn = document.getElementById('pf-submitBtn');
+  const nextBtn = document.getElementById('pf-nextBtn');
+  if (tplBox) tplBox.style.display = (mode === 'template') ? '' : 'none';
+  if (excelBox) excelBox.style.display = (mode === 'excel') ? '' : 'none';
+  if (submitBtn) submitBtn.style.display = (mode === 'blank') ? '' : 'none';
+  if (nextBtn) nextBtn.style.display = (mode === 'blank') ? 'none' : '';
 };
 
 App.editProject = function(id) { this.openProjectDialog(id); };
@@ -5011,6 +5039,7 @@ App.saveProject = function(id) {
       this._renderStage2();
       return;
     }
+    if (mode === 'excel') { U.toast('⚠ Excel 匯入下一批實作', 'warning'); return; }
     if (App._roGuard()) return;
     const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
     ensurePdcaData(np);

@@ -424,6 +424,26 @@ body.viewonly .cloud-sync-sec { display: none; }
 .stage-pick { font-size: 12.5px; font-weight: 500; padding: 4px 12px; border-radius: 99px; cursor: pointer; border: 1px dashed var(--rule2); background: var(--surface2); color: var(--ink3); transition: background .12s, color .12s, border-color .12s; }
 .stage-pick:hover { border-color: var(--ink4); }
 .stage-pick.on { background: var(--sage-50); color: var(--sage-700); border: 1px solid var(--sage-100); }
+/* 建立方式三卡（openProjectDialog；取代原 select 下拉）：直式、左 icon 右標題說明、選中右側勾選 */
+.create-mode-cards { display: flex; flex-direction: column; gap: 8px; }
+.cm-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--rule); border-radius: var(--r8);
+  background: var(--surface); cursor: pointer; transition: all .15s;
+}
+.cm-card:hover { border-color: var(--sage-300); }
+.cm-card.on { border-color: var(--sage-500); background: var(--sage-50); }  /* 選中:sage 框+淡 sage 底,複用 --sage-50(同 .stage-pick.on 選中底) */
+.cm-ico { font-size: 22px; color: var(--ink3); flex: none; }
+.cm-card.on .cm-ico { color: var(--sage-600); }
+.cm-text { flex: 1; min-width: 0; }
+.cm-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+.cm-desc { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+.cm-check { font-size: 20px; color: var(--sage-500); flex: none; opacity: 0; transition: opacity .15s; }
+.cm-card.on .cm-check { opacity: 1; }
+.cm-card.cm-locked { pointer-events: none; opacity: .55; }   /* viewonly:三卡鎖死不可點 */
+/* Excel 佔位（pf-excelBox 內，下一批接真功能） */
+.excel-placeholder { color: var(--ink3); font-size: 12px; padding: 16px; text-align: center; border: 1px dashed var(--rule2); border-radius: var(--r8); }
+
 /* 案別卡（主案/另案）：左側色條區分，圓角讓出左側給色條 */
 .case-card {
   border: 1px solid var(--rule); border-left: 4px solid var(--rule);
