@@ -4786,6 +4786,15 @@ App._stagePickHtml = function(stages) {
   return `<div class="form-field"><label>選擇階段（不選=不建該階段）</label><div class="stage-pick-row">${pills}</div></div>`;
 };
 
+// 階段膠囊精確設定：依 selectedStages 把該卡所有 .stage-pick 設成 on/off（精確覆蓋，非 additive；_stagePickHtml 預設全 on）。
+App._applyStagePicks = function(cardEl, selectedStages) {
+  if (!cardEl) return;
+  const want = new Set(selectedStages || []);
+  cardEl.querySelectorAll('.stage-pick').forEach(b => {
+    b.classList.toggle('on', want.has(b.dataset.stage));
+  });
+};
+
 // 另案卡：動態 append 進 #pf-otherCases（可加 0~N 張）。膠囊餵另案範本階段 cases[1].stages。
 App._tplAddOtherCase = function() {
   const box = document.getElementById('pf-otherCases');
@@ -4811,58 +4820,9 @@ App._tplAddOtherCase = function() {
   box.appendChild(card);
 };
 
-App.openProjectDialog = function(projId) {
-  const editing = projId ? this.getProj(projId) : null;
-  const isEdit = !!editing;
-  // 模板第一階段部門編輯暫存：預載範本 roles（每部門帶一空成員列）；下一步由 saveProject 收集、closeModal 清
-  if (!isEdit) {
-    const _roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles && PRODUCT_DEV_TEMPLATE.roles.length) ? PRODUCT_DEV_TEMPLATE.roles : [''];
-    App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
-  }
-
-  this.openModal({
-    title: isEdit ? '編輯專案' : '新增專案',
-    body: `
-      <div class="form-field">
-        <label>專案名稱 *</label>
-        <input type="text" id="pf-name" value="${editing ? U.esc(editing.name) : ''}" placeholder="e.g. ${CFG('PROJECT_INPUT_EXAMPLE', '範例品項')}" oninput="App._syncMainName()">
-      </div>
-      <div class="form-field">
-        <label>顏色</label>
-        <div class="color-picker" id="cpColors">
-          ${PROJ_COLORS.map((c, i) => `
-            <div class="cp-swatch ${(editing && editing.color === c) || (!editing && i === 0) ? 'on' : ''}"
-                 style="background:${c}" onclick="App.pickColor('${c}', this)" data-color="${c}"></div>
-          `).join('')}
-        </div>
-      </div>
-      <div class="form-field">
-        <label>備註</label>
-        <input type="text" id="pf-note" value="${editing ? U.esc(editing.note || '') : ''}" placeholder="簡短描述">
-      </div>
-      ${!isEdit ? `
-      <div class="form-field">
-        <label>建立方式</label>
-        <input type="hidden" id="pf-mode" value="blank">
-        <div class="create-mode-cards">
-          <div class="cm-card on" data-mode="blank" onclick="App._pickCreateMode('blank')">
-            <i class="ti ti-file cm-ico"></i>
-            <div class="cm-text"><div class="cm-title">空白專案</div><div class="cm-desc">從零開始，自行新增任務</div></div>
-            <i class="ti ti-circle-check cm-check"></i>
-          </div>
-          <div class="cm-card" data-mode="template" onclick="App._pickCreateMode('template')">
-            <i class="ti ti-template cm-ico"></i>
-            <div class="cm-text"><div class="cm-title">套用範本</div><div class="cm-desc">產品開發範本，含階段與部門</div></div>
-            <i class="ti ti-circle-check cm-check"></i>
-          </div>
-          <div class="cm-card" data-mode="excel" onclick="App._pickCreateMode('excel')">
-            <i class="ti ti-table-import cm-ico"></i>
-            <div class="cm-text"><div class="cm-title">從 Excel 匯入</div><div class="cm-desc">上傳 WBS Excel 自動建立任務</div></div>
-            <i class="ti ti-circle-check cm-check"></i>
-          </div>
-        </div>
-      </div>
-      <div id="pf-tplBox" style="display:none">
+// 第一階段表單 HTML（pf-tplBox + pf-excelBox）：抽出供新增專案 modal 共用（路線B 打底；純搬移、零行為改變）。
+App._stage1FormHtml = function() {
+  return `      <div id="pf-tplBox">
         <div class="form-field">
           <label>選擇範本</label>
           <select id="pf-tpl"><option value="product-dev-v1">${typeof PRODUCT_DEV_TEMPLATE!=='undefined' ? PRODUCT_DEV_TEMPLATE.templateName : '產品開發範本'}</option></select>
@@ -4895,11 +4855,175 @@ App.openProjectDialog = function(projId) {
           <div class="dept-edit-list" id="deptEditorList">${App.buildDeptRowsHtml(App._tplDepts, 'tpl', null)}</div>
           <button class="tb-action ghost dept-add-btn" onclick="App.deptUI.addDept('tpl', '')">＋ 新增部門</button>
         </div>
+      </div>`;
+};
+
+// ═══ 路線B 建立流程（UI 流程層，兩步 modal）：① 選建立方式卡 → ② 填表單。B-1a 純新增、不接 openProjectDialog ═══
+// 第一步：選建立方式（範本→Excel→空白，預設範本 .on）。重置 _createFlow。
+App._flowStep1 = function() {
+  App._createFlow = { step: 1, mode: 'template', stage1Data: null };
+  App.openModal({
+    title: '新增專案',
+    body: `<div class="form-field"><label>建立方式</label>
+      <div class="create-mode-cards flow-cards">
+        <div class="cm-card on" data-mode="template" onclick="App._flowPickMode('template')">
+          <i class="ti ti-template cm-ico"></i>
+          <div class="cm-text"><div class="cm-title">套用範本</div><div class="cm-desc">產品開發範本，含階段與部門</div></div>
+          <i class="ti ti-circle-check cm-check"></i></div>
+        <div class="cm-card" data-mode="excel" onclick="App._flowPickMode('excel')">
+          <i class="ti ti-table-import cm-ico"></i>
+          <div class="cm-text"><div class="cm-title">從 Excel 匯入</div><div class="cm-desc">上傳 WBS Excel 自動建立任務</div></div>
+          <i class="ti ti-circle-check cm-check"></i></div>
+        <div class="cm-card" data-mode="blank" onclick="App._flowPickMode('blank')">
+          <i class="ti ti-file cm-ico"></i>
+          <div class="cm-text"><div class="cm-title">空白專案</div><div class="cm-desc">從零開始，自行新增任務</div></div>
+          <i class="ti ti-circle-check cm-check"></i></div>
+      </div></div>`,
+    footer: `<button class="tb-action ghost" onclick="App.closeModal()">取消</button>`,
+  });
+};
+
+// 點卡：記 mode、清 stage1Data，進第二步。
+App._flowPickMode = function(mode) {
+  if (App._createFlow) { App._createFlow.mode = mode; App._createFlow.stage1Data = null; }
+  App._flowStep2();
+};
+
+// 第二步（B-1a 最小佔位版）：依 mode 顯表單；顏色/備註/部門回填、_flowStage2Next 後面段接。
+App._flowStep2 = function() {
+  if (App._createFlow) App._createFlow.step = 2;
+  const mode = App._createFlow ? App._createFlow.mode : 'template';
+  // 全新進入②（非從③上一步退回）才預載標準部門 roles；stage1Data 有值=回填情境，不碰 _tplDepts（保留使用者編輯）。
+  if (!App._createFlow || !App._createFlow.stage1Data) {
+    const _roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles && PRODUCT_DEV_TEMPLATE.roles.length) ? PRODUCT_DEV_TEMPLATE.roles : [''];
+    App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
+  }
+  App.openModal({
+    title: mode === 'blank' ? '新增空白專案' : '填寫專案資料',
+    body: `<div class="form-field"><label>專案名稱 *</label><input type="text" id="pf-name" placeholder="e.g. ${CFG('PROJECT_INPUT_EXAMPLE','範例品項')}" oninput="App._syncMainName()"></div>
+      <div class="form-field"><label>顏色</label>
+        <div class="color-picker" id="cpColors">
+          ${PROJ_COLORS.map((c, i) => `<div class="cp-swatch ${i === 0 ? 'on' : ''}" style="background:${c}" onclick="App.pickColor('${c}', this)" data-color="${c}"></div>`).join('')}
+        </div>
       </div>
-      <div id="pf-excelBox" style="display:none">
-        <div class="form-field excel-placeholder">Excel 上傳與預覽（下一批實作）</div>
+      <div class="form-field"><label>備註</label><input type="text" id="pf-note" placeholder="簡短描述"></div>
+      ${mode === 'template' ? App._stage1FormHtml() : ''}
+      <div class="form-field excel-placeholder" style="${mode==='excel'?'':'display:none'}">Excel 上傳與預覽（下一批實作）</div>`,
+    footer: `<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>
+      <button class="tb-action" onclick="App._flowStage2Next()">${mode==='blank'?'建立':'下一步：檢視任務'}</button>`,
+  });
+};
+
+// viewonly 捷徑：唯讀直接開第②段範本表單全 disabled（不走三段、不用三卡）。搬原 viewonly 假資料+disabled 邏輯，body 自己開。
+App._flowViewonlyPreview = function() {
+  App._createFlow = { step: 2, mode: 'template', stage1Data: null };
+  // 唯讀預覽每次全新：無條件預載標準部門 roles
+  const _roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles && PRODUCT_DEV_TEMPLATE.roles.length) ? PRODUCT_DEV_TEMPLATE.roles : [''];
+  App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
+  App.openModal({
+    title: '範本預覽（唯讀）',
+    body: `<div class="form-field"><label>專案名稱 *</label><input type="text" id="pf-name"></div>${App._stage1FormHtml()}`,
+    footer: `<button class="tb-action ghost" onclick="App.closeModal()">關閉</button>`,
+  });
+  const nameEl = document.getElementById('pf-name'); if (nameEl) nameEl.value = CFG('PROJECT_INPUT_EXAMPLE','範例品項');
+  const mainNameEl = document.getElementById('pf-mainName'); if (mainNameEl) mainNameEl.value = CFG('PROJECT_INPUT_EXAMPLE','範例品項');
+  const startEl = document.getElementById('pf-start'); if (startEl) startEl.value = D.fmt(new Date(),'iso');
+  ['pf-name','pf-note','pf-mainName','pf-start','pf-end','pf-direction','pf-tpl'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+  document.querySelectorAll('#pf-tplBox .stage-pick, #pf-tplBox #deptEditorList input, #pf-tplBox #deptEditorList button, #pf-tplBox .dept-add-btn').forEach(el => el.disabled = true);
+  const addCaseBtn = document.querySelector('#pf-tplBox button[onclick*="_tplAddOtherCase"]'); if (addCaseBtn) addCaseBtn.style.display = 'none';
+};
+
+// 第②段「下一步/建立」handler：依 _createFlow.mode 分流。空白→落地（_flowBlankCommit，動作D）；Excel→佔位；範本→掃表單成 cases、存 stage1Data、算 preview 進第③段。
+App._flowStage2Next = function() {
+  const name = document.getElementById('pf-name').value.trim();
+  if (!name) { U.toast('⚠ 請填專案名稱', 'warning'); return; }
+  const colorEl = document.querySelector('.cp-swatch.on');
+  const color = colorEl ? colorEl.dataset.color : PROJ_COLORS[0];
+  const note = document.getElementById('pf-note').value.trim();
+  const mode = App._createFlow ? App._createFlow.mode : 'template';
+
+  if (mode === 'blank') { return App._flowBlankCommit(name, color, note); }   // 空白落地，動作D 定義；先呼叫，D 做完才不炸
+  if (mode === 'excel') { U.toast('⚠ Excel 匯入下一批實作', 'warning'); return; }
+
+  // 範本：掃表單成 cases（搬自 saveProject 範本分支，唯一真實來源）
+  const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
+  if (!tpl) { U.toast('⚠ 找不到範本', 'warning'); return; }
+  const cards = document.querySelectorAll('#pf-tplBox .case-card');
+  const cases = [];
+  for (const card of cards) {
+    const isMain = card.dataset.case === 'main';
+    const vnEl = card.querySelector('.case-variant-name');
+    const variantName = vnEl ? vnEl.value.trim() : '';
+    if (!variantName) { U.toast(isMain ? '⚠️請填主案的案別名稱' : '⚠️請填另案的案別名稱', 'warning'); return; }
+    const startEl = card.querySelector('.case-start');
+    const startDate = startEl ? startEl.value : '';
+    if (isMain && !startDate) { U.toast('⚠ 套用範本請填主案開始日', 'warning'); return; }
+    const stages = [...card.querySelectorAll('.stage-pick.on')].map(b => b.dataset.stage);
+    if (!stages.length) { U.toast('⚠️請為「' + variantName + '」至少選一個階段', 'warning'); return; }
+    cases.push({
+      variantName,
+      templateVariant: isMain ? '主案' : '另案',
+      startDate,
+      endDate: (card.querySelector('.case-end') || {}).value || '',
+      direction: (card.querySelector('.case-direction') || {}).value || 'forward',
+      selectedStages: stages,
+    });
+  }
+  // 存 stage1Data（供③上一步回填）
+  App._createFlow.stage1Data = {
+    name, color, note, mode: 'template',
+    cases: JSON.parse(JSON.stringify(cases)),
+    depts: JSON.parse(JSON.stringify(App._tplDepts || [])),
+  };
+  // 算 preview 不落地，進第③段
+  const userInput = { projectName: name, color, note, cases, depts: App._tplDepts || [] };
+  this._tplPreview = App.applyTemplate(tpl, userInput);
+  this.closeModal();
+  this._renderStage2();
+};
+
+// 空白專案落地：name/color/note 由 _flowStage2Next 傳入（已驗 name 非空），複用 saveProject 空白分支邏輯，不重掃 DOM。
+App._flowBlankCommit = function(name, color, note) {
+  if (App._roGuard()) return;
+  const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
+  ensurePdcaData(np);
+  DATA.projects.push(np);
+  this.currentProjectId = np.id;
+  Storage.save();
+  App._createFlow = null;   // 流程結束，清狀態
+  this.closeModal();
+  this.refreshAll();
+  U.toast('✓ 專案已建立');
+  this.showPage('project', null);
+};
+
+App.openProjectDialog = function(projId) {
+  const editing = projId ? this.getProj(projId) : null;
+  const isEdit = !!editing;
+  // 路線B：新增專案走兩步 modal 流程（viewonly 走唯讀捷徑、一般走 _flowStep1）；isEdit 維持現有編輯 modal。
+  if (!isEdit && document.body.classList.contains('viewonly')) return App._flowViewonlyPreview();
+  if (!isEdit) return App._flowStep1();
+
+  this.openModal({
+    title: isEdit ? '編輯專案' : '新增專案',
+    body: `
+      <div class="form-field">
+        <label>專案名稱 *</label>
+        <input type="text" id="pf-name" value="${editing ? U.esc(editing.name) : ''}" placeholder="e.g. ${CFG('PROJECT_INPUT_EXAMPLE', '範例品項')}" oninput="App._syncMainName()">
       </div>
-      ` : ''}
+      <div class="form-field">
+        <label>顏色</label>
+        <div class="color-picker" id="cpColors">
+          ${PROJ_COLORS.map((c, i) => `
+            <div class="cp-swatch ${(editing && editing.color === c) || (!editing && i === 0) ? 'on' : ''}"
+                 style="background:${c}" onclick="App.pickColor('${c}', this)" data-color="${c}"></div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="form-field">
+        <label>備註</label>
+        <input type="text" id="pf-note" value="${editing ? U.esc(editing.note || '') : ''}" placeholder="簡短描述">
+      </div>
         ${isEdit ? `
         <div class="form-field">
           <label>部門擔當</label>
@@ -4913,45 +5037,8 @@ App.openProjectDialog = function(projId) {
       ${isEdit ? `<button class="tb-action danger" data-edit-hide onclick="App.deleteProject('${projId}')" style="margin-right:auto;">刪除專案</button>` : ''}
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
       <button class="tb-action pf-btn-create" id="pf-submitBtn" data-edit-hide onclick="App.saveProject('${projId || ''}')">${isEdit ? '儲存' : '建立'}</button>
-      <button class="tb-action pf-btn-next" id="pf-nextBtn" onclick="App.saveProject('${projId || ''}')" style="display:none">下一步：檢視任務</button>
     `,
   });
-
-  // §8f.9 viewonly 第一階段：自動帶標準模板假資料 + 欄位 disabled（純展示，不可改）
-  if (!isEdit && document.body.classList.contains('viewonly')) {
-    App._pickCreateMode('template');   // 模擬點範本卡：展開 tplBox、切鈕、選中態（取代舊 select value+dispatch）
-    document.querySelectorAll('.create-mode-cards .cm-card').forEach(c => c.classList.add('cm-locked'));   // 三卡鎖死不可點（pointer-events:none + 反灰，見 CSS）
-    const nameEl = document.getElementById('pf-name');
-    if (nameEl) nameEl.value = CFG('PROJECT_INPUT_EXAMPLE', '範例品項');
-    const mainNameEl = document.getElementById('pf-mainName');
-    if (mainNameEl) mainNameEl.value = CFG('PROJECT_INPUT_EXAMPLE', '範例品項');
-    const startEl = document.getElementById('pf-start');
-    if (startEl) startEl.value = D.fmt(new Date(), 'iso');
-    // 主案卡與表單欄位 disabled（展示用，不可改）；下一步鈕在 footer 不受影響
-    ['pf-name', 'pf-note', 'pf-mainName', 'pf-start', 'pf-end', 'pf-direction', 'pf-tpl'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.disabled = true;
-    });
-    // 階段勾選膠囊(button.stage-pick)、部門編輯元件(#deptEditorList input/button + ＋新增部門) disabled
-    document.querySelectorAll('#pf-tplBox .stage-pick, #pf-tplBox #deptEditorList input, #pf-tplBox #deptEditorList button, #pf-tplBox .dept-add-btn').forEach(el => el.disabled = true);
-    const addCaseBtn = document.querySelector('#pf-tplBox button[onclick*="_tplAddOtherCase"]');
-    if (addCaseBtn) addCaseBtn.style.display = 'none';
-  }
-};
-
-// 建立方式三卡：更新隱藏 input#pf-mode 值、卡片選中態(.on)、展開區與 footer 鈕切換（取代原 select onchange）。
-App._pickCreateMode = function(mode) {
-  const hid = document.getElementById('pf-mode');
-  if (hid) hid.value = mode;
-  document.querySelectorAll('.create-mode-cards .cm-card').forEach(c => c.classList.toggle('on', c.dataset.mode === mode));
-  const tplBox = document.getElementById('pf-tplBox');
-  const excelBox = document.getElementById('pf-excelBox');
-  const submitBtn = document.getElementById('pf-submitBtn');
-  const nextBtn = document.getElementById('pf-nextBtn');
-  if (tplBox) tplBox.style.display = (mode === 'template') ? '' : 'none';
-  if (excelBox) excelBox.style.display = (mode === 'excel') ? '' : 'none';
-  if (submitBtn) submitBtn.style.display = (mode === 'blank') ? '' : 'none';
-  if (nextBtn) nextBtn.style.display = (mode === 'blank') ? 'none' : '';
 };
 
 App.editProject = function(id) { this.openProjectDialog(id); };
@@ -5091,7 +5178,7 @@ App._renderStage2 = function() {
     return '' +
       '<div class="s2-case ' + (isMain ? 's2-case-main' : 's2-case-other') + '" data-variant="' + v.id + '">' +
         '<div class="s2-case-head">' +
-          '<span class="stage-cap-pill cap-' + (i % 3) + '">' + U.esc(v.name || (isMain ? '主案' : '另案')) + '</span>' +
+          '<span class="stage-cap-pill cap-' + (i % 3) + '">' + (isMain ? '主案' : '另案') + '</span>' +
           '<span class="s2-case-name">' + U.esc(v.name || '') + '</span>' +
           '<span class="s2-case-range">' + caseRange(v.id) + '</span>' +
         '</div>' +
@@ -5109,7 +5196,7 @@ App._renderStage2 = function() {
       blocks +
       (n => n > 0 ? '<div class="s2-unassigned-bar">⚠ 還有 ' + n + ' 個任務未指派負責人</div>' : '')((res.tasks || []).filter(t => !t.owner).length) +
       '<div class="stage2-foot">' +
-        '<button class="tb-action ghost" onclick="App._stage2Back()">上一步</button>' +
+        '<button class="tb-action ghost" onclick="App._flowStage3Back()">上一步</button>' +
         '<button class="tb-action" data-edit-hide onclick="App._stage2Commit()">建立專案</button>' +
       '</div>' +
     '</div>';
@@ -5122,6 +5209,48 @@ App._renderStage2 = function() {
 
 // 上一步：退回第一階段新增專案 modal（重開；欄位不保值＝第一版，保值後續再議）。
 App._stage2Back = function() { this.showPage('dashboard'); this.openProjectDialog(); };
+
+// 第③段上一步（路線B）：退回第②段並用 _createFlow.stage1Data 回填（部門先還原；_flowStep2 因 stage1Data 有值不重設 _tplDepts）。
+App._flowStage3Back = function() {
+  const snap = App._createFlow ? App._createFlow.stage1Data : null;
+  // 先把第③段 page 切掉、回到 dashboard（與舊 _stage2Back 一致的退場），再開②
+  this.showPage('dashboard');
+  if (!snap) { return App._flowStep1(); }   // 無快照（異常），退回①重來
+  // 部門先還原（_flowStep2 因 stage1Data 有值不會預載，需手動還原）
+  App._tplDepts = JSON.parse(JSON.stringify(snap.depts || []));
+  // 開第②段（_flowStep2 讀 _createFlow.mode/stage1Data；stage1Data 有值故不重設 _tplDepts）
+  App._flowStep2();
+  // openModal 同步，DOM 就緒，開始回填
+  const nameEl = document.getElementById('pf-name'); if (nameEl) nameEl.value = snap.name || '';
+  const noteEl = document.getElementById('pf-note'); if (noteEl) noteEl.value = snap.note || '';
+  if (snap.color) {
+    document.querySelectorAll('#cpColors .cp-swatch').forEach(s => s.classList.toggle('on', s.dataset.color === snap.color));
+  }
+  const cs = snap.cases || [];
+  // 主案卡（cases[0]）
+  const mainCard = document.querySelector('#pf-tplBox .case-card.case-main');
+  if (cs[0] && mainCard) {
+    const m = cs[0];
+    const mn = document.getElementById('pf-mainName'); if (mn) { mn.value = m.variantName || ''; mn.dataset.touched = '1'; }
+    const ms = document.getElementById('pf-start'); if (ms) ms.value = m.startDate || '';
+    const me = document.getElementById('pf-end'); if (me) me.value = m.endDate || '';
+    const md = document.getElementById('pf-direction'); if (md) md.value = m.direction || 'forward';
+    App._applyStagePicks(mainCard, m.selectedStages);
+  }
+  // 另案卡（cases[1..N]）：逐張生成 + 回填
+  for (let i = 1; i < cs.length; i++) {
+    const c = cs[i];
+    App._tplAddOtherCase();
+    const cards = document.querySelectorAll('#pf-otherCases .case-card.case-other');
+    const card = cards[cards.length - 1];
+    if (!card) continue;
+    const vn = card.querySelector('.case-variant-name'); if (vn) vn.value = c.variantName || '';
+    const st = card.querySelector('.case-start'); if (st) st.value = c.startDate || '';
+    const en = card.querySelector('.case-end'); if (en) en.value = c.endDate || '';
+    const dr = card.querySelector('.case-direction'); if (dr) dr.value = c.direction || 'forward';
+    App._applyStagePicks(card, c.selectedStages);
+  }
+};
 
 // 建立專案：步驟5 落地，吃 _tplPreview push/save（depts/variants 掛回 res.project + DATA push + Storage.save + 清 preview 防重複建）。
 App._stage2Commit = function() {
@@ -5138,6 +5267,7 @@ App._stage2Commit = function() {
   this.currentProjectId = res.project.id;
   Storage.save();
   this._tplPreview = null;               // 清 preview，防重複建
+  App._createFlow = null;   // 範本流程落地完成，清狀態（對齊 _flowBlankCommit）
   this.refreshAll();
   if (res.warnings.length) {
     console.warn('套範本提醒:', res.warnings);
