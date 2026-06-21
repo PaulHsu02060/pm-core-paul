@@ -4142,7 +4142,7 @@ App._seqOf = function(taskId) {
 // 前置候選：本專案、measureType!=='hours'、排除自己；階段窗（前1-2階段全收 + 同階段只列自己之前）。
 // 序與 seq 同源 orderedProjectTasks；階段序 SoT = getProjectStages（minWbs，忽略 variant）。
 // @param currentStage 表單當前階段（新建讀 tf-stage、編輯讀 t.stage）→ 定本任務階段序 S
-App.predCandidates = function(projId, selfId, currentStage) {
+App.predCandidates = function(projId, selfId, currentStage, selfVariant) {
   const NO_STAGE = '未分階段';
   const norm = (s) => (typeof s === 'string' && s.trim()) ? s.trim() : NO_STAGE;
 
@@ -4165,6 +4165,7 @@ App.predCandidates = function(projId, selfId, currentStage) {
     .filter(({ t, pos }) => {
       if (t.id === selfId) return false;                 // 排自己
       if (t.measureType === 'hours') return false;       // 對齊 S5c：小時 Task 不可當工期前置
+      if ((t.variant || null) !== (selfVariant || null)) return false;   // §8e.6 疊加：同案別才可當前置（通案 null===null）
       const d = S - idxOf(t.stage);                      // 候選比自己早幾個階段
       if (d === 0) return pos < selfBefore;              // 同階段 → 只列開始日早於自己（第一刀後 pos 為日期序位置）
       if (d === 1 || d === 2) return true;               // 前 1-2 階段 → 全收
@@ -4232,10 +4233,11 @@ App._predRowHtml = function(pred, candidates) {
 
 // 整個前置欄內容（select 候選列 + 加列鈕）；反序列化走 parsePredecessors（字串→陣列）。候選快取供 addPredRow/onTaskStageChange 共用。
 App.buildPredListHtml = function(t) {
-  const cands = App.predCandidates(t.project, t.id, t.stage);
+  const cands = App.predCandidates(t.project, t.id, t.stage, t.variant);
   App._predCands  = cands;       // 快取：addPredRow 新列 + onTaskStageChange 重建共用
   App._predProj   = t.project;   // 快取：onTaskStageChange 重算 predCandidates 用
   App._predSelfId = t.id;
+  App._predVariant = t.variant;  // 快取：variant 過濾（onTaskStageChange 重算用）
   const preds = parsePredecessors(t.predecessor);
   const rows = preds.length
     ? preds.map(p => App._predRowHtml(p, cands)).join('')
@@ -4302,7 +4304,7 @@ App.onTaskStageChange = function() {
   }).filter(Boolean);
 
   // 新階段重算候選 + 更新快取
-  const cands = App.predCandidates(App._predProj, App._predSelfId, newStage);
+  const cands = App.predCandidates(App._predProj, App._predSelfId, newStage, App._predVariant);
   App._predCands = cands;
   const inWindow = new Set(cands.map(c => c.id));
 
