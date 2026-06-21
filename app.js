@@ -4963,6 +4963,8 @@ App._flowExcelPick = async function(e) {
     }
     if (App._createFlow) App._createFlow.excelParsed = parsed;
     if (status) status.textContent = '✓ 已讀取「' + (parsed.projectName || '未命名') + '」共 ' + parsed.rows.length + ' 筆任務，按下一步檢視';
+    const nameEl = document.getElementById('pf-name');
+    if (nameEl && !nameEl.value.trim() && parsed.projectName) nameEl.value = parsed.projectName;
   } catch (err) {
     if (App._createFlow) App._createFlow.excelParsed = null;
     if (status) status.textContent = '⚠ 解析錯誤：' + (err.message || err);
@@ -4982,6 +4984,7 @@ App._flowStage2Next = function() {
     const parsed = App._createFlow ? App._createFlow.excelParsed : null;
     if (!parsed || !parsed.ok) { U.toast('⚠ 請先選擇 Excel 檔', 'warning'); return; }
     this._tplPreview = buildWbsPreview(parsed);
+    this._tplPreview.project.name = name;
     this.closeModal();
     this._renderStage2();
     return;
@@ -5254,6 +5257,16 @@ App._stage2Back = function() { this.showPage('dashboard'); this.openProjectDialo
 
 // 第③段上一步（路線B）：退回第②段並用 _createFlow.stage1Data 回填（部門先還原；_flowStep2 因 stage1Data 有值不重設 _tplDepts）。
 App._flowStage3Back = function() {
+  if (App._createFlow && App._createFlow.mode === 'excel') {
+    this.showPage('dashboard');
+    App._flowStep2();
+    const parsed = App._createFlow.excelParsed;
+    const st = document.getElementById('pf-excelStatus');
+    if (st && parsed && parsed.ok) {
+      st.textContent = '✓ 已讀取「' + (parsed.projectName || '未命名') + '」共 ' + parsed.rows.length + ' 筆任務，按下一步檢視';
+    }
+    return;
+  }
   const snap = App._createFlow ? App._createFlow.stage1Data : null;
   // 先把第③段 page 切掉、回到 dashboard（與舊 _stage2Back 一致的退場），再開②
   this.showPage('dashboard');
