@@ -3163,6 +3163,7 @@ App.buildProjectHeaderHtml = function() {
             ${U.esc(proj.name)}
           </div>
         </div>
+        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}')"><i class="ti ti-download"></i> 匯出 Excel</button>
         <button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>
       </div>`;
 };
@@ -6975,6 +6976,128 @@ App.exportReportExcel = async function(weekKey, opts) {
   U.toast(`✓ 已下載 ${filename}`);
 };
 
+// predToWbsFormat(predStr, idToWbsMap)：id#FS+2 → wbs 序號縮寫 12FS（§13.3 匯出反解）。
+// 複用 parsePredecessors 解析；dep(id)→wbs 查 idToWbsMap，查不到保留原 dep + warn；FS 全顯、lag 帶號；多筆逗號接。
+App.predToWbsFormat = function(predStr, idToWbsMap) {
+  const preds = parsePredecessors(predStr);
+  if (!preds.length) return '';
+  return preds.map(p => {
+    const wbs = idToWbsMap.get(p.dep);
+    const ref = (wbs != null) ? wbs : p.dep;   // 查不到保留原 dep
+    if (wbs == null) console.warn('[predToWbsFormat] dep 查無 wbs:', p.dep);
+    const lag = p.lag > 0 ? '+' + p.lag : (p.lag < 0 ? String(p.lag) : '');
+    return ref + p.type + lag;   // FS 全顯：12FS / 16SS+2 / 5SS-1
+  }).join(',');
+};
+
+App.exportProjectWbs = async function(projId) {
+  if (typeof ExcelJS === 'undefined') {
+    U.toast('❌ ExcelJS 函式庫未載入，請檢查 index.html 的 CDN', 'error');
+    return;
+  }
+  const proj = DATA.projects.find(p => p.id === projId);
+  if (!proj) { U.toast('⚠ 找不到專案', 'warning'); return; }
+  const tasks = DATA.tasks.filter(t => t.project === projId && !t._deleted);
+  if (!tasks.length) { U.toast('⚠ 此專案無任務可匯出', 'warning'); return; }
+
+  // 反查表：variant id→案別名、task id→wbs（id 全域唯一）
+  const variantIdToName = {};
+  (proj.variants || []).forEach(v => { variantIdToName[v.id] = v.name; });
+  const idToWbsMap = new Map();
+  tasks.forEach(t => { if (t.wbs != null && t.wbs !== '') idToWbsMap.set(t.id, t.wbs); });
+
+  // 逐欄反向格式（round-trip 對齊 parseWbsExcel 讀法）
+  const TYPE_LABEL = { milestone: '里程碑', group: '群組', task: '任務' };
+  const dateCell = (iso) => iso ? new Date(iso) : null;
+  const cellValue = (t, key) => {
+    switch (key) {
+      case 'wbs':         return t.wbs != null ? t.wbs : '';
+      case 'variant':     return variantIdToName[t.variant] || '';
+      case 'taskType':    return TYPE_LABEL[t.taskType] || '任務';
+      case 'predecessor': return App.predToWbsFormat(t.predecessor, idToWbsMap);
+      case 'progress':    return (typeof t.progress === 'number' ? t.progress : 0) / 100;
+      case 'mustDeliver':
+      case 'requiredTask':
+      case 'mustIssue':   return t[key] ? '✓' : '';
+      case 'plannedStart':
+      case 'plannedEnd':
+      case 'actualStart':
+      case 'actualEnd':   return dateCell(t[key]);
+      default:            return t[key] != null ? t[key] : '';
+    }
+  };
+
+  // ── workbook ──
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = DATA.settings.userName || CFG('APP_NAME', 'PM-Core');
+  workbook.created = new Date();
+  const FONT = { name: '新細明體', size: 12 };
+  const FONT_BOLD = { name: '新細明體', size: 12, bold: true };
+  const FONT_MEMO = { name: '新細明體', size: 10, italic: true };
+
+  const nCols = WBS_COLUMNS.length;
+  const ws = workbook.addWorksheet(proj.name || 'WBS', { views: [{ state: 'frozen', ySplit: 2 }] });
+
+  // 前置 memo 列（跨欄合併，§13.4）
+  const memoText = '前置(N)欄：12FS=接#12完成後開始；SS同時開始／FF同時完成／SF開始才能完成；+N=延後 N 工作天';
+  ws.addRow([memoText]);
+  ws.mergeCells(1, 1, 1, nCols);
+  const memoCell = ws.getCell(1, 1);
+  memoCell.font = FONT_MEMO;
+  memoCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+
+  // 表頭列
+  const headerRow = ws.addRow(WBS_COLUMNS.map(c => c.header));
+  headerRow.eachCell((cell) => {
+    cell.font = FONT_BOLD;
+    cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
+  });
+
+  // 資料列（排序：_seqOf 全域序）
+  const DATE_KEYS = ['plannedStart', 'plannedEnd', 'actualStart', 'actualEnd'];
+  const sorted = tasks.slice().sort((a, b) => App._seqOf(a.id) - App._seqOf(b.id));
+  sorted.forEach((t) => {
+    const row = ws.addRow(WBS_COLUMNS.map(c => cellValue(t, c.key)));
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = FONT;
+      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+    });
+    WBS_COLUMNS.forEach((c, i) => {
+      if (DATE_KEYS.indexOf(c.key) >= 0) {
+        const cell = row.getCell(i + 1);
+        if (cell.value instanceof Date) cell.numFmt = 'yyyy/mm/dd';
+      } else if (c.key === 'progress') {
+        row.getCell(i + 1).numFmt = '0%';   // 顯示 50% 非 0.5（round-trip 值仍 0~1）
+      }
+    });
+  });
+
+  // ── 專案資訊分頁（round-trip：專案名 + 部門表，對齊 parseWbsExcel buildDepts/buildMemberToDept 讀法）──
+  const wsInfo = workbook.addWorksheet('專案資訊');
+  wsInfo.addRow(['專案名稱', proj.name || '']);
+  wsInfo.addRow([]);                              // 空列分隔
+  wsInfo.addRow(['部門', '專案成員']);           // 表頭（buildDepts/buildMemberToDept 掃這列）
+  (proj.depts || []).forEach(d => {
+    wsInfo.addRow([d.name || '', (d.members || []).map(m => m.name).filter(Boolean).join('、')]);
+  });
+  wsInfo.columns = [{ width: 16 }, { width: 40 }];
+
+  // ── 下載（照 exportReportExcel house style）──
+  const buffer = await workbook.xlsx.writeBuffer();
+  const dateStr = D.fmt(new Date(), 'ymd').replace(/\//g, '');
+  const filename = (proj.name || 'WBS') + '_WBS_' + dateStr + '.xlsx';
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  U.toast('✓ 已下載 ' + filename);
+};
+
 // ═══════════════════════════════════════════════════════
 //  PAGE: PDCA 報告（方式 1 — 任務聚合）
 // ═══════════════════════════════════════════════════════
@@ -8542,6 +8665,39 @@ function buildDepts(wsInfo) {
   return depts;
 }
 
+// ─── WBS_COLUMNS：Excel 欄位定義單一來源（§13.1）───
+// 匯出讀 header 寫表頭；未來匯入收斂 + 模糊辨識（aliases）三方共用此常數。
+// header 逐字對齊 parseWbsExcel 實際讀的名（含「預計結束」「實際完成」怪名，見 §13.2）。
+// aliases 本批先全空、預留模糊辨識（§13.7）。
+// 人工對齊依據（key ↔ header，對 parseWbsExcel 讀法 app.js:8591-8644）：見下方陣列逐欄。
+// 自檢：parseWbsExcel 目前 inline 讀、無常數名單可比對 → 真自檢待其收斂到常數後加（§13.1）；此陣列即人工對齊依據。
+const WBS_COLUMNS = [
+  { key: 'wbs', header: 'N', aliases: [] },
+  { key: 'variant', header: '案別', aliases: [] },
+  { key: 'stage', header: 'PLM階段', aliases: [] },
+  { key: 'subgroup', header: '子群組', aliases: [] },
+  { key: 'name', header: '任務名', aliases: [] },
+  { key: 'taskType', header: '類型', aliases: [] },
+  { key: 'predecessor', header: '前置(N)', aliases: [] },
+  { key: 'durationDays', header: '工期', aliases: [] },
+  { key: 'owner', header: '負責人', aliases: [] },
+  { key: 'plannedStart', header: '預計開始', aliases: [] },
+  { key: 'plannedEnd', header: '預計結束', aliases: [] },
+  { key: 'actualStart', header: '實際開始', aliases: [] },
+  { key: 'actualEnd', header: '實際完成', aliases: [] },
+  { key: 'progress', header: '進度%', aliases: [] },
+  { key: 'status', header: '狀態', aliases: [] },
+  { key: 'mustDeliver', header: '必須繳付', aliases: [] },
+  { key: 'deliverable', header: '繳付物說明', aliases: [] },
+  { key: 'riskIssue', header: '風險議題', aliases: [] },
+  { key: 'note', header: '備註', aliases: [] },
+  { key: 'delivered', header: '已交付', aliases: [] },
+  { key: 'deliverableLink', header: '繳付連結', aliases: [] },
+  { key: 'deliverableType', header: '繳付件類型', aliases: [] },
+  { key: 'requiredTask', header: '必要任務', aliases: [] },
+  { key: 'mustIssue', header: '繳付物必須發行', aliases: [] },
+];
+
 // 讀 J系列_WBS_主檔.xlsx，解析 J系列整合WBS sheet 的 93 筆有效列
 // 回傳 { ok, rows, projectName, errors }，不灌日期、不碰 DOM、不存 Storage
 async function parseWbsExcel(file) {
@@ -8549,10 +8705,14 @@ async function parseWbsExcel(file) {
     const buffer = await file.arrayBuffer();   // house style：與 App.parseExcelImport 一致
     const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
 
-    // 按名直取（第一張是「專案資訊」，不是資料表）
-    const wsMain = wb.Sheets['J系列整合WBS'];
+    // 優先按名直取；找不到則 fallback 第一個非「專案資訊」分頁（容納匯出檔/他人格式，不挑分頁名）
+    let wsMain = wb.Sheets['J系列整合WBS'];
     if (!wsMain) {
-      return { ok: false, rows: [], projectName: '', errors: ['找不到「J系列整合WBS」分頁'] };
+      const firstName = wb.SheetNames.find(n => n !== '專案資訊');
+      wsMain = firstName ? wb.Sheets[firstName] : null;
+    }
+    if (!wsMain) {
+      return { ok: false, rows: [], projectName: '', errors: ['找不到任何資料分頁'] };
     }
 
     // 專案名：專案資訊頁是 key-value 直式，掃 A 欄＝「專案名稱」那列取 B（不寫死列號）
@@ -8574,7 +8734,11 @@ async function parseWbsExcel(file) {
 
     // 改靠表頭名讀（不再固定欄序，因新 Excel 在 B 欄插入「案別」整體右移）：
     // 第 1 列為表頭，建「表頭字面→欄 index」映射（String().trim() 防呆，萬一手動編輯帶到空白）
-    const headerRow = aoa[0] || [];
+    const headerIdx = aoa.findIndex(r => {
+      const cells = (r || []).map(c => String(c == null ? '' : c).trim());
+      return cells.includes('N') && cells.includes('任務名');
+    });
+    const headerRow = (headerIdx >= 0 ? aoa[headerIdx] : aoa[0]) || [];
     const colMap = {};
     headerRow.forEach((h, i) => { const key = String(h == null ? '' : h).trim(); if (key) colMap[key] = i; });
     const cell = (row, headerName) => { const i = colMap[headerName]; return (i == null) ? null : row[i]; };
@@ -8586,7 +8750,7 @@ async function parseWbsExcel(file) {
       return { ok: false, rows: [], projectName, errors: ['缺少必要欄：' + missing.join('、')] };
     }
 
-    aoa.slice(1).forEach((r) => {
+    aoa.slice((headerIdx >= 0 ? headerIdx : 0) + 1).forEach((r) => {
       // 任務名空 → skip
       const nameRaw = cell(r, '任務名');
       const name = nameRaw != null && String(nameRaw).trim() !== '' ? String(nameRaw).trim() : '';
