@@ -1432,21 +1432,16 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* 擔當膠囊群（防爆：min-width:0 + flex-wrap） */
 .dept-members { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--r6); }
 
-/* 擔當小膠囊（方形鈍角 --r6，同風格淡底） */
-.dept-member-chip {
-  display: inline-flex; align-items: center; gap: var(--r4);
-  padding: var(--r3) var(--r6);
-  border: 1px solid var(--rule); border-radius: var(--r6);
-  background: var(--surface2);
-}
-.dept-member-name { flex: 0 0 80px; width: 80px; border: none; background: none; font: inherit; color: var(--ink); padding: var(--r3) 0; }
+/* 擔當成員群組：透明，input + 刪鈕並排 */
+.dept-member-chip { display: inline-flex; align-items: center; gap: var(--r3); }
+.dept-member-name { field-sizing: content; min-width: 60px; max-width: 200px; border: none; background: none; font: inherit; color: var(--ink); padding: var(--r4); }
 .dept-member-name:focus { outline: none; }
-.dept-member-del { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--ink4); padding: 0; line-height: 1; font-size: 14px; }
-.dept-member-del:hover { color: var(--rose); }
+.dept-member-del { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--rose); padding: 0; line-height: 1; font-size: 14px; opacity: 0; transition: opacity .12s; }
+.dept-member-chip:hover .dept-member-del { opacity: .6; }
 
-/* ＋擔當（方形鈍角 --r6 虛線） */
-.dept-member-add { padding: var(--r3) var(--r8); border-radius: var(--r6); border: 1px dashed var(--rule2); background: none; color: var(--ink3); cursor: pointer; font-size: 12px; }
-.dept-member-add:hover { border-color: var(--sage-400); color: var(--sage-600); }
+/* ＋擔當：輕量文字鈕，對齊成員框 */
+.dept-member-add { padding: var(--r4) var(--r6); border: none; background: none; color: var(--sage-600); cursor: pointer; font-size: 13px; }
+.dept-member-add:hover { color: var(--sage-700); }
 
 /* 獨立刪部門鈕（方形鈍角 --r8，固定 28x28） */
 .dept-del-btn {

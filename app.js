@@ -4820,6 +4820,15 @@ App._tplAddOtherCase = function() {
   box.appendChild(card);
 };
 
+// 部門編輯區 HTML（範本表單與空白專案共用，避免重複）：讀 App._tplDepts、mode=tpl。
+App._deptEditorHtml = function() {
+  return `        <div class="form-field"><label>部門與負責人（可自由增減）</label>
+          <div class="dept-editor-head"><span class="dept-head-name">部門名稱</span><span class="dept-head-members">擔當姓名</span></div>
+          <div class="dept-edit-list" id="deptEditorList">${App.buildDeptRowsHtml(App._tplDepts, 'tpl', null)}</div>
+          <button class="tb-action ghost dept-add-btn" onclick="App.deptUI.addDept('tpl', '')">＋ 新增部門</button>
+        </div>`;
+};
+
 // 第一階段表單 HTML（pf-tplBox + pf-excelBox）：抽出供新增專案 modal 共用（路線B 打底；純搬移、零行為改變）。
 App._stage1FormHtml = function() {
   return `      <div id="pf-tplBox">
@@ -4850,11 +4859,7 @@ App._stage1FormHtml = function() {
         </div>
         <div id="pf-otherCases"></div>
         <button type="button" class="tb-action ghost" onclick="App._tplAddOtherCase()">＋ 新增另案</button>
-        <div class="form-field"><label>部門與負責人（可自由增減）</label>
-          <div class="dept-editor-head"><span class="dept-head-name">部門名稱</span><span class="dept-head-members">擔當姓名</span></div>
-          <div class="dept-edit-list" id="deptEditorList">${App.buildDeptRowsHtml(App._tplDepts, 'tpl', null)}</div>
-          <button class="tb-action ghost dept-add-btn" onclick="App.deptUI.addDept('tpl', '')">＋ 新增部門</button>
-        </div>
+${App._deptEditorHtml()}
       </div>`;
 };
 
@@ -4895,8 +4900,12 @@ App._flowStep2 = function() {
   const mode = App._createFlow ? App._createFlow.mode : 'template';
   // 全新進入②（非從③上一步退回）才預載標準部門 roles；stage1Data 有值=回填情境，不碰 _tplDepts（保留使用者編輯）。
   if (!App._createFlow || !App._createFlow.stage1Data) {
-    const _roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles && PRODUCT_DEV_TEMPLATE.roles.length) ? PRODUCT_DEV_TEMPLATE.roles : [''];
-    App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
+    if (mode === 'blank') {
+      App._tplDepts = [{ id: U.id(), name: '', members: [{ id: U.id(), name: '' }] }];   // 空白專案：預載一列空部門待填
+    } else {
+      const _roles = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.roles && PRODUCT_DEV_TEMPLATE.roles.length) ? PRODUCT_DEV_TEMPLATE.roles : [''];
+      App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
+    }
   }
   App.openModal({
     title: mode === 'blank' ? '新增空白專案' : '填寫專案資料',
@@ -4908,6 +4917,7 @@ App._flowStep2 = function() {
       </div>
       <div class="form-field"><label>備註</label><input type="text" id="pf-note" placeholder="簡短描述"></div>
       ${mode === 'template' ? App._stage1FormHtml() : ''}
+      ${mode === 'blank' ? App._deptEditorHtml() : ''}
       <div class="form-field excel-placeholder" style="${mode==='excel'?'':'display:none'}">Excel 上傳與預覽（下一批實作）</div>`,
     footer: `<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>
       <button class="tb-action" onclick="App._flowStage2Next()">${mode==='blank'?'建立':'下一步：檢視任務'}</button>`,
@@ -4985,7 +4995,7 @@ App._flowStage2Next = function() {
 // 空白專案落地：name/color/note 由 _flowStage2Next 傳入（已驗 name 非空），複用 saveProject 空白分支邏輯，不重掃 DOM。
 App._flowBlankCommit = function(name, color, note) {
   if (App._roGuard()) return;
-  const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
+  const np = { id: U.id(), name, color, note, depts: JSON.parse(JSON.stringify(App._tplDepts || [])), synced: false, createdAt: new Date().toISOString() };
   ensurePdcaData(np);
   DATA.projects.push(np);
   this.currentProjectId = np.id;
@@ -5542,10 +5552,10 @@ App.buildDeptRowsHtml = function(depts, mode, projId) {
   return (depts || []).map(d => `
       <div class="dept-edit-row" data-dept-id="${d.id}">
         <div class="dept-pill">
-          <input class="dept-edit-name" value="${U.esc(d.name)}" placeholder="部門名稱" onchange="App.deptUI.renameDept('${mode}','${pid}','${d.id}',this.value)">
+          <input class="dept-edit-name" value="${U.esc(d.name)}" placeholder="例：研發部" onchange="App.deptUI.renameDept('${mode}','${pid}','${d.id}',this.value)">
           <span class="dept-pill-sep"></span>
           <div class="dept-members">
-            ${(d.members || []).map(m => `<span class="dept-member-chip"><input class="dept-member-name" data-member-id="${m.id}" value="${U.esc(m.name)}" placeholder="擔當姓名" onchange="App.deptUI.renameMember('${mode}','${pid}','${d.id}','${m.id}',this.value)"><button class="dept-member-del" title="刪除擔當" onclick="App.deptUI.removeMember('${mode}','${pid}','${d.id}','${m.id}')">×</button></span>`).join('')}
+            ${(d.members || []).map(m => `<span class="dept-member-chip"><input class="dept-member-name" data-member-id="${m.id}" value="${U.esc(m.name)}" placeholder="例：王小明" onchange="App.deptUI.renameMember('${mode}','${pid}','${d.id}','${m.id}',this.value)"><button class="dept-member-del" title="刪除擔當" onclick="App.deptUI.removeMember('${mode}','${pid}','${d.id}','${m.id}')">×</button></span>`).join('')}
             <button class="dept-member-add" onclick="App.deptUI.addMember('${mode}','${pid}','${d.id}')">＋擔當</button>
           </div>
         </div>
