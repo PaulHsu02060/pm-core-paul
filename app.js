@@ -719,13 +719,11 @@ function runMigrations() {
   //   兩邊 wbs 都程式寫死＝結構性區分訊號，可靠。
   //   排程跳會議讀的是獨立 store(DATA.meetings/recurringMeetings/specialMeetings)、不讀 task.category，
   //   故本 migration 不影響排程；加 t.wbs 是為語意正確(避免手動真會議被誤標 milestone 害甘特畫菱形)。
-  // 同步任務(!t.synced 排除)A-1 已帶正確值不需轉
   // 注意：ensureTaskType(193) 在本 migration(194) 前跑，存量 taskType 已被補成 'task'，
   //       故用 category 判斷直接改寫，不能用「taskType 缺席」當條件
   // group 不處理：存量資料無「群組」痕跡可辨識，group 只從 M2-T1 後新同步/匯入產生
   if (!M.taskTypeBackfill_v1) {
     DATA.tasks.forEach(t => {
-      if (t.synced) return;                    // 同步任務跳過
       if (t.wbs && t.category === 'meeting') t.taskType = 'milestone';
     });
     M.taskTypeBackfill_v1 = true;
@@ -849,7 +847,6 @@ function scoreTask(t) {
     else if (days <= 14) score += 50;
   } else score -= 20;
   if (t.status === 'wip') score += 80;
-  if (t.synced) score += 5; // tiny bias for synced items
   return score;
 }
 
@@ -878,7 +875,6 @@ function cleanOldDoneTasks() {
   const before = DATA.tasks.length;
   DATA.tasks = DATA.tasks.filter(t => {
     if (t.status !== 'done') return true;
-    if (t.synced) return true; // synced tasks managed by sync
     if (t.measureType !== 'hours') return true; // 工期制（WBS/手動專案任務）永不自動清除，只清時段制雜事
     if (!t.completedAt) { t.completedAt = new Date().toISOString(); return true; }
     return new Date(t.completedAt) >= cutoff;
@@ -2242,7 +2238,6 @@ const App = {
       return `<button class="sb-proj ${isActive ? 'active' : ''}" onclick="App.openProject('${p.id}', this)">
         <span class="dot" style="background:${p.color}"></span>
         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;">${U.esc(p.name)}</span>
-        ${p.synced ? '<span class="sync-ico">🔗</span>' : ''}
         <span class="count">${cnt}</span>
       </button>`;
     }).join('');
@@ -2625,7 +2620,6 @@ App.renderDashboard = function() {
             <span class="legend-item"><span class="legend-sw" style="background:var(--navy)"></span>📅 會議</span>
             <span class="legend-item"><span class="legend-sw" style="background:var(--clay)"></span>🧹 打掃</span>
             <span class="legend-item"><span style="color:var(--terracotta);">⚠</span> 延遲</span>
-            <span class="legend-item"><span style="color:var(--sage-600);">🔗</span> 同步</span>
             <span style="margin-left:auto; font-size:10.5px;">⋮⋮ 拖曳調整 · 🔒 已鎖定</span>
           </div>
           <details class="sched-rules">
@@ -2637,7 +2631,6 @@ App.renderDashboard = function() {
                 <li>⏰ <b>deadline 逼近度</b>：已逾期 +500 起（每超時 1 天再 +10）· 剩 1 天內 +400 · 3 天內 +250 · 7 天內 +120 · 14 天內 +50；沒有預計完成日 −20</li>
                 <li>🔴 <b>緊急程度</b>：緊急 +300 · 普通 +100 · 不急 +0</li>
                 <li>▶ <b>進行中加分</b>：狀態為「進行中」+80</li>
-                <li>🔗 <b>同步任務微加分</b>：來自 ${CFG('WBS_LABEL', 'WBS')}同步 +5</li>
               </ul>
               <p class="sr-note">附註：分數只決定「誰先排」，不決定「排幾小時」——實際排程時數另看任務的預計工時（estHours）。</p>
             </div>
@@ -2811,7 +2804,6 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           const isOverdue = sch.end && new Date(sch.end) < today && task.status !== 'done';
           // Tooltip
           const tipParts = [projName ? `${projName}｜${task.name}` : task.name];
-          if (task.syncRef) tipParts.push(`🔗 ${task.syncRef}`);
           const total = item.totalHours || task.estHours || 0;
           tipParts.push(`預估總工時：${total} h`);
           if (total > 6) {
@@ -2844,7 +2836,6 @@ App.buildWeekScheduleHtml = function(targetMonday) {
             title="${U.esc(tipText)}&#10;━━━━━━━━━━━━━━&#10;💡 雙擊跳到專案頁編輯">
             ${item.completed ? '<span class="done-badge">✓</span>' : item.locked ? '<span class="lock-ico">🔒</span>' : ''}
             ${isOverdue && !item.completed ? '<span class="overdue-badge">⚠</span>' : ''}
-            ${task.synced ? '<span class="sync-badge">🔗</span>' : ''}
             <div class="ws-ev-line">${projName ? `<span class="ws-ev-proj" style="color:${projColor}">${U.esc(projName)}</span> ` : ''}<b>${U.esc(task.name)}</b></div>
           </div>`;
         }
@@ -3171,10 +3162,9 @@ App.buildProjectHeaderHtml = function() {
         <div style="flex:1; min-width:0;">
           <div class="proj-name">
             ${U.esc(proj.name)}
-            ${proj.synced ? '<span class="proj-sync-badge">🔗 從 Google Sheet 同步</span>' : ''}
           </div>
         </div>
-        ${!proj.synced ? `<button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>` : ''}
+        <button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>
       </div>`;
 };
 
@@ -3801,14 +3791,13 @@ App.buildTaskRowHtml = function(t, cls) {
     }
   }
 
-  return `<tr class="task-row ${t.status === 'done' ? 'done' : ''} ${t.synced ? 'synced' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
+  return `<tr class="task-row ${t.status === 'done' ? 'done' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
     <td class="col-num"><span style="font-family:var(--mono); font-size:11px; color:var(--ink4);">${App._seqOf(t.id)}</span></td>
     <td class="col-mid"><span style="font-size:12px; color:var(--ink2);">${U.esc(t.stage || '—')}</span></td>
     <td class="col-flex" title="${U.esc(t.name)}">
       <div class="task-info">
         <div class="task-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
           ${U.esc(t.name)}
-          ${t.synced ? `<span class="sync-tag">🔗 ${U.esc(t.syncRef || '')}</span>` : ''}
           ${isPreview ? '<span class="preview-tag">📅 兩週預告</span>' : ''}
         </div>
       </div>
@@ -3824,7 +3813,7 @@ App.buildTaskRowHtml = function(t, cls) {
     <td class="col-num"><span class="rp-status ${statusCls}">${statusTxt}</span></td>
     <td class="col-mid">
       <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
-        <span class="task-deadline">${rangeText}${sch.hasOverride ? `<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整，Sheet 原值: ${t.start || '—'} ~ ${t.end || '—'}">✎</span>` : ''}</span>
+        <span class="task-deadline">${rangeText}</span>
         ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
       </div>
     </td>
@@ -4380,7 +4369,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
     ${mode === 'new' ? `
     <div class="form-field">
       <label>專案</label>
-      <select id="tf-project"><option value="" ${!t.project ? 'selected' : ''}>— 請選擇 —</option>${DATA.projects.filter(p => !p.synced).map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
+      <select id="tf-project"><option value="" ${!t.project ? 'selected' : ''}>— 請選擇 —</option>${DATA.projects.map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
     </div>` : `
     <div class="form-field">
       <label>專案</label>
@@ -4984,7 +4973,7 @@ App.saveProject = function(id) {
   if (id) {
     if (App._roGuard()) return;
     const p = this.getProj(id);
-    if (p && !p.synced) { p.name = name; p.color = color; p.note = note; }
+    if (p) { p.name = name; p.color = color; p.note = note; }
   } else {
     const mode = document.getElementById('pf-mode') ? document.getElementById('pf-mode').value : 'blank';
     if (mode === 'template') {
@@ -5831,7 +5820,7 @@ App.renderGantt = function(targetId = 'page-gantt', singleProject = false) {
       </div>
       ${!singleProject ? `<div class="legend-row" style="border-top:1px solid var(--rule); margin-top:18px; padding-top:14px;">
         ${DATA.projects.map(p => `
-          <span class="legend-item"><span class="legend-sw" style="background:${p.color}"></span>${U.esc(p.name)}${p.synced ? ' 🔗' : ''}</span>
+          <span class="legend-item"><span class="legend-sw" style="background:${p.color}"></span>${U.esc(p.name)}</span>
         `).join('')}
         <span style="margin-left:auto; font-size:10.5px;">◆ 里程碑 · 進度條顯示完成度</span>
       </div>` : ''}
@@ -5882,7 +5871,7 @@ App.buildGanttFilterHtml = function(singleProject) {
     ${DATA.projects.map(p => `
       <label class="gantt-filter-item">
         <input type="checkbox" ${pf.has(p.id) ? 'checked' : ''} onchange="App.toggleGanttProject('${p.id}')">
-        <span class="gantt-filter-sw" style="background:${p.color}"></span>${U.esc(p.name)}${p.synced ? ' 🔗' : ''}
+        <span class="gantt-filter-sw" style="background:${p.color}"></span>${U.esc(p.name)}
       </label>
     `).join('')}
   </div>` : '';
@@ -6052,7 +6041,7 @@ App.buildGanttRowHtml = function(task, start, days, schedById) {
   // Row label
   let html = `<div class="gantt-row-label">
     <span class="dot" style="background:${proj?.color || '#888'}"></span>
-    <span class="gantt-row-label-text">${U.esc(task.name)}${task.synced ? ' 🔗' : ''}${sch.hasOverride ? '<span style="font-size:11px;color:var(--sage-500);margin-left:4px;cursor:help;" title="此時程為本地調整">✎</span>' : ''}</span>
+    <span class="gantt-row-label-text">${U.esc(task.name)}</span>
   </div>`;
 
   // Empty cells before
@@ -6440,7 +6429,6 @@ App.renderReport = function() {
           <div class="rp-head" style="border-left:4px solid ${proj.color};">
             <span class="rp-dot" style="background:${proj.color}"></span>
             <span class="rp-name">${U.esc(proj.name)}</span>
-            ${proj.synced ? '<span class="rp-sync-tag">🔗 Google Sheet</span>' : ''}
             <span class="rp-stats">${tasks.length} 項 · ${tasks.filter(t=>t.status==='done').length} 完成 · ${tasks.filter(t=>t.status==='wip').length} 進行</span>
           </div>
           <table class="rp-table">
@@ -6474,7 +6462,7 @@ App.renderReport = function() {
                 return `<tr>
                   <td>${i + 1}</td>
                   <td>
-                    <div class="rp-task-name">${U.esc(t.name)}${t.synced ? `<span class="sync-tag">${U.esc(t.syncRef||'')}</span>` : ''}</div>
+                    <div class="rp-task-name">${U.esc(t.name)}</div>
                     ${t.desc ? `<div class="rp-task-desc">${U.esc(t.desc)}</div>` : ''}
                   </td>
                   <td>${U.esc(t.owner || '—')}</td>
@@ -6790,7 +6778,7 @@ App.renderPdca = function() {
   const tabsHtml = projects.map(p => `
     <button class="pdca-tab ${p.id === active.id ? 'active' : ''}" onclick="App.selectPdcaProject('${p.id}')">
       <span class="pdca-tab-dot" style="background:${p.color}"></span>
-      <span class="pdca-tab-name">${U.esc(p.name)}${p.synced ? ' 🔗' : ''}</span>
+      <span class="pdca-tab-name">${U.esc(p.name)}</span>
       <span class="pdca-tab-light">${this.computePdcaStatus(p).light}</span>
     </button>`).join('');
 
@@ -8978,7 +8966,6 @@ App.dedupeTasks = function() {
   // Find duplicate groups: same project + same name (case-insensitive)
   const groups = {};
   for (const t of DATA.tasks) {
-    if (t.synced) continue; // skip synced (managed by sheet)
     const key = `${t.project}|${(t.name || '').trim().toLowerCase()}`;
     if (!groups[key]) groups[key] = [];
     groups[key].push(t);
