@@ -4918,7 +4918,11 @@ App._flowStep2 = function() {
       <div class="form-field"><label>備註</label><input type="text" id="pf-note" placeholder="簡短描述"></div>
       ${mode === 'template' ? App._stage1FormHtml() : ''}
       ${mode === 'blank' ? App._deptEditorHtml() : ''}
-      <div class="form-field excel-placeholder" style="${mode==='excel'?'':'display:none'}">Excel 上傳與預覽（下一批實作）</div>`,
+      <div class="form-field excel-upload" style="${mode==='excel'?'':'display:none'}">
+        <label>WBS Excel 檔</label>
+        <input type="file" id="pf-excelFile" accept=".xlsx,.xls" onchange="App._flowExcelPick(event)">
+        <div id="pf-excelStatus" class="excel-status"></div>
+      </div>`,
     footer: `<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>
       <button class="tb-action" onclick="App._flowStage2Next()">${mode==='blank'?'建立':'下一步：檢視任務'}</button>`,
   });
@@ -4944,6 +4948,27 @@ App._flowViewonlyPreview = function() {
 };
 
 // 第②段「下一步/建立」handler：依 _createFlow.mode 分流。空白→落地（_flowBlankCommit，動作D）；Excel→佔位；範本→掃表單成 cases、存 stage1Data、算 preview 進第③段。
+// Excel ②選檔：async 解析→存 _createFlow.excelParsed→顯示狀態（下一步讀它進第三段）。
+App._flowExcelPick = async function(e) {
+  const file = e.target.files && e.target.files[0];
+  const status = document.getElementById('pf-excelStatus');
+  if (!file) return;
+  if (status) status.textContent = '解析中…';
+  try {
+    const parsed = await parseWbsExcel(file);
+    if (!parsed || !parsed.ok) {
+      if (App._createFlow) App._createFlow.excelParsed = null;
+      if (status) status.textContent = '⚠ 解析失敗：' + ((parsed && parsed.errors && parsed.errors[0]) || '檔案格式不符');
+      return;
+    }
+    if (App._createFlow) App._createFlow.excelParsed = parsed;
+    if (status) status.textContent = '✓ 已讀取「' + (parsed.projectName || '未命名') + '」共 ' + parsed.rows.length + ' 筆任務，按下一步檢視';
+  } catch (err) {
+    if (App._createFlow) App._createFlow.excelParsed = null;
+    if (status) status.textContent = '⚠ 解析錯誤：' + (err.message || err);
+  }
+};
+
 App._flowStage2Next = function() {
   const name = document.getElementById('pf-name').value.trim();
   if (!name) { U.toast('⚠ 請填專案名稱', 'warning'); return; }
@@ -4953,7 +4978,14 @@ App._flowStage2Next = function() {
   const mode = App._createFlow ? App._createFlow.mode : 'template';
 
   if (mode === 'blank') { return App._flowBlankCommit(name, color, note); }   // 空白落地，動作D 定義；先呼叫，D 做完才不炸
-  if (mode === 'excel') { U.toast('⚠ Excel 匯入下一批實作', 'warning'); return; }
+  if (mode === 'excel') {
+    const parsed = App._createFlow ? App._createFlow.excelParsed : null;
+    if (!parsed || !parsed.ok) { U.toast('⚠ 請先選擇 Excel 檔', 'warning'); return; }
+    this._tplPreview = buildWbsPreview(parsed);
+    this.closeModal();
+    this._renderStage2();
+    return;
+  }
 
   // 範本：掃表單成 cases（搬自 saveProject 範本分支，唯一真實來源）
   const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
@@ -5284,7 +5316,7 @@ App._stage2Commit = function() {
     this._showTplWarnings(res.warnings);
     U.toast('\u2713 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒見上方）', 'warning');
   } else {
-    U.toast('\u2713 已用範本建立 ' + res.tasks.length + ' 筆任務', 'success');
+    U.toast('\u2713 已建立 ' + res.tasks.length + ' 筆任務', 'success');
   }
   this.showPage('project', null);
 };
@@ -8601,75 +8633,67 @@ async function parseWbsExcel(file) {
   }
 }
 
-// 找/建 J 系列專案 → 清空舊 J 任務（甲案整批重灌）→ 逐列建 task → save + refresh
-function performWbsImport(parsed) {
+// buildWbsPreview：純算 WBS preview（candidate project + tasks，不 push DATA）
+function buildWbsPreview(parsed) {
   const { rows, projectName } = parsed;
-
-  // 找/建專案（形狀補齊既有：:521/:3671；color 沿用既有 WBS 常數）
-  let proj = DATA.projects.find(p => p.name === projectName);
-  if (!proj) {
-    proj = { id: U.id(), name: projectName, color: CFG('WBS_PROJECT_COLOR', '#4A7C5C'), note: '', synced: false, createdAt: new Date().toISOString() };
-    DATA.projects.push(proj);
-  }
-  const projId = proj.id;
-  proj.depts = parsed.depts || [];   // D-2a：部門表存進 proj（if/else 外→重匯也覆寫跟著 Excel 更新）
-  // 從本批 rows 的 variant 去重建案別清單(id 制，平行 depts)；空字串=通案不建
+  // candidate project（fresh id；commit 時若重灌既有則重指）
+  const project = { id: U.id(), name: projectName, color: CFG('WBS_PROJECT_COLOR', '#4A7C5C'), note: '', synced: false, createdAt: new Date().toISOString() };
+  const projId = project.id;
+  const depts = parsed.depts || [];
+  project.depts = depts;
+  // 案別清單（id 制）
   const variantNames = [...new Set(rows.map(r => r.variant).filter(v => v && v.trim()))];
-  proj.variants = variantNames.map(name => ({ id: U.id(), name }));
-
-  // D-2b：建「部門名→id」反查表，task.dept 改存部門 id（「未指派」查無→保留字面）
+  const variants = variantNames.map(name => ({ id: U.id(), name }));
+  project.variants = variants;
+  // 反查表
   const nameToId = {};
-  (proj.depts || []).forEach(d => { nameToId[d.name] = d.id; });
+  depts.forEach(d => { nameToId[d.name] = d.id; });
   const variantNameToId = {};
-  (proj.variants || []).forEach(v => { variantNameToId[v.name] = v.id; });
-
-  // 甲案：清空該專案舊任務整批重灌（用 project，不是 projectId）
-  DATA.tasks = DATA.tasks.filter(t => t.project !== projId);
-
-  // 逐列建 task — 形狀對齊 :1485 同步版 / :3270 手動版交集
+  variants.forEach(v => { variantNameToId[v.name] = v.id; });
+  // 組 task 進 local 陣列（不 push DATA）
+  const tasks = [];
   rows.forEach(row => {
     let status;
     if (row.actualEnd) status = 'done';
     else if (row.actualStart) status = 'wip';
-    else status = mapStatus(row.status, row.progress);   // progress 已是 0~100
-
-    DATA.tasks.push({
-      id: U.id(),                    // 走 U.id()，不要 inline 't_'+Date.now() 拼
-      project: projId,               // 改點：欄名 project（非 projectId）
-      wbs: row.wbs,                  // N 序號
-      parentWbsId: '',               // 照同步版照搬
+    else status = mapStatus(row.status, row.progress);
+    tasks.push({
+      id: U.id(),
+      project: projId,
+      wbs: row.wbs,
+      parentWbsId: '',
       name: row.name,
-      desc: row.stage ? `${row.stage} / ${row.subgroup || ''}` : (row.subgroup || ''),  // 照同步版公式
+      desc: row.stage ? `${row.stage} / ${row.subgroup || ''}` : (row.subgroup || ''),
       category: row.category,
-      taskType: row.taskType,        // M2-T：類型正本（parseWbsExcel 已映射）
-      predecessor: row.predecessor,  // 原樣序號字串
+      taskType: row.taskType,
+      predecessor: row.predecessor,
       durationDays: row.durationDays,
       owner: row.owner,
-      dept: nameToId[row.dept] || row.dept,   // D-2b：存部門 id（未指派/查無→保留字面字串）
+      dept: nameToId[row.dept] || row.dept,
       variant: variantNameToId[row.variant] || null,
-      start: '',                     // 形狀一致防 getEffectiveSchedule fallback，不灌真日期
+      start: '',
       end: '',
       plannedStart: row.plannedStart,
       plannedEnd: row.plannedEnd,
       actualStart: row.actualStart,
       actualEnd: row.actualEnd,
-      progress: row.progress,        // 0~100
+      progress: row.progress,
       status: status,
-      urgency: 'med',                // 固定預設（row 形狀不合 deduceUrgency）
-      estHours: parseFloat(row.durationDays || 0) * (DATA.settings.dailyHours || 6) || 4,  // 照同步版公式
-      method: '',                    // 手動版多的欄，匯入版預設
-      canSplit: false,               // 同上
+      urgency: 'med',
+      estHours: parseFloat(row.durationDays || 0) * (DATA.settings.dailyHours || 6) || 4,
+      method: '',
+      canSplit: false,
       completedAt: status === 'done' ? new Date().toISOString() : null,
-      createdAt: new Date().toISOString(),  // 形狀統一：四條建任務路徑都帶
-      scheduledStart: '',            // 四路徑一致，留空
+      createdAt: new Date().toISOString(),
+      scheduledStart: '',
       scheduledEnd: '',
-      synced: false,                 // 改點：不要 locked: true
+      synced: false,
       stage: row.stage,
       subgroup: row.subgroup,
       mustDeliver: row.mustDeliver,
-      deliverableType: row.deliverableType,   // §7.1
-      requiredTask: row.requiredTask,         // §7.1
-      mustIssue: row.mustIssue,               // §7.1
+      deliverableType: row.deliverableType,
+      requiredTask: row.requiredTask,
+      mustIssue: row.mustIssue,
       deliverable: row.deliverable,
       riskIssue: row.riskIssue,
       delivered: row.delivered,
@@ -8677,18 +8701,32 @@ function performWbsImport(parsed) {
       note: row.note,
     });
   });
+  // 前置 id 化（對 local tasks 陣列，等價於原本對 importedBatch）
+  const wbsToIdMap = buildWbsToIdMap(tasks);
+  tasks.forEach(t => { t.predecessor = translatePredToId(t.predecessor, wbsToIdMap); });
+  return { project, variants, depts, tasks, warnings: [] };
+}
 
-  // 第二輪：前置 id 化（§8b.5 層次二，方案 X 直接覆蓋不留 raw）。
-  // 必須在這批 task 全部 push 完之後做——否則前置指向後面尚未進 map 的 task 會查不到。
-  // 查找來源＝本次匯入完整批次（7316 已清該專案舊 task、迴圈只 push 這批，故 filter 即此批），
-  // 範圍鎖在同專案內，同批互相前置才查得到、且不跨專案撞序號。
-  const importedBatch = DATA.tasks.filter(t => t.project === projId);
-  const wbsToIdMap = buildWbsToIdMap(importedBatch);
-  importedBatch.forEach(t => { t.predecessor = translatePredToId(t.predecessor, wbsToIdMap); });
-
+function performWbsImport(parsed) {
+  const res = buildWbsPreview(parsed);
+  // 重灌語意：找同名既有→重用 id；無則用 candidate
+  let proj = DATA.projects.find(p => p.name === res.project.name);
+  if (proj) {
+    // 重用既有 id：把 res 的 project/task/相關 id 全重指成既有 projId
+    const oldId = res.project.id, newId = proj.id;
+    proj.depts = res.depts;
+    proj.variants = res.variants;
+    res.tasks.forEach(t => { if (t.project === oldId) t.project = newId; });
+    DATA.tasks = DATA.tasks.filter(t => t.project !== newId);   // 清該專案舊 task
+    res.tasks.forEach(t => DATA.tasks.push(t));
+  } else {
+    DATA.projects.push(res.project);
+    res.tasks.forEach(t => DATA.tasks.push(t));
+  }
+  const projId = proj ? proj.id : res.project.id;
   Storage.save();
   App.refreshAll();
-  return { imported: rows.length, projectId: projId };
+  return { imported: res.tasks.length, projectId: projId };
 }
 
 App.openWbsImport = function() {
