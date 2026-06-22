@@ -237,6 +237,11 @@ const CloudSync = {
   async upload(silent = false) {
     // 唯讀防線（咽喉）：viewonly 一律不上傳雲端（堵共用 blob 外洩真向量）。鎖 body.viewonly，靜默 return false。
     if (document.body.classList.contains('viewonly')) return false;
+    // ★階段2 守衛：無 id_token（重整/本地/DEV 切換、或登入過期）→ 不送。auto(silent) 靜默跳過、手動 toast 重登。
+    if (!Auth._idToken) {
+      if (!silent) U.toast('登入已過期，請重新登入', 'error');
+      return false;
+    }
     const url = DATA.settings.cloudSyncUrl;
     if (!url) {
       if (!silent) U.toast('⚠ 尚未設定雲端 URL', 'warning');
@@ -248,11 +253,11 @@ const CloudSync = {
 
     try {
       // ★安全：上傳前剝掉機密/PII，避免「公開讀」時雲端 blob 外洩。
-      //   cloudSyncToken 仍以 payload.token 帶出做寫入驗證，但不可進 data.settings（否則任何人 download 就讀到 token → 寫入防線破功）。
+      //   寫入驗證改用 payload.id_token（Google JWT，§14 階段2，doPost 驗 role≥editor）。cloudSyncToken 不再送（殘骸，階段5 連同前端 token UI 清）；此處仍解構剝除，確保它不殘留進 data.settings 被 download 讀到。
       //   _loggedInEmail/_loggedInPicture 為 PII，一併剔除。
       const { cloudSyncToken, _loggedInEmail, _loggedInPicture, _role, ...safeSettings } = DATA.settings;
       const payload = {
-        token: DATA.settings.cloudSyncToken || '',
+        id_token: Auth._idToken,
         data: {
           projects: DATA.projects,
           tasks: DATA.tasks,
