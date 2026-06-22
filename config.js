@@ -15,11 +15,9 @@
  */
 var APP_CONFIG = {
   CLOUD_SHEET_ID: 'PASTE_YOUR_SHEET_ID_HERE',
-  CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbyvQ6gRjIrvxBSaElTelM_OBQnqJ7eHSOYeJxiPxmeBH0dVZOOxUDV92EhzUBAQx7clIw/exec',  // 後端 exec URL（讀寫+role+名單單一部署，doGet/doPost 已綁登入 §14；進 git，URL 非機密）
-  ROLE_CHECK_URL: 'https://script.google.com/macros/s/AKfycbyvQ6gRjIrvxBSaElTelM_OBQnqJ7eHSOYeJxiPxmeBH0dVZOOxUDV92EhzUBAQx7clIw/exec',  // 同 CLOUD_SYNC_URL 單一部署（key 名收斂成 BACKEND_URL 留階段5）；role 查詢+名單 getlists/setlist
+  BACKEND_URL: 'https://script.google.com/macros/s/AKfycbyvQ6gRjIrvxBSaElTelM_OBQnqJ7eHSOYeJxiPxmeBH0dVZOOxUDV92EhzUBAQx7clIw/exec',  // 後端單一部署 exec URL（讀寫+role+名單；doGet/doPost 已綁登入 §14；進 git，URL 非機密）
   WBS_SHEET_NAME: 'WBS主表',
   OAUTH_CLIENT_ID: '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com',
-  SYNC_TOKEN: 'CHANGE_THIS_TOKEN',
   COMPANY_NAME: 'My Company',
   APP_BUILD_SIGNATURE: 'PM-Core',
 

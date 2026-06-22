@@ -3,9 +3,8 @@
  * 跨裝置同步 + Google 帳號身份查詢（白名單藏後台 Script Properties）
  *
  * ★ 這是線上實際部署在跑的版本（取代 repo 舊 v1.0 _syncToken 分支），存此建可回溯基準。
- * ★ 脫敏：CHECK_TOKEN / CLOUD_SHEET_ID 明文已移至 Script Properties（public repo 不留密鑰）。
+ * ★ 脫敏：CLOUD_SHEET_ID 等明文移至 Script Properties（public repo 不留密鑰）。CHECK_TOKEN 已廢（§14 改 JWT，doGet/doPost 驗 id_token）。
  *   部署前置（否則同步/讀取會失效）：Apps Script 後台 → 專案設定 → Script Properties 需設：
- *     - CHECK_TOKEN   = <同步 token>（與前端 APP_CONFIG.SYNC_TOKEN 成對；舊明文 token 已外露於開發過程，部署時建議換新值）
  *     - SHEET_ID      = <雲端同步 Sheet 的 ID>
  *     - ADMIN_EMAILS  = 逗號分隔 email（role 查詢回 admin）
  *     - ALLOWED_EMAILS= 逗號分隔 email（role 查詢回 editor）
@@ -17,9 +16,6 @@
 // ═══════════════════════════════════════════════════════════════
 const CLOUD_SHEET_ID = PropertiesService.getScriptProperties().getProperty('SHEET_ID') || '';
 const CLOUD_SHEET_NAME = 'data';
-
-const ENABLE_TOKEN = true;
-const CHECK_TOKEN = PropertiesService.getScriptProperties().getProperty('CHECK_TOKEN') || '';
 
 // ═══════════════════════════════════════════════════════════════
 // 不要動以下程式碼
@@ -167,7 +163,7 @@ function doPost(e) {
       return _json({ error: 'Invalid JSON: ' + parseErr });
     }
 
-    // 名單端點（JWT 驗證路；與同步寫入的 CHECK_TOKEN 路分開）
+    // 名單端點（setlist/getlists，JWT 驗證；與同步寫入 doPost 同走 JWT）
     if (body.action === 'setlist') {
       return _setList(body);
     }

@@ -47,8 +47,13 @@ const isLocalDev = (location.protocol === 'file:') || ['localhost', '127.0.0.1']
 
 // helper：當前登入的 Gmail 是不是 admin
 function isAdmin() {
-  // role 由後台 ROLE_CHECK_URL 查得後存 _role（接 Auth 三層）；不再讀 config ADMIN_EMAILS（線上空）。
+  // role 由後台 BACKEND_URL 查得後存 _role（接 Auth 三層）；不再讀 config ADMIN_EMAILS（線上空）。
   return (typeof DATA !== 'undefined' && DATA.settings && (DATA.settings._role === 'admin' || DATA.settings._role === 'superadmin'));
+}
+
+// helper：當前登入的是不是 SuperAdmin（admin 名單管理等最高權限 UI 用）
+function isSuperAdmin() {
+  return (typeof DATA !== 'undefined' && DATA.settings && DATA.settings._role === 'superadmin');
 }
 
 // build hash 用於辨識：把作者名 + 重要常數 hash 起來
@@ -91,8 +96,7 @@ const DEFAULT_SETTINGS = {
   googleClientId: '', // 由使用者在設定頁填入
 
   // ─── 雲端同步 (Cloud Sync via Google Apps Script) ───
-  cloudSyncUrl: CFG('CLOUD_SYNC_URL', ''),  // 預設讀 config.js 公開讀 URL（訪客零設定即有讀取網址；本機存檔/真值仍優先覆蓋）
-  cloudSyncToken: CFG('SYNC_TOKEN', 'CHANGE_THIS_TOKEN'),  // = APP_CONFIG.SYNC_TOKEN，與 apps-script-cloud-sync.gs 的 CHECK_TOKEN 成對
+  cloudSyncUrl: CFG('BACKEND_URL', ''),  // 預設讀 config.js 後端 URL（doGet 已綁登入 §14；本機存檔/真值仍優先覆蓋）
   cloudSyncEnabled: true,                // 預設開啟（只要填了 URL 就會自動運作）
   cloudAutoSync: true,                   // 儲存後自動上傳
   cloudLastSync: '',                     // 最後同步時間（ISO）
@@ -253,7 +257,7 @@ const CloudSync = {
 
     try {
       // ★安全：上傳前剝掉機密/PII，避免「公開讀」時雲端 blob 外洩。
-      //   寫入驗證改用 payload.id_token（Google JWT，§14 階段2，doPost 驗 role≥editor）。cloudSyncToken 不再送（殘骸，階段5 連同前端 token UI 清）；此處仍解構剝除，確保它不殘留進 data.settings 被 download 讀到。
+      //   寫入驗證用 payload.id_token（Google JWT，§14；doPost 驗 role≥editor）。cloudSyncToken 已廢（前端 token UI/設定已清）；此處仍解構剝除，防舊機器 localStorage 殘留值上傳。
       //   _loggedInEmail/_loggedInPicture 為 PII，一併剔除。
       const { cloudSyncToken, _loggedInEmail, _loggedInPicture, _role, ...safeSettings } = DATA.settings;
       const payload = {
@@ -327,7 +331,6 @@ const CloudSync = {
       // 合併雲端 settings（保留本地的 cloud* 相關設定，避免一拉就斷線）
       const localCloudCfg = {
         cloudSyncUrl: DATA.settings.cloudSyncUrl,
-        cloudSyncToken: DATA.settings.cloudSyncToken,
         cloudSyncEnabled: DATA.settings.cloudSyncEnabled,
         cloudAutoSync: DATA.settings.cloudAutoSync,
         _role: DATA.settings._role,   // 本地 session 身份，不被沒帶 _role 的雲端 blob 洗掉
@@ -1824,11 +1827,11 @@ const Auth = {
 
   // ④ 名單管理改打後端（getlists/setlist）。in-memory 快取 + id_token（不寫 localStorage）。
   _idToken: '',
-  _lists: { editor: [], viewonly: [] },
+  _lists: { editor: [], viewonly: [], admin: [] },
 
-  // POST 後端（ROLE_CHECK_URL 同一部署的 doPost）。text/plain 免 CORS preflight；回 parsed JSON，網路失敗 throw。
+  // POST 後端（BACKEND_URL 同一部署的 doPost）。text/plain 免 CORS preflight；回 parsed JSON，網路失敗 throw。
   async _postBackend(payload) {
-    const url = CFG('ROLE_CHECK_URL', '');
+    const url = CFG('BACKEND_URL', '');
     if (!url) throw new Error('no-backend');
     const r = await fetch(url, {
       method: 'POST', redirect: 'follow',
@@ -1865,7 +1868,7 @@ const Auth = {
       return;   // 不洗掉現有顯示
     }
     if (this._backendErr(j)) return;
-    this._lists = { editor: j.editor || [], viewonly: j.viewonly || [] };
+    this._lists = { editor: j.editor || [], viewonly: j.viewonly || [], admin: j.admin || [] };
     this._drawLists();
   },
 
@@ -1883,6 +1886,7 @@ const Auth = {
     };
     draw('editor', 'wl-editor-list');
     draw('viewonly', 'wl-viewonly-list');
+    draw('admin', 'wl-admin-list');
   },
 
   // ④ 加入名單：前端驗格式/去重/跨名單互斥 → 算新整份 → POST setlist → 成功才更新
@@ -1891,9 +1895,9 @@ const Auth = {
     const email = (input ? input.value : '').trim().toLowerCase();
     if (!email) { U.toast('請輸入 email', 'warning'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { U.toast('email 格式不對', 'error'); return; }
-    const other = listType === 'editor' ? 'viewonly' : 'editor';
     if ((this._lists[listType] || []).includes(email)) { U.toast('已在名單', 'warning'); return; }
-    if ((this._lists[other] || []).includes(email)) { U.toast('已在另一名單，請先移除', 'warning'); return; }
+    const others = ['editor', 'viewonly', 'admin'].filter(t => t !== listType);
+    if (others.some(t => (this._lists[t] || []).includes(email))) { U.toast('已在其他名單，請先移除', 'warning'); return; }
 
     const newList = (this._lists[listType] || []).concat(email);
     let j;
@@ -2079,7 +2083,7 @@ const App = {
       //   本地 fallback 只在「無 roleUrl」（純前端塊二階段）啟用，不是後端失敗的備胎——
       //   否則塊三上線後，切斷後端網路即可讓登入掉進本地判斷繞過授權。
       let role = 'none';
-      const roleUrl = CFG('ROLE_CHECK_URL', '');
+      const roleUrl = CFG('BACKEND_URL', '');
       if (roleUrl) {
         // 有後端 → 一律走後端，失敗往 none 倒（原安全紀律不變）
         try {
@@ -8157,14 +8161,6 @@ App.renderSettings = function() {
         </div>
 
         <div class="ss-field">
-          <label>同步 Token</label>
-          <div>
-            <input type="text" id="set-cloud-token" value="${U.esc(s.cloudSyncToken || CFG('SYNC_TOKEN', 'CHANGE_THIS_TOKEN'))}" placeholder="${CFG('SYNC_TOKEN', 'CHANGE_THIS_TOKEN')}" style="font-family:var(--mono); font-size:12px;">
-            <div class="help">必須與 Apps Script 內的 CHECK_TOKEN 一致</div>
-          </div>
-        </div>
-
-        <div class="ss-field">
           <label>自動同步</label>
           <div>
             <select id="set-cloud-autosync" style="width:240px;">
@@ -8224,10 +8220,21 @@ App.renderSettings = function() {
       </div>
       <!-- /資料 --></div></div>
     <div class="tab-panel" id="編輯權限"><div class="settings-grid">
-      <!-- ④ 編輯權限名單（editor/viewonly，localStorage 暫存；此 tab 已限 Admin） -->
+      <!-- 編輯權限名單（admin/editor/viewonly，後端 Script Properties）；admin 組僅 SuperAdmin 可見可改。此 tab 已限 Admin。 -->
       <div class="settings-section">
         <div class="ss-title">👥 編輯權限名單</div>
-        <div class="ss-desc">加入後該 Google 帳號登入即得對應權限（暫存本機，塊三接後端後改由名單同步）</div>
+        <div class="ss-desc">加入後該 Google 帳號登入即得對應權限（名單存後端、跨裝置同步）</div>
+        ${isSuperAdmin() ? `
+        <div class="ss-field">
+          <label>管理員 Admin</label>
+          <div>
+            <div class="wl-add">
+              <input type="email" id="wl-admin-input" placeholder="name@example.com">
+              <button class="tb-action" onclick="Auth.addToList('admin','wl-admin-input')">加入</button>
+            </div>
+            <div id="wl-admin-list" class="wl-list"></div>
+          </div>
+        </div>` : ''}
 
         <div class="ss-field">
           <label>編輯者 Editor</label>
@@ -8364,11 +8371,9 @@ App.saveSettings = function() {
 
   // ☁ Cloud sync
   const cuEl = document.getElementById('set-cloud-url');
-  const ctEl = document.getElementById('set-cloud-token');
   const ceEl = document.getElementById('set-cloud-enabled');
   const caEl = document.getElementById('set-cloud-autosync');
   if (cuEl) DATA.settings.cloudSyncUrl = cuEl.value.trim();
-  if (ctEl) DATA.settings.cloudSyncToken = ctEl.value.trim();
   if (ceEl) DATA.settings.cloudSyncEnabled = ceEl.value === 'true';
   if (caEl) DATA.settings.cloudAutoSync = caEl.value === 'true';
 
@@ -8379,11 +8384,9 @@ App.saveSettings = function() {
 
 // ─── CLOUD SYNC HANDLERS ───
 App.cloudUploadNow = function() {
-  // 先把設定頁可能未存的 URL/Token 抓進來
+  // 先把設定頁可能未存的 URL 抓進來
   const cuEl = document.getElementById('set-cloud-url');
-  const ctEl = document.getElementById('set-cloud-token');
   if (cuEl && cuEl.value.trim()) DATA.settings.cloudSyncUrl = cuEl.value.trim();
-  if (ctEl && ctEl.value.trim()) DATA.settings.cloudSyncToken = ctEl.value.trim();
   if (!DATA.settings.cloudSyncUrl) {
     U.toast('⚠ 請先設定 Apps Script URL 並儲存', 'warning');
     return;
@@ -8393,9 +8396,7 @@ App.cloudUploadNow = function() {
 
 App.cloudDownloadNow = function() {
   const cuEl = document.getElementById('set-cloud-url');
-  const ctEl = document.getElementById('set-cloud-token');
   if (cuEl && cuEl.value.trim()) DATA.settings.cloudSyncUrl = cuEl.value.trim();
-  if (ctEl && ctEl.value.trim()) DATA.settings.cloudSyncToken = ctEl.value.trim();
   if (!DATA.settings.cloudSyncUrl) {
     U.toast('⚠ 請先設定 Apps Script URL 並儲存', 'warning');
     return;
@@ -8417,17 +8418,16 @@ App.cloudDownloadNow = function() {
 
 App.cloudTestConnection = async function() {
   const cuEl = document.getElementById('set-cloud-url');
-  const ctEl = document.getElementById('set-cloud-token');
   const url = cuEl ? cuEl.value.trim() : DATA.settings.cloudSyncUrl;
-  const token = ctEl ? ctEl.value.trim() : DATA.settings.cloudSyncToken;
   if (!url) {
     U.toast('⚠ 請先填入 Apps Script URL', 'warning');
     return;
   }
+  if (!Auth._idToken) { U.toast('登入已過期，請重新登入', 'error'); return; }
   U.toast('🔌 測試連線中...', 'info');
   try {
     const sep = url.includes('?') ? '&' : '?';
-    const res = await fetch(url + sep + 'token=' + encodeURIComponent(token || ''), {
+    const res = await fetch(url + sep + 'id_token=' + encodeURIComponent(Auth._idToken || ''), {
       method: 'GET',
       mode: 'cors',
       redirect: 'follow',
