@@ -1502,14 +1502,17 @@ token 從此不存在於任何路徑。
 - doPost 寫入路：CHECK_TOKEN → JWT+role。
 - 建新部署（保留舊部署當回滾退路），測試 URL 驗：editor/admin 帶 id_token 能寫、viewonly/none 擋。驗過才往下，不切正式、不動前端。
 - 回滾：前端仍用舊部署（token 制）照常。
+- ✅ 已驗（2026-06-22）：後端無憑證寫入擋、superadmin 帶憑證寫入 ok。
 
 **階段 2（前端）— upload 改帶 id_token**
 - upload：token → id_token；加未登入守衛。前端指向階段1新部署，線上實測：登入能寫、未登入不狂打。
+- ✅ 已驗（2026-06-22）：真登入 auto-upload 成功、無憑證靜默跳過。
 
 **階段 3（後端+前端）— doGet 綁登入**
 - doGet 資料路：公開 → JWT+role。download 帶 id_token + 未登入守衛。
 - 線上實測：白名單內登入能看、外人/未登入看不到。
 - ⚠ 相容：此後「同事看資料也要登入+白名單」（定案接受）。
+- ✅ 已驗（2026-06-22）：無憑證讀擋（Missing id_token）、superadmin 帶憑證讀 ok、登入後自動拉雲端。
 
 **階段 4 — URL 收斂進 config.js**
 - cloudSyncUrl + ROLE_CHECK_URL 合一，URL 進 config.js（公開、不含機密，token 已廢）。
