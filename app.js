@@ -3163,7 +3163,10 @@ App.buildProjectHeaderHtml = function() {
             ${U.esc(proj.name)}
           </div>
         </div>
-        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}')"><i class="ti ti-download"></i> 匯出 Excel</button>
+        <span data-edit-hide style="font-size:13px; margin-right:2px; align-self:center;"><i class="ti ti-download"></i> 匯出</span>
+        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','day')">日</button>
+        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','week')">週</button>
+        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','month')">月</button>
         <button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>
       </div>`;
 };
@@ -6990,7 +6993,52 @@ App.predToWbsFormat = function(predStr, idToWbsMap) {
   }).join(',');
 };
 
-App.exportProjectWbs = async function(projId) {
+// 甘特日期範圍（§13.5）：掃 tasks 四個日期欄（ISO 字串），字串比找最小/最大
+// （避時區坑，沿用 §4103 全系統「ISO 字串比＝時序」慣例）；空值跳過。
+// 末端只把贏家轉 Date。無任何有效日期回 null。
+App._ganttDateRange = function(tasks) {
+  let minIso = '', maxIso = '';
+  (tasks || []).forEach(t => {
+    [t.plannedStart, t.actualStart, t.plannedEnd, t.actualEnd].forEach(v => {
+      if (!v) return;                            // 空值跳過
+      if (!minIso || v < minIso) minIso = v;     // ISO YYYY-MM-DD 字串比＝時序
+      if (!maxIso || v > maxIso) maxIso = v;
+    });
+  });
+  if (!minIso) return null;                      // 全空
+  return { min: new Date(minIso), max: new Date(maxIso) };
+};
+
+// 甘特時間軸欄（§13.5 C1）：依 granularity 產欄陣列 [{start,end,label}]。
+// 時間軸走日曆日（含週末），非工作日。day:一天一欄(start===end)；week:週一為界、含週日；month:當月1號~月底。
+App._ganttColumns = function(min, max, granularity) {
+  const cols = [];
+  if (!min || !max) return cols;
+  if (granularity === 'month') {
+    let d = new Date(min.getFullYear(), min.getMonth(), 1);
+    while (d <= max) {
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);   // 月底
+      cols.push({ start: new Date(d), end, label: d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') });
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    }
+  } else if (granularity === 'week') {
+    let d = D.monday(min);
+    while (d <= max) {
+      const end = D.addDays(d, 6);
+      cols.push({ start: new Date(d), end, label: D.fmt(d, 'md') });   // 該週週一 M/D
+      d = D.addDays(d, 7);
+    }
+  } else {   // 'day'
+    let d = new Date(min);
+    while (d <= max) {
+      cols.push({ start: new Date(d), end: new Date(d), label: D.fmt(d, 'md') });
+      d = D.addDays(d, 1);
+    }
+  }
+  return cols;
+};
+
+App.exportProjectWbs = async function(projId, granularity) {
   if (typeof ExcelJS === 'undefined') {
     U.toast('❌ ExcelJS 函式庫未載入，請檢查 index.html 的 CDN', 'error');
     return;
@@ -6999,6 +7047,10 @@ App.exportProjectWbs = async function(projId) {
   if (!proj) { U.toast('⚠ 找不到專案', 'warning'); return; }
   const tasks = DATA.tasks.filter(t => t.project === projId && !t._deleted);
   if (!tasks.length) { U.toast('⚠ 此專案無任務可匯出', 'warning'); return; }
+
+  // ①段甘特驗算（不畫 sheet）
+  const range = App._ganttDateRange(tasks);
+  const cols = App._ganttColumns(range && range.min, range && range.max, granularity || 'week');
 
   // 反查表：variant id→案別名、task id→wbs（id 全域唯一）
   const variantIdToName = {};
@@ -7081,6 +7133,180 @@ App.exportProjectWbs = async function(projId) {
     wsInfo.addRow([d.name || '', (d.members || []).map(m => m.name).filter(Boolean).join('、')]);
   });
   wsInfo.columns = [{ width: 16 }, { width: 40 }];
+
+  // ── 甘特分頁(§13.5 ② 三層表頭 年/月/日 + 凍結;分段3 畫任務列、③段填色)──
+  const ganttG = granularity || 'week';
+  const isMonth = ganttG === 'month';
+  const headRows = isMonth ? 2 : 3;   // month:年/月 兩層;day/week:年/月/日 三層
+  const headTop = 3;                  // 表頭起始 row(圖例row1 + 空row2 + 表頭row3起)
+  const bodyTop = headRows + 3;       // 任務列起始 row(圖例1 + 空1 + 表頭headRows + 1)
+  const wsGantt = workbook.addWorksheet('甘特', { views: [{ state: 'frozen', xSplit: 5, ySplit: headRows + 2 }] });
+
+  const GANTT_LEFT = ['序', '任務名', '標籤', '計畫起', '計畫訖'];
+  const nLeft = 5;
+
+  // 圖例列(row 1) + 空列(row 2) + 表頭列(row 3..headRows+2,空殼後填)
+  const blank = cols.map(() => '');
+  const rows = [];
+  for (let r = 0; r < headRows + 2; r++) rows.push(wsGantt.addRow([...GANTT_LEFT.map(() => ''), ...blank]));
+
+  // 圖例(row 1):A1 標題「甘特圖顏色代表意思：」+ 5 組[色塊merge2 + 文字merge2],col3 起
+  const LEGEND = [
+    { argb: GANTT_FILL.plan, text: '計畫' },
+    { argb: GANTT_FILL.done, text: '完成' },
+    { argb: GANTT_FILL.wip, text: '進行中' },
+    { argb: GANTT_FILL.late, text: '逾期' },
+    { argb: GANTT_FILL.holiday, text: '假日' },
+  ];
+  // A1 標題 merge(col1-2)
+  wsGantt.mergeCells(1, 1, 1, 2);
+  const titleCell = wsGantt.getCell(1, 1);
+  titleCell.value = '甘特圖顏色代表意思：';
+  titleCell.font = FONT_BOLD;
+  titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  // 色塊文字從 col3 起,每組4欄(色塊merge2 + 文字merge2)
+  LEGEND.forEach((lg, gi) => {
+    const swatchCol = 3 + gi * 4;   // col 3/7/11/15/19
+    wsGantt.mergeCells(1, swatchCol, 1, swatchCol + 1);
+    wsGantt.getCell(1, swatchCol).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: lg.argb } };
+    wsGantt.mergeCells(1, swatchCol + 2, 1, swatchCol + 3);
+    const tc = wsGantt.getCell(1, swatchCol + 2);
+    tc.value = lg.text;
+    tc.font = FONT_BOLD;
+    tc.alignment = { vertical: 'middle', horizontal: 'left' };
+  });
+
+  // 左 5 欄:標題放表頭首列、跨表頭列 merge、置中(不含圖例 row 1)
+  GANTT_LEFT.forEach((title, idx) => {
+    const col = idx + 1;
+    wsGantt.mergeCells(headTop, col, headTop + headRows - 1, col);
+    const cell = wsGantt.getCell(headTop, col);
+    cell.value = title;
+    cell.font = FONT_BOLD;
+    cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
+  });
+
+  // 分組 merge helper:依 keyFn 把連續同 key 的欄合併、寫 label
+  const groupRow = (rowIdx, keyFn, labelFn) => {
+    let s = 0;
+    for (let i = 1; i <= cols.length; i++) {
+      const end = (i === cols.length) || (keyFn(cols[i]) !== keyFn(cols[s]));
+      if (end) {
+        const colL = nLeft + 1 + s, colR = nLeft + i;
+        if (colR > colL) wsGantt.mergeCells(rowIdx, colL, rowIdx, colR);
+        const cell = wsGantt.getCell(rowIdx, colL);
+        cell.value = labelFn(cols[s]);
+        cell.font = FONT_BOLD;
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        s = i;
+      }
+    }
+  };
+
+  // 列1 年:merge 同年
+  groupRow(headTop, c => c.start.getFullYear(), c => String(c.start.getFullYear()));
+  if (isMonth) {
+    // month 粒度:列2 月份(每欄一月,不 merge,直接寫 M)
+    cols.forEach((c, i) => {
+      const cell = wsGantt.getCell(headTop + 1, nLeft + 1 + i);
+      cell.value = (c.start.getMonth() + 1) + '月';
+      cell.font = FONT_BOLD;
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+  } else {
+    // day/week:列2 月(merge 同年同月)、列3 日刻度
+    groupRow(headTop + 1, c => c.start.getFullYear() + '-' + c.start.getMonth(), c => (c.start.getMonth() + 1) + '月');
+    cols.forEach((c, i) => {
+      const cell = wsGantt.getCell(headTop + 2, nLeft + 1 + i);
+      if (ganttG === 'day') {
+        const wd = ['日','一','二','三','四','五','六'][c.start.getDay()];
+        cell.value = wd + '\n' + c.start.getDate();   // 星期\n日號
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        if (!D.isWorkday(c.start)) {                   // 假日格標粉紅
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GANTT_FILL.holiday } };
+        }
+      } else {
+        cell.value = c.label;
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      }
+      cell.font = FONT_BOLD;
+    });
+  }
+
+  // 欄寬
+  const ganttTimeW = ganttG === 'day' ? 4 : (isMonth ? 9 : 6);
+  wsGantt.columns = [
+    { width: 5 }, { width: 28 }, { width: 7 }, { width: 11 }, { width: 11 },
+    ...cols.map(() => ({ width: ganttTimeW })),
+  ];
+
+  // ── 甘特任務列(§13.5 ② 分段3:每任務兩列 plan/actual + merge;③段才填色)──
+  const ganttSorted = tasks.slice().sort((a, b) => App._seqOf(a.id) - App._seqOf(b.id));
+  const DATEFMT = 'yyyy/mm/dd';
+  const setDateCell = (cell, iso) => {
+    if (iso) { cell.value = new Date(iso); cell.numFmt = DATEFMT; }
+  };
+  ganttSorted.forEach((t, k) => {
+    const rTop = bodyTop + k * 2;   // plan 列
+    const rBot = rTop + 1;               // actual 列
+    const sch = getEffectiveSchedule(t);
+
+    // 序、任務名跨兩列 merge(顯示一次、置中)
+    wsGantt.mergeCells(rTop, 1, rBot, 1);  // 序
+    wsGantt.mergeCells(rTop, 2, rBot, 2);  // 任務名
+    const seqCell = wsGantt.getCell(rTop, 1);
+    seqCell.value = App._seqOf(t.id);
+    seqCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    const nameCell = wsGantt.getCell(rTop, 2);
+    nameCell.value = t.name || '';
+    nameCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+
+    // 標籤欄(第3):plan 列「計畫」、actual 列「實際」
+    wsGantt.getCell(rTop, 3).value = '計畫';
+    wsGantt.getCell(rBot, 3).value = '實際';
+    wsGantt.getCell(rTop, 3).alignment = { vertical: 'middle', horizontal: 'center' };
+    wsGantt.getCell(rBot, 3).alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // 計畫起訖(第4/5):plan 列 = sch.plannedStart/End、actual 列 = t.actualStart/End
+    setDateCell(wsGantt.getCell(rTop, 4), sch.plannedStart);
+    setDateCell(wsGantt.getCell(rTop, 5), sch.plannedEnd);
+    setDateCell(wsGantt.getCell(rBot, 4), t.actualStart);
+    setDateCell(wsGantt.getCell(rBot, 5), t.actualEnd);
+  });
+
+  // ── 甘特填色(§13.5 ③:假日底先鋪、plan/actual bar 後蓋)──
+  const fillCell = (r, c, argb) => {
+    wsGantt.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+  };
+  // cols 的 ISO 預算(字串比交集,免時區)
+  const colIso = cols.map(c => ({ s: D.fmt(c.start, 'iso'), e: D.fmt(c.end, 'iso') }));
+  const colRange = (sIso, eIso) => {
+    if (!sIso || !eIso || eIso < sIso) return null;
+    let first = -1, last = -1;
+    for (let i = 0; i < colIso.length; i++) {
+      if (sIso <= colIso[i].e && eIso >= colIso[i].s) { if (first < 0) first = i; last = i; }
+    }
+    return first < 0 ? null : [first, last];
+  };
+
+  // plan/actual bar 後蓋
+  const today = D.today();
+  ganttSorted.forEach((t, k) => {
+    const rTop = bodyTop + k * 2;
+    const rBot = rTop + 1;
+    const sch = getEffectiveSchedule(t);
+    // plan 列
+    const pr = colRange(sch.plannedStart, sch.plannedEnd);
+    if (pr) for (let i = pr[0]; i <= pr[1]; i++) fillCell(rTop, nLeft + 1 + i, GANTT_FILL.plan);
+    // actual 列:狀態色,逾期 late
+    const ar = colRange(t.actualStart, t.actualEnd);
+    if (ar) {
+      const st = t.status || 'pending';
+      const overdue = sch.plannedEnd && new Date(sch.plannedEnd) < today && st !== 'done';
+      const argb = overdue ? GANTT_FILL.late : (st === 'done' ? GANTT_FILL.done : GANTT_FILL.wip);
+      for (let i = ar[0]; i <= ar[1]; i++) fillCell(rBot, nLeft + 1 + i, argb);
+    }
+  });
 
   // ── 下載（照 exportReportExcel house style）──
   const buffer = await workbook.xlsx.writeBuffer();
@@ -8697,6 +8923,17 @@ const WBS_COLUMNS = [
   { key: 'requiredTask', header: '必要任務', aliases: [] },
   { key: 'mustIssue', header: '繳付物必須發行', aliases: [] },
 ];
+
+// ─── GANTT_FILL：甘特填色 ARGB 常數（§13.5；ExcelJS cell.fill 用，非 CSS）───
+// 8碼 ARGB（FF=不透明前綴）+ hex 去井號；值逐一對齊 style.css :root 的 --xl-gantt-* 對照表。
+const GANTT_FILL = {
+  plan:    'FFD9D2C5',   // --xl-gantt-plan    計畫淺米灰
+  wip:     'FF4A6B85',   // --xl-gantt-wip     進行中（navy）
+  done:    'FF3B6B4A',   // --xl-gantt-done    完成（深綠）
+  late:    'FFC4633E',   // --xl-gantt-late    逾期（terracotta）
+  holiday: 'FFF7DDE4',   // --xl-gantt-holiday 假日粉紅（僅標表頭）
+  weekday: 'FFF2F3F5',   // --gantt-weekday    平日欄底（保留，未用於填色）
+};
 
 // 讀 J系列_WBS_主檔.xlsx，解析 J系列整合WBS sheet 的 93 筆有效列
 // 回傳 { ok, rows, projectName, errors }，不灌日期、不碰 DOM、不存 Storage

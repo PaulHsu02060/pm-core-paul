@@ -46,6 +46,11 @@
   --gantt-done: #3B6B4A;     /* 甘特完成（號誌燈綠，不借 --sage-600） */
   --gantt-holiday: #EFEAE2;  /* 甘特假日底色 */
   --gantt-weekday: #F2F3F5;  /* 甘特平日底色（中性淡灰，比白略深、與假日暖灰區隔提辨識） */
+  --xl-gantt-plan: #D9D2C5;     /* Excel甘特 計畫(淺米灰) */
+  --xl-gantt-done: #3B6B4A;     /* Excel甘特 完成(深綠,同螢幕) */
+  --xl-gantt-wip: #4A6B85;      /* Excel甘特 進行中(navy,同螢幕) */
+  --xl-gantt-late: #C4633E;     /* Excel甘特 逾期(terracotta,同螢幕) */
+  --xl-gantt-holiday: #F7DDE4;  /* Excel甘特 假日(淡粉紅,僅標表頭) */
 
   --amber-accent: #d99a3c;        /* 琥珀強調色（框/圈底） */
   --amber-accent-ink: #3a2806;    /* 琥珀底上的深褐字/icon */
