@@ -15,8 +15,8 @@
  */
 var APP_CONFIG = {
   CLOUD_SHEET_ID: 'PASTE_YOUR_SHEET_ID_HERE',
-  CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbwDzSs44F4AENfeQKEBX_xrYH7Y38wsvAn4iYY9lXLewQUppbyaKRgBQVmAfU1W2uYNSg/exec',  // 公開讀 doGet exec URL（進 git、全公開；非 token）
-  ROLE_CHECK_URL: 'https://script.google.com/macros/s/AKfycbwTvHOgTGkCRPtBbXEVsQx8A46GbWCN2AEeBephTyz_-Kjo2_H4PoE1iumE0syZm7l1LA/exec',  // Auth role 查詢 + 名單 getlists/setlist：含 getlists 的最新 .gs 部署（名單/密鑰存 Script Properties 不入 git；此 exec URL 公開可進 git）
+  CLOUD_SYNC_URL: 'https://script.google.com/macros/s/AKfycbyvQ6gRjIrvxBSaElTelM_OBQnqJ7eHSOYeJxiPxmeBH0dVZOOxUDV92EhzUBAQx7clIw/exec',  // 後端 exec URL（讀寫+role+名單單一部署，doGet/doPost 已綁登入 §14；進 git，URL 非機密）
+  ROLE_CHECK_URL: 'https://script.google.com/macros/s/AKfycbyvQ6gRjIrvxBSaElTelM_OBQnqJ7eHSOYeJxiPxmeBH0dVZOOxUDV92EhzUBAQx7clIw/exec',  // 同 CLOUD_SYNC_URL 單一部署（key 名收斂成 BACKEND_URL 留階段5）；role 查詢+名單 getlists/setlist
   WBS_SHEET_NAME: 'WBS主表',
   OAUTH_CLIENT_ID: '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com',
   SYNC_TOKEN: 'CHANGE_THIS_TOKEN',
