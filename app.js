@@ -302,12 +302,16 @@ const CloudSync = {
       if (!silent) U.toast('⚠ 尚未設定雲端 URL', 'warning');
       return false;
     }
+    if (!Auth._idToken) {
+      if (!silent) U.toast('登入已過期，請重新登入', 'error');
+      return false;
+    }
     if (!silent) U.toast('☁ 從雲端下載中...', 'info');
 
     try {
-      const token = encodeURIComponent(DATA.settings.cloudSyncToken || '');
+      const idt = encodeURIComponent(Auth._idToken || '');
       const sep = url.includes('?') ? '&' : '?';
-      const res = await fetch(url + sep + 'token=' + token, {
+      const res = await fetch(url + sep + 'id_token=' + idt, {
         method: 'GET',
         mode: 'cors',
         redirect: 'follow',
@@ -1963,20 +1967,7 @@ const App = {
     this.checkLoginState();
     Auth.renderDevPanel();   // 🔧 DEV 身份面板（DEV_MODE 才顯示）
 
-    // ☁ 雲端同步：開啟時先拉最新資料
-    if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudSyncUrl) {
-      // 延遲 800ms 讓畫面先渲染
-      setTimeout(() => {
-        CloudSync.download(true).then(success => {
-          if (success) {
-            // 重新整理畫面
-            this.refreshAll();
-            this.renderSidebar();
-            U.toast('☁ 已自動從雲端同步最新資料', 'success');
-          }
-        });
-      }, 800);
-    }
+    // ☁ 雲端同步：init 不在此自動拉（階段3）——改由 handleGoogleCredential 登入成功後拉（因果正確：有憑證才拉）。
   },
 
   seedDefaultProjects() {
@@ -2106,9 +2097,13 @@ const App = {
         const setupKey = (document.getElementById('loginSetupKey') || {}).value || '';  // landing input，子塊2才有，現在讀不到回空
         role = Auth.tryLocalRole(email, setupKey);
       }
+      Auth._idToken = resp.credential;   // ★階段3(5a)：JWT 解出即有效憑證（與 role 無關），上移到分支前，供 viewonly 也能讀雲端 + 名單管理用（in-memory 不落地）
       if (role === 'viewonly') {
         // viewonly → 唯讀可看（§8f.4），不設 _loggedInEmail（PII 不留）
         this.enterViewOnly();
+        if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudSyncUrl) {
+          CloudSync.download(true).then(s => { if (s) { this.refreshAll(); this.renderSidebar(); } });
+        }
         U.toast('此帳號僅供檢視', 'warning');
         return;
       }
@@ -2126,11 +2121,16 @@ const App = {
       Storage.save();
       document.body.classList.remove('viewonly');
       document.getElementById('loginOverlay').classList.add('hidden');
-      Auth._idToken = resp.credential;   // ② 名單管理 setlist/getlists 要送的 id_token（in-memory，不落地）
       this.refreshUserBadge();
       this.refreshAll();   // ★ 重畫側邊欄，登入後即時算 setBtn 顯隱（admin 設定鈕出現），比照 setDevRole
       U.toast(`✓ 歡迎 ${name}`);
 
+      // ★階段3(5c/4b)：登入成功（已有 _idToken）→ 拉一次雲端（取代 init 800ms 盲猜計時器）。因果正確：有憑證才拉。
+      if (DATA.settings.cloudSyncEnabled && DATA.settings.cloudSyncUrl) {
+        CloudSync.download(true).then(success => {
+          if (success) { this.refreshAll(); this.renderSidebar(); U.toast('☁ 已自動從雲端同步最新資料', 'success'); }
+        });
+      }
       // 非 admin 首次登入（沒設過雲端同步 URL）→ 顯示 onboarding 提示
       if (!isAdmin() && !DATA.settings.cloudSyncUrl && !DATA.settings._onboardingShown) {
         DATA.settings._onboardingShown = true;

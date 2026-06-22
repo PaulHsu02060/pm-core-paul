@@ -31,6 +31,10 @@ function doGet(e) {
     if (e && e.parameter && e.parameter.action === 'role') {
       return _checkRole(e.parameter.email, e.parameter.setupKey);
     }
+    // 資料路：驗 JWT + role≥viewonly（取代公開唯讀）。role 分支維持公開（登入 bootstrap）。
+    const auth = _authUser({ id_token: e.parameter.id_token });
+    if (!auth.ok) return auth.resp;
+    if (auth.role === 'none') return _json({ error: 'Forbidden: read requires whitelist' });
     const data = _readData();
     return _json({ ok: true, data, ts: Date.now() });
   } catch (err) {
