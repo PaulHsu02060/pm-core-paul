@@ -97,37 +97,32 @@ function _roleOf(email) {
   return 'none';
 }
 
-// 共用認證：驗 Google id_token（tokeninfo + aud + email_verified）+ caller 須 admin/superadmin。
-// 回 { ok:true, email, role } 或 { ok:false, resp:<_json 錯誤> }。setlist/getlists 共用，認證一致不漂移。
-function _authAdmin(body) {
+// 共用 JWT 底座：驗 Google id_token 真偽（tokeninfo + aud + email_verified）+ 解 email + 查 role。
+// 不含 role 閘——呼叫端自行依需求檢查 role。回 { ok:true, email, role } 或 { ok:false, resp:<_json 錯誤> }。
+function _authUser(body) {
   const idToken = String(body.id_token || '');
-  if (!idToken) return { ok: false, resp: _json({ error: 'Missing id_token' }) };
-
+  if (!idToken) return { ok:false, resp:_json({ error:'Missing id_token' }) };
   let info;
   try {
-    const r = UrlFetchApp.fetch(
-      'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
-      { muteHttpExceptions: true }
-    );
-    if (r.getResponseCode() !== 200) return { ok: false, resp: _json({ error: 'Invalid token' }) }; // 過期/壞 token
+    const r = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken), { muteHttpExceptions:true });
+    if (r.getResponseCode() !== 200) return { ok:false, resp:_json({ error:'Invalid token' }) };
     info = JSON.parse(r.getContentText());
-  } catch (err) {
-    return { ok: false, resp: _json({ error: 'Token verify failed' }) };
-  }
-  if (info.error) return { ok: false, resp: _json({ error: 'Invalid token' }) };
-
-  // aud === OAuth Client ID（讀 Script Property，不寫死）→ 防別 app token 冒用
+  } catch (err) { return { ok:false, resp:_json({ error:'Token verify failed' }) }; }
+  if (info.error) return { ok:false, resp:_json({ error:'Invalid token' }) };
   const clientId = String(PropertiesService.getScriptProperties().getProperty('OAUTH_CLIENT_ID') || '');
-  if (!clientId || info.aud !== clientId) return { ok: false, resp: _json({ error: 'aud mismatch' }) };
+  if (!clientId || info.aud !== clientId) return { ok:false, resp:_json({ error:'aud mismatch' }) };
+  if (String(info.email_verified) !== 'true') return { ok:false, resp:_json({ error:'email not verified' }) };
+  const email = String(info.email || '').toLowerCase().trim();
+  if (!email) return { ok:false, resp:_json({ error:'no email' }) };
+  return { ok:true, email:email, role:_roleOf(email) };
+}
 
-  if (String(info.email_verified) !== 'true') return { ok: false, resp: _json({ error: 'email not verified' }) };
-  const email = String(info.email || '').toLowerCase().trim();   // email 只信 tokeninfo 解出的
-  if (!email) return { ok: false, resp: _json({ error: 'no email' }) };
-
-  const role = _roleOf(email);
-  if (role !== 'admin' && role !== 'superadmin') return { ok: false, resp: _json({ error: 'Forbidden' }) };
-
-  return { ok: true, email: email, role: role };
+// 名單管理專用：admin/superadmin 才放（委派 _authUser 驗真偽，加 admin 閘）。
+function _authAdmin(body) {
+  const auth = _authUser(body);
+  if (!auth.ok) return auth;
+  if (auth.role !== 'admin' && auth.role !== 'superadmin') return { ok:false, resp:_json({ error:'Forbidden' }) };
+  return auth;
 }
 
 // 名單寫入：只准 admin/superadmin；只能寫 editor/viewonly，絕不寫 ADMIN_EMAILS（防提權）。
@@ -171,10 +166,11 @@ function doPost(e) {
       return _getLists(body);
     }
 
-    if (ENABLE_TOKEN) {
-      if (body.token !== CHECK_TOKEN) {
-        return _json({ error: 'Invalid token' });
-      }
+    // 同步寫入：JWT 驗身分 + role≥editor（取代舊 CHECK_TOKEN）。viewonly/none 擋。
+    const auth = _authUser(body);
+    if (!auth.ok) return auth.resp;
+    if (auth.role !== 'superadmin' && auth.role !== 'admin' && auth.role !== 'editor') {
+      return _json({ error: 'Forbidden: write requires editor or above' });
     }
 
     if (!body.data) {
