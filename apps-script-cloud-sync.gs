@@ -134,9 +134,12 @@ function _setList(body) {
   const auth = _authAdmin(body);
   if (!auth.ok) return auth.resp;
 
-  const keyMap = { editor: 'ALLOWED_EMAILS', viewonly: 'VIEWONLY_EMAILS' };
-  const propKey = keyMap[String(body.listType || '')];
+  const keyMap = { editor: 'ALLOWED_EMAILS', viewonly: 'VIEWONLY_EMAILS', admin: 'ADMIN_EMAILS' };
+  const listType = String(body.listType || '');
+  const propKey = keyMap[listType];
   if (!propKey) return _json({ error: 'Invalid listType' });
+  // admin 名單只准 SuperAdmin 改（防一般 Admin 自我提權/增刪 admin）
+  if (listType === 'admin' && auth.role !== 'superadmin') return _json({ error: 'Forbidden: admin list requires superadmin' });
 
   const emails = (Array.isArray(body.emails) ? body.emails : [])
     .map(s => String(s || '').toLowerCase().trim()).filter(Boolean);
@@ -144,13 +147,15 @@ function _setList(body) {
   return _json({ ok: true });   // 不回名單內容
 }
 
-// 名單讀取：只准 admin/superadmin；回 editor/viewonly 兩份，絕不回 ADMIN_EMAILS（敏感）。
+// 名單讀取：只准 admin/superadmin；回 editor/viewonly 兩份。admin 名單只回 SuperAdmin（敏感，不洩給一般 admin）。
 function _getLists(body) {
   const auth = _authAdmin(body);
   if (!auth.ok) return auth.resp;
 
   const props = PropertiesService.getScriptProperties();
-  return _json({ ok: true, editor: _list(props, 'ALLOWED_EMAILS'), viewonly: _list(props, 'VIEWONLY_EMAILS') });
+  const out = { ok: true, editor: _list(props, 'ALLOWED_EMAILS'), viewonly: _list(props, 'VIEWONLY_EMAILS') };
+  if (auth.role === 'superadmin') out.admin = _list(props, 'ADMIN_EMAILS');   // admin 名單只回 SuperAdmin
+  return _json(out);
 }
 
 function doPost(e) {
