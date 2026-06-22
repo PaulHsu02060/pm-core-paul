@@ -4550,6 +4550,11 @@ App.saveNewTask = function(projId) {
 
   const status = document.getElementById('tf-status').value;
   const startField = App.readStartField();   // 2-A：預計開始雙態 → {start, startMode}（與 saveTask 共用）
+  // 日期合理性：預計完成不得早於預計開始（兩值都有才比，ISO 字串比＝日期序）
+  const _pEnd = document.getElementById('tf-end').value;
+  if (startField.start && _pEnd && _pEnd < startField.start) {
+    U.toast('⚠ 預計完成日不能早於預計開始日', 'warning'); return;
+  }
   const task = {
     id: U.id(),
     project: document.getElementById('tf-project').value || projId,
@@ -4711,6 +4716,18 @@ App.saveTask = function(id) {
   if (!document.getElementById('tf-owner').value.trim()) { U.toast('⚠ 請填擔當', 'warning'); return; }
   if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
   if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
+
+  // 日期合理性（先驗再 mutate；startField 此處尚未宣告，直接讀 readStartField）
+  const _pStart = App.readStartField().start;
+  const _pEnd = document.getElementById('tf-end').value;
+  if (_pStart && _pEnd && _pEnd < _pStart) {
+    U.toast('⚠ 預計完成日不能早於預計開始日', 'warning'); return;
+  }
+  const _aS = document.getElementById('tf-actualStart').value;
+  const _aE = document.getElementById('tf-actualEnd').value;
+  if (_aS && _aE && _aE < _aS) {
+    U.toast('⚠ 實際完成日不能早於實際開始日', 'warning'); return;
+  }
 
   t.name      = name;
   t.desc      = document.getElementById('tf-desc').value.trim();
@@ -7048,7 +7065,7 @@ App.exportProjectWbs = async function(projId, granularity) {
   const tasks = DATA.tasks.filter(t => t.project === projId && !t._deleted);
   if (!tasks.length) { U.toast('⚠ 此專案無任務可匯出', 'warning'); return; }
 
-  // ①段甘特驗算（不畫 sheet）
+  // 甘特日期範圍 + 時間軸欄（供下方甘特分頁鋪表頭/任務/填色）
   const range = App._ganttDateRange(tasks);
   const cols = App._ganttColumns(range && range.min, range && range.max, granularity || 'week');
 
