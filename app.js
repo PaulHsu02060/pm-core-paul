@@ -6645,6 +6645,7 @@ App.renderReport = function() {
         <button class="rw-arrow" onclick="App.reportWeekShift(4)" title="跳到較晚 4 週">››</button>
       </div>
       <div style="flex:1"></div>
+      <button class="tb-action ghost" onclick="App.openExcelImport()">📊 匯入週報 Excel</button>
       <button class="tb-action ghost" onclick="window.print()">🖨 列印</button>
       <button class="tb-action" onclick="App.exportReportExcel('${this.reportWeekKey}')">⬇ 匯出 Excel</button>
     </div>
@@ -8207,15 +8208,7 @@ App.renderSettings = function() {
           <button class="tb-action ghost" onclick="App.backupAll()">⬇ 下載 JSON 備份</button>
           <button class="tb-action ghost" onclick="document.getElementById('restoreInput').click()">📥 上傳還原</button>
           <input type="file" id="restoreInput" accept=".json" style="display:none" onchange="App.restoreAll(this.files[0])">
-          <button class="tb-action ghost" onclick="App.openExcelImport()">📊 匯入週報 Excel</button>
-          <button class="tb-action ghost" onclick="App.openWbsImport()">📥 匯入 WBS Excel</button>
-          <button class="tb-action ghost" onclick="App.dedupeTasks()">🧹 清除重複任務</button>
           <button class="tb-action danger" onclick="App.clearAll()" style="margin-left:auto;">🗑 清除所有資料</button>
-        </div>
-        <div class="help" style="margin-top:8px;">
-          💡「匯入週報 Excel」智慧合併：同名任務更新狀態/日期，新任務新增，PM 既有但 Excel 沒有的保留<br>
-          💡「匯入 WBS Excel」清空舊 J 系列任務整批重灌（甲案），匯入後資訊條即時算階段時程，不灌日期<br>
-          💡「清除重複任務」把同專案 + 同任務名的舊紀錄合併到「歷史紀錄」中，只保留一筆主任務
         </div>
       </div>
       <!-- /資料 --></div></div>
@@ -9606,81 +9599,6 @@ App.performExcelImport = function() {
       );
     }, 600);
   }, 1500);
-};
-
-// ─── DEDUPE TASKS (merge same-name same-project into one with history) ───
-App.dedupeTasks = function() {
-  // Find duplicate groups: same project + same name (case-insensitive)
-  const groups = {};
-  for (const t of DATA.tasks) {
-    const key = `${t.project}|${(t.name || '').trim().toLowerCase()}`;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(t);
-  }
-
-  // Count actual duplicates
-  const duplicates = Object.entries(groups).filter(([k, list]) => list.length > 1);
-  if (duplicates.length === 0) {
-    U.toast('✓ 沒有重複任務', 'success');
-    return;
-  }
-
-  const totalDupes = duplicates.reduce((s, [k, list]) => s + (list.length - 1), 0);
-  if (!confirm(`找到 ${duplicates.length} 組重複任務（共 ${totalDupes} 筆會被合併）。\n\n會把舊版本合併到「歷史紀錄」，只保留一筆主任務。\n\n確定繼續？`)) return;
-
-  let merged = 0;
-  for (const [key, list] of duplicates) {
-    // Sort: 已完成 > 最新 createdAt > 第一個
-    // 用最新建立的當主任務（最可能是最新匯入的）
-    list.sort((a, b) => {
-      // done > wip > pending > hold（已完成的優先當主）
-      const statusOrder = { done: 3, wip: 2, pending: 1, hold: 0 };
-      const so = (statusOrder[b.status] || 0) - (statusOrder[a.status] || 0);
-      if (so !== 0) return so;
-      // 再依 createdAt 新舊
-      return (b.createdAt || '').localeCompare(a.createdAt || '');
-    });
-    const main = list[0];
-    const others = list.slice(1);
-
-    // Merge history from all duplicates
-    const histMap = {};
-    for (const h of (main.history || [])) {
-      if (h.week) histMap[h.week] = h;
-    }
-    for (const dup of others) {
-      for (const h of (dup.history || [])) {
-        if (h.week && !histMap[h.week]) histMap[h.week] = h;
-      }
-      // 從重複任務本身造一筆 history（如果它有 _importWeek 或別的線索）
-      if (dup._importWeek && !histMap[dup._importWeek]) {
-        histMap[dup._importWeek] = {
-          week: dup._importWeek,
-          weekMonday: dup.start || '',
-          status: LABELS.status[dup.status] || dup.status,
-          planEnd: dup.end || '',
-          actualEnd: dup.actualEnd || '',
-          work: dup.desc || '',
-          note: dup.note || '',
-          owner: dup.owner || '',
-        };
-      }
-    }
-    main.history = Object.values(histMap).sort((a, b) => (a.weekMonday || '').localeCompare(b.weekMonday || ''));
-
-    // Remove duplicates from DATA.tasks
-    const dupIds = new Set(others.map(o => o.id));
-    DATA.tasks = DATA.tasks.filter(t => !dupIds.has(t.id));
-    // Also clean up schedule.items for removed tasks
-    if (DATA.schedule && DATA.schedule.items) {
-      DATA.schedule.items = DATA.schedule.items.filter(it => !dupIds.has(it.taskId));
-    }
-    merged += others.length;
-  }
-
-  Storage.save();
-  this.refreshAll();
-  U.toast(`✓ 合併 ${merged} 筆重複任務`, 'success');
 };
 
 App.backupAll = function() {
