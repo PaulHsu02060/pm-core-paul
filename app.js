@@ -8963,7 +8963,7 @@ const GANTT_FILL = {
   weekday: 'FFF2F3F5',   // --gantt-weekday    平日欄底（保留，未用於填色）
 };
 
-// 讀 J系列_WBS_主檔.xlsx，解析 J系列整合WBS sheet 的 93 筆有效列
+// 讀 WBS Excel，解析 WBS 主分頁的有效列（sheet 名比對見下，相容他人格式保留）
 // 回傳 { ok, rows, projectName, errors }，不灌日期、不碰 DOM、不存 Storage
 async function parseWbsExcel(file) {
   try {
@@ -8988,7 +8988,7 @@ async function parseWbsExcel(file) {
       const hit = infoRows.find(r => String(r.A || '').trim() === '專案名稱');
       projectName = hit ? String(hit.B || '').trim() : '';
     }
-    if (!projectName) projectName = 'J系列專案';
+    if (!projectName) projectName = '未命名專案';
 
     // 部門翻譯：建「成員→部門」反查 map（重用上面已取的 wsInfo，免重複 lookup）
     const memberToDept = buildMemberToDept(wsInfo);
@@ -9185,16 +9185,16 @@ App.openWbsImport = function(projId) {
     title: '📥 覆蓋匯入 — ' + U.esc(projName),
     body: `
       <div style="font-size:12.5px; line-height:1.6; color:var(--ink2); margin-bottom:14px;">
-        匯入「J 系列整合 WBS」Excel，<b style="color:var(--sage-700);">整批重灌</b>：
-        <br>• <b>清空該專案既有 J 系列任務</b>，以 Excel 為唯一真值重新建立
+        匯入 WBS Excel，<b style="color:var(--sage-700);">整批重灌</b>：
+        <br>• <b>清空該專案既有任務</b>，以 Excel 為唯一真值重新建立
         <br>• 匯入後任務為<b>可編輯</b>（非唯讀、非 synced），資料主權歸 ${CFG('APP_NAME', 'PM-Core')}
         <br>• 階段時程（性試/量試/量產）由資訊條即時計算，匯入器不灌日期
       </div>
 
       <div id="wbsImportZone" style="border:2px dashed var(--rule); border-radius:10px; padding:32px; text-align:center; cursor:pointer; background:var(--surface2); transition:all .15s;">
         <div style="font-size:32px; margin-bottom:8px;">📥</div>
-        <div style="font-size:13px; font-weight:500;">點擊或拖曳 J系列_WBS_主檔.xlsx</div>
-        <div style="font-size:11px; color:var(--ink3); margin-top:4px;">讀「J系列整合WBS」分頁，任務名非空者匯入</div>
+        <div style="font-size:13px; font-weight:500;">點擊或拖曳 WBS Excel 檔</div>
+        <div style="font-size:11px; color:var(--ink3); margin-top:4px;">讀 WBS 分頁，任務名非空者匯入</div>
         <input type="file" id="wbsImportFile" accept=".xlsx,.xls" style="display:none;">
       </div>
 
@@ -9232,6 +9232,14 @@ App.openWbsImport = function(projId) {
         btn.disabled = true; btn.style.opacity = '.5';
         return;
       }
+      // 同名守衛：覆蓋只能蓋回同名專案（防拿錯 Excel）。異名／空名／fallback 預設名 → 擋死、不啟用確定鈕
+      if (!parsed.projectName || parsed.projectName === '未命名專案' || parsed.projectName !== projName) {
+        const sg = document.getElementById('wbsImportStats');
+        if (sg) sg.innerHTML = `<b style="color:var(--rose-ink);">⚠ 此 Excel 的專案名稱『${U.esc(parsed.projectName || '（無專案名）')}』與目前專案『${U.esc(projName)}』不符，無法覆蓋。請改用『${U.esc(projName)}』匯出的 WBS 檔。</b>`;
+        document.getElementById('wbsImportPreview').style.display = 'block';
+        btn.disabled = true; btn.style.opacity = '.5';
+        return;
+      }
       // 統計 + 前 8 筆預覽
       const stats = document.getElementById('wbsImportStats');
       const table = document.getElementById('wbsImportTable');
@@ -9239,7 +9247,7 @@ App.openWbsImport = function(projId) {
       const wip = parsed.rows.filter(r => r.progress > 0 && r.progress < 100).length;
       if (stats) {
         stats.innerHTML = `專案：<b>${U.esc(parsed.projectName)}</b>　|　共 <b style="color:var(--sage-700);">${parsed.rows.length}</b> 筆有效` +
-          `　|　完成 <b>${done}</b>　進行中 <b>${wip}</b>　|　<b style="color:var(--ink3);">確定後將清空舊 J 任務重灌</b>`;
+          `　|　完成 <b>${done}</b>　進行中 <b>${wip}</b>　|　<b style="color:var(--ink3);">確定後將清空既有任務重灌</b>`;
       }
       if (table) {
         const head =
@@ -9282,7 +9290,7 @@ App.openWbsImport = function(projId) {
       const log = document.getElementById('wbsImportLog');
       if (log) {
         log.style.display = 'block';
-        log.textContent = `✅ 已匯入 ${res.imported} 筆任務到「${projName}」（舊 J 任務已清空重灌）`;
+        log.textContent = `✅ 已匯入 ${res.imported} 筆任務到「${projName}」（既有任務已清空重灌）`;
       }
       btn.disabled = true; btn.style.opacity = '.5';
       U.toast(`✅ ${CFG('WBS_LABEL', 'WBS')} 已匯入 ${res.imported} 筆`, 'success');
