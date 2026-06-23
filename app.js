@@ -230,6 +230,8 @@ const Storage = {
 const CloudSync = {
   _uploadTimer: null,
   _isUploading: false,
+  _uploadErrNotified: false,
+  _downloadErrNotified: false,
 
   // Debounced upload (3 秒內多次儲存只上傳一次)
   scheduleUpload() {
@@ -288,11 +290,16 @@ const CloudSync = {
       // 不能再呼叫 Storage.save() 否則無限迴圈，直接寫 localStorage
       localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
       this._refreshSyncStatus();
+      this._uploadErrNotified = false;
       if (!silent) U.toast('☁ 已上傳到雲端', 'success');
       return true;
     } catch (e) {
       console.error('Cloud upload failed:', e);
-      if (!silent) U.toast('⚠ 雲端上傳失敗：' + e.message, 'warning');
+      // 真故障（有 _idToken 卻 fetch/後端錯）→ alert 強提示，不分 silent（auto 也彈）；_uploadErrNotified 一次性防 auto-upload 每 3 秒彈一次（成功上傳才 reset）
+      if (!this._uploadErrNotified) {
+        this._uploadErrNotified = true;
+        alert('⚠ 雲端同步失敗\n\n本次改動已存在本機，但未能上傳到雲端。\n資料暫時只在這台裝置，請勿清除瀏覽器資料。\n\n可稍後重試（再次儲存會自動重傳），或聯絡系統管理員。\n\n錯誤：' + e.message);
+      }
       return false;
     } finally {
       this._isUploading = false;
@@ -360,11 +367,16 @@ const CloudSync = {
       runMigrations();
 
       this._refreshSyncStatus();
+      this._downloadErrNotified = false;
       if (!silent) U.toast('☁ 已從雲端載入最新資料', 'success');
       return true;
     } catch (e) {
       console.error('Cloud download failed:', e);
-      if (!silent) U.toast('⚠ 雲端下載失敗：' + e.message, 'warning');
+      // 真故障 → toast（風險低，本地資料還在）；_downloadErrNotified 一次性防 auto-download 重複彈（成功下載才 reset）
+      if (!this._downloadErrNotified) {
+        this._downloadErrNotified = true;
+        U.toast('⚠ 雲端下載失敗，未能拉取最新資料', 'warning');
+      }
       return false;
     }
   },
