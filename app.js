@@ -3194,13 +3194,53 @@ App.buildProjectHeaderHtml = function() {
             ${U.esc(proj.name)}
           </div>
         </div>
-        <span data-edit-hide style="font-size:13px; margin-right:2px; align-self:center;"><i class="ti ti-download"></i> 匯出</span>
-        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','day')">日</button>
-        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','week')">週</button>
-        <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','month')">月</button>
-        <button class="tb-action ghost" data-edit onclick="App.openWbsImport('${proj.id}')">覆蓋匯入</button>
+        <span class="hdr-menu-wrap">
+          <button class="tb-action ink hdr-menu-toggle" data-edit-hide onclick="App.toggleExportMenu(event, '${proj.id}')">匯出 Excel ▾</button>
+          <div class="hdr-menu hdr-menu-right" id="hdrExportMenu">
+            <div class="hdr-menu-title">匯出完整 WBS Excel</div>
+            <div class="hdr-menu-sub">含專案資訊 + 甘特圖分頁</div>
+            <button class="hdr-menu-item" onclick="App.exportProjectWbs('${proj.id}','day'); App.closeHdrMenus();">日刻度<span class="hdr-menu-note">甘特每日一欄</span></button>
+            <button class="hdr-menu-item" onclick="App.exportProjectWbs('${proj.id}','week'); App.closeHdrMenus();">週刻度<span class="hdr-menu-note">甘特每週一欄</span></button>
+            <button class="hdr-menu-item" onclick="App.exportProjectWbs('${proj.id}','month'); App.closeHdrMenus();">月刻度<span class="hdr-menu-note">甘特每月一欄</span></button>
+          </div>
+        </span>
+        <span class="hdr-divider"></span>
         <button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>
+        <span class="hdr-menu-wrap">
+          <button class="tb-action ghost hdr-menu-toggle" data-edit onclick="App.toggleMoreMenu(event, '${proj.id}')">⋯</button>
+          <div class="hdr-menu hdr-menu-right" id="hdrMoreMenu">
+            <button class="hdr-menu-item hdr-menu-danger" onclick="App.openWbsImport('${proj.id}'); App.closeHdrMenus();">覆蓋匯入<span class="hdr-menu-note hdr-menu-danger-note">危險</span></button>
+          </div>
+        </span>
       </div>`;
+};
+
+// §16 塊5：header 下拉/選單（toggle + 點外關閉；單一專案頁故用固定 id）
+App.toggleExportMenu = function(ev, projId) {
+  ev.stopPropagation();
+  this._ensureHdrMenuClose();
+  const m = document.getElementById('hdrExportMenu');
+  const open = m && m.classList.contains('open');
+  this.closeHdrMenus();
+  if (m && !open) m.classList.add('open');
+};
+App.toggleMoreMenu = function(ev, projId) {
+  ev.stopPropagation();
+  this._ensureHdrMenuClose();
+  const m = document.getElementById('hdrMoreMenu');
+  const open = m && m.classList.contains('open');
+  this.closeHdrMenus();
+  if (m && !open) m.classList.add('open');
+};
+App.closeHdrMenus = function() {
+  document.querySelectorAll('.hdr-menu.open').forEach(m => m.classList.remove('open'));
+};
+App._ensureHdrMenuClose = function() {
+  if (this._hdrMenuCloseBound) return;
+  this._hdrMenuCloseBound = true;
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.hdr-menu')) App.closeHdrMenus();
+  });
 };
 
 App.renderProject = function() {
