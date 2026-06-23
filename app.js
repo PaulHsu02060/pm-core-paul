@@ -5082,6 +5082,10 @@ App._flowStage2Next = function() {
 App._flowBlankCommit = function(name, color, note) {
   if (App._roGuard()) return;
   const np = { id: U.id(), name, color, note, depts: JSON.parse(JSON.stringify(App._tplDepts || [])), synced: false, createdAt: new Date().toISOString() };
+  // §15 同名告警 + 並存（三模式齊全，鏡像 _stage2Commit）：blank 無 importedAt（不假造匯入日；段4 sidebar 用 importedAt||createdAt fallback）
+  const dup = DATA.projects.filter(p => p.name === name);
+  if (dup.length && !confirm('已有 ' + dup.length + ' 個同名專案「' + name + '」。\n\n確定 = 建立新版本（兩者並存，可在側邊欄辨識版號）\n取消 = 返回修改')) return;
+  np.version = dup.length ? Math.max(...dup.map(p => p.version || 1)) + 1 : 1;
   ensurePdcaData(np);
   DATA.projects.push(np);
   this.currentProjectId = np.id;
@@ -5365,6 +5369,11 @@ App._stage2Commit = function() {
   // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到（步驟1 從 saveProject 挪來此落地步）
   res.project.depts = res.depts;
   res.project.variants = res.variants;
+  // §15 同名告警 + 並存：偵測同名 → confirm 建新版本；version/importedAt 巢狀欄位自動持久化（§15.5）
+  const dup = DATA.projects.filter(p => p.name === res.project.name);
+  if (dup.length && !confirm('已有 ' + dup.length + ' 個同名專案「' + res.project.name + '」。\n\n確定 = 建立新版本（兩者並存，可在側邊欄辨識版號）\n取消 = 返回修改')) return;
+  res.project.version = dup.length ? Math.max(...dup.map(p => p.version || 1)) + 1 : 1;
+  res.project.importedAt = D.fmt(new Date(), 'iso');
   DATA.projects.push(res.project);
   res.tasks.forEach(t => DATA.tasks.push(t));
   this.currentProjectId = res.project.id;
@@ -9166,6 +9175,8 @@ function performWbsImport(parsed, projId) {
     const oldId = res.project.id, newId = proj.id;
     proj.depts = res.depts;
     proj.variants = res.variants;
+    proj.importedAt = D.fmt(new Date(), 'iso');   // §15 覆蓋＝重匯，刷新匯入日期
+    if (proj.version == null) proj.version = 1;    // 舊專案首次補 version 欄；覆蓋不遞增（仍同一專案）
     res.tasks.forEach(t => { if (t.project === oldId) t.project = newId; });
     DATA.tasks = DATA.tasks.filter(t => t.project !== newId);   // 清該專案舊 task
     res.tasks.forEach(t => DATA.tasks.push(t));
