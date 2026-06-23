@@ -3188,6 +3188,7 @@ App.buildProjectHeaderHtml = function() {
         <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','day')">日</button>
         <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','week')">週</button>
         <button class="tb-action ghost" data-edit-hide onclick="App.exportProjectWbs('${proj.id}','month')">月</button>
+        <button class="tb-action ghost" data-edit onclick="App.openWbsImport('${proj.id}')">覆蓋匯入</button>
         <button class="tb-action ghost" data-edit onclick="App.editProject('${proj.id}')">編輯專案</button>
       </div>`;
 };
@@ -9153,10 +9154,13 @@ function buildWbsPreview(parsed) {
   return { project, variants, depts, tasks, warnings: [] };
 }
 
-function performWbsImport(parsed) {
+function performWbsImport(parsed, projId) {
   const res = buildWbsPreview(parsed);
-  // 重灌語意：找同名既有→重用 id；無則用 candidate
-  let proj = DATA.projects.find(p => p.name === res.project.name);
+  // 重灌語意：① projId 傳入（專案頁覆蓋匯入）→ 鎖當前專案、跳過同名比對；② 不傳（向後相容）→ 找同名既有→重用 id；無則用 candidate
+  let proj = projId
+    ? DATA.projects.find(p => p.id === projId)
+    : DATA.projects.find(p => p.name === res.project.name);
+  if (projId && !proj) { U.toast('⚠ 找不到目標專案，覆蓋取消', 'error'); return { imported: 0, projectId: null }; }
   if (proj) {
     // 重用既有 id：把 res 的 project/task/相關 id 全重指成既有 projId
     const oldId = res.project.id, newId = proj.id;
@@ -9169,15 +9173,16 @@ function performWbsImport(parsed) {
     DATA.projects.push(res.project);
     res.tasks.forEach(t => DATA.tasks.push(t));
   }
-  const projId = proj ? proj.id : res.project.id;
+  const outProjId = proj ? proj.id : res.project.id;
   Storage.save();
   App.refreshAll();
-  return { imported: res.tasks.length, projectId: projId };
+  return { imported: res.tasks.length, projectId: outProjId };
 }
 
-App.openWbsImport = function() {
+App.openWbsImport = function(projId) {
+  const projName = (this.getProj(projId) || {}).name || '';
   this.openModal({
-    title: '📥 匯入 WBS Excel',
+    title: '📥 覆蓋匯入 — ' + U.esc(projName),
     body: `
       <div style="font-size:12.5px; line-height:1.6; color:var(--ink2); margin-bottom:14px;">
         匯入「J 系列整合 WBS」Excel，<b style="color:var(--sage-700);">整批重灌</b>：
@@ -9272,11 +9277,12 @@ App.openWbsImport = function() {
 
     btn.addEventListener('click', () => {
       if (!parsed || !parsed.ok) return;
-      const res = performWbsImport(parsed);
+      if (!confirm('即將用此 Excel 覆蓋「' + projName + '」所有任務，現有任務清空重灌，確定？')) return;
+      const res = performWbsImport(parsed, projId);
       const log = document.getElementById('wbsImportLog');
       if (log) {
         log.style.display = 'block';
-        log.textContent = `✅ 已匯入 ${res.imported} 筆任務到「${parsed.projectName}」（舊 J 任務已清空重灌）`;
+        log.textContent = `✅ 已匯入 ${res.imported} 筆任務到「${projName}」（舊 J 任務已清空重灌）`;
       }
       btn.disabled = true; btn.style.opacity = '.5';
       U.toast(`✅ ${CFG('WBS_LABEL', 'WBS')} 已匯入 ${res.imported} 筆`, 'success');
