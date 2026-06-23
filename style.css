@@ -1414,6 +1414,10 @@ body.viewonly .cloud-sync-sec { display: none; }
 .toast { padding: 12px 18px; background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--sage-500); border-radius: var(--r8); box-shadow: var(--shadow-lg); font-size: 13px; min-width: 240px; animation: toastIn .25s ease both; }
 .toast.error { border-left-color: var(--terracotta); }
 .toast.warning { border-left-color: var(--amber); }
+/* closable toast 的 ✕（:has 只影響有 ✕ 的 toast，其餘呼叫不變）*/
+.toast:has(.toast-close) { display: flex; align-items: center; gap: 12px; }
+.toast-close { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--ink3); font-size: 16px; line-height: 1; padding: 0 2px; }
+.toast-close:hover { color: var(--ink2); }
 @keyframes toastIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 /* ─── SCROLLBAR ─── */

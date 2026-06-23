@@ -832,13 +832,21 @@ const U = {
   id() { return 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
   esc(s) { return String(s ?? '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); },
   hash(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; } return Math.abs(h); },
-  toast(msg, type = 'success') {
+  toast(msg, type = 'success', opts = {}) {
     const c = document.getElementById('toastContainer');
     const t = document.createElement('div');
     t.className = `toast ${type}`;
     t.innerHTML = msg;
+    const dismiss = () => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); };
+    if (opts.closable) {
+      const x = document.createElement('button');
+      x.className = 'toast-close'; x.setAttribute('aria-label', '關閉'); x.textContent = '×';
+      x.addEventListener('click', dismiss);
+      t.appendChild(x);
+    }
     c.appendChild(t);
-    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3500);
+    const dur = opts.duration != null ? opts.duration : 3500;
+    if (dur > 0) setTimeout(dismiss, dur);   // dur===0 → 不自動消失（需 closable 手動關）
   },
 };
 
@@ -9348,13 +9356,8 @@ App.openWbsImport = function(projId) {
       if (!parsed || !parsed.ok) return;
       if (!confirm('即將用此 Excel 覆蓋「' + projName + '」所有任務，現有任務清空重灌，確定？')) return;
       const res = performWbsImport(parsed, projId);
-      const log = document.getElementById('wbsImportLog');
-      if (log) {
-        log.style.display = 'block';
-        log.textContent = `✅ 已匯入 ${res.imported} 筆任務到「${projName}」（既有任務已清空重灌）`;
-      }
-      btn.disabled = true; btn.style.opacity = '.5';
-      U.toast(`✅ ${CFG('WBS_LABEL', 'WBS')} 已匯入 ${res.imported} 筆`, 'success');
+      U.toast(`✅ 已匯入 ${res.imported} 筆任務到「${projName}」`, 'success', { duration: 10000, closable: true });
+      App.closeModal();
     });
   }, 50);
 };
