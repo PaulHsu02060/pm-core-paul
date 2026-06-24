@@ -295,6 +295,12 @@ const CloudSync = {
       return true;
     } catch (e) {
       console.error('Cloud upload failed:', e);
+      // 登入過期（Google JWT 短效，非系統故障）→ 友善 toast、不彈嚇人 alert；auto 靜默、手動才提示（比照 upload 開頭 !_idToken 守衛）
+      const m = e && e.message;
+      if (m === 'Invalid token' || m === 'Missing id_token' || m === 'Token verify failed') {
+        if (!silent) U.toast('登入已過期，請重新登入', 'error');
+        return false;
+      }
       // 真故障（有 _idToken 卻 fetch/後端錯）→ alert 強提示，不分 silent（auto 也彈）；_uploadErrNotified 一次性防 auto-upload 每 3 秒彈一次（成功上傳才 reset）
       if (!this._uploadErrNotified) {
         this._uploadErrNotified = true;
