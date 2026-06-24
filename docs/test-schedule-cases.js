@@ -303,6 +303,155 @@ function computeSchedule(tasks) {
   return { results, circular: circular.slice(), hasCircular: circular.length > 0 };
 }
 
+// ═══ computeScheduleBackward：反推引擎（§4.8.2，computeSchedule 的反向鏡像）═══
+// 從「目標可販日」往前推算各任務「最晚開始/完成」。結構鏡像正推 computeSchedule：
+//   正推從 edges(前置) PULL、order 正序、多前置取最晚 max、源頭讀 plannedStart；
+//   反推從 succAdj(後續) PULL、order 逆序、多後續取最早 min、末端讀 targetEnd。
+// 反向關係公式（鏡像 FS/SS/FF/SF；D.addWorkdays 負值往前推）：
+//   FS 前最晚完成 = addWorkdays(後最晚開始, -max(1,lag)) → 最晚開始 = addWorkdays(完成, -(dur-1))
+//   FF 前最晚完成 = addWorkdays(後最晚完成, -lag)        → 最晚開始 = addWorkdays(完成, -(dur-1))
+//   SS 前最晚開始 = addWorkdays(後最晚開始, -lag)        → 最晚完成 = addWorkdays(開始, +(dur-1))
+//   SF 前最晚開始 = addWorkdays(後最晚完成, -lag)        → 最晚完成 = addWorkdays(開始, +(dur-1))
+//   多後續：各自換算成 impliedStart，取最早（min，正推 max 的鏡像）。
+// 優先序（鏡像正推四分支，方向相反）：
+//   ① 手填 start 錨點：不覆蓋、與後續所需比對衝突警示、不 block
+//   ② 後續污染（circular/blocked/待排/無日期）→ 本 task 也 blocked，不推算
+//   ③ 有後續、正常 → 反向四公式推算、取最早 min
+//   ④ 無後續（末端）→ 有 targetEnd 從可販日反推、無則待排
+// 跨案邊 guard（新不變量，§8e.6）：後續 variant !== 本任務 variant → 警示 + 忽略該邊（不靜默算錯）。
+//   前提：backward 只跑範本資料（§4.8.1，三模式僅範本模式），範本前置 per-variant 翻譯保證零跨案邊；
+//   此 guard 為防線（Excel 全域翻譯路徑若未來放開反推才會踩到），守住「不靜默」。
+// @return { results:[{wbs,taskId,name,lateStart,lateFinish,blocked,error,toSchedule,blockedCause,warnings,anchorSource?}],
+//           circular:[id], hasCircular }
+// ── [CORE] 純計算層：只讀 tasks、回傳資料，禁止呼叫 render/Storage（見 docs/core-layer.md）──
+function computeScheduleBackward(tasks) {
+  const { order, circular, nodes, edges } = topoSortTasks(tasks);
+  const byId = new Map();   // id -> result（供連鎖污染查後續）
+  const results = [];
+
+  const iso = (d) => D.fmt(d, 'iso');
+  const durOf = (t) => Math.max(1, parseFloat(t.durationDays) || 1);
+  const ident = (t) => ({ wbs: (t.wbs === undefined || t.wbs === null) ? '' : t.wbs, taskId: t.id, name: t.name || '' });
+
+  // 從 edges(task→前置) 反轉建 succAdj(前置→後續清單)：succAdj[p.dep] = [{succId, type, lag}]
+  const succAdj = new Map();
+  for (const [succId, preds] of edges) {
+    for (const p of preds) {
+      if (!succAdj.has(p.dep)) succAdj.set(p.dep, []);
+      succAdj.get(p.dep).push({ succId, type: p.type, lag: p.lag });
+    }
+  }
+
+  // 1. 先標 circular 節點（鏡像正推，讓下游污染查得到）
+  for (const id of circular) {
+    const t = nodes.get(id);
+    byId.set(id, { ...ident(t), lateStart: null, lateFinish: null,
+      blocked: true, error: 'circular', toSchedule: false, blockedCause: 'circular',
+      warnings: ['循環依賴：此任務在依賴環上，無法排程'] });
+  }
+
+  // 各後續換算成本任務 impliedStart，取最早 min；回 {lateStart, lateFinish}（Date）或 null（無可用後續）
+  function impliedFromSuccs(dur, succs) {
+    let earliest = null;
+    for (const s of succs) {
+      const sr = byId.get(s.succId);
+      if (!sr || sr.lateStart == null || sr.lateFinish == null) continue;
+      const sStart = new Date(sr.lateStart), sFin = new Date(sr.lateFinish);
+      let is;
+      if (s.type === 'SS')      is = D.addWorkdays(sStart, -s.lag);
+      else if (s.type === 'SF') is = D.addWorkdays(sFin, -s.lag);
+      else if (s.type === 'FF') is = D.addWorkdays(D.addWorkdays(sFin, -s.lag), -(dur - 1));
+      else                      is = D.addWorkdays(D.addWorkdays(sStart, -Math.max(1, s.lag)), -(dur - 1)); // FS
+      if (earliest === null || is < earliest) earliest = is;
+    }
+    if (earliest === null) return null;
+    return { lateStart: earliest, lateFinish: D.addWorkdays(earliest, dur - 1) };
+  }
+
+  function processTaskBackward(t) {
+    const dur = durOf(t);
+    // 跨案邊 guard：濾掉不同 variant 的後續 + 警示（忽略該邊，不靜默算錯）
+    const allSuccs = succAdj.get(t.id) || [];
+    const crossWarn = [];
+    const succs = [];
+    for (const s of allSuccs) {
+      const sNode = nodes.get(s.succId);
+      if (sNode && (sNode.variant || null) !== (t.variant || null)) {
+        crossWarn.push(`跨案邊：後續「${sNode.name || s.succId}」與本任務不同案別，已忽略該依賴`);
+      } else {
+        succs.push(s);
+      }
+    }
+
+    // ① 錨點：手填 start 最高優先、不被推算覆蓋（即使後續有問題也不 block，只警示）
+    const anchorStart = t.start;
+    if (anchorStart) {
+      const lateStart = anchorStart;
+      const lateFinish = iso(D.addWorkdays(new Date(anchorStart), dur - 1));
+      const warns = crossWarn.slice();
+      const imp = impliedFromSuccs(dur, succs);   // 與後續所需比對：手填完成晚於所需 → 衝突警示
+      if (imp && new Date(lateFinish) > imp.lateFinish) {
+        warns.push(`日期衝突：手填最晚完成 ${lateFinish} 晚於後續所需 ${iso(imp.lateFinish)}`);
+      }
+      return { ...ident(t), lateStart, lateFinish,
+        blocked: false, error: null, toSchedule: false, blockedCause: null,
+        warnings: warns, anchorSource: 'manual' };
+    }
+
+    // ② 連鎖污染：後續 circular / 已 blocked / 待排 / 無日期 → 本 task 也 blocked
+    const pollutedWarn = [];
+    let pollutedCause = null;
+    for (const s of succs) {
+      const sr = byId.get(s.succId);
+      if (!sr) continue;
+      if (sr.error === 'circular' || sr.blockedCause === 'circular') {
+        pollutedWarn.push(`後續 #${sr.wbs} 無法排程（下游循環）`);
+        pollutedCause = 'circular';
+      } else if (sr.blocked || sr.toSchedule || sr.lateStart == null) {
+        pollutedWarn.push(`後續 #${sr.wbs} 尚未排程（下游待排）`);
+        if (!pollutedCause) pollutedCause = 'unscheduled';
+      }
+    }
+    if (pollutedWarn.length) {
+      return { ...ident(t), lateStart: null, lateFinish: null,
+        blocked: true, error: null, toSchedule: false, blockedCause: pollutedCause,
+        warnings: pollutedWarn.concat(crossWarn) };
+    }
+
+    // ③ 無 start、後續正常：依關係反算 impliedStart，取最早 min
+    if (succs.length > 0) {
+      const imp = impliedFromSuccs(dur, succs);
+      if (imp) {
+        return { ...ident(t), lateStart: iso(imp.lateStart), lateFinish: iso(imp.lateFinish),
+          blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: crossWarn };
+      }
+      // 後續存在但全不可用（理論上已被 ② 攔下，保險）→ 落 ④ 待排
+    }
+
+    // ④ 無後續(末端)：有 targetEnd → 從可販日反推；無則待排
+    if (t.targetEnd) {
+      return { ...ident(t), lateStart: iso(D.addWorkdays(new Date(t.targetEnd), -(dur - 1))), lateFinish: t.targetEnd,
+        blocked: false, error: null, toSchedule: false, blockedCause: null, warnings: crossWarn };
+    }
+    return { ...ident(t), lateStart: null, lateFinish: null,
+      blocked: false, error: null, toSchedule: true, blockedCause: null,
+      warnings: ['待排：無後續且未填目標可販日'].concat(crossWarn) };
+  }
+
+  // 2. 圖內節點按拓撲「逆序」處理（後續先算 → 前置才能 PULL）
+  for (let i = order.length - 1; i >= 0; i--) byId.set(order[i], processTaskBackward(nodes.get(order[i])));
+
+  // 3. 整理輸出（鏡像正推：order → circular → 非圖內任務）
+  for (const id of order) results.push(byId.get(id));
+  for (const id of circular) results.push(byId.get(id));
+  for (const t of (tasks || [])) {
+    if (!t) continue;
+    if (t.wbs === '' || t.wbs === undefined || t.wbs === null) results.push(processTaskBackward(t));
+  }
+
+  return { results, circular: circular.slice(), hasCircular: circular.length > 0 };
+}
+
 // ════ applySchedule 同步複本（內容與 app.js 一字不差） ═══
 // 規則（抉擇 B 定案=「不寫」錨點）：循環/blocked/待排 跳過；錨點任務(override/manual)也跳過，
 //   不進機器層 scheduled；其餘連動任務寫入 scheduled。
@@ -1262,6 +1411,135 @@ const ef = () => ({ stages: new Set(), owners: new Set(), urg: new Set(), status
   const list = [ mk({wbs:'a',status:'wip'}), mk({wbs:'b',status:'done'}), mk({wbs:'c',status:'wip'}), mk({wbs:'d',status:'wip'}) ];
   const f = ef(); f.status.add('wip');
   check('案12.5 篩後保持原序（不重排）', applyTaskFilter(list, f).map(t=>t.wbs).join(','), 'a,c,d', '.filter 保序：篩 wip 後 a,c,d 維持輸入相對順序');
+}
+
+// ════ 反推引擎 computeScheduleBackward（§4.8 塊2，鏡像正推；期望值=外部 Excel 反向 WORKDAY）════
+// 末端任務讀 task.targetEnd 當「最晚完成」seed（呼叫端塞 variant可販日）。
+function runBackward(tasks) { return computeScheduleBackward(translatePreds(tasks)); }
+
+console.log('\n===== B1. 反向四公式（lag>0 避盲點，每案跨週末） =====');
+// FS 純（offset=max(1,0)=1）：後最晚開始 01-12(一) → 前最晚完成=WORKDAY(01-12,-1)=01-09(五，跨週末)
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 3 }),
+    mk({ wbs: '2', predecessor: '1', durationDays: 1, targetEnd: '2026-01-12' }),
+  ]);
+  check('FS純 後最晚開始', R(out, '2').lateStart, '2026-01-12', '末端 seed=targetEnd 01-12，dur1 → lateStart=lateFinish=01-12');
+  check('FS純 前最晚完成', R(out, '1').lateFinish, '2026-01-09', 'WORKDAY(01-12一,-1)=01-09五（跨週末跳 Sat/Sun）');
+  check('FS純 前最晚開始', R(out, '1').lateStart, '2026-01-07', 'lateStart=WORKDAY(01-09五,-(3-1)=-2)=01-07三');
+}
+// FS+2：後最晚開始 01-12(一) → 前最晚完成=WORKDAY(01-12,-2)=01-08(四，跨週末)
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 1 }),
+    mk({ wbs: '2', predecessor: '1FS+2', durationDays: 1, targetEnd: '2026-01-12' }),
+  ]);
+  check('FS+2 前最晚完成', R(out, '1').lateFinish, '2026-01-08', 'WORKDAY(01-12一,-2)=01-08四（跳 Sat/Sun）');
+  check('FS+2 前最晚開始', R(out, '1').lateStart, '2026-01-08', 'dur1 → lateStart=lateFinish=01-08');
+}
+// SS+3：前最晚開始=WORKDAY(後最晚開始 01-12, -3)=01-07(三，跨週末)
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 2 }),
+    mk({ wbs: '2', predecessor: '1SS+3', durationDays: 1, targetEnd: '2026-01-12' }),
+  ]);
+  check('SS+3 前最晚開始', R(out, '1').lateStart, '2026-01-07', 'WORKDAY(01-12一,-3)=01-07三（Fri/Thu/Wed，首步跨週末）');
+  check('SS+3 前最晚完成', R(out, '1').lateFinish, '2026-01-08', 'lateFinish=WORKDAY(01-07三,+(2-1))=01-08四');
+}
+// FF+3：前最晚完成=WORKDAY(後最晚完成 01-14, -3)=01-09(五，跨週末)
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 2 }),
+    mk({ wbs: '2', predecessor: '1FF+3', durationDays: 1, targetEnd: '2026-01-14' }),
+  ]);
+  check('FF+3 前最晚完成', R(out, '1').lateFinish, '2026-01-09', 'WORKDAY(01-14三,-3)=01-09五（Tue/Mon/Fri，末步跨週末）');
+  check('FF+3 前最晚開始', R(out, '1').lateStart, '2026-01-08', 'WORKDAY(01-09五,-(2-1))=01-08四');
+}
+// SF+3：前最晚開始=WORKDAY(後最晚完成 01-14, -3)=01-09(五，跨週末)
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 2 }),
+    mk({ wbs: '2', predecessor: '1SF+3', durationDays: 1, targetEnd: '2026-01-14' }),
+  ]);
+  check('SF+3 前最晚開始', R(out, '1').lateStart, '2026-01-09', 'WORKDAY(01-14三,-3)=01-09五');
+  check('SF+3 前最晚完成', R(out, '1').lateFinish, '2026-01-12', 'WORKDAY(01-09五,+(2-1))=01-12一');
+}
+
+console.log('\n===== B2. 末端 / 源頭 / 單鏈 / 待排 =====');
+// 末端讀 targetEnd 反推（源頭 lateStart = 專案最晚啟動日）
+{
+  const out = runBackward([mk({ wbs: '1', durationDays: 3, targetEnd: '2026-01-15' })]);
+  check('末端 lateFinish=targetEnd', R(out, '1').lateFinish, '2026-01-15', '無後續 → 最晚完成=可販日 01-15');
+  check('末端 lateStart', R(out, '1').lateStart, '2026-01-13', 'WORKDAY(01-15四,-(3-1)=-2)=01-13二（=源頭，亦專案最晚啟動日）');
+  check('末端 不待排', R(out, '1').toSchedule, false, '有 targetEnd → toSchedule=false');
+}
+// 末端無 targetEnd → 待排（④ 無可販日分支）
+{
+  const out = runBackward([mk({ wbs: '1', durationDays: 2 })]);
+  check('末端無targetEnd → 待排', R(out, '1').toSchedule, true, '無後續且無可販日 → toSchedule=true');
+  check('末端無targetEnd → lateFinish=null', R(out, '1').lateFinish, null, '待排無日期');
+}
+// 單鏈三任務 A→B→C，C 末端 targetEnd，逐節倒推，源頭 A.lateStart=專案最晚啟動日
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 2 }),
+    mk({ wbs: '2', predecessor: '1', durationDays: 3 }),
+    mk({ wbs: '3', predecessor: '2', durationDays: 2, targetEnd: '2026-01-30' }),
+  ]);
+  check('單鏈 C 最晚開始', R(out, '3').lateStart, '2026-01-29', 'C: WORKDAY(01-30五,-(2-1))=01-29四');
+  check('單鏈 B 最晚完成', R(out, '2').lateFinish, '2026-01-28', 'WORKDAY(C開01-29,-1)=01-28三');
+  check('單鏈 B 最晚開始', R(out, '2').lateStart, '2026-01-26', 'WORKDAY(01-28三,-(3-1)=-2)=01-26一');
+  check('單鏈 A 最晚完成', R(out, '1').lateFinish, '2026-01-23', 'WORKDAY(B開01-26一,-1)=01-23五（跨週末）');
+  check('單鏈 A 最晚開始(=專案最晚啟動日)', R(out, '1').lateStart, '2026-01-22', 'WORKDAY(01-23五,-(2-1))=01-22四');
+}
+
+console.log('\n===== B3. 多後續取 min（非 max） =====');
+// P 一前置接 S1/S2 兩後續，最晚開始不同 → P 最晚完成取「讓最早後續能開」=min
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 2 }),
+    mk({ wbs: '2', predecessor: '1', durationDays: 1, targetEnd: '2026-01-20' }),
+    mk({ wbs: '3', predecessor: '1', durationDays: 1, targetEnd: '2026-01-13' }),
+  ]);
+  check('多後續 P最晚完成取min', R(out, '1').lateFinish, '2026-01-12', 'min(WORKDAY(01-20,-1)=01-19, WORKDAY(01-13,-1)=01-12)=01-12（取早，非 max 01-19）');
+  check('多後續 P最晚開始', R(out, '1').lateStart, '2026-01-09', 'WORKDAY(01-12一,-(2-1))=01-09五（跨週末）');
+}
+
+console.log('\n===== B4. circular / 錨點（鏡像正推） =====');
+// circular 反推同擋
+{
+  const out = runBackward([
+    mk({ wbs: '1', predecessor: '2', durationDays: 1 }),
+    mk({ wbs: '2', predecessor: '1', durationDays: 1 }),
+  ]);
+  check('circular 反推 blocked', R(out, '1').blocked, true, '依賴環，反推同擋不推算');
+  check('circular 反推 error', R(out, '1').error, 'circular', '鏡像正推 circular 預標');
+  check('circular 反推 lateStart=null', R(out, '1').lateStart, null, '環上節點不算日');
+}
+// 錨點 t.start 反推不覆蓋、只警示、不 block（鏡像正推 ①）
+{
+  const out = runBackward([
+    mk({ wbs: '1', durationDays: 2, start: '2026-01-22' }),
+    mk({ wbs: '2', predecessor: '1', durationDays: 1, targetEnd: '2026-01-22' }),
+  ]);
+  check('錨點不覆蓋 lateStart=t.start', R(out, '1').lateStart, '2026-01-22', '推算 lateStart=WORKDAY(WORKDAY(後開01-22,-1)=01-21,-1)=01-20；手填01-22晚2工作日，尊重不覆蓋');
+  check('錨點 anchorSource', R(out, '1').anchorSource, 'manual', '鏡像正推錨點分支');
+  check('錨點 不 block', R(out, '1').blocked, false, '手填錨點不 block，只警示');
+  check('錨點衝突有警示', R(out, '1').warnings.length > 0, true, '手填完成01-23晚於後續所需(推算前完成01-21)→衝突警示');
+}
+
+console.log('\n===== B5. 跨案邊 guard（新不變量；直連 id 邊+前提自檢防假綠） =====');
+// Y(vB) 前置直連 X(vA) 的 id（不經 translatePreds），確保跨案邊真到 backward pass 入口
+{
+  const X = mk({ wbs: '1', variant: 'vA', durationDays: 1, targetEnd: '2026-01-15' });
+  const Y = mk({ wbs: '2', variant: 'vB', durationDays: 1, targetEnd: '2026-01-20' });
+  Y.predecessor = X.id + '#';   // 直連 id 邊，繞過 wbs→id 翻譯
+  check('跨案邊 前提自檢:variant 確實不同', X.variant !== Y.variant, true, 'X=vA / Y=vB 確實跨案（防假綠）');
+  check('跨案邊 前提自檢:邊已連 id', Y.predecessor, X.id + '#', 'pred 已是 id 格式，topoSort 不濾（nodes.has(X.id)=true）');
+  const out = computeScheduleBackward([X, Y]);   // 不經 runBackward/translatePreds
+  check('跨案邊 有警示含「跨案邊」', out.results.some(r => r.warnings.some(w => w.includes('跨案邊'))), true, 'guard 偵測 X.variant!==Y.variant，不靜默算錯');
+  check('跨案邊 不 block', R(out, '1').blocked, false, 'guard 忽略該邊、不 block');
+  check('跨案邊 X 仍按自身案末端', R(out, '1').lateFinish, '2026-01-15', '忽略跨案邊，X 在 vA 內仍末端 → lateFinish=自身 targetEnd 01-15');
 }
 
 console.log('\n===== 結果 =====');
