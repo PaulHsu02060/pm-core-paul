@@ -2455,35 +2455,112 @@ App._reschedulePreview = function(tasks, variants, warnings) {
     variantEnd[v.id] = v.schedule.endDate || '';
     variantDir[v.id] = v.schedule.direction || 'forward';
   });
-  variants.forEach(v => {
-    if (variantDir[v.id] === 'backward') {
-      warnings.push('「' + v.name + '」逆推排程尚未開放，已改用開始日順推（未填開始日則該案未排）');
-    }
-  });
-  tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
-  const sch = computeSchedule(tasks);
-  const schById = new Map();
-  sch.results.forEach(r => schById.set(r.taskId, r));
-  tasks.forEach(t => {
-    const r = schById.get(t.id);
-    if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
-    else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
-  });
-  // 6b 溢出偵測：per 案別 computedEnd=max(plannedEnd) vs 設定結束日（有填才比）
-  variants.forEach(v => {
-    const endLimit = variantEnd[v.id];
+  // 每案有效方向：複用 App._effScheduleDir 單一真實來源（§4.8.7.2/.3），與燈號 slackOf 共用，防判定漂移。
+  const effDir = (vid) => App._effScheduleDir(variantStart[vid], variantEnd[vid], variantDir[vid]);
+
+  // 6b 溢出偵測（per 案別 computedEnd=max(plannedEnd) vs 設定結束日），只對 forward 案有意義
+  const detectOverflow6b = (vid, vname) => {
+    const endLimit = variantEnd[vid];
     if (!endLimit) return;
-    const vts = tasks.filter(t => t.variant === v.id && t.plannedEnd);
+    const vts = tasks.filter(t => t.variant === vid && t.plannedEnd);
     if (!vts.length) return;
     let binding = vts[0];
     vts.forEach(t => { if (t.plannedEnd > binding.plannedEnd) binding = t; });
     const computedEnd = binding.plannedEnd;
     if (computedEnd > endLimit) {
       const overDays = Math.max(0, D.workdaysBetween(endLimit, computedEnd) - 1);
-      warnings.push('「' + v.name + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
+      warnings.push('「' + vname + '」排程溢出：最晚「' + binding.name + '」需排到 ' + computedEnd +
         '，超過設定結束日 ' + endLimit + '（約 ' + overDays + ' 工作天）');
     }
+  };
+
+  // 方案 B：所有案皆 forward → 走原單次正推 path（行為與舊版逐字等價）。
+  if (variants.every(v => effDir(v.id) === 'forward')) {
+    tasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[t.variant] || ''; });
+    const sch = computeSchedule(tasks);
+    const schById = new Map();
+    sch.results.forEach(r => schById.set(r.taskId, r));
+    tasks.forEach(t => {
+      const r = schById.get(t.id);
+      if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
+      else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
+    });
+    variants.forEach(v => detectOverflow6b(v.id, v.name));
+    return;
+  }
+
+  // 任一案非 forward → 逐案依方向分派（範本零跨案邊，子集排程與全陣列等價）。
+  variants.forEach(v => {
+    const vid = v.id;
+    const vtasks = tasks.filter(t => t.variant === vid);
+    if (!vtasks.length) return;
+    const dir = effDir(vid);
+
+    if (dir === 'forward') {
+      vtasks.forEach(t => { if (!t.predecessor) t.plannedStart = variantStart[vid] || ''; });
+      const sch = computeSchedule(vtasks);
+      const m = new Map(); sch.results.forEach(r => m.set(r.taskId, r));
+      vtasks.forEach(t => {
+        const r = m.get(t.id);
+        if (r && r.suggestedStart) { t.plannedStart = r.suggestedStart; t.plannedEnd = r.suggestedEnd; }
+        else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無起算日或循環依賴）'); }
+      });
+      detectOverflow6b(vid, v.name);
+      return;
+    }
+
+    // backward / interval：seed targetEnd(transient) → 反推 → 映射 lateStart/lateFinish→plannedStart/End
+    const endDate = variantEnd[vid];
+    let sch;
+    try {
+      vtasks.forEach(t => { t.targetEnd = endDate; });
+      sch = computeScheduleBackward(vtasks);
+    } finally {
+      vtasks.forEach(t => { delete t.targetEnd; });   // transient seed：無條件清，不隨建立落地
+    }
+    const m = new Map(); sch.results.forEach(r => m.set(r.taskId, r));
+    vtasks.forEach(t => {
+      const r = m.get(t.id);
+      // ★ 映射轉換（最大技術風險）：反推吐 lateStart/lateFinish，這張圖讀 plannedStart/plannedEnd
+      if (r && r.lateStart != null) { t.plannedStart = r.lateStart; t.plannedEnd = r.lateFinish; }
+      else { t.plannedStart = ''; t.plannedEnd = ''; warnings.push('「' + t.name + '」未能排入（無目標可販日或循環依賴）'); }
+    });
+
+    if (dir === 'interval') {
+      const slack = App._computeSlack(sch.results, variantStart[vid], endDate);
+      if (slack && slack.light === 'red') {
+        warnings.push('「' + v.name + '」時間不足：最快 ' + slack.earliestFinish +
+          ' 完成，超出結束日 ' + endDate + ' 約 ' + slack.overDays + ' 工作天');
+      }
+    }
   });
+};
+
+// _computeSlack(results, startDate, endDate)：interval 餘裕 + 三級燈號（§4.8.7.4，純函式 [CORE]）。
+//   可用工作天 = workdaysBetween(start,end)；需要工作天 = 關鍵路徑(最長依賴鏈) = workdaysBetween(min lateStart, max lateFinish)；
+//   餘裕 = 可用 - 需要；燈號 ≥5 綠 / 0~4 黃 / <0 紅；紅燈附 earliestFinish(從 start 順推 needed) + overDays。
+//   start/end 任一缺 → 回 null（非 interval，不顯示燈號）。
+App._computeSlack = function(results, startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  let minStart = null, maxFinish = null;
+  (results || []).forEach(r => {
+    if (r.lateStart != null && (minStart === null || r.lateStart < minStart)) minStart = r.lateStart;
+    if (r.lateFinish != null && (maxFinish === null || r.lateFinish > maxFinish)) maxFinish = r.lateFinish;
+  });
+  const available = D.workdaysBetween(startDate, endDate);
+  const needed = (minStart && maxFinish) ? D.workdaysBetween(minStart, maxFinish) : 0;
+  const slack = available - needed;
+  const light = slack >= 5 ? 'green' : (slack >= 0 ? 'yellow' : 'red');
+  const earliestFinish = needed > 0 ? D.fmt(D.addWorkdays(startDate, needed - 1), 'iso') : '';
+  const overDays = slack < 0 ? Math.max(0, D.workdaysBetween(endDate, earliestFinish) - 1) : 0;
+  return { available, needed, slack, light, earliestFinish, overDays };
+};
+
+// _effScheduleDir(startDate, endDate, direction)：三模式有效方向單一真實來源（§4.8.7.2/.3）。
+//   開始+結束皆填→interval；否則 backward 下拉→backward；其餘→forward。_reschedulePreview 與燈號 slackOf 共用，防判定漂移。
+App._effScheduleDir = function(startDate, endDate, direction) {
+  return (startDate && endDate) ? 'interval'
+    : (direction === 'backward' ? 'backward' : 'forward');
 };
 
 // App.applyTemplate(template, userInput)：純函式，只回傳資料、不碰 DOM/Storage（[CORE]）。
@@ -5067,7 +5144,7 @@ App._tplAddOtherCase = function() {
     +   `<div class="form-field"><label>結束日</label><input type="date" class="case-end"></div>`
     + `</div>`
     + `<div class="form-field"><label>排程方向</label>`
-    +   `<select class="case-direction"><option value="forward">順推（從開始日）</option><option value="backward" disabled>逆推（從結束日，尚未開放）</option></select>`
+    +   `<select class="case-direction"><option value="forward">順推（從開始日）</option><option value="backward">逆推（從結束日）</option></select>`
     + `</div>`
     + App._stagePickHtml(otherStages);
   box.appendChild(card);
@@ -5105,7 +5182,7 @@ App._stage1FormHtml = function() {
             <label>排程方向</label>
             <select id="pf-direction" class="case-direction">
               <option value="forward">順推（從開始日）</option>
-              <option value="backward" disabled>逆推（從結束日，尚未開放）</option>
+              <option value="backward">逆推（從結束日）</option>
             </select>
           </div>
           ${App._stagePickHtml()}
@@ -5469,6 +5546,30 @@ App._renderStage2 = function() {
     const ends = ts.map(t => t.plannedEnd).filter(Boolean).sort();
     const a = starts[0], b = ends[ends.length - 1];
     return (a || b) ? (fmtD(a) + ' \u2192 ' + fmtD(b)) : '（待排程）';
+  };
+  // 餘裕燈號（interval 才顯示，§4.8.7.4）：星期幾沿用既有 idiom；slackOf 複用 _effScheduleDir 判定（單一真實來源）。
+  const wkd = (iso) => iso ? '（週' + ['日','一','二','三','四','五','六'][new Date(iso).getDay()] + '）' : '';
+  const slackOf = (vid) => {
+    const v = variants.find(x => x.id === vid);
+    if (!v || App._effScheduleDir(v.schedule.startDate, v.schedule.endDate, v.schedule.direction) !== 'interval') return null;
+    const ts = tasks.filter(t => t.variant === vid);
+    const results = ts.map(t => ({ lateStart: t.plannedStart || null, lateFinish: t.plannedEnd || null }));
+    return App._computeSlack(results, v.schedule.startDate, v.schedule.endDate);
+  };
+  const slackHtml = (vid) => {
+    const s = slackOf(vid);
+    if (!s) return '';
+    const v = variants.find(x => x.id === vid);
+    const sd = v.schedule.startDate, ed = v.schedule.endDate;
+    const msg = s.light === 'green' ? ('時間充足，還有 ' + s.slack + ' 個工作天緩衝')
+      : s.light === 'yellow' ? '時間偏緊，任何延誤都可能超期'
+      : ('時間不足，照此工期會超出結束日 ' + s.overDays + ' 個工作天');
+    return '<div class="s2-slack s2-slack-' + s.light + '">' +
+      '<span class="s2-slack-dot"></span>' +
+      '<span class="s2-slack-msg">' + msg + '</span>' +
+      '<span class="s2-slack-nums">可用 ' + s.available + ' ／ 需要 ' + s.needed + ' ／ 餘裕 ' + s.slack + ' 工作天</span>' +
+      '<span class="s2-slack-dates">' + fmtD(sd) + wkd(sd) + ' → ' + fmtD(ed) + wkd(ed) + '</span>' +
+    '</div>';
   };
   const help =
     '<div class="stage2-help">' +
