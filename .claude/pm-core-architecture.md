@@ -192,11 +192,12 @@ Auth（檢視/編輯/登入）
 | 反推 backward | 可販日 | 從可販日往前推 → 各任務最晚開始/完成、專案最晚啟動日 | 客戶/OEM 給死交期，開始日無所謂多早 |
 | 區間約束 interval | 開始日 + 可販日兩者 | 區間內排 → 算餘裕（可用-所需）、夠不夠 | 兩頭都卡死：最快開案 A + 業務要可販 B，算剩多少緩衝 |
 
-一專案一模式，但可從單約束模式「補第二約束」升級到區間約束（見 4.8.6）。三模式共用 topoSort/關係/日曆，零重複（最高原則）。
+一案別一模式，但可從單約束模式「補第二約束」升級到區間約束（見 4.8.6）。三模式共用 topoSort/關係/日曆，零重複（最高原則）。
 
 #### 4.8.1 模式選擇與必填欄位
-- 範本模式建專案時選 scheduleMode（forward/backward/interval），帶白話引導（正推=有自主開發時間/反推=客戶要可販日/區間=兩約束都有）。
+- 每個案別（variant）選自己的排程方向 variant.schedule.direction（forward/backward/interval），一案別一模式；同專案不同案別可不同方向（主案逆推、另案正推）。帶白話引導（正推=有自主開發時間/反推=客戶要可販日/區間=兩約束都有）。
 - 欄位跟著模式動（不同時顯示避免混淆）：正推顯「預計開始日」、反推顯「目標可販日」、區間顯兩者，對應必填、空值 guard 擋下。
+- schema 對應（落地現況）：模式存 variant.schedule.direction、開始日存 variant.schedule.startDate、目標可販日即 variant.schedule.endDate（§4.8 的 targetEndDate＝既有 endDate，免新增欄位）。三者巢狀在 project.variants，隨整 project 序列化自動持久化（§15.5），無 top-level DATA.X 四步。
 - 僅範本模式有三模式選擇；Excel 匯入（照檔內容建）、空白（無範本階段）維持原流程，不套三模式（見 4.8.6 建專案流程）。
 
 #### 4.8.2 反推引擎（backward pass）
