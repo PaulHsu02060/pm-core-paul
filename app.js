@@ -4918,7 +4918,12 @@ App.saveNewTask = function(projId) {
   }
   const _sch = applySchedule(DATA.tasks, 'full');
   const _blocked = _sch.skipped.filter(s => !String(s.reason || '').startsWith('anchor'));
-  if (_blocked.length) { U.toast('⚠️' + _blocked.length + ' 筆任務無法排程（循環或缺前置）', 'warning'); }
+  const _pid = this.currentProjectId;
+  if (_pid) {
+    const _proj = (DATA.projects || []).find(p => p.id === _pid);
+    const _projBlocked = _blocked.filter(b => (DATA.tasks.find(t => t.id === b.id) || {}).project === _pid);
+    if (_projBlocked.length) { U.toast('⚠️【' + ((_proj && _proj.name) || '本專案') + '】' + _projBlocked.length + ' 筆任務無法排程（循環或缺前置）', 'warning'); }
+  }
   Storage.save();
   this.closeModal();
   this.refreshAll();
@@ -5085,7 +5090,12 @@ App.saveTask = function(id) {
 
   const _sch = applySchedule(DATA.tasks, 'full');
   const _blocked = _sch.skipped.filter(s => !String(s.reason || '').startsWith('anchor'));
-  if (_blocked.length) { U.toast('⚠️' + _blocked.length + ' 筆任務無法排程（循環或缺前置）', 'warning'); }
+  const _pid = this.currentProjectId;
+  if (_pid) {
+    const _proj = (DATA.projects || []).find(p => p.id === _pid);
+    const _projBlocked = _blocked.filter(b => (DATA.tasks.find(t => t.id === b.id) || {}).project === _pid);
+    if (_projBlocked.length) { U.toast('⚠️【' + ((_proj && _proj.name) || '本專案') + '】' + _projBlocked.length + ' 筆任務無法排程（循環或缺前置）', 'warning'); }
+  }
   Storage.save();
   this.closeModal();
   this.refreshAll();
