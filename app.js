@@ -1160,15 +1160,13 @@ function isTaskBlocked(task, allTasksMap) {
       result.reasons.push({ dep: p.dep, type: p.type, conflict: '前置未完成' });
     }
     // 3. 日期衝突（依關係類型；參考日任一為空則跳過）
-    const taskRefStr = (p.type === 'FF' || p.type === 'SF') ? task.end : task.start;
-    const usesPredEnd = !(p.type === 'SS' || p.type === 'SF');  // FS/FF 讀 dep.end；SS/SF 讀 dep.start
-    let predRefStr = usesPredEnd ? dep.end : dep.start;
-    // 窄修：dep.end 為空但 dep.start 有值 → 用 start+工期補算 end（公式同 computeSchedule 的 durOf/end）；
-    //       dep.start 也空則維持空字串，讓下方 guard 自然短路，避免 Invalid Date / NaN。
-    if (usesPredEnd && !predRefStr && dep.start) {
-      const depDur = Math.max(1, parseFloat(dep.durationDays) || 1);
-      predRefStr = D.fmt(D.addWorkdays(new Date(dep.start), depDur - 1), 'iso');
-    }
+    const _taskEff = getEffectiveSchedule(task);
+    const _depEff  = getEffectiveSchedule(dep);
+    const taskRefStr = (p.type === 'FF' || p.type === 'SF') ? _taskEff.end : _taskEff.start;
+    const usesPredEnd = !(p.type === 'SS' || p.type === 'SF');  // FS/FF 讀 dep 完成日；SS/SF 讀 dep 開始日
+    const predRefStr = usesPredEnd ? _depEff.end : _depEff.start;
+    // 衍生兜底（塊一）已讓 getEffectiveSchedule.end 在 actual/scheduled/planned 全空時現算 start+工期，
+    //   故原窄修補丁（dep.end 空補算）不再需要，移除。
     if (taskRefStr && predRefStr) {
       // FS：起點(SOD) ≥ 前置終點(EOD)，offset=Math.max(1,lag)（純FS=1、FS+N=N，下限1），與 computeSchedule 同尺；
       // SS/FF/SF 端點同層級(SOD≥SOD / EOD≥EOD / EOD≥SOD)當日即成立，用純 lag、不墊高。
@@ -3798,7 +3796,6 @@ App.buildProjKpiHtml = function(proj) {
 
   // DELAYED:未完成且有效結束日<今天(不含擱置=刻意凍結非延遲)。
   // 無日期者不列入(不知 deadline 不能說延遲),另計 noEnd 常駐顯示於副標。
-  // ⚠ 已知核心 bug:getEffectiveSchedule 漏讀手動任務 t.start/t.end → 手動任務 end 恆空、可能漏報(待核心修正)。
   let delayed = 0, noEnd = 0;
   tasks.forEach(t => {
     if (t.status === 'done' || t.status === 'hold') return;
