@@ -513,6 +513,13 @@ const D = {
     return d;
   },
 
+  // 從開始日 + 完成日反推工期（工作天，含頭尾）= workdaysBetween 的語意化包裝。
+  // §6.5c t.end 衍生化：使用者改「預計完成」時，save 端以此換算工期存（開始日當錨，不存獨立 t.end）。
+  // start > end（負工期）→ workdaysBetween 回 0，由 save 端另行判定提示，此處不擋。
+  deriveDurationFromEnd(start, end) {
+    return this.workdaysBetween(start, end);
+  },
+
   // 解析貼上的行事曆文字（Tab 分隔）→ {holidays, workOverrides, skipped, error?}
   // 彈性表頭對應：靠表頭名稱定位欄位（不要求欄位順序），需含表頭那一行。
   // 純函式：不碰 DOM/Storage，寫入由呼叫端負責（之二.9）。
@@ -1899,7 +1906,7 @@ function getEffectiveSchedule(task) {
   // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)
   // ⚠ 用 || 不用 ??：空字串也要 fallback 到下層
   const dispStart = (task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
-  const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || task.end   || '');
+  const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || '');
   return {
     start: dispStart,
     end: dispEnd,
@@ -4693,6 +4700,43 @@ App.readStartField = function() {
   return { startMode: mode, start: mode === 'manual' ? val : '' };
 };
 
+// §6.5c t.end 衍生化：save 端取工期。tf-end 反推為主（開始日當錨）、tf-duration 為輔（無法反推時）。
+//   start+endVal 都有 → deriveDurationFromEnd（含 negDur→回 0，不套 ||1 才不會把合法 0 蓋成 1）。
+//   milestone 工期恆 1，不反推。saveTask/saveNewTask 共用，單一真實來源。
+App.readDurationField = function() {
+  const start  = (document.getElementById('tf-start')    || {}).value || '';
+  const endVal = (document.getElementById('tf-end')      || {}).value || '';
+  const durRaw = parseFloat((document.getElementById('tf-duration') || {}).value);
+  const taskType = (document.getElementById('tf-taskType') || {}).value;
+  if (taskType === 'milestone') return 1;
+  if (start && endVal) return D.deriveDurationFromEnd(start, endVal);
+  return durRaw || 1;
+};
+
+// §6.5c 三欄連動：改開始/工期 → 算「預計完成」顯示值（開始當錨，addWorkdays(start, dur-1)）。
+//   改完成日不在此（反推工期交給 save 端），故 tf-end 不綁、此函式只算 end。
+//   guard：開始日空（待排）或工期非有效數（NaN/<1）→ 不算，保留現值。
+App.recalcTaskTimeFields = function() {
+  const startEl = document.getElementById('tf-start');
+  const durEl   = document.getElementById('tf-duration');
+  const endEl   = document.getElementById('tf-end');
+  if (!startEl || !durEl || !endEl) return;
+  const start = startEl.value;
+  if (!start) return;                          // 待排（自動態無有效開始日）→ 不強寫
+  const dur = parseFloat(durEl.value);
+  if (isNaN(dur) || dur < 1) return;           // milestone 工期恆1：addWorkdays(start,0)=start 不誤觸發
+  endEl.value = D.fmt(D.addWorkdays(start, dur - 1), 'iso');   // D.fmt iso 避時區 Bug2
+};
+
+// 表單渲染後掛三欄連動：只綁 tf-start / tf-duration（改它們→算完成日）；
+//   tf-end 不綁（改完成日→反推工期是 save 端的事，綁了會蓋掉使用者輸入）。
+App.bindTaskTimeListeners = function() {
+  const startEl = document.getElementById('tf-start');
+  const durEl   = document.getElementById('tf-duration');
+  if (startEl) startEl.addEventListener('change', () => App.recalcTaskTimeFields());
+  if (durEl)   durEl.addEventListener('change', () => App.recalcTaskTimeFields());
+};
+
 // ─── HintBox：區塊級說明框公版（展開/收起持久化 + 收起態 hover 浮出，複用 data-tip 引擎）───
 //   state 存 DATA.settings.hintBoxState[key]：undefined/false=展開、true=收起（預設展開）。
 //   收起態標題列掛 data-tip（標題|body 純文字），hover 浮出；觸控無 hover 則點擊展開。
@@ -4796,7 +4840,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
       </div>
     </div>
     <div class="form-row dur-only">
-      <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(t.end)}"></div>
+      <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(getEffectiveSchedule(t).end)}"></div>
     </div>
     <div class="form-row mg-duration">
       <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
@@ -4898,6 +4942,7 @@ App.openNewTaskDialog = function(projId) {
       <button class="tb-action" data-edit-hide onclick="App.saveNewTask('${projId}')">建立任務</button>
     `,
   });
+  App.bindTaskTimeListeners();
   // Auto-focus on name field
   setTimeout(() => {
     const nameField = document.getElementById('tf-name');
@@ -4913,6 +4958,7 @@ App.openHoursTaskDialog = function() {
     footer: `<button class="tb-action ghost" onclick="App.closeModal()">取消</button>
              <button class="tb-action" data-edit-hide onclick="App.saveNewTask()">建立任務</button>`,
   });
+  App.bindTaskTimeListeners();
   setTimeout(() => { const n = document.getElementById('tf-name'); if (n) n.focus(); }, 50);
 };
 
@@ -4947,11 +4993,10 @@ App.saveNewTask = function(projId) {
     status,
     start: startField.start,           // 2-A：手動態存值、自動態存 ''（共用 readStartField）
     startMode: startField.startMode,   // 2-A：純 UI 意圖記憶（auto/manual）
-    end: document.getElementById('tf-end').value,
     estHours: parseFloat(document.getElementById('tf-hours').value) || 1,
     predecessor: App.serializePredecessors(),  // M2-§6.4：結構化列序列化回字串（取代 #tf-predecessor 自由文字；格式同 parsePredecessors）
     wbs: '',           // 階段2：WBS 識別
-    durationDays: parseFloat(document.getElementById('tf-duration').value) || 1,  // M2-2：工期(工作天)，最小1（0工期語意由 taskType=milestone 表達）
+    durationDays: App.readDurationField(),  // §6.5c：tf-end 反推為主、工期欄為輔（helper 單一真實來源）
     measureType: (document.querySelector('.task-form').dataset.measure) || 'duration',  // 第27項：計量制(duration工期/hours時段)，讀表單 data-measure；讀不到兜 duration
     scheduledStart: '',  // 排程套用結果，四條一致
     scheduledEnd: '',
@@ -5087,6 +5132,7 @@ App.openTaskModal = function(id) {
       <button class="tb-action" data-edit-hide onclick="App.saveTask('${t.id}')">儲存</button>
     `,
   });
+  App.bindTaskTimeListeners();
 };
 
 App.saveTask = function(id) {
@@ -5120,13 +5166,12 @@ App.saveTask = function(id) {
   t.stage     = document.getElementById('tf-stage').value.trim();     // M2-2a：與同步/匯入同欄位，trim 同收集口徑
   t.subgroup  = document.getElementById('tf-subgroup').value.trim();
   t.predecessor  = App.serializePredecessors();  // M2-§6.4：結構化列序列化回字串（與 saveNewTask 共用同一函式，單一真實來源）
-  t.durationDays = parseFloat(document.getElementById('tf-duration').value) || 1;
+  t.durationDays = App.readDurationField();   // §6.5c：tf-end 反推為主、工期欄為輔（helper 單一真實來源）
   t.measureType = t.measureType || 'duration';  // 第27項：edit 鎖定計量制——保留既有值不從 form 覆寫；舊資料無此欄兜 duration
   t.urgency   = document.getElementById('tf-urgency').value;
   const startField = App.readStartField();   // 2-A：預計開始雙態（與 saveNewTask 共用同一取值邏輯）
   t.start     = startField.start;            // 手動態存值、自動態存 ''
   t.startMode = startField.startMode;
-  t.end       = document.getElementById('tf-end').value;
   t.actualStart = document.getElementById('tf-actualStart').value;
   t.actualEnd   = document.getElementById('tf-actualEnd').value;
   t.estHours  = parseFloat(document.getElementById('tf-hours').value) || 1;
