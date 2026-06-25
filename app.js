@@ -3873,7 +3873,7 @@ App.buildProjStagesHtml = function(proj) {
     const tier = pct === null ? 's0' : (pct >= 100 ? 's100' : (pct >= 50 ? 's50' : (pct > 0 ? 's1' : 's0')));
     const dateStr = rangeStr(st.earliestStart, st.latestEnd);
     const dateCls = (st.earliestStart || st.latestEnd) ? '' : ' stage-date-empty';
-    return `<div class="stage-row" data-tip="${U.esc('階段完成度|完成%=該階段任務進度平均(件數等權);件數=已完成/總數;日期=最早開始～最晚結束')}">
+    return `<div class="stage-row">
       <div class="stage-name">
         <div class="stage-name-txt">${U.esc(st.name)}</div>
         <div class="stage-date${dateCls}">${dateStr}</div>
@@ -3907,8 +3907,15 @@ App.buildProjStagesHtml = function(proj) {
 
   return `<div class="proj-stages-card">
     <div class="proj-stages-head">階段進度 <span class="proj-stages-count">${stages.length} 個階段</span></div>
+    ${App.buildHintBox({
+      key: 'stage-progress', icon: 'ti-stairs', title: '階段進度怎麼算', summary: '完成%、件數、日期的計算方式',
+      bodyHtml:
+        '<div class="ht-rule ht-start"><b>完成%</b><span>將這階段「所有任務的進度」加起來算平均（每個任務的影響力都一樣）。任務有寫進度就依比例計算；沒寫進度的話，已完成的算 100%、沒完成的算 0%。例：階段內有 4 個任務，進度分別是 100 / 50 / 0 / 0，平均下來該階段進度就是 38%。</span></div>' +
+        '<div class="ht-rule ht-dur"><b>件數</b><span>顯示「已完成的任務數 / 總任務數」。例：5/16 代表這個階段總共有 16 個任務，目前已經搞定 5 個。</span></div>' +
+        '<div class="ht-rule ht-end"><b>日期</b><span>自動抓取這階段裡「最早開始」到「最晚結束」的任務時間，代表整個階段預計要跑的時間跨度。</span></div>' +
+        '<div class="ht-rule ht-down"><b>同名階段分開算</b><span>主專案和子專案即使有同名的階段（例如都叫「手工機」），系統也會貼心地把它們各自獨立成一桶、分開計算，絕對不會混在一起。</span></div>'
+    })}
     ${blocks}
-    <div class="proj-stages-formula">完成% = 該階段任務進度平均(件數等權;無進度值以狀態折算:完成=100、其餘=0) · 件數 = 已完成 / 總數 · 日期 = 最早開始 ～ 最晚結束</div>
   </div>`;
 };
 
@@ -3958,7 +3965,7 @@ App.buildProjDeptHtml = function(proj) {
 
   const rows = entries.map(([name, g]) => {
     const seg = (n, cls) => n > 0 ? `<div class="dept-seg ${cls}" style="width:${(n / g.total * 100).toFixed(1)}%"></div>` : '';
-    return `<div class="dept-row" data-tip="${U.esc('部門負荷|依負責部門分組,看每個部門手上的工作量與進度')}">
+    return `<div class="dept-row">
       <div class="dept-name">${U.esc(name)}</div>
       <div class="dept-bar">${seg(g.done, 'done')}${seg(g.delayed, 'delayed')}${seg(g.wip, 'wip')}${seg(g.todo, 'todo')}</div>
       <div class="dept-cnt">${g.total} 件</div>
@@ -3998,8 +4005,15 @@ App.buildProjDeptHtml = function(proj) {
         <span class="dept-legend-item"><span class="dept-legend-dot todo"></span>待辦</span>
       </div>
     </div>
+    ${App.buildHintBox({
+      key: 'dept-load', icon: 'ti-users-group', title: '部門負荷怎麼看', summary: '掌握各部門的工作量與四種任務狀態',
+      bodyHtml:
+        '<div class="ht-rule ht-start"><b>怎麼分組</b><span>系統會自動依照任務的「負責部門」來分類，幫你盤點每個團隊手上有多少工作、目前進度到哪。如果任務沒有設定部門，就會統一收納在「未指派」。</span></div>' +
+        '<div class="ht-rule ht-dur"><b>四種狀態</b><span>每項任務只會落入一種狀態：已完成 / 延遲 / 進行中 / 待辦。下方的進度條就是依照這四種狀態的比例來上色的喔！</span></div>' +
+        '<div class="ht-rule ht-end"><b>什麼算延遲</b><span>只要任務「還沒完成」、「沒有被擱置」、「有設定完成日」，而且「完成日已經過了今天」，系統就會判定為延遲。沒設完成日的任務因為不知道何時該完工，所以不算延遲；「擱置中」則是刻意凍結的任務，也不會算進延遲裡。</span></div>' +
+        '<div class="ht-rule ht-down"><b>待辦包含什麼</b><span>「待辦」包含了：還沒有開始做的任務、被刻意擱置的任務，以及那些「沒有設定完成日」的任務，都會貼心地先幫你收在這裡。</span></div>'
+    })}
     ${rows}
-    <div class="proj-stages-formula">依${mode}分組(動態去重,依欄位原值、不拆多人);延遲口徑同 KPI DELAYED(不含擱置、無日期歸待辦);待辦=未開始+擱置</div>
     ${overdueHtml}
   </div>`;
 };
