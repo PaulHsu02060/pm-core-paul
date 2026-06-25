@@ -4723,7 +4723,7 @@ App.readDurationField = function() {
   const taskType = (document.getElementById('tf-taskType') || {}).value;
   if (taskType === 'milestone') return 1;
   if (start && endVal) return D.deriveDurationFromEnd(start, endVal);
-  return durRaw || 1;
+  return isNaN(durRaw) ? 1 : durRaw;   // §6.5 只在非數字時兜 1，0/負數照實回（負工期可手填）
 };
 
 // §6.5c 三欄連動：改開始/工期 → 算「預計完成」顯示值（開始當錨，addWorkdays(start, dur-1)）。
@@ -4737,7 +4737,7 @@ App.recalcTaskTimeFields = function() {
   const start = App.readEffStart();
   if (!start) return;                          // 待排（自動態無有效開始日）→ 不強寫
   const dur = parseFloat(durEl.value);
-  if (isNaN(dur) || dur < 1) return;           // milestone 工期恆1：addWorkdays(start,0)=start 不誤觸發
+  if (isNaN(dur)) return;              // §6.5 只擋非數字；dur≤0（負工期）照算 addWorkdays(start,dur-1)=早於start；milestone dur=1→addWorkdays(start,0)=start
   endEl.value = D.fmt(D.addWorkdays(start, dur - 1), 'iso');   // D.fmt iso 避時區 Bug2
 };
 
@@ -4861,7 +4861,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
       <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(getEffectiveSchedule(t).end)}"></div>
     </div>
     <div class="form-row mg-duration">
-      <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
+      <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" step="1"></div>
     </div>
     <div class="dur-only">${App.buildHintBox({
       key: 'task-time', icon: 'ti-clock-bolt', title: '時間怎麼連動', summary: '填兩個，第三個自動算',
