@@ -4700,11 +4700,18 @@ App.readStartField = function() {
   return { startMode: mode, start: mode === 'manual' ? val : '' };
 };
 
+// §6.5c 錨點：取有效開始日。手動態用 tf-start 手填值；自動態 tf-start 為空，改讀隱藏 tf-effstart（=getEffectiveSchedule(t).start，渲染時寫入）。
+App.readEffStart = function() {
+  const manual = (document.getElementById('tf-start') || {}).value || '';
+  if (manual) return manual;                                          // 手動態：手填值優先
+  return (document.getElementById('tf-effstart') || {}).value || '';  // 自動態：有效開始日
+};
+
 // §6.5c t.end 衍生化：save 端取工期。tf-end 反推為主（開始日當錨）、tf-duration 為輔（無法反推時）。
 //   start+endVal 都有 → deriveDurationFromEnd（含 negDur→回 0，不套 ||1 才不會把合法 0 蓋成 1）。
 //   milestone 工期恆 1，不反推。saveTask/saveNewTask 共用，單一真實來源。
 App.readDurationField = function() {
-  const start  = (document.getElementById('tf-start')    || {}).value || '';
+  const start  = App.readEffStart();
   const endVal = (document.getElementById('tf-end')      || {}).value || '';
   const durRaw = parseFloat((document.getElementById('tf-duration') || {}).value);
   const taskType = (document.getElementById('tf-taskType') || {}).value;
@@ -4720,8 +4727,8 @@ App.recalcTaskTimeFields = function() {
   const startEl = document.getElementById('tf-start');
   const durEl   = document.getElementById('tf-duration');
   const endEl   = document.getElementById('tf-end');
-  if (!startEl || !durEl || !endEl) return;
-  const start = startEl.value;
+  if (!durEl || !endEl) return;
+  const start = App.readEffStart();
   if (!start) return;                          // 待排（自動態無有效開始日）→ 不強寫
   const dur = parseFloat(durEl.value);
   if (isNaN(dur) || dur < 1) return;           // milestone 工期恆1：addWorkdays(start,0)=start 不誤觸發
@@ -4731,11 +4738,14 @@ App.recalcTaskTimeFields = function() {
 // 表單渲染後掛三欄連動：只綁 tf-start / tf-duration（改它們→算完成日）；
 //   tf-end 不綁（改完成日→反推工期是 save 端的事，綁了會蓋掉使用者輸入）。
 App.bindTaskTimeListeners = function() {
-  const startEl = document.getElementById('tf-start');
-  const durEl   = document.getElementById('tf-duration');
-  const f = () => App.recalcTaskTimeFields();
-  if (startEl) { startEl.addEventListener('input', f); startEl.addEventListener('change', f); }
-  if (durEl)   { durEl.addEventListener('input', f); durEl.addEventListener('change', f); }
+  if (App._taskTimeDelegated) return;            // 只綁一次，避免重複
+  App._taskTimeDelegated = true;
+  const f = (e) => {
+    const id = e.target && e.target.id;
+    if (id === 'tf-duration' || id === 'tf-start') App.recalcTaskTimeFields();
+  };
+  document.addEventListener('input', f);
+  document.addEventListener('change', f);
 };
 
 // ─── HintBox：區塊級說明框公版（展開/收起持久化 + 收起態 hover 浮出，複用 data-tip 引擎）───
@@ -4840,6 +4850,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
         </div>
       </div>
     </div>
+    <input type="hidden" id="tf-effstart" value="${v(getEffectiveSchedule(t).start)}">
     <div class="form-row dur-only">
       <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(getEffectiveSchedule(t).end)}"></div>
     </div>
