@@ -691,6 +691,44 @@ UI：狀態欄反灰唯讀，`?` hover 說明規則。
 **已套用者**：①Task 時間說明（key:'task-time'，工期欄下方）②階段進度卡（key:'stage-progress'，ti-stairs）③部門負荷卡（key:'dept-load'，ti-users-group）。
 **待續**：其餘散落說明（KPI data-tip 等）逐區塊收斂為第二階段，已套三處驗過後再評估。
 
+### 6.5c t.end 衍生化重構 spec（2026-06-25 定，回家重做，§6.5 四塊已全還原從乾淨 HEAD 重做）
+
+**為什麼重構**：今日施工 §6.5 四塊後發現根本矛盾——改預計完成（t.end）改不動。根因：getEffectiveSchedule 顯示優先序 `dispEnd = actualEnd || scheduledEnd || plannedEnd || t.end || ''`，引擎算的 scheduledEnd 優先序高於手填 t.end，使用者改的值存進 t.end 卻被 scheduledEnd 遮住看不到。本質＝把「預計完成」當成獨立資料層欄位（t.end），跟引擎算的 scheduledEnd 兩個來源打架。補丁式修法（甲：補破口）治標不治本、會補丁疊補丁，違反單一真實來源鐵則。
+
+**重構正解（使用者拍板）**：預計完成對排程態任務 = 開始日 + 工期的衍生顯示值，不獨立儲存。
+- 不存獨立 t.end、不跟 scheduledEnd 比優先序。
+- 使用者改預計完成 = 改工期（開始日當錨，workdaysBetween 換算成工期存）。
+- 顯示永遠 `addWorkdays(開始日, 工期-1)` 現算。
+- 單一真實來源 = 開始日 + 工期，永遠一致、不打架。
+- 使用者體驗不變：仍直接改完成日欄、照樣能改；只是系統內部存工期、不存 t.end。
+- 預計完成永遠當下算、不存系統、無資料可丟（除非開始日/工期本身掛）。
+
+**關鍵分辨（重構勿砍錯）**：
+- 預計完成 = 衍生值。砍掉 t.end 獨立儲存、改現算。不會要加回（它無獨立資訊量，永遠=開始日+工期，加回=製造重複/打架）。
+- 實際完成 = 事實，必須留資料層。算不出（現實不照工作日曆，加班/拖延/提早）、是排程輸入錨。實際>預計往下排（getEffectiveSchedule actual 優先）是現有正確邏輯，重構不碰。
+- 負工期 = 工期<0 這筆資料（存工期欄）。引擎算 scheduledEnd 早於開始日，忠實反映 + 列表標紅警示。透過工期表達，不需獨立 t.end。
+
+**§6.5 四塊重做計畫（從乾淨 HEAD 43eb132 重做，整合 t.end 衍生化）**：
+1. 三欄連動（recalcTaskTimeFields + 三欄 onchange）：改開始/工期→算完成日顯示；改完成日→換算工期存（核心：存工期不存 t.end）。錨點讀 tf-start.value（=getEffectiveSchedule(t).start，buildTaskFormHtml 已填，不繞查 task）。寫回顯示用 D.fmt(...,'iso') 避 Bug2 時區。
+2. 下游告知：save 時 applySchedule snapshot 比對、toast「已重排N個」只數真正變動排除自己。⚠ toast 篩選：砍「已重排N個」（實測94個太吵無意義）、留「N筆無法排程」失敗警示 + 「已儲存」。
+3. 負工期彈窗：兩觸發（手填負工期、預計完成<開始）→存檔自訂彈窗（⚠ 不用原生 confirm，醜；做設計感 modal，配色圓角走 :root）「工期為負數，確認要這樣修改嗎？系統照您輸入儲存」按確認才存、取消留表單，不用 toast。判定 (end<start)||(dur≤0) 涵蓋 auto/manual。milestone 工期恆1不誤觸發。
+4. 列表標示：buildTaskRowHtml 偵測 negDur → 整列淡紅底（--rose-l）+ 行首紅三角（--rose）+ 區間欄標紅（--rose-ink，用專屬 class task-range 避與第10欄 task-deadline 共用）+ hover data-tip「負工期|工期為負數，請確認是否調整」。CSS 走 :root rose 家族。t.end 衍生化後塊二入口A（end<start）才真正活（重構前是半活、只 durationDays≤0 入口在作用）。
+
+**今日勘查成果（重用，回家不必重撈）**：
+- 三欄 HTML app.js:4783-4802（tf-start 雙態、tf-end 與 Deadline 併欄、tf-duration）；saveNewTask 寫 4948-4954、saveTask 寫 5123-5129。
+- addWorkdays:502-513、workdaysBetween:484-496（s>e 回0，負工期靠 save 端比日期）現成可用。
+- isWorkday:463-480（補班>放假>workDays，base.holidays 空靠匯入）。
+- getEffectiveSchedule:1897-1912（actual>scheduled>planned>start，無 override 層）。
+- applySchedule:1565（computeSchedule 整鏈 + anchorSource manual skip 1580；⚠ 手填跳過時 scheduledEnd 殘留沒清 = 遮 t.end 主因之一，重構要處理）。
+- buildTaskRowHtml:4078-4156（10欄無工期欄、第8欄區間 task-deadline 與第10欄共用）。
+- 確認彈窗全站現用原生 confirm()（重構改自訂 modal）。
+
+**測試**：docs/test-bidirectional-65.py（16案全綠、Excel WORKDAY 口徑、含端午6/19跨假日、台灣假日28筆）已 commit，回家直接重用驗連動公式。
+
+**核心哲學（重構勿繞錯）**：錨定計算≠使用者能不能改（鎖任何欄位都錯）；系統忠實連動不替使用者做主；連動讓引擎卡 bug = 核心沒達需求要修核心；病根 = 最早 UI 錨定按鈕📌（§6.8 廢除 a9499a4）「釘住才不連動」錯前提。
+
+**deadline 拆欄**：獨立另一批（現況預計完成/Deadline 併 tf-end 單欄、t.deadline 不存在）。
+
 ### 6.6 Deadline（未做）
 
 - 新增欄位，手填截止日。
