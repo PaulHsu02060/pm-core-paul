@@ -1906,7 +1906,10 @@ function getEffectiveSchedule(task) {
   // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)
   // ⚠ 用 || 不用 ??：空字串也要 fallback 到下層
   const dispStart = (task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
-  const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || '');
+  const _derivedEnd = (dispStart && task.durationDays)
+    ? D.fmt(D.addWorkdays(dispStart, Math.max(1, parseFloat(task.durationDays) || 1) - 1), 'iso')
+    : '';
+  const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || _derivedEnd || '');
   return {
     start: dispStart,
     end: dispEnd,
