@@ -1637,6 +1637,11 @@ deadline 欄）。因 `task.deadline` 仍不存在（§6.6 未做），落地改
 
 ## 第十部分：工作鐵則
 
+**設計文件先行鐵則（最高優先，每 session 預設遵守、不需額外觸發）**
+- Claude（對話端）每次新 session／開始對話，先讀本架構文件（單一真實來源：各部分定案、§9 todo、§8d 各節）再回應，不靠使用者提醒。
+- Claude 給 Claude Code 的每批施工指令，第一步固定是「先讀相關設計節」（如塊3b 先讀 §4.8.7.5、第二階先讀 §8d.17/§8d.18），把讀文件當指令開頭、非選配。
+- 理由：架構文件是唯一規格真實來源，不先讀就動工＝憑記憶施工＝走樣（前科：誤把舊快照當基底刪 400 行、層三讀反、欄位憑空設計）。
+
 **Git commit-gate（最高優先）**
 - 嚴禁 `git add` 與 `commit` 串成一條（禁 `&&`/`;`）。
 - commit 前單獨 `git status`，完整輸出給使用者，確認只有預期檔、無 local 機密檔（config.local.js/seed.local.js/seed.sample.js/_probe*.js）後，才 add → commit → push。
