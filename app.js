@@ -5946,13 +5946,20 @@ App._s2SlackHtml = function(variantId) {
   const wkd = (iso) => iso ? '（週' + ['日','一','二','三','四','五','六'][new Date(iso).getDay()] + '）' : '';
   const sd = v.schedule.startDate, ed = v.schedule.endDate;
   const msg = s.light === 'green' ? ('時間充足，還有 ' + s.slack + ' 個工作天緩衝')
-    : s.light === 'yellow' ? '時間偏緊，任何延誤都可能超期'
-    : ('時間不足，照此工期會超出結束日 ' + s.overDays + ' 個工作天');
+    : s.light === 'yellow' ? ('時間偏緊，只剩 ' + s.slack + ' 個工作天緩衝，任何延誤都可能時程延誤、緩衝期較少')
+    : ('時間不足，照專案範本的工期排，比需求的最快完成日晚 ' + s.overDays + ' 個工作天');
+  const diffTxt = s.light === 'green' ? ('多出 ' + s.slack)
+    : s.light === 'yellow' ? ('只多 ' + s.slack)
+    : ('少了 ' + Math.abs(s.slack));
+  const fastest = (s.light === 'red' && s.earliestFinish)
+    ? '<span class="s2-slack-fastest">實際最快完成 ' + fmtD(s.earliestFinish) + wkd(s.earliestFinish) + '（晚 ' + s.overDays + ' 個工作天）</span>'
+    : '';
   return '<div class="s2-slack s2-slack-' + s.light + '">' +
     '<span class="s2-slack-dot"></span>' +
     '<span class="s2-slack-msg">' + msg + '</span>' +
-    '<span class="s2-slack-nums">可用 ' + s.available + ' ／ 需要 ' + s.needed + ' ／ 餘裕 ' + s.slack + ' 工作天</span>' +
-    '<span class="s2-slack-dates">' + fmtD(sd) + wkd(sd) + ' → ' + fmtD(ed) + wkd(ed) + '</span>' +
+    '<span class="s2-slack-period">需求專案週期 ' + fmtD(sd) + wkd(sd) + ' → ' + fmtD(ed) + wkd(ed) + '</span>' +
+    '<span class="s2-slack-nums">可排工作天 ' + s.available + ' ／ 任務需要 ' + s.needed + ' ／ ' + diffTxt + '</span>' +
+    fastest +
   '</div>';
 };
 // 點階段：設選中 → 只重繪該案（軸高亮 + 清單篩選），不洗整頁（已改 owner/mustDeliver 存 _tplPreview 不掉）。

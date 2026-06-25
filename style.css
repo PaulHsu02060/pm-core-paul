@@ -1557,6 +1557,18 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-ins { border: none; background: none; cursor: pointer; color: var(--stone-400); font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: var(--r6); }
 .s2-ins:hover { color: var(--sage-600); background: var(--sage-100); }
 
+/* ── 範本第二階段：interval 餘裕燈號（三態染色＋五欄排版，§4.8.7.4 配色方案 B）── */
+.s2-slack { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r8); border: 0.5px solid; margin-bottom: 8px; }
+.s2-slack-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.s2-slack-msg { font-size: 13px; font-weight: 500; }
+.s2-slack-period, .s2-slack-nums, .s2-slack-fastest { font-size: 11px; }
+.s2-slack-green { background: var(--sage-50); border-color: var(--sage-600); color: var(--sage-700); }
+.s2-slack-green .s2-slack-dot { background: var(--sage-600); }
+.s2-slack-yellow { background: var(--amber-l); border-color: var(--amber-accent); color: var(--amber-ink); }
+.s2-slack-yellow .s2-slack-dot { background: var(--amber-accent); }
+.s2-slack-red { background: var(--rose-l); border-color: var(--rose); color: var(--rose-ink); }
+.s2-slack-red .s2-slack-dot { background: var(--rose); }
+
 /* ── 範本第二階段 步驟3：Gantt 階段軸（點階段切換清單）── */
 .s2-gantt-axis { margin: 4px 0 12px; }
 .s2-grow { display: flex; align-items: center; gap: 10px; padding: 4px 6px; border-radius: var(--r6); cursor: pointer; }
