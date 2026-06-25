@@ -1904,8 +1904,10 @@ function getEffectiveSchedule(task) {
   // 顯示優先序：actual(已開工) > scheduled(排程算) > planned(初始預計) > start(手填)
   // ⚠ 用 || 不用 ??：空字串也要 fallback 到下層
   const dispStart = (task.actualStart || task.scheduledStart || task.plannedStart || task.start || '');
-  const _derivedEnd = (dispStart && task.durationDays)
-    ? D.fmt(D.addWorkdays(dispStart, Math.max(1, parseFloat(task.durationDays) || 1) - 1), 'iso')
+  const _durNum = parseFloat(task.durationDays);
+  // §6.5 負工期：dur≤0 也算 end（addWorkdays 支援負位移，dur=0→前一工作日、dur<0 更早）；milestone dur=1→addWorkdays(start,0)=start。
+  const _derivedEnd = (dispStart && !isNaN(_durNum))
+    ? D.fmt(D.addWorkdays(dispStart, _durNum - 1), 'iso')
     : '';
   const dispEnd   = (task.actualEnd   || task.scheduledEnd   || task.plannedEnd   || _derivedEnd || '');
   return {
@@ -4135,7 +4137,7 @@ App.buildTaskRowHtml = function(t, cls) {
   }
 
   return `<tr class="task-row ${t.status === 'done' ? 'done' : ''} ${_negDur ? 'neg-dur' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
-    <td class="col-num"><span style="font-family:var(--mono); font-size:11px; color:var(--ink4);">${App._seqOf(t.id)}</span></td>
+    <td class="col-num">${_negDur ? '<span class="neg-flag" data-tip="負工期|工期為負數，請確認是否調整">⚠</span>' : ''}<span style="font-family:var(--mono); font-size:11px; color:var(--ink4);">${App._seqOf(t.id)}</span></td>
     <td class="col-mid"><span style="font-size:12px; color:var(--ink2);">${U.esc(t.stage || '—')}</span></td>
     <td class="col-flex" title="${U.esc(t.name)}">
       <div class="task-info">
