@@ -5553,30 +5553,7 @@ App._renderStage2 = function() {
     const a = starts[0], b = ends[ends.length - 1];
     return (a || b) ? (fmtD(a) + ' \u2192 ' + fmtD(b)) : '（待排程）';
   };
-  // 餘裕燈號（interval 才顯示，§4.8.7.4）：星期幾沿用既有 idiom；slackOf 複用 _effScheduleDir 判定（單一真實來源）。
-  const wkd = (iso) => iso ? '（週' + ['日','一','二','三','四','五','六'][new Date(iso).getDay()] + '）' : '';
-  const slackOf = (vid) => {
-    const v = variants.find(x => x.id === vid);
-    if (!v || App._effScheduleDir(v.schedule.startDate, v.schedule.endDate, v.schedule.direction) !== 'interval') return null;
-    const ts = tasks.filter(t => t.variant === vid);
-    const results = ts.map(t => ({ lateStart: t.plannedStart || null, lateFinish: t.plannedEnd || null }));
-    return App._computeSlack(results, v.schedule.startDate, v.schedule.endDate);
-  };
-  const slackHtml = (vid) => {
-    const s = slackOf(vid);
-    if (!s) return '';
-    const v = variants.find(x => x.id === vid);
-    const sd = v.schedule.startDate, ed = v.schedule.endDate;
-    const msg = s.light === 'green' ? ('時間充足，還有 ' + s.slack + ' 個工作天緩衝')
-      : s.light === 'yellow' ? '時間偏緊，任何延誤都可能超期'
-      : ('時間不足，照此工期會超出結束日 ' + s.overDays + ' 個工作天');
-    return '<div class="s2-slack s2-slack-' + s.light + '">' +
-      '<span class="s2-slack-dot"></span>' +
-      '<span class="s2-slack-msg">' + msg + '</span>' +
-      '<span class="s2-slack-nums">可用 ' + s.available + ' ／ 需要 ' + s.needed + ' ／ 餘裕 ' + s.slack + ' 工作天</span>' +
-      '<span class="s2-slack-dates">' + fmtD(sd) + wkd(sd) + ' → ' + fmtD(ed) + wkd(ed) + '</span>' +
-    '</div>';
-  };
+
   const help =
     '<div class="stage2-help">' +
       '<div class="stage2-help-head">\u2753 填寫說明</div>' +
@@ -5597,6 +5574,7 @@ App._renderStage2 = function() {
           '<span class="s2-case-name">' + U.esc(v.name || '') + '</span>' +
           '<span class="s2-case-range">' + caseRange(v.id) + '</span>' +
         '</div>' +
+        '<div class="s2-slack-wrap" data-variant="' + v.id + '">' + this._s2SlackHtml(v.id) + '</div>' +
         '<div class="s2-gantt" data-variant="' + v.id + '">' + this._s2GanttHtml(v.id) + '</div>' +
         '<div class="s2-list" data-variant="' + v.id + '">' + this._s2ListHtml(v.id) + '</div>' +
       '</div>';
@@ -5944,6 +5922,29 @@ App._s2GanttHtml = function(variantId) {
   });
   return '<div class="s2-gantt-axis">' + rows + '</div>';
 };
+// 餘裕燈號 HTML（interval 才顯示，§4.8.7.4）：純讀 _tplPreview，初繪與 refresh 共用（單一真實來源）。
+// 非 interval（純 forward/backward）回 '' 不顯示（§4.8.5：餘裕需雙錨開始+結束）。
+App._s2SlackHtml = function(variantId) {
+  const res = this._tplPreview; if (!res) return '';
+  const v = (res.variants || []).find(x => x.id === variantId);
+  if (!v || App._effScheduleDir(v.schedule.startDate, v.schedule.endDate, v.schedule.direction) !== 'interval') return '';
+  const ts = (res.tasks || []).filter(t => t.variant === variantId);
+  const results = ts.map(t => ({ lateStart: t.plannedStart || null, lateFinish: t.plannedEnd || null }));
+  const s = App._computeSlack(results, v.schedule.startDate, v.schedule.endDate);
+  if (!s) return '';
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  const wkd = (iso) => iso ? '（週' + ['日','一','二','三','四','五','六'][new Date(iso).getDay()] + '）' : '';
+  const sd = v.schedule.startDate, ed = v.schedule.endDate;
+  const msg = s.light === 'green' ? ('時間充足，還有 ' + s.slack + ' 個工作天緩衝')
+    : s.light === 'yellow' ? '時間偏緊，任何延誤都可能超期'
+    : ('時間不足，照此工期會超出結束日 ' + s.overDays + ' 個工作天');
+  return '<div class="s2-slack s2-slack-' + s.light + '">' +
+    '<span class="s2-slack-dot"></span>' +
+    '<span class="s2-slack-msg">' + msg + '</span>' +
+    '<span class="s2-slack-nums">可用 ' + s.available + ' ／ 需要 ' + s.needed + ' ／ 餘裕 ' + s.slack + ' 工作天</span>' +
+    '<span class="s2-slack-dates">' + fmtD(sd) + wkd(sd) + ' → ' + fmtD(ed) + wkd(ed) + '</span>' +
+  '</div>';
+};
 // 點階段：設選中 → 只重繪該案（軸高亮 + 清單篩選），不洗整頁（已改 owner/mustDeliver 存 _tplPreview 不掉）。
 App._s2SelectStage = function(variantId, si) {
   const g = this._s2GroupByStage(variantId);
@@ -5954,6 +5955,8 @@ App._s2SelectStage = function(variantId, si) {
 };
 // 只重繪單一案別的 Gantt 軸 + 任務清單（讀 _tplPreview，已改值不掉）。
 App._s2RefreshCase = function(variantId) {
+  const slack = document.querySelector('.s2-slack-wrap[data-variant="' + variantId + '"]');
+  if (slack) slack.innerHTML = this._s2SlackHtml(variantId);
   const gantt = document.querySelector('.s2-gantt[data-variant="' + variantId + '"]');
   if (gantt) gantt.innerHTML = this._s2GanttHtml(variantId);
   const list = document.querySelector('.s2-list[data-variant="' + variantId + '"]');
