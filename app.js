@@ -4733,8 +4733,8 @@ App.recalcTaskTimeFields = function() {
 App.bindTaskTimeListeners = function() {
   const startEl = document.getElementById('tf-start');
   const durEl   = document.getElementById('tf-duration');
-  if (startEl) startEl.addEventListener('change', () => App.recalcTaskTimeFields());
-  if (durEl)   durEl.addEventListener('change', () => App.recalcTaskTimeFields());
+  if (startEl) startEl.addEventListener('input', () => App.recalcTaskTimeFields());
+  if (durEl)   durEl.addEventListener('input', () => App.recalcTaskTimeFields());
 };
 
 // ─── HintBox：區塊級說明框公版（展開/收起持久化 + 收起態 hover 浮出，複用 data-tip 引擎）───
