@@ -10028,7 +10028,6 @@ App.performExcelImport = function() {
       task.desc = desc;
       task.owner = latest.owner;
       task.start = task.actualStart || firstActualStart;
-      task.end = latest.planEnd || latest.weekMonday;
       task.plannedEnd = latest.planEndOriginal;
       task.actualStart = task.actualStart || firstActualStart;
       task.actualEnd = actualEnd;
@@ -10053,7 +10052,6 @@ App.performExcelImport = function() {
         estHours: 2,
         canSplit: true,
         start: firstActualStart,
-        end: latest.planEnd || latest.weekMonday,
         plannedEnd: latest.planEndOriginal,
         actualStart: firstActualStart,
         actualEnd: actualEnd,
