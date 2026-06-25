@@ -691,7 +691,7 @@ UI：狀態欄反灰唯讀，`?` hover 說明規則。
 **已套用者**：①Task 時間說明（key:'task-time'，工期欄下方）②階段進度卡（key:'stage-progress'，ti-stairs）③部門負荷卡（key:'dept-load'，ti-users-group）。
 **待續**：其餘散落說明（KPI data-tip 等）逐區塊收斂為第二階段，已套三處驗過後再評估。
 
-### 6.5c t.end 衍生化重構 spec（2026-06-25 定，回家重做，§6.5 四塊已全還原從乾淨 HEAD 重做）
+### 6.5c t.end 衍生化重構 spec（2026-06-25 定，【已落地 2026-06-25】五塊全完成）
 
 **為什麼重構**：今日施工 §6.5 四塊後發現根本矛盾——改預計完成（t.end）改不動。根因：getEffectiveSchedule 顯示優先序 `dispEnd = actualEnd || scheduledEnd || plannedEnd || t.end || ''`，引擎算的 scheduledEnd 優先序高於手填 t.end，使用者改的值存進 t.end 卻被 scheduledEnd 遮住看不到。本質＝把「預計完成」當成獨立資料層欄位（t.end），跟引擎算的 scheduledEnd 兩個來源打架。補丁式修法（甲：補破口）治標不治本、會補丁疊補丁，違反單一真實來源鐵則。
 
@@ -728,6 +728,17 @@ UI：狀態欄反灰唯讀，`?` hover 說明規則。
 **核心哲學（重構勿繞錯）**：錨定計算≠使用者能不能改（鎖任何欄位都錯）；系統忠實連動不替使用者做主；連動讓引擎卡 bug = 核心沒達需求要修核心；病根 = 最早 UI 錨定按鈕📌（§6.8 廢除 a9499a4）「釘住才不連動」錯前提。
 
 **deadline 拆欄**：獨立另一批（現況預計完成/Deadline 併 tf-end 單欄、t.deadline 不存在）。
+
+**【§6.5 落地紀錄 2026-06-25（五塊全完成，t.end 全檔絕跡）】**
+
+- 塊一 t.end 衍生化主線（commit 8036d52→d37391f）：App.recalcTaskTimeFields 三欄連動（改開始/工期→現算 addWorkdays(有效開始日,dur-1) 寫 tf-end 顯示）；App.bindTaskTimeListeners 改 document 事件委派（_taskTimeDelegated 只綁一次，因自動態 tf-start 不在 DOM，個別綁不到）；App.readEffStart（tf-start.value 優先、否則讀隱藏欄 tf-effstart=getEffectiveSchedule(t).start）解決自動態錨點空；recalc guard 移除 !startEl；getEffectiveSchedule dispEnd 衍生兜底（actual||scheduled||planned 全空→現算 addWorkdays(dispStart,max(1,dur)-1)）；save 端 readDurationField（start+end 都有→deriveDurationFromEnd 反推工期，存 durationDays 不存 t.end）。實測通過：手填錨點任務改工期→視窗內即時跳+存檔外層即時變+重開不空。
+- 塊二刀① isTaskBlocked（commit e70b407）：衝突檢查改讀 getEffectiveSchedule(task/dep) 衍生 start/end，移除原 dep.end 空補算窄修補丁（衍生兜底已涵蓋），FF/SF 不再讀 undefined；清過時 bug 註解。回歸 test-schedule-cases 160/0。
+- 塊三 負工期確認 modal（commit 500eda2）：B 案 #confirmOverlay 獨立第二層 overlay（z-confirm:520 疊 modal 500 上），App.confirmModal 公版渲染至此不炸底層任務表單；saveTask/saveNewTask 加 _skipNegCheck 旗標分流，負工期（readEffStart 統一口徑、排除 milestone）跳「工期為負數，系統照您輸入儲存」modal，確認→saveXxx(...,true) 強制存、取消留表單，取代舊「擋死 toast」guard。
+- 塊四 負工期列表標紅（commit 15583e6）：buildTaskRowHtml 加 _negDur 判定（end<start||dur≤0，排除 milestone），整列 neg-dur 淡紅底（--rose-l）、區間欄拆專屬 task-range class（避免污染截止欄 task-deadline）標 --rose-ink、hover data-tip。
+- 塊1.5 移除 J 同步 task.end 死寫（commit 1be7bb3）：J 同步原寫 task.end=latest.planEnd（更新+新建兩處），塊一砍 t.end 後全檔零讀取，移除；J 完成日靠 plannedEnd（原始計畫）+衍生兜底承接。
+- t.end 全檔絕跡（grep "task.end ="/"t.end =" 皆 0）。單一真實來源＝開始日+工期，完成日全程衍生不儲存。實際完成 actualEnd 留資料層（事實、排程錨）。
+
+**【§6.5 B2 待議（獨立批，產品語意決策）】** J 系列延誤任務的「有效完成日」目前顯示原始計畫（plannedEnd=planEndOriginal），延長後日期（Excel "A->B" 的 B）只在 history 表可見、不經 getEffectiveSchedule。若認定「延長後才該是有效完成日」，需把 task.plannedEnd 改接 latest.planEnd（延長值）、planEndOriginal 留 history 對照——屬行為變更，待產品決策後另開批次。
 
 ### 6.6 Deadline（未做）
 
