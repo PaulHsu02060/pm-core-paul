@@ -4702,8 +4702,7 @@ App.buildHintBox = function(opts) {
   const collapsed = !!(DATA.settings.hintBoxState || {})[key];
   const icon = o.icon ? `<i class="ti ${o.icon}"></i>` : '';
   const summary = o.summary ? `<span class="hintbox-summary">${U.esc(o.summary)}</span>` : '';
-  const plain = String(o.bodyHtml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  const tip = collapsed ? ` data-tip="${U.esc((o.title || '') + '|' + plain)}"` : '';
+  const tip = collapsed ? ` data-tip="${U.esc((o.title || '') + '|' + (o.summary || '') + ' — 點擊展開看完整說明')}"` : '';
   return `<div class="hintbox${collapsed ? ' collapsed' : ''}" data-hintkey="${U.esc(key)}">
     <div class="hintbox-bar" onclick="App.toggleHintBox('${U.esc(key)}')"${tip}>
       <span class="hintbox-head">${icon}<b class="hintbox-title">${U.esc(o.title || '')}</b>${summary}</span>
@@ -4727,8 +4726,8 @@ App.toggleHintBox = function(key) {
   if (bar) {
     if (collapsed) {
       const title = (box.querySelector('.hintbox-title') || {}).textContent || '';
-      const plain = ((box.querySelector('.hintbox-body') || {}).textContent || '').replace(/\s+/g, ' ').trim();
-      bar.setAttribute('data-tip', title + '|' + plain);
+      const summary = (box.querySelector('.hintbox-summary') || {}).textContent || '';
+      bar.setAttribute('data-tip', title + '|' + summary + ' — 點擊展開看完整說明');
     } else {
       bar.removeAttribute('data-tip');
     }
