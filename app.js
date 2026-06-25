@@ -4978,7 +4978,7 @@ App.openHoursTaskDialog = function() {
   setTimeout(() => { const n = document.getElementById('tf-name'); if (n) n.focus(); }, 50);
 };
 
-App.saveNewTask = function(projId) {
+App.saveNewTask = function(projId, _skipNegCheck) {
   if (App._roGuard()) return;
   // M2 表單改造：必填檢查（專案/名稱/擔當/類型/階段/預計開始；house style：toast warning + return）
   if (!(document.getElementById('tf-project').value || '').trim()) { U.toast('⚠ 請選擇專案', 'warning'); return; }
@@ -4990,10 +4990,13 @@ App.saveNewTask = function(projId) {
 
   const status = document.getElementById('tf-status').value;
   const startField = App.readStartField();   // 2-A：預計開始雙態 → {start, startMode}（與 saveTask 共用）
-  // 日期合理性：預計完成不得早於預計開始（兩值都有才比，ISO 字串比＝日期序）
+  // §6.5 塊三：負工期（完成早於開始）不擋死，改 confirm modal。判定讀 readEffStart 與 save 端/塊四口徑一致（涵蓋自動態）。
+  const _negStart = App.readEffStart();
   const _pEnd = document.getElementById('tf-end').value;
-  if (startField.start && _pEnd && _pEnd < startField.start) {
-    U.toast('⚠ 預計完成日不能早於預計開始日', 'warning'); return;
+  const _taskTypeV = document.getElementById('tf-taskType').value;
+  if (!_skipNegCheck && _taskTypeV !== 'milestone' && _negStart && _pEnd && _pEnd < _negStart) {
+    App.confirmModal({ title: '工期為負數', msg: '預計完成日早於開始日（工期為負數），確認要這樣修改嗎？系統會照您輸入儲存。', okText: '確認儲存', cancelText: '取消', onConfirm: () => App.saveNewTask(projId, true) });
+    return;
   }
   const task = {
     id: U.id(),
@@ -5151,7 +5154,7 @@ App.openTaskModal = function(id) {
   App.bindTaskTimeListeners();
 };
 
-App.saveTask = function(id) {
+App.saveTask = function(id, _skipNegCheck) {
   if (App._roGuard()) return;
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
@@ -5162,11 +5165,13 @@ App.saveTask = function(id) {
   if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
   if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
 
-  // 日期合理性（先驗再 mutate；startField 此處尚未宣告，直接讀 readStartField）
-  const _pStart = App.readStartField().start;
+  // §6.5 塊三：負工期（完成早於開始）不擋死，改 confirm modal（核心哲學：不替使用者做主、只提示）。判定讀 readEffStart 與塊四/save 端口徑一致（涵蓋自動態）。
+  const _negStart = App.readEffStart();
   const _pEnd = document.getElementById('tf-end').value;
-  if (_pStart && _pEnd && _pEnd < _pStart) {
-    U.toast('⚠ 預計完成日不能早於預計開始日', 'warning'); return;
+  const _taskTypeV = document.getElementById('tf-taskType').value;
+  if (!_skipNegCheck && _taskTypeV !== 'milestone' && _negStart && _pEnd && _pEnd < _negStart) {
+    App.confirmModal({ title: '工期為負數', msg: '預計完成日早於開始日（工期為負數），確認要這樣修改嗎？系統會照您輸入儲存。', okText: '確認儲存', cancelText: '取消', onConfirm: () => App.saveTask(id, true) });
+    return;
   }
   const _aS = document.getElementById('tf-actualStart').value;
   const _aE = document.getElementById('tf-actualEnd').value;
@@ -10168,6 +10173,31 @@ App.showOnboarding = function() {
       <button class="tb-action" onclick="App.closeModal()" style="padding:10px 28px;">開始使用 →</button>
     `,
   });
+};
+
+// §6.5 塊三：confirm 公版——渲染到獨立 #confirmOverlay（z 疊在 #modal 上），不覆寫 #modal，底下表單原封不動。
+App.confirmModal = function(opts) {
+  const o = opts || {};
+  const el = document.getElementById('confirmOverlay');
+  el.innerHTML = `<div class="confirm-box">
+    <div class="confirm-title" style="font-weight:600;font-size:15px;">${o.title || '請確認'}</div>
+    <div class="confirm-msg">${o.msg || ''}</div>
+    <div class="confirm-actions">
+      <button class="tb-action ghost" onclick="App._confirmModalClose()">${o.cancelText || '取消'}</button>
+      <button class="tb-action" onclick="App._confirmModalYes()">${o.okText || '確認'}</button>
+    </div></div>`;
+  el.style.display = 'flex';
+  App._confirmModalCb = o.onConfirm || null;
+};
+App._confirmModalClose = function() {
+  const el = document.getElementById('confirmOverlay');
+  el.style.display = 'none'; el.innerHTML = '';
+  App._confirmModalCb = null;
+};
+App._confirmModalYes = function() {
+  const cb = App._confirmModalCb;
+  App._confirmModalClose();
+  if (cb) cb();
 };
 
 App.openModal = function({ title, body, footer }) {

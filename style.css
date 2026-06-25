@@ -80,6 +80,7 @@
 
   /* 全域層級階梯(元件內部相對疊序不在此列,維持就地寫死) */
   --z-sticky: 10; --z-dropdown: 50; --z-modal: 500;
+  --z-confirm: 520;   /* §6.5 塊三：確認對話框，疊在 modal(500) 上、tooltip(550) 下 */
   --z-tooltip: 550; --z-toast: 600; --z-overlay: 1000;   /* tooltip 蓋 modal、不蓋 toast */
   --z-dev: 1100;   /* DEV 身份面板，須蓋過 login overlay 才能在登入頁切身份 */
 
@@ -1269,6 +1270,11 @@ body.viewonly .cloud-sync-sec { display: none; }
 
 /* ─── MODAL ─── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(26,22,18,.5); z-index: var(--z-modal); display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+/* §6.5 塊三：confirm 第二層 overlay（疊在 #modal 上、獨立容器不覆寫表單）。背景 rgba 屬透明衍生例外。 */
+.confirm-overlay { position: fixed; inset: 0; z-index: var(--z-confirm); display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.35); }
+.confirm-box { background: var(--surface); border-radius: var(--r12); padding: 20px 24px; max-width: 380px; box-shadow: var(--shadow-lg); }
+.confirm-msg { font-size: 14px; line-height: 1.6; color: var(--ink2); padding: 4px 0 16px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .modal-overlay.open { display: flex; animation: fadeIn .15s ease both; }
 .modal { background: var(--surface); border-radius: var(--r16); width: 540px; max-width: calc(100vw - 32px); max-height: 85vh; overflow: hidden; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; animation: modalIn .2s ease both; }
 @keyframes modalIn { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
