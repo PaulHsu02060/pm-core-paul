@@ -1309,6 +1309,25 @@ body.viewonly .cloud-sync-sec { display: none; }
 .field-hint { font-size: 11px; color: var(--ink3); line-height: 1.5; }
 .pred-intro { margin-bottom: var(--r4); }
 
+/* ── HintBox：區塊級說明框公版（展開/收起 + 收起態 hover 浮出 data-tip，§6.5b）── */
+.hintbox { border: 0.5px solid var(--sage-100); border-radius: var(--r8); background: var(--surface); margin: 10px 0; }
+.hintbox-bar { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 9px 12px; }
+.hintbox-head { display: flex; align-items: center; gap: 8px; flex: 1; }
+.hintbox-bar i { font-size: 18px; color: var(--sage-600); }
+.hintbox-title { font-weight: 500; color: var(--ink); }
+.hintbox-summary { font-size: 12px; color: var(--ink3); }
+.hintbox-toggle { font-size: 12px; color: var(--sage-600); }
+.hintbox-body { overflow: hidden; max-height: 600px; transition: max-height .25s ease; padding: 0 12px 12px; }
+.hintbox.collapsed .hintbox-body { max-height: 0; padding-top: 0; padding-bottom: 0; }
+/* HintBox 內四條規則色塊（成對 -l 底 / -ink 字，全走 :root） */
+.ht-rule { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; border-radius: var(--r6); margin-bottom: 6px; font-size: 12px; line-height: 1.6; }
+.ht-rule:last-child { margin-bottom: 0; }
+.ht-rule b { flex: none; font-weight: 600; }
+.ht-rule.ht-start { background: var(--sage-50); color: var(--sage-700); }
+.ht-rule.ht-dur { background: var(--amber-l); color: var(--amber-ink); }
+.ht-rule.ht-end { background: var(--slate-l); color: var(--slate-ink); }
+.ht-rule.ht-down { background: var(--rose-l); color: var(--rose-ink); }
+
 /* 2-A：預計開始「自動／手動」雙態（data-mode 顯隱對應子區塊） */
 .startmode { display: flex; flex-direction: column; gap: var(--r4); }
 .startmode[data-mode="auto"] .startmode-manual { display: none; }

@@ -89,6 +89,8 @@ const DEFAULT_SETTINGS = {
   splitThreshold: 4,
   doneRetentionDays: 30,
   previewWeeks: 2,
+  // HintBox 區塊級說明框收合狀態：{ [key]: true=收起 }；undefined/false=展開（預設展開）。整包隨 settings 持久化＋上雲。
+  hintBoxState: {},
   // 【需求 A】手動釘選到本週的 task id；釘選後不因 plannedStart 在未來被排程踢出
   pinnedWeekTaskIds: [],
   // Google OAuth 白名單（只有這些 Gmail 登入後才能編輯）
@@ -4677,6 +4679,48 @@ App.readStartField = function() {
   return { startMode: mode, start: mode === 'manual' ? val : '' };
 };
 
+// ─── HintBox：區塊級說明框公版（展開/收起持久化 + 收起態 hover 浮出，複用 data-tip 引擎）───
+//   state 存 DATA.settings.hintBoxState[key]：undefined/false=展開、true=收起（預設展開）。
+//   收起態標題列掛 data-tip（標題|body 純文字），hover 浮出；觸控無 hover 則點擊展開。
+App.buildHintBox = function(opts) {
+  const o = opts || {};
+  const key = o.key || '';
+  const collapsed = !!(DATA.settings.hintBoxState || {})[key];
+  const icon = o.icon ? `<i class="ti ${o.icon}"></i>` : '';
+  const summary = o.summary ? `<span class="hintbox-summary">${U.esc(o.summary)}</span>` : '';
+  const plain = String(o.bodyHtml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const tip = collapsed ? ` data-tip="${U.esc((o.title || '') + '|' + plain)}"` : '';
+  return `<div class="hintbox${collapsed ? ' collapsed' : ''}" data-hintkey="${U.esc(key)}">
+    <div class="hintbox-bar" onclick="App.toggleHintBox('${U.esc(key)}')"${tip}>
+      <span class="hintbox-head">${icon}<b class="hintbox-title">${U.esc(o.title || '')}</b>${summary}</span>
+      <span class="hintbox-toggle">${collapsed ? '展開▾' : '收起▴'}</span>
+    </div>
+    <div class="hintbox-body">${o.bodyHtml || ''}</div>
+  </div>`;
+};
+// 點標題列 toggle：寫 state + Storage.save，局部換 class（不整頁重繪）；收起態補掛 data-tip、展開態拔掉。
+App.toggleHintBox = function(key) {
+  if (!DATA.settings.hintBoxState) DATA.settings.hintBoxState = {};
+  DATA.settings.hintBoxState[key] = !DATA.settings.hintBoxState[key];
+  Storage.save();
+  const box = document.querySelector('.hintbox[data-hintkey="' + key + '"]');
+  if (!box) return;
+  const collapsed = !!DATA.settings.hintBoxState[key];
+  box.classList.toggle('collapsed', collapsed);
+  const tg = box.querySelector('.hintbox-toggle');
+  if (tg) tg.textContent = collapsed ? '展開▾' : '收起▴';
+  const bar = box.querySelector('.hintbox-bar');
+  if (bar) {
+    if (collapsed) {
+      const title = (box.querySelector('.hintbox-title') || {}).textContent || '';
+      const plain = ((box.querySelector('.hintbox-body') || {}).textContent || '').replace(/\s+/g, ' ').trim();
+      bar.setAttribute('data-tip', title + '|' + plain);
+    } else {
+      bar.removeAttribute('data-tip');
+    }
+  }
+};
+
 App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
@@ -4744,6 +4788,14 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
     <div class="form-row mg-duration">
       <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" min="1" step="1"></div>
     </div>
+    <div class="dur-only">${App.buildHintBox({
+      key: 'task-time', icon: 'ti-clock-bolt', title: '時間怎麼連動', summary: '填兩個，第三個自動算',
+      bodyHtml:
+        '<div class="ht-rule ht-start"><b>改開始日</b><span>工期不動，自動算出新的完成日。例：開始改 6/25、工期 5 天 → 完成自動變 7/1（跳週末與國定假日）。</span></div>' +
+        '<div class="ht-rule ht-dur"><b>改工期</b><span>開始日當錨不動，自動算出新的完成日。例：工期改 7 天 → 完成日往後移到第 7 個工作天。</span></div>' +
+        '<div class="ht-rule ht-end"><b>改完成日</b><span>開始日不動，回算工期（等於調整這任務要做多久）。例：完成改 7/3 → 工期自動變成 6/25 到 7/3 的工作天數。</span></div>' +
+        '<div class="ht-rule ht-down"><b>下游連動</b><span>這任務時間一改，有設前置的下游任務跟著自動重排；你手動指定過日期的任務不會被動到。</span></div>'
+    })}</div>
     <div class="form-row mg-hours">
       <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
     </div>
