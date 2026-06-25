@@ -645,10 +645,51 @@ UI：狀態欄反灰唯讀，`?` hover 說明規則。
 - 候選清單限制（已放寬）：列 `measureType !== 'hours'` 的任務（工期制＝WBS＋手動專案任務都可當前置，不再限有 wbs 編號）；階段窗過濾（前 1-2 階段＋同階段之前）見 §9 S5。
 - 改結構化後不需 parsePredecessors 格式檢查。
 
-### 6.5 預計完成自動算（未做）
+### 6.5 Task 雙向修改（2026-06-25 定稿）
 
-- `預計完成 = addWorkdays(預計開始, 工期 - 1)`，跳國定假日+公司行事曆。
-- 預計開始+工期填完自動帶出，可手動覆蓋。
+**原則：開始日／工期／完成日三者皆可自由改，系統照規則連動、不鎖不攔（資料矛盾只提示不擋死）。**
+
+連動規則（開始為錨、工期為橋）：
+| 改哪個 | 自己這筆算什麼 | 上游 | 下游 |
+|---|---|---|---|
+| 開始日 | 算完成日 `end = addWorkdays(start, dur-1)` | 不動 | 連動重排 |
+| 工期 | 算完成日（開始日當錨） | 不動 | 連動重排 |
+| 完成日 | 回算工期 `dur = workdaysBetween(start, end)`（開始日當錨、不反推開始日） | 不動 | 連動重排 |
+
+- **開始日當錨**：改完成日只回算工期，不反推開始日。
+- **三者皆可改**：含第一筆 Task 的專案開始日（反映「無法準時開案」的現實）。
+- **下游一律連動**：三種改動都觸發 `applySchedule(DATA.tasks, 'full')` 整鏈傳播 + 手填錨點保護（anchor:manual 跳過不覆蓋只警示，§4.3）+ toast 告知「已重排 N 個下游任務」。
+- **自動態開始日**：開始日為自動態（start=''，由排程推算）時，用 `getEffectiveSchedule(t)` 的有效開始日當錨來算，自動態也能雙向，不逼切手動。
+- **資料矛盾（完成日 < 開始日 = 負工期）**：提示「這樣是負工期，要不要調開始日？」，給資訊不擋死。
+
+**核心設計哲學（重要，避免重蹈錨定按鈕覆轍）：**
+「系統內部錨定計算點」≠「使用者能不能改」是兩件事。錨定是系統內部怎麼算（計算基準），使用者改欄位是給系統新輸入；使用者改了→系統拿新值照同一套錨定邏輯重算，不衝突。鎖任何欄位都是錯方向。此誤解源頭＝最早 UI 的「錨定按鈕📌」（§6.8 已廢除 a9499a4），那按鈕預設「任務要釘住才不被連動改」的錯前提，污染 UI+核心。未來碰任何「錨定/鎖定/連動」設計先警惕，不要再做出「鎖住才不連動」的東西。
+
+系統忠實連動、不替使用者做主：時程被壓縮是如實結果，使用者要鬆綁就回去給某些任務合理工期，系統不攔。若四條連動讓排程引擎卡 bug＝當初核心沒達最終需求，修核心、不加限制。
+
+**施工順序**：UI 接三欄連動 → Node/Python + Excel WORKDAY 鎖期望值（測試先行）→ 驗下游 applySchedule 承接。判斷風險、逐步審。
+**Deadline 拆欄獨立另一批**（現況「預計完成 / Deadline」併在 tf-end 單欄、t.deadline 不存在，見 §6.6）。
+
+### 6.5b HintBox 區塊級說明框公版（2026-06-25 已上線 76a9216/2f85353/dde6462）
+
+全站說明區唯一公版，取代散落的寫死 formula / title / ? 提示（不重複原則）。
+
+**元件**：`App.buildHintBox({key, icon, title, summary, bodyHtml})` + `App.toggleHintBox(key)`。
+
+**行為三態**：
+- 預設展開（首次，DATA.settings.hintBoxState[key] 為 undefined/false 時展開）。
+- 點標題列收起/展開，寫 hintBoxState[key] + Storage.save，局部換 class 不整頁重繪。
+- 收起態 hover 浮出短提示「標題｜summary — 點擊展開看完整說明」（複用既有 data-tip 引擎 app.js:10066，不另造；不塞 bodyHtml 全文避免一坨）。
+- 觸控降級點擊。
+
+**持久化**：收合狀態存 `DATA.settings.hintBoxState`（單一真實來源在 DEFAULT_SETTINGS，load/download 的 {...DEFAULT, ...blob} spread 自動兜底，不需 load/download 各補 ||{}＝重複碼）。
+
+**CSS**：`.hintbox` 全走 :root；`.ht-rule` 直向佈局（標題獨立一行、說明 span 佔滿整寬）+ 中文換行優化（text-wrap:pretty + word-break:keep-all + overflow-wrap:break-word）；四規則色塊 ht-start(sage)/ht-dur(amber)/ht-end(slate)/ht-down(rose)，成對 -l 底 / -ink 字。
+
+**hover 兩套分工**：HintBox 收起態 hover = 短提示（有展開區可細讀）；KPI 卡 / 欄位 ? 的 data-tip = 完整內容不動（無展開區、hover 是唯一出口）。同一個 data-tip 引擎、兩種餵法。
+
+**已套用者**：①Task 時間說明（key:'task-time'，工期欄下方）②階段進度卡（key:'stage-progress'，ti-stairs）③部門負荷卡（key:'dept-load'，ti-users-group）。
+**待續**：其餘散落說明（KPI data-tip 等）逐區塊收斂為第二階段，已套三處驗過後再評估。
 
 ### 6.6 Deadline（未做）
 
