@@ -850,6 +850,11 @@ body.viewonly .cloud-sync-sec { display: none; }
 .task-deadline { font-family: var(--mono); font-size: 10.5px; color: var(--ink3); white-space: nowrap; }
 .task-deadline.near { color: var(--terracotta); font-weight: 600; }
 .task-deadline.overdue { color: var(--rose); font-weight: 600; }
+/* §6.5 塊四：負工期警示——整列淡紅底 + 區間欄深紅字（rose 家族，走 :root）。 */
+.task-row.neg-dur { background: var(--rose-l); }
+/* task-range：區間欄專屬 class（從 .task-deadline 拆出，等值重構保留 mono/10.5px/ink3/nowrap，不與第10欄截止欄共用）。 */
+.task-range { font-family: var(--mono); font-size: 10.5px; color: var(--ink3); white-space: nowrap; }
+.task-range.neg { color: var(--rose-ink); font-weight: 600; }
 
 /* 看板視圖（§1.2 五欄 / §1.7 窄卡）；due 配色複用 .task-deadline，CSS 不另寫 due 顏色 */
 .kanban-board {

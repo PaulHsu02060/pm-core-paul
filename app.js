@@ -4103,6 +4103,10 @@ App.buildTaskRowHtml = function(t, cls) {
   const rangeText = (sch.start && sch.end)
     ? `${D.fmt(new Date(sch.start), 'md')} → ${D.fmt(new Date(sch.end), 'md')}`
     : '—';
+  // §6.5 塊四：負工期（完成日早於開始日 或 工期≤0）→ 整列標紅警示；milestone(工期恆1)不誤觸發。
+  const _negDur = (t.taskType !== 'milestone')
+    && ((sch.start && sch.end && new Date(sch.end) < new Date(sch.start))
+        || (parseFloat(t.durationDays) <= 0));
   // 來源中文標籤（讀 getEffectiveSchedule 的 startSource；'none' 留空不顯示）
   const SRC_LABELS = { planned: '預計（未排程）', scheduled: '排程算出', override: '手釘錨點', actual: '實際', manual: '手填' };
   const srcLabel = SRC_LABELS[sch.startSource] || '';
@@ -4130,7 +4134,7 @@ App.buildTaskRowHtml = function(t, cls) {
     }
   }
 
-  return `<tr class="task-row ${t.status === 'done' ? 'done' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
+  return `<tr class="task-row ${t.status === 'done' ? 'done' : ''} ${_negDur ? 'neg-dur' : ''} ${cls || ''}" data-taskid="${t.id}" onclick="App.openTaskModal('${t.id}')">
     <td class="col-num"><span style="font-family:var(--mono); font-size:11px; color:var(--ink4);">${App._seqOf(t.id)}</span></td>
     <td class="col-mid"><span style="font-size:12px; color:var(--ink2);">${U.esc(t.stage || '—')}</span></td>
     <td class="col-flex" title="${U.esc(t.name)}">
@@ -4152,7 +4156,7 @@ App.buildTaskRowHtml = function(t, cls) {
     <td class="col-num"><span class="rp-status ${statusCls}">${statusTxt}</span></td>
     <td class="col-mid">
       <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
-        <span class="task-deadline">${rangeText}</span>
+        <span class="task-range${_negDur ? ' neg' : ''}"${_negDur ? ' data-tip="負工期|工期為負數，請確認是否調整"' : ''}>${rangeText}</span>
         ${srcLabel ? `<span class="task-tag tag-other">${srcLabel}</span>` : ''}
       </div>
     </td>
