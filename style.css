@@ -1614,9 +1614,9 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-case-other .s2-gbar { background: var(--proj-c3); }
 .s2-gbar-none { left: 0; width: 100%; background: var(--stone-200); opacity: .5; }
 /* per-stage 燈號上色（§4.8.7.4b #2，interval 各段照 margin 綠/黃/紅，複用 sage/amber/rose） */
-.s2-gbar-green { background: var(--sage-500); }
-.s2-gbar-yellow { background: var(--amber); }
-.s2-gbar-red { background: var(--rose); }
+.s2-grow .s2-gbar-green { background: var(--sage-500); }
+.s2-grow .s2-gbar-yellow { background: var(--amber); }
+.s2-grow .s2-gbar-red { background: var(--rose); }
 .s2-gdate { flex: 0 0 112px; text-align: right; font-size: 11px; color: var(--stone-400); white-space: nowrap; cursor: help; }
 
 /* ─── Auth DEV 身份切換面板（開發測試用，DEV_MODE 關閉後不顯示）─── */
@@ -1642,19 +1642,21 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-preview { max-width: 957px; margin: 0 auto; padding: 16px; zoom: 1.15; }   /* 整頁等比放大 1.15（zoom 統一縮放、比例不破）；max-width 同步縮小(=1100/1.15)維持原視覺寬度、不溢出 */
 .s1-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .s1-proj-name { width: 300px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 12px; font-weight: 400; }
-.s1-colors { display: flex; gap: 6px; align-items: center; min-height: 36px; }
+.s1-colors { display: flex; gap: 6px; align-items: center; min-height: 38px; }
 .s1-tpl-sel { padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 12px; font-weight: 400; }
-.s1-cases { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.s1-cases { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
 .s1-case-col { flex: 1; min-width: 280px; padding: 14px; border-radius: var(--r8); box-shadow: var(--shadow); }
 .s1-case-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.s1-case-del { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: none; border-radius: 50%; background: var(--stone-100); color: var(--ink3); cursor: pointer; font-size: 13px; }
+.s1-case-del:hover { background: var(--rose-l); color: var(--rose-ink); }
 .s1-case-name { flex: 1; padding: 6px 8px; border: 1px solid var(--rule2); border-radius: var(--r6); font-weight: 400; font-size: 12px; }
 .s1-case-dates { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-.s1-case-dates label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink3); }
+.s1-case-dates label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--ink3); }
 .s1-case-dates input, .s1-case-dates select { padding: 5px 7px; border: 1px solid var(--rule2); border-radius: var(--r4); font-size: 13px; }
-.s1-stagelist { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.s1-stage-chip { position: relative; padding: 3px 10px; border-radius: var(--r12); background: var(--surface2); font-size: 12px; color: var(--ink2); }
+.s1-stagelist { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.s1-stage-chip { position: relative; padding: 2px 7px; border-radius: var(--r12); background: var(--surface2); font-size: 12px; color: var(--ink2); }
 .s1-prev-section { margin-top: 24px; }
-.s1-prev-title { font-weight: 600; font-size: 14px; margin-bottom: 10px; color: var(--ink); }
+.s1-prev-title { font-weight: 600; font-size: 16px; margin-bottom: 10px; color: var(--ink); }
 .s1-prev-case { padding: 12px; margin-bottom: 14px; border-radius: var(--r8); box-shadow: var(--shadow); }
 .s1-prev-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 .s1-prev-name { font-weight: 600; }
@@ -1696,21 +1698,21 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-edu-cardhd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .s1-edu-ico { font-size: 22px; color: var(--ink3); }
 .s1-edu-tag { padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
-.s1-tag-start { background: var(--sage-100); color: var(--sage-700); }
-.s1-tag-end { background: var(--terracotta-l); color: var(--terracotta); }
+.s1-tag-start { background: var(--sage-100); color: var(--sage-800); }
+.s1-tag-end { background: var(--terracotta-l); color: var(--terracotta-ink); }
 .s1-tag-both { background: var(--navy-from); color: var(--navy-ink); }
 .s1-edu-cardtitle { font-weight: 600; font-size: 13px; margin-bottom: 6px; color: var(--ink); }
 .s1-edu-carddesc { font-size: 13px; line-height: 1.5; color: var(--ink2); }
-.s1-edu-bulb { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; padding: 10px 12px; background: var(--sage-50); border-radius: var(--r8); font-size: 12px; line-height: 1.6; color: var(--sage-700); }
-.s1-edu-bulb .ti { flex: none; font-size: 16px; margin-top: 1px; }
+.s1-edu-bulb { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 10px 12px; background: var(--sage-50); border-radius: var(--r8); font-size: 12px; line-height: 1.6; color: var(--sage-700); }
+.s1-edu-bulb .ti { flex: none; font-size: 16px; margin-top: 1px; margin-right: 2px; }
 .s1-top-col { display: flex; flex-direction: column; gap: 4px; }
-.s1-top-label { font-size: 12px; color: var(--ink3); }
+.s1-top-label { font-size: 12px; color: var(--ink2); font-weight: 500; }
 .s1-tips-line { font-size: 12px; line-height: 1.7; color: var(--ink2); }
 .s1-tips-cap { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--ink3); font-size: 11px; }
-.s1-add-case { flex: 0 0 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 1px dashed var(--sage-300); border-radius: var(--r8); color: var(--sage-600); cursor: pointer; font-size: 13px; }
+.s1-add-case { flex: 0 0 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 1px dashed var(--sage-300); border-radius: var(--r8); color: var(--sage-600); cursor: pointer; font-size: 13px; }
 .s1-add-case .ti { font-size: 24px; }
 .s1-add-case:hover { background: var(--sage-50); }
-.s1-dynhint { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 8px 10px; background: var(--sage-50); border-radius: var(--r6); font-size: 12px; line-height: 1.6; color: var(--sage-700); }
+.s1-dynhint { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 8px 10px; background: var(--sage-50); border-radius: var(--r6); font-size: 12px; line-height: 1.6; color: var(--sage-800); }
 .s1-dynhint .ti { flex: none; }
 /* 初始引導態（雙空）：淡化成「等待輸入」靜態提示，非 active 運作態 */
 .s1-dynhint-init { background: var(--stone-50); color: var(--stone-400); }
@@ -1737,7 +1739,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 
 /* ═══ §4.8.7.4b 塊3a-刀1（第二步追加：膠囊 inline 編輯）═══ */
 .s1-stage-hd { font-weight: 600; font-size: 13px; color: var(--ink); margin-bottom: 2px; }
-.s1-stage-note { font-size: 12px; color: var(--ink3); margin-bottom: 8px; }
+.s1-stage-note { font-size: 11px; color: var(--ink4); margin-bottom: 8px; }
 .s1-stage-chip .chip-text { cursor: text; }
 .s1-stage-chip .chip-del { display: none; position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; line-height: 14px; text-align: center; border-radius: 50%; background: var(--ink4); color: var(--ink-inverse); font-size: 11px; cursor: pointer; }
 .s1-stage-chip:hover .chip-del { display: block; }
@@ -1746,7 +1748,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .chip-edit { width: 80px; padding: 2px 6px; border: 1px solid var(--sage-400); border-radius: var(--r6); font-size: 12px; }
 
 /* ═══ §4.8.7.4b 塊3a-刀1（膠囊優化批：箭頭/改名暗示/刪除調色/備註強調）═══ */
-.s1-stage-arrow { color: var(--ink4); font-size: 14px; vertical-align: middle; margin: 0 1px; }
+.s1-stage-arrow { color: var(--ink4); font-size: 12px; vertical-align: middle; margin: 0; }
 .s1-stage-note i { margin-right: 4px; }
-.s1-stage-note-em { color: var(--ink2); font-weight: 600; }
+.s1-stage-note-em { color: var(--ink4); font-weight: 400; }
 .s1-stage-chip .chip-del:hover { background: var(--rose); }

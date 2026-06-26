@@ -5784,35 +5784,14 @@ App._scheduleEduCard = function() {
 App._renderStage1Preview = function() {
   // demo fallback 假案（首開/無輸入不空白）走 App._s1FallbackCase；甘特＋真燈號膠囊建構移至
   // App._s1PreviewBlocksHtml（初次 render 與 date 改動 re-render 共用單一真實來源，§4.8.7.4b 3-3）。
-  const main = App._s1FallbackCase();
-  // 主案卡（複用 .case-card）；日期欄使用者面用「上市日期」
-  // 階段膠囊預設吃範本真階段（5 階段，含量產機）；範本缺才退回 demo（§4.8.7.4b 2a）
-  if (!App._s1DemoStages) {
-    App._s1DemoStages = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.cases && PRODUCT_DEV_TEMPLATE.cases[0])
-      ? PRODUCT_DEV_TEMPLATE.cases[0].stages.slice() : main.stages.map(s => s.stage);
+  // 每案獨立狀態（§4.8.7.4b 3-5）：主案＋各子案各自 stages/renames；首次用範本主案階段（缺則退 demo）
+  if (!App._s1Cases) {
+    const tplMain = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.cases && PRODUCT_DEV_TEMPLATE.cases[0])
+      ? PRODUCT_DEV_TEMPLATE.cases[0].stages.slice() : App._s1FallbackCase().stages.map(s => s.stage);
+    App._s1Cases = [{ key: 'main', templateVariant: '主案', stages: tplMain, renames: {} }];
   }
-  const real = App._s1ComputePreview();
-  const m0 = (real && real[0] && real[0].stages && real[0].stages.length > 0) ? real[0] : main;
-  // 動態狀態提示（文-C）：雙空=初始引導（CTA）／只開始=A順推／只上市=B倒推／兩者皆填=D雙向精算。
-  // 初始日期留空＝引導態，帶 init class 淡化；穩定 id 供 _s1RefreshPreview 即時切換（末會再校正一次）。
-  const dynHint = '<div class="s1-dynhint s1-dynhint-init" id="s1-dynhint">' + App._s1DynHintHtml('', '', '') + '</div>';
-  const mainCol =
-    '<div class="s1-case-col case-card s2-case-main" data-case="main" data-tplvariant="主案">' +
-      '<div class="s1-case-head">' +
-        '<span class="stage-cap-pill cap-0">主案</span>' +
-        '<input type="text" class="s1-case-name" value="' + U.esc(m0.name) + '" oninput="App._s1RefreshPreview()">' +
-      '</div>' +
-      '<div class="s1-case-dates">' +
-        '<label>開始日<input type="date" class="s1-in-start" value=""></label>' +
-        '<label>上市日期<input type="date" class="s1-in-end" value=""></label>' +
-      '</div>' +
-      dynHint +
-      '<div class="s1-stage-hd">開發階段</div>' +
-      '<div class="s1-stage-note"><i class="ti ti-info-circle"></i>此處直接決定專案流程（由左至右）：點擊膠囊可重新命名和刪除階段，按 ＋ 可增加階段。<br><b class="s1-stage-note-em">調整後系統將自動重排下方甘特圖、並重新精算時間餘裕與燈號。</b></div>' +
-      '<div class="s1-stagelist">' + App._s1StageChipsHtml() + '</div>' +
-    '</div>';
-  // ＋新增子案 方框（直立虛線，本步佔位）
-  const addCase = '<div class="s1-add-case" onclick="void 0"><i class="ti ti-plus"></i><span>新增子案</span></div>';
+  const casesHtml = App._s1Cases.map((c, i) => App._s1CaseColHtml(c, i === 0)).join('');
+  const addCase = '<div class="s1-add-case" onclick="App._s1AddSubcase()"><i class="ti ti-plus"></i><span>新增子案</span></div>';
   // 說明區（文-B；箭頭統一中文冒號「：」，防呆句 terracotta 強調）
   const tips = App.buildHintBox({
     key: 's1-sched-tips', icon: 'ti-info-circle', title: '排程小秘訣', summary: '怎麼填日期決定排程方向', collapsed: false,
@@ -5855,7 +5834,7 @@ App._renderStage1Preview = function() {
       '</div>' +
       top +
       tips +
-      '<div class="s1-cases">' + mainCol + addCase + '</div>' +
+      '<div class="s1-cases">' + casesHtml + addCase + '</div>' +
       '<div class="s1-prev-section">' +
         '<div class="s1-prev-title">階段區間預覽</div>' +
         hint +
@@ -5866,14 +5845,13 @@ App._renderStage1Preview = function() {
         '<button class="tb-action" onclick="void 0">下一步：檢視任務</button>' +
       '</div>' +
     '</div>';
-  // date input 改動 → 即時重算燈號＋甘特，局部重畫預覽區（不動輸入卡、保留焦點；§4.8.7.4b 3-3）
-  page.querySelectorAll('.s1-in-start, .s1-in-end').forEach(inp => inp.addEventListener('change', App._s1RefreshPreview));
+  // date input 改動即時重算改用各案卡 inline onchange（支援動態新增的子案卡，§4.8.7.4b 3-5）
   App._s1SyncMainName();     // 初始把專案名帶入主案名（未手改前）
   App._s1RefreshPreview();   // DOM 就緒後校正一次：依實際輸入（初始留空）同步動態提示與甘特空狀態
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// _s1FallbackCase：第一階段預覽 demo 假案（首開/無輸入時不空白），輸入卡 m0 fallback 與預覽膠囊共用。
+// _s1FallbackCase：第一階段預覽 demo 假案的階段清單來源（範本缺時退此），名稱/日期已不再使用。
 App._s1FallbackCase = function() {
   return { name: '7.3kW 主案', start: '2026-03-02', end: '2026-12-28', light: 'green', slack: 12, overDays: 0,
     stages: [
@@ -5882,6 +5860,56 @@ App._s1FallbackCase = function() {
       { stage: '性試機', start: '2026-08-03', end: '2026-10-09' },
       { stage: '量試機', start: '2026-10-12', end: '2026-12-28' },
     ] };
+};
+
+// _s1CaseByKey：依 key 取案狀態（§4.8.7.4b 3-5 每案獨立 stages/renames）。
+App._s1CaseByKey = function(key) { return (App._s1Cases || []).find(x => x.key === key) || null; };
+
+// _s1CaseColHtml：渲染一張案卡（主案或子案）；名稱/日期/動態提示/階段膠囊各自獨立。
+App._s1CaseColHtml = function(c, isMain) {
+  const pill = isMain ? '<span class="stage-cap-pill cap-0">主案</span>' : '<span class="stage-cap-pill cap-1">子案</span>';
+  const del = isMain ? '' : '<button class="s1-case-del" title="刪除子案" onclick="App._s1DelSubcase(\'' + c.key + '\')"><i class="ti ti-x"></i></button>';
+  const nameVal = isMain ? '' : (c.dname || '');
+  const ph = isMain ? '主案名稱' : '子案名稱（例：2.2kW）';
+  return '<div class="s1-case-col case-card ' + (isMain ? 's2-case-main' : 's2-case-other') + '" data-case="' + (isMain ? 'main' : c.key) + '" data-case-key="' + c.key + '" data-tplvariant="' + c.templateVariant + '">' +
+      '<div class="s1-case-head">' + pill +
+        '<input type="text" class="s1-case-name" value="' + U.esc(nameVal) + '" placeholder="' + ph + '" oninput="App._s1RefreshPreview()">' + del +
+      '</div>' +
+      '<div class="s1-case-dates">' +
+        '<label>開始日<input type="date" class="s1-in-start" value="" onchange="App._s1RefreshPreview()"></label>' +
+        '<label>上市日期<input type="date" class="s1-in-end" value="" onchange="App._s1RefreshPreview()"></label>' +
+      '</div>' +
+      '<div class="s1-dynhint s1-dynhint-init">' + App._s1DynHintHtml('', '', '') + '</div>' +
+      '<div class="s1-stage-hd">開發階段</div>' +
+      '<div class="s1-stage-note"><i class="ti ti-info-circle"></i>此處直接決定專案流程（由左至右）：點擊膠囊可重新命名和刪除階段，按 ＋ 可增加階段。<br><b class="s1-stage-note-em">調整後系統將自動重排下方甘特圖、並重新精算時間餘裕與燈號。</b></div>' +
+      '<div class="s1-stagelist">' + App._s1StageChipsHtml(c) + '</div>' +
+    '</div>';
+};
+
+// _s1AddSubcase：新增一張子案卡（預設帶範本另案階段＋唯一預設名），append 不重繪其他卡。
+App._s1AddSubcase = function() {
+  if (!App._s1Cases) return;
+  const tplCases = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.cases) ? PRODUCT_DEV_TEMPLATE.cases : [];
+  const tplSub = (tplCases[1] ? tplCases[1].stages : (tplCases[0] ? tplCases[0].stages : [])).slice();
+  App._s1SubSeq = (App._s1SubSeq || 0) + 1;
+  const c = { key: 'c' + App._s1SubSeq, templateVariant: '另案', stages: tplSub, renames: {}, dname: '子案 ' + App._s1SubSeq };
+  App._s1Cases.push(c);
+  const wrap = document.querySelector('#page-stage1 .s1-cases');
+  const addBox = wrap ? wrap.querySelector('.s1-add-case') : null;
+  if (wrap && addBox) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = App._s1CaseColHtml(c, false);
+    if (tmp.firstChild) wrap.insertBefore(tmp.firstChild, addBox);
+  }
+  App._s1RefreshPreview();
+};
+
+// _s1DelSubcase：刪一張子案卡（移除狀態＋DOM），重算預覽。
+App._s1DelSubcase = function(key) {
+  App._s1Cases = (App._s1Cases || []).filter(x => x.key !== key);
+  const col = document.querySelector('#page-stage1 .s1-case-col[data-case-key="' + key + '"]');
+  if (col) col.remove();
+  App._s1RefreshPreview();
 };
 
 // _s1PreviewBlocksHtml：階段區間預覽（甘特＋真燈號膠囊）。初次 render 與 date 改動 re-render 共用單一真實來源。
@@ -5914,21 +5942,7 @@ App._s1PreviewBlocksHtml = function(real) {
     : light === 'yellow' ? ('時程偏緊·餘裕 ' + slack + ' 天')
     : ('時程不足·超出 ' + overDays + ' 工作天');
   if (real === undefined) real = App._s1ComputePreview();
-  const m0 = (real && real[0] && real[0].stages && real[0].stages.length > 0) ? real[0] : null;
-  // 空狀態（無基準日，多為日期未填）：不假裝有資料。骨架列數＝階段膠囊數→甘特跟著膠囊走，疊引導文案。
-  if (!m0) {
-    const _rn = App._s1StageRenames || {};
-    const skel = (App._s1DemoStages || []).map(id =>
-      '<div class="s2-grow">' +
-        '<div class="s2-gname">' + U.esc((_rn[id] != null) ? _rn[id] : id) + '</div>' +
-        '<div class="s2-gbar-track"><div class="s2-gbar s2-gbar-none"></div></div>' +
-        '<div class="s2-gdate"></div>' +
-      '</div>').join('');
-    return '<div class="s1-prev-case case-card s2-case-main s1-prev-empty">' +
-        '<div class="s2-gantt-axis">' + skel + '</div>' +
-        '<div class="s1-prev-empty-hint">請於上方輸入日期以產生進度預覽</div>' +
-      '</div>';
-  }
+  if (!real || !real.length) return '';
   const PILL_IC = { green: 'ti-circle-check', yellow: 'ti-alert-circle', red: 'ti-alert-triangle' };
   const PILL_LB = { green: '時程充足', yellow: '時程偏緊', red: '時程不足' };
   const PILL_TIP = {
@@ -5936,20 +5950,35 @@ App._s1PreviewBlocksHtml = function(real) {
     yellow: '勉強能如期完成，但毫無緩衝。時程扣得很死，後續階段將非常緊湊。',
     red: '依照現有範本工期排下去將會超過上市截止日，建議重新調整人力或壓縮工期。'
   };
-  const pill = m0.light
-    ? '<span class="s1-pill-wrap">' +
-        '<span class="slack-pill slack-pill-' + m0.light + '"><i class="ti ' + PILL_IC[m0.light] + '"></i>' + lightTxt(m0.light, m0.slack, m0.overDays) + '</span>' +
-        '<span class="s1-pill-tip"><span class="s1-pill-tip-hd s1-tiphd-' + m0.light + '"><i class="ti ' + PILL_IC[m0.light] + '"></i>' + PILL_LB[m0.light] + '</span>' + PILL_TIP[m0.light] + '</span>' +
-      '</span>'
-    : '';
-  return '<div class="s1-prev-case case-card s2-case-main">' +
-      '<div class="s1-prev-head">' +
-        '<span class="s1-prev-name">' + U.esc(m0.name) + '</span>' +
-        '<span class="s1-prev-range">' + fmtD(m0.start) + ' → ' + fmtD(m0.end) + '</span>' +
-        pill +
-      '</div>' +
-      miniGantt(m0.stages) +
-    '</div>';
+  // 逐案一張預覽卡（§4.8.7.4b 3-5）：有日期→真甘特＋燈號；無日期→骨架（用該案階段膠囊）＋引導
+  const blockOf = (v, isMain) => {
+    const cls = isMain ? 's2-case-main' : 's2-case-other';
+    if (!v.stages || !v.stages.length) {
+      const skel = (v.skelStages || []).map(lb =>
+        '<div class="s2-grow"><div class="s2-gname">' + U.esc(lb) + '</div><div class="s2-gbar-track"><div class="s2-gbar s2-gbar-none"></div></div><div class="s2-gdate"></div></div>'
+      ).join('');
+      return '<div class="s1-prev-case case-card ' + cls + ' s1-prev-empty">' +
+          '<div class="s1-prev-head"><span class="s1-prev-name">' + U.esc(v.name || '') + '</span></div>' +
+          '<div class="s2-gantt-axis">' + skel + '</div>' +
+          '<div class="s1-prev-empty-hint">請於上方輸入日期以產生進度預覽</div>' +
+        '</div>';
+    }
+    const pill = v.light
+      ? '<span class="s1-pill-wrap">' +
+          '<span class="slack-pill slack-pill-' + v.light + '"><i class="ti ' + PILL_IC[v.light] + '"></i>' + lightTxt(v.light, v.slack, v.overDays) + '</span>' +
+          '<span class="s1-pill-tip"><span class="s1-pill-tip-hd s1-tiphd-' + v.light + '"><i class="ti ' + PILL_IC[v.light] + '"></i>' + PILL_LB[v.light] + '</span>' + PILL_TIP[v.light] + '</span>' +
+        '</span>'
+      : '';
+    return '<div class="s1-prev-case case-card ' + cls + '">' +
+        '<div class="s1-prev-head">' +
+          '<span class="s1-prev-name">' + U.esc(v.name || '') + '</span>' +
+          '<span class="s1-prev-range">' + fmtD(v.start) + ' → ' + fmtD(v.end) + '</span>' +
+          pill +
+        '</div>' +
+        miniGantt(v.stages) +
+      '</div>';
+  };
+  return real.map((v, i) => blockOf(v, i === 0)).join('');
 };
 
 // _s1DynHintHtml：動態狀態提示（文-C）依填法切情境——雙空=初始引導(CTA)／只開始=A順推／只上市=B倒推
@@ -5984,17 +6013,18 @@ App._s1RefreshPreview = function() {
   const real = App._s1ComputePreview();
   const c = document.getElementById('s1-prev-blocks');
   if (c) c.innerHTML = App._s1PreviewBlocksHtml(real);
-  // 動態提示依輸入卡填法切情境（文-C；§4.8.7.4b #1 補）
-  const hintBox = document.getElementById('s1-dynhint');
-  if (hintBox) {
-    const page = document.getElementById('page-stage1');
-    const s = ((page && page.querySelector('.s1-in-start')) || {}).value || '';
-    const e = ((page && page.querySelector('.s1-in-end')) || {}).value || '';
-    const meta = (real && real[0]) ? real[0] : null;
+  // 各案動態提示：逐 col 依自己日期＋該案 meta 切情境（文-C；§4.8.7.4b #1＋3-5）
+  const cols = document.querySelectorAll('#page-stage1 .s1-case-col');
+  cols.forEach((col, i) => {
+    const hintBox = col.querySelector('.s1-dynhint');
+    if (!hintBox) return;
+    const s = ((col.querySelector('.s1-in-start')) || {}).value || '';
+    const e = ((col.querySelector('.s1-in-end')) || {}).value || '';
+    const meta = (real && real[i]) ? real[i] : null;
     hintBox.innerHTML = App._s1DynHintHtml(s, e, meta);
     hintBox.classList.toggle('s1-dynhint-init', !s && !e);   // 雙空＝淡化引導態
     hintBox.classList.toggle('s1-dynhint-alert', !!(meta && meta.backFallback));   // 情境C 來不及＝紅底警示
-  }
+  });
 };
 
 // _s1SyncMainName：頂部專案名帶入主案名——專案名每次修改都覆蓋主案名；改主案名不回寫專案名（單向）。
@@ -6016,13 +6046,16 @@ App._s1CollectInput = function() {
   const color = colorEl ? colorEl.dataset.color : (PROJ_COLORS[0] || '');
   const cases = [];
   page.querySelectorAll('.s1-case-col').forEach(col => {
-    const variantName = ((col.querySelector('.s1-case-name') || {}).value || '').trim();
+    const key = col.dataset.caseKey;
+    const cs = App._s1CaseByKey(key);
+    const rawName = ((col.querySelector('.s1-case-name') || {}).value || '').trim();
+    const variantName = rawName || ('案-' + (key || ''));   // 空名退回唯一 key（防 applyTemplate variantNameToId 撞 id）
     const templateVariant = col.dataset.tplvariant || '主案';
     const startDate = (col.querySelector('.s1-in-start') || {}).value || '';
     const endDate = (col.querySelector('.s1-in-end') || {}).value || '';
     const direction = App._effScheduleDir(startDate, endDate, 'forward');
-    const selectedStages = (App._s1DemoStages || []).slice();
-    cases.push({ variantName, templateVariant, startDate, endDate, direction, selectedStages });
+    const selectedStages = cs ? cs.stages.slice() : [];
+    cases.push({ variantName, templateVariant, startDate, endDate, direction, selectedStages, renames: cs ? cs.renames : {} });
   });
   return { projectName, color, cases };
 };
@@ -6064,7 +6097,7 @@ App._s1ComputePreview = function() {
   if (!input || !input.cases.length) return null;
   const res = App.applyTemplate(tpl, input);
   const byVariant = [];
-  res.variants.forEach(v => {
+  res.variants.forEach((v, i) => {
     const vtasks = res.tasks.filter(t => t.variant === v.id && t.plannedStart && t.plannedEnd);
     const stageMap = {};
     vtasks.forEach(t => {
@@ -6076,8 +6109,9 @@ App._s1ComputePreview = function() {
       }
     });
     const stages = (v.stages || []).map(s => stageMap[s]).filter(Boolean);
-    const _rn = App._s1StageRenames || {};
+    const _rn = (input.cases[i] && input.cases[i].renames) || {};   // 該案改名表（§4.8.7.4b 3-5 每案獨立）
     stages.forEach(s => { s.label = (_rn[s.stage] != null) ? _rn[s.stage] : s.stage; });   // 顯示名（改名只動顯示，id=s.stage 不變）
+    const skelStages = ((input.cases[i] && input.cases[i].selectedStages) || []).map(id => (_rn[id] != null) ? _rn[id] : id);   // 空狀態骨架列（顯示名）
     // 真燈號（§4.8.7.4b 3-3）：interval 案 plannedStart/End＝lateStart/lateFinish（_reschedulePreview :2543 映射），
     // 餵既有 _computeSlack 重算（單一真實來源、不重跑排程）；start/end 缺一→回 null→不顯示膠囊。
     const vsch = v.schedule || {};
@@ -6110,33 +6144,37 @@ App._s1ComputePreview = function() {
       slack: sl ? sl.slack : null,
       overDays: sl ? sl.overDays : null,
       dir: eff, backStart: backStart, backFallback: backFallback, forwardFinish: forwardFinish,
+      skelStages: skelStages,
     });
   });
   return byVariant;
 };
 
-// §4.8.7.4b 塊3a-刀1 第二步追加1：開發階段膠囊 inline 編輯（方案甲，事件委派）。
-// 階段膠囊：_s1DemoStages 存「階段 id（範本階段碼，供排程比對）」；_s1StageRenames{id:顯示名} 存改名
-// （只動顯示、不動 id → applyTemplate 仍對到任務、不被砍；§4.8.7.4b 改名修正）。
-App._s1StageRenames = App._s1StageRenames || {};
-App._s1StageChipsHtml = function() {
-  const arr = App._s1DemoStages || [];
-  const rn = App._s1StageRenames || {};
+// §4.8.7.4b 塊3a-刀1 第二步追加1 + 3-5：開發階段膠囊 inline 編輯（事件委派，每案獨立）。
+// 每案 _s1CaseByKey(key).stages 存「階段 id（範本階段碼，供排程比對）」；.renames{id:顯示名} 存改名
+// （只動顯示、不動 id → applyTemplate 仍對到任務、不被砍）。膠囊事件靠 .s1-case-col[data-case-key] 找所屬案。
+App._s1StageChipsHtml = function(c) {
+  const arr = (c && c.stages) || [];
+  const rn = (c && c.renames) || {};
   return arr.map((id, i) => {
     const label = (rn[id] != null) ? rn[id] : id;
     return '<span class="s1-stage-chip" data-idx="' + i + '"><span class="chip-text">' + U.esc(label) + '</span><span class="chip-del" title="刪除">×</span></span>';
   }).join('<i class="ti ti-chevron-right s1-stage-arrow"></i>') + '<span class="s1-stage-add" title="新增階段"><i class="ti ti-plus"></i></span>';
 };
-App._renderStageChips = function() {
-  const box = document.querySelector('#page-stage1 .s1-stagelist');
-  if (box) box.innerHTML = App._s1StageChipsHtml();
+App._renderStageChips = function(key) {
+  const col = document.querySelector('#page-stage1 .s1-case-col[data-case-key="' + key + '"]');
+  const c = App._s1CaseByKey(key);
+  if (col && c) { const box = col.querySelector('.s1-stagelist'); if (box) box.innerHTML = App._s1StageChipsHtml(c); }
 };
 App._stageChipToInput = function(textEl) {
   if (!textEl) return;
   const chip = textEl.closest('.s1-stage-chip'); if (!chip) return;
+  const col = chip.closest('.s1-case-col'); if (!col) return;
+  const key = col.dataset.caseKey;
+  const c = App._s1CaseByKey(key); if (!c) return;
   const idx = +chip.getAttribute('data-idx');
-  const id0 = App._s1DemoStages[idx];
-  const cur = (App._s1StageRenames[id0] != null) ? App._s1StageRenames[id0] : (id0 != null ? id0 : '');
+  const id0 = c.stages[idx];
+  const cur = (c.renames[id0] != null) ? c.renames[id0] : (id0 != null ? id0 : '');
   const inp = document.createElement('input');
   inp.type = 'text'; inp.className = 'chip-edit'; inp.value = cur;
   chip.classList.add('editing');
@@ -6148,18 +6186,18 @@ App._stageChipToInput = function(textEl) {
   const commit = () => {
     if (done) return; done = true;
     const v = inp.value.trim();
-    const id = App._s1DemoStages[idx];
+    const id = c.stages[idx];
     if (v === '') {                          // 清空＝刪該段（連帶清 rename）
-      App._s1DemoStages.splice(idx, 1);
-      if (id) delete App._s1StageRenames[id];
+      c.stages.splice(idx, 1);
+      if (id) delete c.renames[id];
     } else if (!id) {                        // 新增空膠囊命名：id 即輸入值（對到範本階段碼才有任務）
-      App._s1DemoStages[idx] = v;
+      c.stages[idx] = v;
     } else if (v !== id) {                   // 既有階段改名：只動顯示名、保留 id（任務不掉）
-      App._s1StageRenames[id] = v;
+      c.renames[id] = v;
     } else {                                 // 改回原名：清掉 rename
-      delete App._s1StageRenames[id];
+      delete c.renames[id];
     }
-    App._renderStageChips();
+    App._renderStageChips(key);
     App._s1RefreshPreview();   // 膠囊改名/增刪 → 即時重算甘特＋燈號（§4.8.7.4b 2b）
   };
   inp.addEventListener('blur', commit);
@@ -6175,14 +6213,22 @@ App._bindStageChipEvents = function() {
     const page = document.getElementById('page-stage1');
     if (!page || !page.classList.contains('active')) return;   // 僅第一階段頁作用
     const del = e.target.closest('.chip-del');
-    if (del) { const chip = del.closest('.s1-stage-chip'); if (chip) { const di = +chip.getAttribute('data-idx'); const id0 = App._s1DemoStages[di]; App._s1DemoStages.splice(di, 1); if (id0) delete App._s1StageRenames[id0]; App._renderStageChips(); App._s1RefreshPreview(); } return; }
+    if (del) {
+      const chip = del.closest('.s1-stage-chip'); const col = chip && chip.closest('.s1-case-col');
+      const c = col && App._s1CaseByKey(col.dataset.caseKey);
+      if (chip && c) { const di = +chip.getAttribute('data-idx'); const id0 = c.stages[di]; c.stages.splice(di, 1); if (id0) delete c.renames[id0]; App._renderStageChips(col.dataset.caseKey); App._s1RefreshPreview(); }
+      return;
+    }
     const add = e.target.closest('.s1-stage-add');
     if (add) {
-      App._s1DemoStages.push('');
-      App._renderStageChips();
-      const chips = document.querySelectorAll('#page-stage1 .s1-stage-chip');
-      const last = chips[chips.length - 1];
-      if (last) App._stageChipToInput(last.querySelector('.chip-text'));
+      const col = add.closest('.s1-case-col'); const c = col && App._s1CaseByKey(col.dataset.caseKey);
+      if (c) {
+        c.stages.push('');
+        App._renderStageChips(col.dataset.caseKey);
+        const chips = col.querySelectorAll('.s1-stage-chip');
+        const last = chips[chips.length - 1];
+        if (last) App._stageChipToInput(last.querySelector('.chip-text'));
+      }
       return;
     }
     const txt = e.target.closest('.chip-text');
