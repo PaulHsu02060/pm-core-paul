@@ -5818,14 +5818,14 @@ App._renderStage1Preview = function() {
   // 主案卡（複用 .case-card）；日期欄使用者面用「上市日期」
   if (!App._s1DemoStages) App._s1DemoStages = main.stages.map(s => s.stage);
   const mainCol =
-    '<div class="s1-case-col case-card s2-case-main">' +
+    '<div class="s1-case-col case-card s2-case-main" data-case="main" data-tplvariant="主案">' +
       '<div class="s1-case-head">' +
         '<span class="stage-cap-pill cap-0">主案</span>' +
         '<input type="text" class="s1-case-name" value="' + U.esc(main.name) + '">' +
       '</div>' +
       '<div class="s1-case-dates">' +
-        '<label>開始日<input type="date" value="' + main.start + '"></label>' +
-        '<label>上市日期<input type="date" value="' + main.end + '"></label>' +
+        '<label>開始日<input type="date" class="s1-in-start" value="' + main.start + '"></label>' +
+        '<label>上市日期<input type="date" class="s1-in-end" value="' + main.end + '"></label>' +
       '</div>' +
       dynHint +
       '<div class="s1-stage-hd">開發階段</div>' +
@@ -5893,6 +5893,25 @@ App._renderStage1Preview = function() {
       '</div>' +
     '</div>';
   window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+App._s1CollectInput = function() {
+  const page = document.getElementById('page-stage1');
+  if (!page) return null;
+  const projectName = (page.querySelector('.s1-proj-name') || {}).value || '';
+  const colorEl = page.querySelector('.s1-colors .cp-swatch.on');
+  const color = colorEl ? colorEl.dataset.color : (PROJ_COLORS[0] || '');
+  const cases = [];
+  page.querySelectorAll('.s1-case-col').forEach(col => {
+    const variantName = ((col.querySelector('.s1-case-name') || {}).value || '').trim();
+    const templateVariant = col.dataset.tplvariant || '主案';
+    const startDate = (col.querySelector('.s1-in-start') || {}).value || '';
+    const endDate = (col.querySelector('.s1-in-end') || {}).value || '';
+    const direction = App._effScheduleDir(startDate, endDate, 'forward');
+    const selectedStages = (App._s1DemoStages || []).slice();
+    cases.push({ variantName, templateVariant, startDate, endDate, direction, selectedStages });
+  });
+  return { projectName, color, cases };
 };
 
 // §4.8.7.4b 塊3a-刀1 第二步追加1：開發階段膠囊 inline 編輯（方案甲，事件委派）。
