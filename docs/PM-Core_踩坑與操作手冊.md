@@ -157,3 +157,28 @@ old_string 只匹配舊段一部分，新內容疊後面、舊段殘留。整段
 - `replaceUpTo`（後面固定錨點當邊界、吃掉中間整段）或 `replaceSpanIncl`（含頭含尾整段換），每錨點 `count===1` 守門。
 - **dry-run 先印替換結果** + **計數證明**（如替換後 `const userInput` 應=1、舊 class 應=0）確認無並存、無重複，再正式寫。
 - Edit 適合**單行/小範圍**；**整段 render/函式換**用 node replaceSpan 才不會框不全。
+
+---
+
+## 坑 6：跳過中間階段→下游階段甘特浮到專案最前面（2026-06-27）
+
+**現象**
+第一/第二階段預覽選階段時若**跳過中間階段**（如選 設計／手工機／量產機、跳過 性試機／量試機），
+下游階段（量產機）的甘特長條不接在前段之後，反而**浮到專案最前面**（起點＝專案開始日），時間明顯不合理。
+
+**根因**
+跳階段時 `applyTemplate` 把指向「被砍階段」的前置剝離（excludedNs → relinkPred 移除）→ 下游階段任務變**無前置**
+→ 順推（computeSchedule）時無起算來源、落到專案開始日。Stage 1 forward 模式（只填開始日）與 Stage 2 forward 甘特
+都直接吃這個浮位落點。**初版只在 interval／情境C（`_s1ColorStagesForward`）內補了順序鏈、forward 模式漏掉**，故主案（只填開始日）仍浮。
+
+**正解（已根治）**
+抽共用函式 `App._chainStages(stages)`：依顯示順序逐段檢查，某段起點若早於前段結束日，就改「接在前段之後」
+（保留原工期跨度、idempotent）。三處接入：
+- `_s1ColorStagesForward`（interval／情境C）內呼叫 `_chainStages`。
+- `_s1ComputePreview` 的 forward／倒推來得及分支（`else`）補呼叫。
+- `_s2GanttHtml` 同分流（interval/情境C 走 `_s1ColorStagesForward`、其餘走 `_chainStages`）。
+→ Stage 1／2 各排程方向跳階段都不再浮位。
+
+**操作提醒**
+排程顯示層若改動「無前置任務的落點」邏輯，務必三個入口（`_s1ColorStagesForward`／`_s1ComputePreview`／`_s2GanttHtml`）一起檢查，
+別只補一條路徑。`_chainStages` 假設階段為**循序**（本範本成立）；若日後有真正並行階段，需另議（強制循序會把並行段串成序列）。
