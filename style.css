@@ -1613,6 +1613,10 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-gbar { position: absolute; top: 0; height: 14px; border-radius: 99px; background: var(--proj-c1); }
 .s2-case-other .s2-gbar { background: var(--proj-c3); }
 .s2-gbar-none { left: 0; width: 100%; background: var(--stone-200); opacity: .5; }
+/* per-stage 燈號上色（§4.8.7.4b #2，interval 各段照 margin 綠/黃/紅，複用 sage/amber/rose） */
+.s2-gbar-green { background: var(--sage-500); }
+.s2-gbar-yellow { background: var(--amber); }
+.s2-gbar-red { background: var(--rose); }
 .s2-gdate { flex: 0 0 112px; text-align: right; font-size: 11px; color: var(--stone-400); white-space: nowrap; cursor: help; }
 
 /* ─── Auth DEV 身份切換面板（開發測試用，DEV_MODE 關閉後不顯示）─── */
@@ -1659,6 +1663,15 @@ body.viewonly .cloud-sync-sec { display: none; }
 .slack-pill-green { background: var(--sage-chip); color: var(--sage-700); }
 .slack-pill-yellow { background: var(--amber-l); color: var(--amber-ink); }
 .slack-pill-red { background: var(--rose-l); color: var(--rose-ink); }
+.s1-pill-wrap { position: relative; display: inline-flex; }
+.s1-pill-wrap .slack-pill { cursor: help; }
+.s1-pill-tip { position: absolute; bottom: calc(100% + 8px); left: 0; width: 250px; background: var(--surface); border: 1px solid var(--stone-200); border-radius: var(--r8); box-shadow: var(--shadow-lg); padding: 9px 11px; font-size: 12px; line-height: 1.6; color: var(--stone-500); z-index: 5; opacity: 0; visibility: hidden; transition: opacity .12s; }
+.s1-pill-wrap:hover .s1-pill-tip { opacity: 1; visibility: visible; }
+.s1-pill-tip::after { content: ""; position: absolute; top: 100%; left: 18px; border: 6px solid transparent; border-top-color: var(--surface); }
+.s1-pill-tip-hd { display: flex; align-items: center; gap: 5px; font-weight: 600; margin-bottom: 3px; }
+.s1-tiphd-green { color: var(--sage-700); }
+.s1-tiphd-yellow { color: var(--amber-ink); }
+.s1-tiphd-red { color: var(--rose-ink); }
 .slack-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
 .slack-pill-green .slack-dot { background: var(--sage-500); }
 .slack-pill-yellow .slack-dot { background: var(--amber); }
@@ -1667,6 +1680,14 @@ body.viewonly .cloud-sync-sec { display: none; }
 .slack-dot.sd-yellow { background: var(--amber); }
 .slack-dot.sd-red { background: var(--rose); }
 .slack-help-line { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+.slack-help-ambox { display: flex; align-items: flex-start; gap: 6px; background: var(--amber-l); border: 1px solid var(--amber-border); border-radius: var(--r6); padding: 8px 10px; font-size: 12px; line-height: 1.7; color: var(--stone-500); margin: 4px 0 12px; }
+.slack-help-ambox .ti { flex: none; margin-top: 2px; color: var(--amber-ink); }
+.slack-help-hl { background: var(--amber-accent); color: var(--ink-inverse); font-weight: 600; padding: 1px 7px; border-radius: 4px; }
+.slack-help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; border-top: 1px solid var(--stone-100); padding-top: 10px; }
+.slack-help-cell { display: flex; align-items: flex-start; gap: 7px; }
+.slack-help-cell .slack-dot { margin-top: 3px; }
+.slack-help-ct { font-size: 12px; font-weight: 500; }
+.slack-help-cd { font-size: 12px; color: var(--stone-400); margin-top: 2px; line-height: 1.6; }
 
 /* ═══ §4.8.7.4b 塊3a-刀1（步2）：教育卡 + 第一頁文案版面 ═══ */
 .s1-edu-lead { font-size: 13px; color: var(--ink2); margin-bottom: 14px; }
@@ -1691,6 +1712,11 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-add-case:hover { background: var(--sage-50); }
 .s1-dynhint { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 8px 10px; background: var(--sage-50); border-radius: var(--r6); font-size: 12px; line-height: 1.6; color: var(--sage-700); }
 .s1-dynhint .ti { flex: none; }
+/* 初始引導態（雙空）：淡化成「等待輸入」靜態提示，非 active 運作態 */
+.s1-dynhint-init { background: var(--stone-50); color: var(--stone-400); }
+/* 預覽空狀態：骨架條（複用 .s2-gbar-none）＋正中央淡引導文案 */
+.s1-prev-empty { position: relative; }
+.s1-prev-empty-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--stone-400); pointer-events: none; }
 
 /* ═══ §4.8.7.4b 塊3a-刀1（文案/UI 調整批）：頁首 Header + 防呆強調 ═══ */
 .s1-pagehd { margin-bottom: 16px; }

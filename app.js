@@ -2574,11 +2574,14 @@ App._computeSlack = function(results, startDate, endDate) {
   return { available, needed, slack, light, earliestFinish, overDays };
 };
 
-// _effScheduleDir(startDate, endDate, direction)：三模式有效方向單一真實來源（§4.8.7.2/.3）。
-//   開始+結束皆填→interval；否則 backward 下拉→backward；其餘→forward。_reschedulePreview 與燈號 slackOf 共用，防判定漂移。
+// _effScheduleDir(startDate, endDate, direction)：三模式有效方向單一真實來源（§4.8.7.2/.3＋§4.8.7.4b A 自動判定）。
+//   開始+結束→interval；只結束→backward（倒推）；只開始→forward（順推）；皆空→沿用 direction 下拉（預設 forward）。
+//   _reschedulePreview 與燈號／動態提示共用，防判定漂移。
 App._effScheduleDir = function(startDate, endDate, direction) {
-  return (startDate && endDate) ? 'interval'
-    : (direction === 'backward' ? 'backward' : 'forward');
+  if (startDate && endDate) return 'interval';
+  if (endDate) return 'backward';
+  if (startDate) return 'forward';
+  return direction === 'backward' ? 'backward' : 'forward';
 };
 
 // App.applyTemplate(template, userInput)：純函式，只回傳資料、不碰 DOM/Storage（[CORE]）。
@@ -5778,47 +5781,20 @@ App._scheduleEduCard = function() {
 // 本步仍靜態（只主案一條 + ＋新增子案佔位 + 動態提示靜態情境A）；第三步才接 _reschedulePreview/_computeSlack 真資料 + 動態提示切換。
 // console 可直接呼叫 App._scheduleEduCard() / App._renderStage1Preview() 看版面；尚未接 modal flow。
 App._renderStage1Preview = function() {
-  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
-  // 假資料：主案 7.3kW（4 階段，綠燈）。子案本步預設不顯示（＋方框佔位），下一步接真資料才動態增減。
-  const main = { name: '7.3kW 主案', start: '2026-03-02', end: '2026-12-28', light: 'green', slack: 12,
-    stages: [
-      { stage: '設計', start: '2026-03-02', end: '2026-05-15' },
-      { stage: '手工機', start: '2026-05-18', end: '2026-07-31' },
-      { stage: '性試機', start: '2026-08-03', end: '2026-10-09' },
-      { stage: '量試機', start: '2026-10-12', end: '2026-12-28' },
-    ] };
-  // mini-gantt（複用 .s2-gantt 結構，靜態無選中/onclick）
-  const miniGantt = (stages) => {
-    const toNum = (d) => d ? Date.parse(d) : NaN;
-    const allS = stages.map(s => toNum(s.start)).filter(n => !isNaN(n));
-    const allE = stages.map(s => toNum(s.end)).filter(n => !isNaN(n));
-    const minN = allS.length ? Math.min.apply(null, allS) : 0;
-    const maxN = allE.length ? Math.max.apply(null, allE) : 0;
-    const span = (maxN - minN) || 1;
-    const shortD = (x) => { const p = String(x).split('-'); return (p[1] || '') + '/' + (p[2] || ''); };
-    let rows = '';
-    stages.forEach(r => {
-      const a = toNum(r.start), b = toNum(r.end);
-      const left = ((a - minN) / span) * 100;
-      const width = Math.max(((b - a) / span) * 100, 1.5);
-      rows +=
-        '<div class="s2-grow">' +
-          '<div class="s2-gname">' + U.esc(r.stage) + '</div>' +
-          '<div class="s2-gbar-track"><div class="s2-gbar" style="left:' + left + '%;width:' + width + '%"></div></div>' +
-          '<div class="s2-gdate">' + shortD(r.start) + ' → ' + shortD(r.end) + '</div>' +
-        '</div>';
-    });
-    return '<div class="s2-gantt-axis">' + rows + '</div>';
-  };
-  const lightTxt = (light, slack) => light === 'green' ? ('可行·餘裕 ' + slack + ' 天')
-    : light === 'yellow' ? ('偏緊·餘裕 ' + slack + ' 天')
-    : ('不足·超出 ' + slack + ' 工作天');
-  // 動態狀態提示（文-C 情境A，本步靜態；第三步隨填法切換）
-  const dynHint = '<div class="s1-dynhint"><i class="ti ti-arrow-narrow-right"></i><span>正向排程中：系統正從您的開工日往後順推，自動算出最後的預計完工日。</span></div>';
+  // demo fallback 假案（首開/無輸入不空白）走 App._s1FallbackCase；甘特＋真燈號膠囊建構移至
+  // App._s1PreviewBlocksHtml（初次 render 與 date 改動 re-render 共用單一真實來源，§4.8.7.4b 3-3）。
+  const main = App._s1FallbackCase();
   // 主案卡（複用 .case-card）；日期欄使用者面用「上市日期」
-  if (!App._s1DemoStages) App._s1DemoStages = main.stages.map(s => s.stage);
+  // 階段膠囊預設吃範本真階段（5 階段，含量產機）；範本缺才退回 demo（§4.8.7.4b 2a）
+  if (!App._s1DemoStages) {
+    App._s1DemoStages = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.cases && PRODUCT_DEV_TEMPLATE.cases[0])
+      ? PRODUCT_DEV_TEMPLATE.cases[0].stages.slice() : main.stages.map(s => s.stage);
+  }
   const real = App._s1ComputePreview();
   const m0 = (real && real[0] && real[0].stages && real[0].stages.length > 0) ? real[0] : main;
+  // 動態狀態提示（文-C）：雙空=初始引導（CTA）／只開始=A順推／只上市=B倒推／兩者皆填=D雙向精算。
+  // 初始日期留空＝引導態，帶 init class 淡化；穩定 id 供 _s1RefreshPreview 即時切換（末會再校正一次）。
+  const dynHint = '<div class="s1-dynhint s1-dynhint-init" id="s1-dynhint">' + App._s1DynHintHtml('', '', '') + '</div>';
   const mainCol =
     '<div class="s1-case-col case-card s2-case-main" data-case="main" data-tplvariant="主案">' +
       '<div class="s1-case-head">' +
@@ -5826,8 +5802,8 @@ App._renderStage1Preview = function() {
         '<input type="text" class="s1-case-name" value="' + U.esc(m0.name) + '">' +
       '</div>' +
       '<div class="s1-case-dates">' +
-        '<label>開始日<input type="date" class="s1-in-start" value="' + m0.start + '"></label>' +
-        '<label>上市日期<input type="date" class="s1-in-end" value="' + m0.end + '"></label>' +
+        '<label>開始日<input type="date" class="s1-in-start" value=""></label>' +
+        '<label>上市日期<input type="date" class="s1-in-end" value=""></label>' +
       '</div>' +
       dynHint +
       '<div class="s1-stage-hd">開發階段</div>' +
@@ -5845,12 +5821,15 @@ App._renderStage1Preview = function() {
       '<div class="s1-tips-line"><span class="s1-tips-dot"></span>兩者皆填齊：精算時間夠不夠，產出中間的「餘裕天數」。</div>' +
       '<div class="s1-tips-line s1-tips-cap"><i class="ti ti-info-circle"></i>若有多個產品規格（如 7.3kW ／ 2.2kW），點擊主案右側 ＋【新增子案】即可獨立排程。</div>'
   });
-  // 燈號 HintBox（文-D 完整版，預設收起 collapsed）
+  // 甘特三色 HintBox（瘦身：只留甘特顏色說明；大局狀態說明改 hover 燈號顯示。預設收起）
   const helpBody =
-    '<div class="slack-help-line"><span class="slack-dot sd-green"></span>可行（餘裕 ＞5 工作天）：時間充裕，遊刃有餘！中間還有超過一週的緩衝，遇到突發狀況也不怕。</div>' +
-    '<div class="slack-help-line"><span class="slack-dot sd-yellow"></span>偏緊（餘裕 0~4 工作天）：勉強做完，但毫無緩衝。時程扣得很死，一旦中間有任務卡住就會延誤。</div>' +
-    '<div class="slack-help-line"><span class="slack-dot sd-red"></span>不足（照範本工期排會超出上市日期）：時程爆表！依照現有範本一定會超過上市日期，需要調整人力或壓縮工期。</div>';
-  const hint = App.buildHintBox({ key: 's1-slack-help', icon: 'ti-help', title: '餘裕燈號代表什麼？', summary: '綠可行 ／ 黃偏緊 ／ 紅不足', bodyHtml: helpBody, collapsed: true });
+    '<div class="slack-help-ambox"><i class="ti ti-alert-triangle"></i><span>須在<span class="slack-help-hl">開始與上市日期皆填齊</span>時，各開發階段才會觸發以下顏色；只填單一日期，甘特圖維持預設單色。</span></div>' +
+    '<div class="slack-help-grid">' +
+      '<div class="slack-help-cell"><span class="slack-dot sd-green"></span><div><div class="slack-help-ct">綠色 ── 安全</div><div class="slack-help-cd">完工日比該段 Deadline 提前 5 天以上。</div></div></div>' +
+      '<div class="slack-help-cell"><span class="slack-dot sd-yellow"></span><div><div class="slack-help-ct">黃色 ── 警告</div><div class="slack-help-cd">完工日離該段 Deadline 僅差 0～4 天。</div></div></div>' +
+      '<div class="slack-help-cell"><span class="slack-dot sd-red"></span><div><div class="slack-help-ct">紅色 ── 延誤</div><div class="slack-help-cd">完工日已落在該段 Deadline 之後。</div></div></div>' +
+    '</div>';
+  const hint = App.buildHintBox({ key: 's1-slack-help', icon: 'ti-info-circle', title: '甘特圖階段顏色說明', summary: '一分鐘看懂各階段排程緊迫度', bodyHtml: helpBody, collapsed: true });
   // 頂部：專案名稱（label+窄 input） + 顏色 + 範本 橫排
   const swatches = (typeof PROJ_COLORS !== 'undefined' ? PROJ_COLORS : []).map((c, i) => '<div class="cp-swatch' + (i === 0 ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '"></div>').join('');
   const top =
@@ -5859,16 +5838,8 @@ App._renderStage1Preview = function() {
       '<div class="s1-top-col"><span class="s1-top-label">辨識顏色</span><div class="color-picker s1-colors">' + swatches + '</div></div>' +
       '<div class="s1-top-col"><span class="s1-top-label">選擇範本</span><select class="s1-tpl-sel"><option>產品開發範本</option></select></div>' +
     '</div>';
-  // 預覽區塊（本步只主案一條）
-  const previewBlocks =
-    '<div class="s1-prev-case case-card s2-case-main">' +
-      '<div class="s1-prev-head">' +
-        '<span class="s1-prev-name">' + U.esc(m0.name) + '</span>' +
-        '<span class="s1-prev-range">' + fmtD(m0.start) + ' → ' + fmtD(m0.end) + '</span>' +
-        '<span class="slack-pill slack-pill-' + main.light + '"><span class="slack-dot"></span>' + lightTxt(main.light, main.slack) + '</span>' +
-      '</div>' +
-      miniGantt(m0.stages) +
-    '</div>';
+  // 預覽區塊（本步只主案一條；甘特＋真燈號膠囊由 _s1PreviewBlocksHtml 建，date 改動時局部重畫此容器）
+  const previewBlocks = '<div id="s1-prev-blocks">' + App._s1PreviewBlocksHtml() + '</div>';
   // 隱藏全域 topbar（智慧排程鈕/重複標題不屬此頁）；本頁自帶麵包屑 + 大標題。（flow 接線後離開頁面再恢復）
   const tb = document.querySelector('.main > .topbar');
   if (tb) tb.classList.add('topbar-hidden');
@@ -5894,7 +5865,127 @@ App._renderStage1Preview = function() {
         '<button class="tb-action" onclick="void 0">下一步：檢視任務</button>' +
       '</div>' +
     '</div>';
+  // date input 改動 → 即時重算燈號＋甘特，局部重畫預覽區（不動輸入卡、保留焦點；§4.8.7.4b 3-3）
+  page.querySelectorAll('.s1-in-start, .s1-in-end').forEach(inp => inp.addEventListener('change', App._s1RefreshPreview));
+  App._s1RefreshPreview();   // DOM 就緒後校正一次：依實際輸入（初始留空）同步動態提示與甘特空狀態
   window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// _s1FallbackCase：第一階段預覽 demo 假案（首開/無輸入時不空白），輸入卡 m0 fallback 與預覽膠囊共用。
+App._s1FallbackCase = function() {
+  return { name: '7.3kW 主案', start: '2026-03-02', end: '2026-12-28', light: 'green', slack: 12, overDays: 0,
+    stages: [
+      { stage: '設計', start: '2026-03-02', end: '2026-05-15' },
+      { stage: '手工機', start: '2026-05-18', end: '2026-07-31' },
+      { stage: '性試機', start: '2026-08-03', end: '2026-10-09' },
+      { stage: '量試機', start: '2026-10-12', end: '2026-12-28' },
+    ] };
+};
+
+// _s1PreviewBlocksHtml：階段區間預覽（甘特＋真燈號膠囊）。初次 render 與 date 改動 re-render 共用單一真實來源。
+//   燈號吃 _s1ComputePreview 各案真 slack（interval 雙填才有；單填回 null＝不顯示膠囊）；無真資料退回 demo 案不空白。
+App._s1PreviewBlocksHtml = function(real) {
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  const miniGantt = (stages) => {
+    const toNum = (d) => d ? Date.parse(d) : NaN;
+    const allS = stages.map(s => toNum(s.start)).filter(n => !isNaN(n));
+    const allE = stages.map(s => toNum(s.end)).filter(n => !isNaN(n));
+    const minN = allS.length ? Math.min.apply(null, allS) : 0;
+    const maxN = allE.length ? Math.max.apply(null, allE) : 0;
+    const span = (maxN - minN) || 1;
+    const shortD = (x) => { const p = String(x).split('-'); return (p[1] || '') + '/' + (p[2] || ''); };
+    let rows = '';
+    stages.forEach(r => {
+      const a = toNum(r.start), b = toNum(r.end);
+      const left = ((a - minN) / span) * 100;
+      const width = Math.max(((b - a) / span) * 100, 1.5);
+      rows +=
+        '<div class="s2-grow">' +
+          '<div class="s2-gname">' + U.esc(r.label || r.stage) + '</div>' +
+          '<div class="s2-gbar-track"><div class="s2-gbar' + (r.light ? ' s2-gbar-' + r.light : '') + '" style="left:' + left + '%;width:' + width + '%"></div></div>' +
+          '<div class="s2-gdate">' + shortD(r.start) + ' → ' + shortD(r.end) + '</div>' +
+        '</div>';
+    });
+    return '<div class="s2-gantt-axis">' + rows + '</div>';
+  };
+  const lightTxt = (light, slack, overDays) => light === 'green' ? ('時程充足·餘裕 ' + slack + ' 天')
+    : light === 'yellow' ? ('時程偏緊·餘裕 ' + slack + ' 天')
+    : ('時程不足·超出 ' + overDays + ' 工作天');
+  if (real === undefined) real = App._s1ComputePreview();
+  const m0 = (real && real[0] && real[0].stages && real[0].stages.length > 0) ? real[0] : null;
+  // 空狀態（無基準日，多為日期未填）：不假裝有資料。骨架列數＝階段膠囊數→甘特跟著膠囊走，疊引導文案。
+  if (!m0) {
+    const _rn = App._s1StageRenames || {};
+    const skel = (App._s1DemoStages || []).map(id =>
+      '<div class="s2-grow">' +
+        '<div class="s2-gname">' + U.esc((_rn[id] != null) ? _rn[id] : id) + '</div>' +
+        '<div class="s2-gbar-track"><div class="s2-gbar s2-gbar-none"></div></div>' +
+        '<div class="s2-gdate"></div>' +
+      '</div>').join('');
+    return '<div class="s1-prev-case case-card s2-case-main s1-prev-empty">' +
+        '<div class="s2-gantt-axis">' + skel + '</div>' +
+        '<div class="s1-prev-empty-hint">請於上方輸入日期以產生進度預覽</div>' +
+      '</div>';
+  }
+  const PILL_IC = { green: 'ti-circle-check', yellow: 'ti-alert-circle', red: 'ti-alert-triangle' };
+  const PILL_LB = { green: '時程充足', yellow: '時程偏緊', red: '時程不足' };
+  const PILL_TIP = {
+    green: '時程非常安全！整體進度皆在上市截止日控制範圍內。',
+    yellow: '勉強能如期完成，但毫無緩衝。時程扣得很死，後續階段將非常緊湊。',
+    red: '依照現有範本工期排下去將會超過上市截止日，建議重新調整人力或壓縮工期。'
+  };
+  const pill = m0.light
+    ? '<span class="s1-pill-wrap">' +
+        '<span class="slack-pill slack-pill-' + m0.light + '"><i class="ti ' + PILL_IC[m0.light] + '"></i>' + lightTxt(m0.light, m0.slack, m0.overDays) + '</span>' +
+        '<span class="s1-pill-tip"><span class="s1-pill-tip-hd s1-tiphd-' + m0.light + '"><i class="ti ' + PILL_IC[m0.light] + '"></i>' + PILL_LB[m0.light] + '</span>' + PILL_TIP[m0.light] + '</span>' +
+      '</span>'
+    : '';
+  return '<div class="s1-prev-case case-card s2-case-main">' +
+      '<div class="s1-prev-head">' +
+        '<span class="s1-prev-name">' + U.esc(m0.name) + '</span>' +
+        '<span class="s1-prev-range">' + fmtD(m0.start) + ' → ' + fmtD(m0.end) + '</span>' +
+        pill +
+      '</div>' +
+      miniGantt(m0.stages) +
+    '</div>';
+};
+
+// _s1DynHintHtml：動態狀態提示（文-C）依填法切情境——雙空=初始引導(CTA)／只開始=A順推／只上市=B倒推／兩者皆填=D雙向精算。
+//   情境C（倒推來不及防呆）牽涉引擎防呆偵測，另開未做。computedStart=倒推算出的最晚開工日（B 用，可空）。
+App._s1DynHintHtml = function(startDate, endDate, computedStart) {
+  // 雙空＝初始引導：尚無基準日，給行動導引，不顯示「排程中」假象
+  if (!startDate && !endDate) {
+    return '<i class="ti ti-calendar-event"></i><span>請輸入或選擇日期：填入「開始日」或「上市日期」，系統將自動為您啟動智慧時程推算。</span>';
+  }
+  const eff = App._effScheduleDir(startDate, endDate, 'forward');
+  let txt;
+  if (eff === 'interval') {
+    txt = '雙向精算中：已幫您比對開工與上市日期，中間的彈性天數已呈現在下方的「餘裕燈號」中。';
+  } else if (eff === 'backward') {
+    const d = computedStart ? String(computedStart).replace(/-/g, '/') : '';
+    txt = d ? ('逆向倒推中：已為您推算出最晚必須在 ' + d + ' 前開工，才趕得上上市。')
+            : '逆向倒推中：系統正從您的上市日期往前推算最晚開工日。';
+  } else {
+    txt = '正向排程中：系統正從您的開工日往後順推，自動算出最後的預計完工日。';
+  }
+  return '<i class="ti ti-arrow-narrow-right"></i><span>' + txt + '</span>';
+};
+
+// _s1RefreshPreview：date/階段膠囊改動時即時重算，局部重畫預覽容器＋同步更新動態提示（不動輸入卡、保留焦點）。
+App._s1RefreshPreview = function() {
+  const real = App._s1ComputePreview();
+  const c = document.getElementById('s1-prev-blocks');
+  if (c) c.innerHTML = App._s1PreviewBlocksHtml(real);
+  // 動態提示依輸入卡填法切情境（文-C；§4.8.7.4b #1 補）
+  const hintBox = document.getElementById('s1-dynhint');
+  if (hintBox) {
+    const page = document.getElementById('page-stage1');
+    const s = ((page && page.querySelector('.s1-in-start')) || {}).value || '';
+    const e = ((page && page.querySelector('.s1-in-end')) || {}).value || '';
+    const cs = (real && real[0]) ? real[0].start : '';
+    hintBox.innerHTML = App._s1DynHintHtml(s, e, cs);
+    hintBox.classList.toggle('s1-dynhint-init', !s && !e);   // 雙空＝淡化引導態
+  }
 };
 
 App._s1CollectInput = function() {
@@ -5916,6 +6007,36 @@ App._s1CollectInput = function() {
   return { projectName, color, cases };
 };
 
+// _s1ColorStagesForward：interval 各段上色（§4.8.7.4b #2）。從開始日順推取各段自然完工日，
+//   比對上市日期算 margin（>5 綠／0~4 黃／<0 紅，同燈號門檻），並把 stage 起訖改成順推值（讓超出上市日視覺可見）。
+//   用 clone 跑正向 computeSchedule，不動 res.tasks（pill 仍吃 backward 結果，互不影響）。
+App._s1ColorStagesForward = function(res, v, stages, startDate, endDate) {
+  if (!startDate || !endDate) return;
+  const fwd = res.tasks.filter(t => t.variant === v.id).map(t => Object.assign({}, t));
+  fwd.forEach(t => { if (!t.predecessor) t.plannedStart = startDate; });
+  const fsch = computeSchedule(fwd);
+  const fm = new Map(); fsch.results.forEach(r => fm.set(r.taskId, r));
+  const fStage = {};
+  fwd.forEach(t => {
+    const r = fm.get(t.id);
+    if (!r || !r.suggestedStart) return;
+    const stage = (t.desc || '').split(' / ')[0] || '其他';
+    if (!fStage[stage]) fStage[stage] = { start: r.suggestedStart, end: r.suggestedEnd };
+    else {
+      if (r.suggestedStart < fStage[stage].start) fStage[stage].start = r.suggestedStart;
+      if (r.suggestedEnd > fStage[stage].end) fStage[stage].end = r.suggestedEnd;
+    }
+  });
+  stages.forEach(s => {
+    const f = fStage[s.stage];
+    if (f) { s.start = f.start; s.end = f.end; }   // 改順推落點（超出上市日視覺可見）
+    const margin = (s.end <= endDate)
+      ? D.workdaysBetween(s.end, endDate) - 1
+      : -(D.workdaysBetween(endDate, s.end) - 1);
+    s.light = margin >= 5 ? 'green' : (margin >= 0 ? 'yellow' : 'red');
+  });
+};
+
 App._s1ComputePreview = function() {
   const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
   if (!tpl) return null;
@@ -5935,6 +6056,17 @@ App._s1ComputePreview = function() {
       }
     });
     const stages = (v.stages || []).map(s => stageMap[s]).filter(Boolean);
+    const _rn = App._s1StageRenames || {};
+    stages.forEach(s => { s.label = (_rn[s.stage] != null) ? _rn[s.stage] : s.stage; });   // 顯示名（改名只動顯示，id=s.stage 不變）
+    // 真燈號（§4.8.7.4b 3-3）：interval 案 plannedStart/End＝lateStart/lateFinish（_reschedulePreview :2543 映射），
+    // 餵既有 _computeSlack 重算（單一真實來源、不重跑排程）；start/end 缺一→回 null→不顯示膠囊。
+    const vsch = v.schedule || {};
+    const pseudoResults = vtasks.map(t => ({ lateStart: t.plannedStart, lateFinish: t.plannedEnd }));
+    const sl = App._computeSlack(pseudoResults, vsch.startDate, vsch.endDate);
+    // #2 per-stage 上色（interval 才有）：順推各段、比對上市日期算 margin→綠/黃/紅，並改 stage 起訖為順推值。
+    if (App._effScheduleDir(vsch.startDate, vsch.endDate, vsch.direction) === 'interval') {
+      App._s1ColorStagesForward(res, v, stages, vsch.startDate, vsch.endDate);
+    }
     const allS = stages.map(s => s.start).filter(Boolean);
     const allE = stages.map(s => s.end).filter(Boolean);
     byVariant.push({
@@ -5942,18 +6074,25 @@ App._s1ComputePreview = function() {
       start: allS.length ? allS.reduce((a,b)=>a<b?a:b) : '',
       end: allE.length ? allE.reduce((a,b)=>a>b?a:b) : '',
       stages: stages,
+      light: sl ? sl.light : '',
+      slack: sl ? sl.slack : null,
+      overDays: sl ? sl.overDays : null,
     });
   });
   return byVariant;
 };
 
 // §4.8.7.4b 塊3a-刀1 第二步追加1：開發階段膠囊 inline 編輯（方案甲，事件委派）。
-// 靜態假資料暫存 App._s1DemoStages（module 內）；第三步接真 _createFlow 改存 case.selectedStages/stageRenames。
+// 階段膠囊：_s1DemoStages 存「階段 id（範本階段碼，供排程比對）」；_s1StageRenames{id:顯示名} 存改名
+// （只動顯示、不動 id → applyTemplate 仍對到任務、不被砍；§4.8.7.4b 改名修正）。
+App._s1StageRenames = App._s1StageRenames || {};
 App._s1StageChipsHtml = function() {
   const arr = App._s1DemoStages || [];
-  return arr.map((name, i) =>
-    '<span class="s1-stage-chip" data-idx="' + i + '"><span class="chip-text">' + U.esc(name) + '</span><span class="chip-del" title="刪除">×</span></span>'
-  ).join('<i class="ti ti-chevron-right s1-stage-arrow"></i>') + '<span class="s1-stage-add" title="新增階段"><i class="ti ti-plus"></i></span>';
+  const rn = App._s1StageRenames || {};
+  return arr.map((id, i) => {
+    const label = (rn[id] != null) ? rn[id] : id;
+    return '<span class="s1-stage-chip" data-idx="' + i + '"><span class="chip-text">' + U.esc(label) + '</span><span class="chip-del" title="刪除">×</span></span>';
+  }).join('<i class="ti ti-chevron-right s1-stage-arrow"></i>') + '<span class="s1-stage-add" title="新增階段"><i class="ti ti-plus"></i></span>';
 };
 App._renderStageChips = function() {
   const box = document.querySelector('#page-stage1 .s1-stagelist');
@@ -5963,7 +6102,8 @@ App._stageChipToInput = function(textEl) {
   if (!textEl) return;
   const chip = textEl.closest('.s1-stage-chip'); if (!chip) return;
   const idx = +chip.getAttribute('data-idx');
-  const cur = (App._s1DemoStages[idx] != null) ? App._s1DemoStages[idx] : '';
+  const id0 = App._s1DemoStages[idx];
+  const cur = (App._s1StageRenames[id0] != null) ? App._s1StageRenames[id0] : (id0 != null ? id0 : '');
   const inp = document.createElement('input');
   inp.type = 'text'; inp.className = 'chip-edit'; inp.value = cur;
   chip.classList.add('editing');
@@ -5975,9 +6115,19 @@ App._stageChipToInput = function(textEl) {
   const commit = () => {
     if (done) return; done = true;
     const v = inp.value.trim();
-    if (v === '') App._s1DemoStages.splice(idx, 1);
-    else App._s1DemoStages[idx] = v;
+    const id = App._s1DemoStages[idx];
+    if (v === '') {                          // 清空＝刪該段（連帶清 rename）
+      App._s1DemoStages.splice(idx, 1);
+      if (id) delete App._s1StageRenames[id];
+    } else if (!id) {                        // 新增空膠囊命名：id 即輸入值（對到範本階段碼才有任務）
+      App._s1DemoStages[idx] = v;
+    } else if (v !== id) {                   // 既有階段改名：只動顯示名、保留 id（任務不掉）
+      App._s1StageRenames[id] = v;
+    } else {                                 // 改回原名：清掉 rename
+      delete App._s1StageRenames[id];
+    }
     App._renderStageChips();
+    App._s1RefreshPreview();   // 膠囊改名/增刪 → 即時重算甘特＋燈號（§4.8.7.4b 2b）
   };
   inp.addEventListener('blur', commit);
   inp.addEventListener('keydown', (ev) => {
@@ -5992,7 +6142,7 @@ App._bindStageChipEvents = function() {
     const page = document.getElementById('page-stage1');
     if (!page || !page.classList.contains('active')) return;   // 僅第一階段頁作用
     const del = e.target.closest('.chip-del');
-    if (del) { const chip = del.closest('.s1-stage-chip'); if (chip) { App._s1DemoStages.splice(+chip.getAttribute('data-idx'), 1); App._renderStageChips(); } return; }
+    if (del) { const chip = del.closest('.s1-stage-chip'); if (chip) { const di = +chip.getAttribute('data-idx'); const id0 = App._s1DemoStages[di]; App._s1DemoStages.splice(di, 1); if (id0) delete App._s1StageRenames[id0]; App._renderStageChips(); App._s1RefreshPreview(); } return; }
     const add = e.target.closest('.s1-stage-add');
     if (add) {
       App._s1DemoStages.push('');
