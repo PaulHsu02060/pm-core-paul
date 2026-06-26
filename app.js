@@ -2676,6 +2676,7 @@ App.applyTemplate = function(template, userInput) {
           durationDays: tk.durationDays,
           owner: '',
           dept: roleToDeptId[(tk.role || '').trim()] || '',
+          role: (tk.role || '').trim(),   // §4.8.7.4b Stage2 New：留範本角色，供部門彈窗「儲存並套用」時 role→dept 重映射（不重跑 applyTemplate 即可保留手改）
           variant: variantId,
           start: '',
           end: '',
@@ -5748,6 +5749,204 @@ App._renderStage2 = function() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
+// ═══ §4.8.7.4b Stage 2 New UI（Mockup⑤⑥）：編輯任務骨架 — 左部門面板＋右甘特＋階段任務表＋部門彈窗 ═══
+// 接線：第一階段預覽「下一步」→ _flowStage1Next（collect→applyTemplate→_renderStage2New）。
+// 不接舊 _renderStage2/_stage2Commit 的 render；建立仍複用 _stage2Commit（讀 _tplPreview，邏輯不變）。
+
+// 第一階段「下一步：檢視任務」：掃第一階段輸入 → applyTemplate（不落地）→ 進新 Stage 2。
+// 上一步靠切 .active 不重繪 page-stage1，故回上一步輸入仍在（DOM 不清）。
+App._flowStage1Next = function() {
+  const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
+  if (!tpl) { U.toast('⚠ 找不到範本', 'warning'); return; }
+  const input = App._s1CollectInput();
+  if (!input || !input.cases.length) { U.toast('⚠ 無案別資料，請重新套用範本', 'warning'); return; }
+  const main = input.cases[0];
+  if (!main.startDate && !main.endDate) { U.toast('⚠ 主案請至少填開始日或上市日期', 'warning'); return; }
+  input.depts = App._tplDepts || [];   // 新流程部門多在 Stage 2 才編；此處沿用既有暫存（通常為空）
+  this._tplPreview = App.applyTemplate(tpl, input);
+  this._renderStage2New();
+};
+
+// 上一步：切回 page-stage1（不重繪，保留輸入）。topbar 維持隱藏（仍在流程內）。
+App._s2BackToStage1 = function() {
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  const p = document.getElementById('page-stage1');
+  if (p) p.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// 建立專案：先還原全域 topbar（離開流程頁）再走既有 _stage2Commit（落地邏輯單一真實來源、不重寫）。
+App._s2CommitNew = function() {
+  const tb = document.querySelector('.main > .topbar');
+  if (tb) tb.classList.remove('topbar-hidden');
+  App._stage2Commit();
+};
+
+// 左部門面板（純顯示，Mockup⑤左欄）：列各部門→成員＋該案任務數；「未指派」筆數標紅。
+// 不可點（v1）；資料讀 _tplPreview，套用部門後由 _renderStage2New 整頁重繪刷新。
+App._s2DeptPanelHtml = function(variantId) {
+  const res = this._tplPreview; if (!res) return '';
+  const depts = res.depts || [];
+  const tasks = (res.tasks || []).filter(t => t.variant === variantId);
+  const unassigned = tasks.filter(t => !t.owner).length;
+  let rows = depts.map(d => {
+    const cnt = tasks.filter(t => t.dept === d.id).length;
+    const names = (d.members || []).map(m => U.esc(m.name)).filter(Boolean).join('、') || '<span class="s2n-dp-empty">無成員</span>';
+    return '<div class="s2n-dp-row">' +
+        '<div class="s2n-dp-name">' + U.esc(d.name) + '</div>' +
+        '<div class="s2n-dp-members">' + names + '</div>' +
+        '<div class="s2n-dp-cnt">' + cnt + ' 件</div>' +
+      '</div>';
+  }).join('');
+  if (!depts.length) rows = '<div class="s2n-dp-none">尚未設定部門，點右上「新增/編輯部門」建立</div>';
+  const unRow = '<div class="s2n-dp-row s2n-dp-unassigned' + (unassigned ? '' : ' ok') + '">' +
+      '<div class="s2n-dp-name">未指派</div>' +
+      '<div class="s2n-dp-members"></div>' +
+      '<div class="s2n-dp-cnt">' + unassigned + ' 件</div>' +
+    '</div>';
+  return '<div class="s2n-deptpanel">' +
+      '<div class="s2n-dp-head">' +
+        '<span class="s2n-dp-title">部門與負責人</span>' +
+        '<button class="s2n-dp-btn" onclick="App._s2OpenDeptModal()"><i class="ti ti-pencil"></i> 新增/編輯部門</button>' +
+      '</div>' + rows + unRow +
+    '</div>';
+};
+
+// 部門彈窗（Mockup⑥）：複用共用部門元件（buildDeptRowsHtml + deptUI tpl 模式，暫存 _tplDepts）。
+// 開窗前把 _tplPreview.depts deep-clone 進 _tplDepts 當工作副本；取消＝closeModal 清掉副本、不動 preview。
+App._s2OpenDeptModal = function() {
+  const res = this._tplPreview; if (!res) return;
+  // 預載：依本專案任務的範本角色（task.role）抓出既有部門，user 只需填負責人姓名；
+  // 已存的部門沿用其成員（不重置），非角色的自建部門也保留。
+  const roles = [];
+  (res.tasks || []).forEach(t => { const r = (t.role || '').trim(); if (r && roles.indexOf(r) < 0) roles.push(r); });
+  const existing = {};
+  (res.depts || []).forEach(d => { existing[d.name] = d; });
+  const working = roles.map(r => existing[r]
+    ? JSON.parse(JSON.stringify(existing[r]))
+    : { id: U.id(), name: r, members: [{ id: U.id(), name: '' }] });
+  (res.depts || []).forEach(d => { if (roles.indexOf(d.name) < 0) working.push(JSON.parse(JSON.stringify(d))); });
+  App._tplDepts = working;
+  const body =
+    '<div class="form-field">' +
+      '<label>部門與負責人（可自由增減）</label>' +
+      '<div class="s2n-dept-hint">先建立部門與成員；儲存後系統會依任務角色自動指派負責人，之後可在任務表逐筆微調。</div>' +
+      '<div class="dept-edit-list" id="deptEditorList">' + App.buildDeptRowsHtml(App._tplDepts, 'tpl', null) + '</div>' +
+      '<button class="dept-add-btn" onclick="App.deptUI.addDept(\'tpl\', \'\')">＋增加部門</button>' +
+    '</div>';
+  const footer =
+    '<button class="tb-action ghost" onclick="App.closeModal()">取消</button>' +
+    '<button class="tb-action" onclick="App._s2ApplyDepts()">儲存並套用</button>';
+  App.openModal({ title: '部門與負責人', body: body, footer: footer });
+};
+
+// 儲存並套用：工作副本 → _tplPreview.depts（清空部門/無成員，鏡像 applyTemplate ③）；
+// 依 role 重映射 task.dept（保留 owner/工期/需交付等手改；dept 不影響排程、不重算）→ 整頁重繪。
+App._s2ApplyDepts = function() {
+  const res = this._tplPreview;
+  const edited = JSON.parse(JSON.stringify(App._tplDepts || []));   // 先擷取，closeModal 會清 _tplDepts
+  if (!res) { App.closeModal(); return; }
+  const depts = [];
+  edited.forEach(d => {
+    const name = (d.name || '').trim();
+    if (!name) return;
+    const members = (d.members || []).map(m => ({ id: m.id, name: (m.name || '').trim() })).filter(m => m.name);
+    if (!members.length) return;
+    depts.push({ id: d.id, name: name, members: members });
+  });
+  res.depts = depts;
+  const roleToDeptId = {};
+  const deptById = {};
+  depts.forEach(d => { roleToDeptId[d.name] = d.id; deptById[d.id] = d; });
+  // 重映射 task.dept；負責人自動帶入：未指派的任務帶該部門第一位成員（手動 > 系統，已填的不覆蓋）。
+  (res.tasks || []).forEach(t => {
+    t.dept = roleToDeptId[(t.role || '').trim()] || '';
+    if (!t.owner && t.dept) {
+      const d = deptById[t.dept];
+      if (d && d.members && d.members[0]) t.owner = d.members[0].name;
+    }
+  });
+  App.closeModal();
+  this._renderStage2New();
+};
+
+// 新 Stage 2 頁殼（Mockup⑤）：標頭＋提示條（新增/編輯部門鈕）＋每案（案頭＋燈號＋左部門面板/右甘特＋任務表）。
+// 甘特/燈號/任務表全複用既有 _s2GanttHtml/_s2SlackHtml/_s2ListHtml；data-variant 容器同名，_s2RefreshCase 可刷。
+App._renderStage2New = function() {
+  const res = this._tplPreview;
+  if (!res) { U.toast('⚠ 無範本預覽資料，請重新套用範本', 'warning'); return; }
+  const variants = res.variants || [];
+  const tasks = res.tasks || [];
+  if (!this._s2Stage) this._s2Stage = {};
+  variants.forEach(v => {
+    const g = this._s2GroupByStage(v.id);
+    if (g.order.length && g.order.indexOf(this._s2Stage[v.id]) < 0) this._s2Stage[v.id] = g.order[0];
+  });
+  const fmtD = (s) => s ? String(s).replace(/-/g, '/') : '';
+  const caseRange = (vid) => {
+    const ts = tasks.filter(t => t.variant === vid);
+    const starts = ts.map(t => t.plannedStart).filter(Boolean).sort();
+    const ends = ts.map(t => t.plannedEnd).filter(Boolean).sort();
+    const a = starts[0], b = ends[ends.length - 1];
+    return (a || b) ? (fmtD(a) + ' → ' + fmtD(b)) : '（待排程）';
+  };
+  // 頂部說明：標準收折 HintBox（buildHintBox，字級吃 UI-CSS 規範、收合狀態持久化）
+  const topGuide = App.buildHintBox({
+    key: 's2-guide', icon: 'ti-info-circle', title: '任務骨架編輯指南',
+    summary: '先設部門→自動帶負責人（手動優先）；點甘特切換階段', collapsed: true,
+    bodyHtml:
+      '<div class="s2n-gd-row"><i class="ti ti-speakerphone"></i><span><b>重要：請先設定「部門與負責人」</b>（下方卡片右上按鈕）。系統會依角色自動指派負責人；若你後續手動修改過，系統以手動為準、不予覆蓋。</span></div>' +
+      '<div class="s2n-gd-row"><i class="ti ti-chart-bar"></i><span><b>點選上方甘特圖可切換階段</b>。下方任務表會同步切換成該階段的任務。</span></div>'
+  });
+  const predHelpHtml = (i) => App.buildHintBox({
+    key: 's2-pred-help-' + i, icon: 'ti-link', title: '前置任務設定指南',
+    summary: '序號→銜接方式→緩衝；只能綁當前或過去 3 階段，嚴禁綁未來', collapsed: true,
+    bodyHtml:
+      '<div class="s2n-gd-row"><i class="ti ti-pointer"></i><span><b>操作方式</b>：先選「前置序號」→ 再選「銜接方式」（如：完成後才開始）→ 最後填「緩衝天數」。</span></div>' +
+      '<div class="s2n-gd-row s2n-gd-warn"><i class="ti ti-alert-circle"></i><span><b>防呆限制</b>：前置只能綁「當前階段」或「過去最多 3 個階段內」的任務；嚴禁綁未來項目（否則時程會跨度過大失控）。</span></div>' +
+      '<div class="s2n-gd-row"><i class="ti ti-bulb"></i><span><b>範例</b>：任務 5 要等任務 3 完成後再多等 2 天 → 序號 3 ＋ 完成後才開始 ＋ 緩衝 2。</span></div>'
+  });
+  const blocks = variants.map((v, i) => {
+    const isMain = i === 0;
+    return '' +
+      '<div class="s2n-case s2-case ' + (isMain ? 's2-case-main' : 's2-case-other') + '" data-variant="' + v.id + '">' +
+        '<div class="s2-case-head">' +
+          '<span class="stage-cap-pill cap-' + (i % 3) + '">' + (isMain ? '主案' : '子案') + '</span>' +
+          '<span class="s2-case-name">' + U.esc(v.name || '') + '</span>' +
+          '<span class="s2-case-range">' + caseRange(v.id) + '</span>' +
+        '</div>' +
+        '<div class="s2-slack-wrap" data-variant="' + v.id + '">' + this._s2SlackHtml(v.id) + '</div>' +
+        '<div class="s2n-body">' +
+          '<div class="s2n-left">' + this._s2DeptPanelHtml(v.id) + '</div>' +
+          '<div class="s2-gantt s2n-right" data-variant="' + v.id + '">' + this._s2GanttHtml(v.id) + '</div>' +
+        '</div>' +
+        '<div class="s2n-banner-wrap" data-variant="' + v.id + '">' + this._s2BannerHtml(v.id) + '</div>' +
+        predHelpHtml(i) +
+        '<div class="s2-list" data-variant="' + v.id + '">' + this._s2ListHtml(v.id) + '</div>' +
+      '</div>';
+  }).join('');
+  const unbar = (n => n > 0 ? '<div class="s2-unassigned-bar">⚠ 還有 ' + n + ' 個任務未指派負責人</div>' : '')(tasks.filter(t => !t.owner).length);
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  const page = document.getElementById('page-stage2');
+  page.classList.add('active');
+  page.innerHTML =
+    '<div class="s2n-wrap">' +
+      '<div class="s2n-pagehd">' +
+        '<div class="s1-crumb">總儀表板 <span class="s1-crumb-sep">/</span> 新增專案 <span class="s1-crumb-sep">/</span> 編輯任務</div>' +
+        '<div class="s2n-head"><span class="s2-num">2</span>編輯任務骨架</div>' +
+      '</div>' +
+      topGuide + blocks + unbar +
+      '<div class="stage2-foot">' +
+        '<button class="tb-action ghost" onclick="App._s2BackToStage1()">上一步</button>' +
+        '<button class="tb-action" data-edit-hide onclick="App._s2CommitNew()">建立專案</button>' +
+      '</div>' +
+    '</div>';
+  if (document.body.classList.contains('viewonly')) {
+    document.querySelectorAll('#page-stage2 input, #page-stage2 select, #page-stage2 .s2-del, #page-stage2 .dt-insert-btn').forEach(el => { el.disabled = true; });
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 // §4.8.7.4b 塊3a-刀1：第一頁入口教育卡（Mockup①，文-A 定稿）。openModal 渲染三情境說明卡（純說明、非選項），→ _renderStage1Preview。
 App._scheduleEduCard = function() {
   const cards = [
@@ -5842,7 +6041,7 @@ App._renderStage1Preview = function() {
       '</div>' +
       '<div class="stage2-foot">' +
         '<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>' +
-        '<button class="tb-action" onclick="void 0">下一步：檢視任務</button>' +
+        '<button class="tb-action" onclick="App._flowStage1Next()">下一步：檢視任務</button>' +
       '</div>' +
     '</div>';
   // date input 改動即時重算改用各案卡 inline onchange（支援動態新增的子案卡，§4.8.7.4b 3-5）
@@ -6080,13 +6279,28 @@ App._s1ColorStagesForward = function(res, v, stages, startDate, endDate) {
       if (r.suggestedEnd > fStage[stage].end) fStage[stage].end = r.suggestedEnd;
     }
   });
+  stages.forEach(s => { const f = fStage[s.stage]; if (f) { s.start = f.start; s.end = f.end; } });   // 改順推落點（超出上市日視覺可見）
+  App._chainStages(stages);   // 階段順序鏈（跳階段→下游不浮到前面）
   stages.forEach(s => {
-    const f = fStage[s.stage];
-    if (f) { s.start = f.start; s.end = f.end; }   // 改順推落點（超出上市日視覺可見）
     const margin = (s.end <= endDate)
       ? D.workdaysBetween(s.end, endDate) - 1
       : -(D.workdaysBetween(endDate, s.end) - 1);
     s.light = margin >= 5 ? 'green' : (margin >= 0 ? 'yellow' : 'red');
+  });
+};
+
+// 階段順序鏈（共用）：依顯示順序，某段起點若早於前段結束（跳階段→前置被剝離浮到前面），
+// 改「接在前段之後」（保留原工期跨度）。idempotent：已是順序排列則不動。Stage 1／2 各模式甘特共用。
+App._chainStages = function(stages) {
+  let prevEnd = '';
+  (stages || []).forEach(s => {
+    if (!s || !s.start || !s.end) return;
+    if (prevEnd && s.start < prevEnd) {
+      const span = Math.max(D.workdaysBetween(s.start, s.end) - 1, 0);
+      s.start = D.fmt(D.addWorkdays(prevEnd, 1), 'iso');
+      s.end = D.fmt(D.addWorkdays(s.start, span), 'iso');
+    }
+    prevEnd = s.end;
   });
 };
 
@@ -6132,6 +6346,8 @@ App._s1ComputePreview = function() {
         backFallback = true;
         forwardFinish = stages.reduce((m, s) => (s.end > m) ? s.end : m, '');
       }
+    } else {
+      App._chainStages(stages);   // forward（只填開始日）／倒推來得及：套順序鏈，跳階段時下游不浮到前面
     }
     const allS = stages.map(s => s.start).filter(Boolean);
     const allE = stages.map(s => s.end).filter(Boolean);
@@ -6405,13 +6621,14 @@ App._s2ListHtml = function(variantId) {
   const selIdx = g.order.indexOf(sel);
   const group = g.byStage[sel] || [];
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  const mmdd = (x) => { const p = String(x || '').split('-'); return p.length >= 3 ? (p[1] + '/' + p[2]) : ''; };   // 只顯示月/日（不顯示年）
   // 序＝案內跨階段累計（前面各階段任務數加總），切階段不重編號
   let seqBase = 0;
   for (let i = 0; i < selIdx; i++) seqBase += (g.byStage[g.order[i]] || []).length;
   const allDeliver = group.length > 0 && group.every(t => t.mustDeliver);
   let rows =
     '<tr class="s2-stage-row">' +
-      '<td colspan="6">' + U.esc(sel) + '</td>' +
+      '<td colspan="9">' + U.esc(sel) + '</td>' +
       '<td class="col-mid s2-deliver"><label class="s2-all"><input type="checkbox"' + (allDeliver ? ' checked' : '') +
         ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"> 全選</label></td>' +
       '<td class="col-action"></td>' +
@@ -6419,21 +6636,37 @@ App._s2ListHtml = function(variantId) {
   group.forEach((t, gi) => {
     const seq = seqBase + gi + 1;
     rows +=
-      '<tr data-taskid="' + t.id + '">' +
+      '<tr data-taskid="' + t.id + '"' + (seq % 2 === 0 ? ' class="s2-rz"' : '') + '>' +
         '<td class="col-num">' + seq + '</td>' +
         '<td class="col-flex" title="' + U.esc(t.name) + '"><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
+        '<td class="col-mid s2-deptcell" title="此任務所屬部門（在「新增/編輯部門」設定負責人）">' + (U.esc(t.role) || '<span class="s2-dept-none">—</span>') + '</td>' +
         '<td class="col-mid"><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
-        '<td class="col-mid s2-pred" data-preds="' + String(t.predecessor || '').split(/[,，;；]/).map(x => x.split('#')[0].trim()).filter(Boolean).join(',') + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + (String(t.predecessor || '').split(/[,，;；]/).filter(Boolean).length >= 2 ? U.esc(this._s2PredText(t)) : '<select class="s2-pred-sel" onchange="App._s2SetPred(\'' + t.id + '\', this.value)">' + this._s2PredOptions(t, variantId) + '</select>') + '</td>' +
+        this._s2PredCells(t, variantId) +
         '<td class="col-mid s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
-        '<td class="col-mid s2-date">' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '（待排）') + '</td>' +
+        '<td class="col-mid s2-date" title="' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '') + '">' + (t.plannedStart ? (mmdd(t.plannedStart) + ' → ' + mmdd(t.plannedEnd)) : '（待排）') + '</td>' +
         '<td class="col-mid s2-deliver"><input type="checkbox"' + (t.mustDeliver ? ' checked' : '') + ' onchange="App._s2SetDeliver(\'' + t.id + '\', this.checked)"></td>' +
         '<td class="col-action s2-del-cell"><button class="s2-del" title="刪除此列" onclick="App._s2DelRow(\'' + t.id + '\')">✕</button></td>' +
       '</tr>' +
-      '<tr class="dt-insert-row"><td colspan="8" class="dt-insert-cell"><div class="dt-insert"><button class="dt-insert-btn" title="在此列後插入" onclick="App._s2InsertRow(\'' + t.id + '\', \'' + variantId + '\')">＋</button></div></td></tr>';
+      '<tr class="dt-insert-row"><td colspan="11" class="dt-insert-cell"><div class="dt-insert"><button class="dt-insert-btn" title="在此列後插入" onclick="App._s2InsertRow(\'' + t.id + '\', \'' + variantId + '\')">＋</button></div></td></tr>';
   });
-  return '<table class="data-table s2-tbl"><thead><tr>' +
-    '<th class="col-num">序</th><th class="col-flex">任務名</th><th class="col-mid">負責人</th><th class="col-mid">前置</th><th class="col-mid">工期</th><th class="col-mid">日期（起訖）</th><th class="col-mid">需交付</th><th class="col-action"></th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table>';
+  return '<table class="data-table s2-tbl"><thead>' +
+    '<tr>' +
+      '<th class="col-num" rowspan="2">序</th>' +
+      '<th class="col-flex" rowspan="2">任務名</th>' +
+      '<th class="col-mid" rowspan="2">部門</th>' +
+      '<th class="col-mid" rowspan="2">負責人</th>' +
+      '<th class="col-pred-group" colspan="3">前置任務</th>' +
+      '<th class="col-mid" rowspan="2">工期</th>' +
+      '<th class="col-mid" rowspan="2">日期（起訖）</th>' +
+      '<th class="col-mid" rowspan="2">需交付</th>' +
+      '<th class="col-action" rowspan="2"></th>' +
+    '</tr>' +
+    '<tr>' +
+      '<th class="col-pred-sub">序號</th>' +
+      '<th class="col-pred-sub">銜接方式</th>' +
+      '<th class="col-pred-sub">緩衝</th>' +
+    '</tr>' +
+    '</thead><tbody>' + rows + '</tbody></table>';
 };
 // 寫回 preview：工期 → 重排所有案別（呼叫共用 _reschedulePreview 重算 plannedStart/End）。
 // parseInt 防呆（負值/NaN→0）；warnings 此處丟棄（preview 不顯示，建立時 applyTemplate 會重算收集）。
@@ -6482,7 +6715,7 @@ App._s2InsertRow = function(taskId, variantId) {
   const newTask = {
     id: U.id(), project: res.project.id, wbs: '', parentWbsId: '',
     name: '新任務', desc: ref.stage || '', category: 'deep', taskType: '任務',
-    predecessor: '', durationDays: 1, owner: '', dept: '', variant: variantId,
+    predecessor: '', durationDays: 1, owner: '', dept: '', role: '', variant: variantId,
     start: '', end: '', plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '',
     progress: 0, status: 'pending', urgency: 'med', estHours: dailyHours,
     method: '', canSplit: false, completedAt: null, createdAt: new Date().toISOString(),
@@ -6519,11 +6752,29 @@ App._s2StageRanges = function(variantId) {
   });
   return { order: g.order, ranges };
 };
-// Gantt 階段軸：每階段一列(名+橫條+日期)，橫條 left/width 相對該案總區間；選中階段加 .on 高亮。
+// Gantt 階段軸：每階段一列(色點+名+橫條+日期)，橫條 left/width 相對該案總區間；選中階段加 .on 高亮。
+// 階段燈號＋落點：完全共用 Stage 1 的 _s1ColorStagesForward（interval/情境C 用「順推落點 vs 上市日期」算 margin
+// 上色，超出上市日的段顯紅且橫條延伸可見；純順推/倒推來得及則維持原落點、不上色＝綠）。確保 Stage 1↔2 同案同色同落點。
 App._s2GanttHtml = function(variantId) {
+  const res = this._tplPreview;
   const data = this._s2StageRanges(variantId);
   const order = data.order, ranges = data.ranges;
   if (!order.length) return '';
+  const v = res ? (res.variants || []).find(x => x.id === variantId) : null;
+  if (res && v) {
+    const vsch = v.schedule || {};
+    const eff = App._effScheduleDir(vsch.startDate, vsch.endDate, vsch.direction);
+    if (eff === 'interval') {
+      App._s1ColorStagesForward(res, v, ranges, vsch.startDate, vsch.endDate);
+    } else if (eff === 'backward' && vsch.endDate) {
+      const backStart = ranges.reduce((m, s) => (s.start && (!m || s.start < m)) ? s.start : m, '');
+      const todayIso = D.fmt(D.today(), 'iso');
+      if (backStart && backStart < todayIso) App._s1ColorStagesForward(res, v, ranges, todayIso, vsch.endDate);
+      else App._chainStages(ranges);
+    } else {
+      App._chainStages(ranges);   // forward（只填開始日）：套順序鏈，跳階段時下游不浮到前面
+    }
+  }
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
   const toNum = (d) => d ? Date.parse(d) : NaN;
   const sel = (this._s2Stage && this._s2Stage[variantId]) || order[0];
@@ -6536,13 +6787,14 @@ App._s2GanttHtml = function(variantId) {
   ranges.forEach((r, si) => {
     const isSel = r.stage === sel;
     const a = toNum(r.start), b = toNum(r.end);
+    const light = r.light || 'green';
     let bar;
     if (isNaN(a) || isNaN(b)) {
       bar = '<div class="s2-gbar-track"><div class="s2-gbar s2-gbar-none"></div></div>';
     } else {
       const left = ((a - minN) / span) * 100;
       const width = Math.max(((b - a) / span) * 100, 1.5);
-      bar = '<div class="s2-gbar-track"><div class="s2-gbar" style="left:' + left + '%;width:' + width + '%"></div></div>';
+      bar = '<div class="s2-gbar-track"><div class="s2-gbar s2-gbar-' + light + '" style="left:' + left + '%;width:' + width + '%"></div></div>';
     }
     // 顯示短日期：同年 MM/DD、跨年 YY/MM/DD；title hover 看完整 YYYY/MM/DD
     const shortD = (x) => { if (!x) return ''; const p = String(x).split('-'); return (p[1] || '') + '/' + (p[2] || ''); };
@@ -6550,14 +6802,111 @@ App._s2GanttHtml = function(variantId) {
     const oneD = (x) => x ? (sameYr ? shortD(x) : (String(x).slice(2, 4) + '/' + shortD(x))) : '';
     const dateLbl = (r.start || r.end) ? (oneD(r.start) + ' → ' + oneD(r.end)) : '待排';
     const dateFull = (r.start || r.end) ? (fmtD(r.start) + ' → ' + fmtD(r.end)) : '待排';
+    const dot = (isNaN(a) || isNaN(b)) ? '<span class="s2-gdot"></span>' : '<span class="s2-gdot s2-gdot-' + light + '"></span>';
     rows +=
       '<div class="s2-grow' + (isSel ? ' on' : '') + '" onclick="App._s2SelectStage(\'' + variantId + '\', ' + si + ')">' +
+        dot +
         '<div class="s2-gname">' + U.esc(r.stage) + '</div>' +
         bar +
         '<div class="s2-gdate" title="' + dateFull + '">' + dateLbl + '</div>' +
       '</div>';
   });
   return '<div class="s2-gantt-axis">' + rows + '</div>';
+};
+// 階段 Banner（Mockup）：當前階段名＋該段日期區間（Deadline）。固定專案綠（不隨階段換色），切階段更新文字。
+App._s2BannerHtml = function(variantId) {
+  const data = this._s2StageRanges(variantId);
+  if (!data.order.length) return '';
+  const sel = (this._s2Stage && this._s2Stage[variantId]) || data.order[0];
+  const r = data.ranges.find(x => x.stage === sel) || {};
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  const dl = (r.start || r.end) ? (fmtD(r.start) + ' → ' + fmtD(r.end)) : '（待排）';
+  return '<div class="s2n-banner">' +
+      '<i class="ti ti-tool s2n-bn-ico"></i>' +
+      '<span class="s2n-bn-name">當前階段：' + U.esc(sel) + '</span>' +
+      '<span class="s2n-bn-dl"><i class="ti ti-calendar"></i> 階段 Deadline：' + dl + '</span>' +
+    '</div>';
+};
+// ─── 前置任務組合框（[序號][白話銜接型][緩衝]）：白話文＋3 階段防呆過濾 ───
+// 解析現存 predecessor（id#型別±lag）為 {id,type,lag}；多前置 → {multi:true} 走唯讀白話。
+App._s2ParsePred = function(t) {
+  const parts = String(t.predecessor || '').split(/[,，;；]/).map(x => x.trim()).filter(Boolean);
+  if (parts.length >= 2) return { multi: true };
+  if (!parts.length) return { id: '', type: 'FS', lag: 0 };
+  const p = parts[0];
+  const h = p.indexOf('#');
+  const id = h >= 0 ? p.slice(0, h).trim() : p.trim();
+  const tail = h >= 0 ? p.slice(h + 1).trim() : '';
+  const m = tail.match(/^([A-Za-z]{2})?\s*([+-]\s*\d+)?$/) || [];
+  let type = (m[1] || 'FS').toUpperCase();
+  if (['FS', 'SS', 'FF', 'SF'].indexOf(type) < 0) type = 'FS';
+  let lag = m[2] ? parseInt(m[2].replace(/\s+/g, ''), 10) : 0;
+  if (isNaN(lag)) lag = 0;
+  return { id: id, type: type, lag: lag };
+};
+// 序號下拉選項（防呆）：同案、序在本任務之前、且階段在「當前～過去 3 階段」窗內者才可選。
+// 現存前置若落在窗外仍保留為選中項（不誤清），其餘窗外項不列。
+// 前置序號輸入（可手動打字＋下拉建議 datalist）：value＝現存前置的「序」；datalist 建議＝序在前且當前/過去 3 階段內。
+// 手動可輸入更早的項目（防呆窗只當建議，不限制手動）；未來/自己由 _s2SetPredCombo 擋（序須 < 本任務序）。
+App._s2PredSeqInput = function(t, variantId, curId) {
+  const g = this._s2GroupByStage(variantId);
+  const stageIdxOf = {};
+  g.order.forEach((st, si) => (g.byStage[st] || []).forEach(x => { stageIdxOf[x.id] = si; }));
+  const flat = g.order.reduce((a, st) => a.concat(g.byStage[st] || []), []);
+  const myIdx = flat.findIndex(x => x.id === t.id);
+  const mySi = stageIdxOf[t.id];
+  let curSeq = '';
+  if (curId) { const ci = flat.findIndex(x => x.id === curId); if (ci >= 0) curSeq = String(ci + 1); }
+  let opts = '';
+  for (let i = 0; i < myIdx; i++) {
+    const x = flat[i], xsi = stageIdxOf[x.id];
+    if (xsi <= mySi && xsi >= mySi - 3) opts += '<option value="' + (i + 1) + '">' + U.esc((i + 1) + '·' + x.name) + '</option>';
+  }
+  const did = 's2pl-' + t.id;
+  return '<input class="s2-pc-seq" type="text" list="' + did + '" value="' + curSeq + '" placeholder="序號" ' +
+      'title="輸入或下拉前置序號（可手動輸入更早項目；建議僅當前或過去 3 階段）" ' +
+      'onchange="App._s2SetPredCombo(\'' + t.id + '\')"><datalist id="' + did + '">' + opts + '</datalist>';
+};
+// 白話銜接型選項（移除 FS/FF 縮寫，UI 全白話；value 仍存引擎碼）
+App._s2PredTypeOptions = function(type) {
+  const opts = [['FS', '完成後才開始'], ['SS', '同一天開始'], ['FF', '同一天完成'], ['SF', '開始才完成']];
+  return opts.map(o => '<option value="' + o[0] + '"' + (o[0] === type ? ' selected' : '') + '>' + o[1] + '</option>').join('');
+};
+// 組合框寫回：讀該列三控制項 → predecessor=id#型別±lag（空序號＝清前置）→ 重排重繪所有案。
+// 序號為手動輸入：先把「序」映射回 taskId（容忍「3·任務名」取數字）；只接受序在本任務之前（未來/自己→清空）。
+App._s2SetPredCombo = function(taskId) {
+  const res = this._tplPreview; if (!res) return;
+  const t = res.tasks.find(x => x.id === taskId); if (!t) return;
+  const row = document.querySelector('[data-taskid="' + taskId + '"]');
+  if (!row) return;
+  const seqRaw = ((row.querySelector('.s2-pc-seq') || {}).value || '').trim();
+  const type = (row.querySelector('.s2-pc-type') || {}).value || 'FS';
+  let lag = parseInt((row.querySelector('.s2-pc-lag') || {}).value, 10);
+  if (isNaN(lag)) lag = 0;
+  let predId = '';
+  if (seqRaw) {
+    const g = this._s2GroupByStage(t.variant);
+    const flat = g.order.reduce((a, st) => a.concat(g.byStage[st] || []), []);
+    const myIdx = flat.findIndex(x => x.id === t.id);
+    const n = parseInt(String(seqRaw).split('·')[0], 10);
+    if (!isNaN(n) && n >= 1 && (n - 1) < myIdx) predId = flat[n - 1].id;   // 只接受序在本任務之前（不可綁未來/自己）
+  }
+  if (!predId) { t.predecessor = ''; }
+  else { const lagStr = lag > 0 ? ('+' + lag) : (lag < 0 ? String(lag) : ''); t.predecessor = predId + '#' + type + lagStr; }
+  App._reschedulePreview(res.tasks, res.variants, []);
+  res.variants.forEach(v => this._s2RefreshCase(v.id));
+};
+// 前置欄：拆三個獨立儲存格（序號／銜接方式／緩衝），交由表格自動分配欄寬、互不重疊（解決組合框溢出壓字）。
+// 多前置→唯讀白話，跨三欄（colspan=3）。data-preds + hover 高亮掛在序號格。
+App._s2PredCells = function(t, variantId) {
+  const preds = String(t.predecessor || '').split(/[,，;；]/).map(x => x.split('#')[0].trim()).filter(Boolean).join(',');
+  const pp = this._s2ParsePred(t);
+  if (pp.multi) {
+    return '<td class="col-pred s2-pred s2-pred-multi" colspan="3" data-preds="' + preds + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + U.esc(this._s2PredText(t)) + '</td>';
+  }
+  return '<td class="col-pred s2-pred s2-pc-seqcell" data-preds="' + preds + '" onmouseenter="App._s2PredHlOn(this)" onmouseleave="App._s2PredHlOff()">' + this._s2PredSeqInput(t, variantId, pp.id) + '</td>' +
+    '<td class="col-pred s2-pc-typecell"><select class="s2-pc-type" title="銜接方式" onchange="App._s2SetPredCombo(\'' + t.id + '\')">' + this._s2PredTypeOptions(pp.type) + '</select></td>' +
+    '<td class="col-pred s2-pc-lagcell"><input class="s2-pc-lag" type="number" value="' + pp.lag + '" title="緩衝天數：+2 多等兩天、-1 提前一天" onchange="App._s2SetPredCombo(\'' + t.id + '\')"></td>';
 };
 // 餘裕燈號 HTML（interval 才顯示，§4.8.7.4）：純讀 _tplPreview，初繪與 refresh 共用（單一真實來源）。
 // 非 interval（純 forward/backward）回 '' 不顯示（§4.8.5：餘裕需雙錨開始+結束）。
@@ -6603,6 +6952,8 @@ App._s2RefreshCase = function(variantId) {
   if (slack) slack.innerHTML = this._s2SlackHtml(variantId);
   const gantt = document.querySelector('.s2-gantt[data-variant="' + variantId + '"]');
   if (gantt) gantt.innerHTML = this._s2GanttHtml(variantId);
+  const bn = document.querySelector('.s2n-banner-wrap[data-variant="' + variantId + '"]');
+  if (bn) bn.innerHTML = this._s2BannerHtml(variantId);
   const list = document.querySelector('.s2-list[data-variant="' + variantId + '"]');
   if (list) list.innerHTML = this._s2ListHtml(variantId);
 };
