@@ -1633,3 +1633,79 @@ body.viewonly .cloud-sync-sec { display: none; }
   font-size: 1.1rem;
 }
 #authBlockout.hidden { display: none; }
+
+/* ═══ §4.8.7.4b 塊3a-刀1：第一階段「大局時間」預覽頁（靜態版面） ═══ */
+.s1-preview { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.s1-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.s1-proj-name { width: 300px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); }
+.s1-colors { display: flex; gap: 6px; align-items: center; min-height: 36px; }
+.s1-tpl-sel { padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); }
+.s1-cases { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.s1-case-col { flex: 1; min-width: 280px; padding: 14px; border-radius: var(--r8); box-shadow: var(--shadow); }
+.s1-case-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.s1-case-name { flex: 1; padding: 6px 8px; border: 1px solid var(--rule2); border-radius: var(--r6); font-weight: 600; }
+.s1-case-dates { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.s1-case-dates label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink3); }
+.s1-case-dates input, .s1-case-dates select { padding: 5px 7px; border: 1px solid var(--rule2); border-radius: var(--r4); }
+.s1-stagelist { display: flex; gap: 6px; flex-wrap: wrap; }
+.s1-stage-chip { padding: 3px 10px; border-radius: var(--r12); background: var(--surface2); font-size: 12px; color: var(--ink2); }
+.s1-prev-section { margin-top: 24px; }
+.s1-prev-title { font-weight: 600; font-size: 14px; margin-bottom: 10px; color: var(--ink); }
+.s1-prev-case { padding: 12px; margin-bottom: 14px; border-radius: var(--r8); box-shadow: var(--shadow); }
+.s1-prev-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.s1-prev-name { font-weight: 600; }
+.s1-prev-range { color: var(--ink3); font-size: 12px; }
+.slack-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.slack-pill-green { background: var(--sage-chip); color: var(--sage-700); }
+.slack-pill-yellow { background: var(--amber-l); color: var(--amber-ink); }
+.slack-pill-red { background: var(--rose-l); color: var(--rose-ink); }
+.slack-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.slack-pill-green .slack-dot { background: var(--sage-500); }
+.slack-pill-yellow .slack-dot { background: var(--amber); }
+.slack-pill-red .slack-dot { background: var(--rose); }
+.slack-dot.sd-green { background: var(--sage-500); }
+.slack-dot.sd-yellow { background: var(--amber); }
+.slack-dot.sd-red { background: var(--rose); }
+.slack-help-line { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+
+/* ═══ §4.8.7.4b 塊3a-刀1（步2）：教育卡 + 第一頁文案版面 ═══ */
+.s1-edu-lead { font-size: 13px; color: var(--ink2); margin-bottom: 14px; }
+.s1-edu-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.s1-edu-card { flex: 1; min-width: 200px; padding: 14px; border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface); box-shadow: var(--shadow); }
+.s1-edu-cardhd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.s1-edu-ico { font-size: 22px; color: var(--ink3); }
+.s1-edu-tag { padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.s1-tag-start { background: var(--sage-100); color: var(--sage-700); }
+.s1-tag-end { background: var(--terracotta-l); color: var(--terracotta); }
+.s1-tag-both { background: var(--navy-from); color: var(--navy-ink); }
+.s1-edu-cardtitle { font-weight: 600; font-size: 13px; margin-bottom: 6px; color: var(--ink); }
+.s1-edu-carddesc { font-size: 13px; line-height: 1.5; color: var(--ink2); }
+.s1-edu-bulb { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; padding: 10px 12px; background: var(--sage-50); border-radius: var(--r8); font-size: 12px; line-height: 1.6; color: var(--sage-700); }
+.s1-edu-bulb .ti { flex: none; font-size: 16px; margin-top: 1px; }
+.s1-top-col { display: flex; flex-direction: column; gap: 4px; }
+.s1-top-label { font-size: 12px; color: var(--ink3); }
+.s1-tips { padding: 12px 14px; margin-bottom: 16px; background: var(--surface2); border-radius: var(--r8); }
+.s1-tips-hd { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--ink); }
+.s1-tips-line { font-size: 12px; line-height: 1.7; color: var(--ink2); }
+.s1-tips-cap { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--ink3); font-size: 11px; }
+.s1-add-case { flex: 0 0 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 1px dashed var(--sage-300); border-radius: var(--r8); color: var(--sage-600); cursor: pointer; font-size: 13px; }
+.s1-add-case .ti { font-size: 24px; }
+.s1-add-case:hover { background: var(--sage-50); }
+.s1-dynhint { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 8px 10px; background: var(--sage-50); border-radius: var(--r6); font-size: 12px; line-height: 1.6; color: var(--sage-700); }
+.s1-dynhint .ti { flex: none; }
+
+/* ═══ §4.8.7.4b 塊3a-刀1（文案/UI 調整批）：頁首 Header + 防呆強調 ═══ */
+.s1-pagehd { margin-bottom: 16px; }
+.s1-crumb { font-size: 12px; color: var(--ink3); margin-bottom: 4px; }
+.s1-crumb-sep { color: var(--ink4); margin: 0 4px; }
+.s1-pagetitle { font-size: 20px; font-weight: 700; color: var(--ink); }
+.s1-tips-warn { color: var(--terracotta); font-weight: 600; }
+
+/* ═══ §4.8.7.4b 塊3a-刀1（文案/UI v2）：小秘訣藍點 + 防呆標籤 ═══ */
+.s1-tips-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--navy); margin-right: 8px; vertical-align: middle; }
+.edu-warn-tag { display: inline-block; margin: 4px 0 2px; padding: 1px 8px; border-radius: var(--r4); background: var(--terracotta-l); color: var(--terracotta); font-weight: 700; font-size: 11px; }
+
+/* ═══ §4.8.7.4b 塊3a-刀1（頂部三欄 + 色卡打勾）═══ */
+.s1-colors .cp-swatch { position: relative; }
+.s1-colors .cp-swatch.on { border-color: transparent; }
+.s1-colors .cp-swatch.on::after { content: '✓'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--ink-inverse); font-size: 14px; font-weight: 700; line-height: 1; }

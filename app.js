@@ -4760,7 +4760,8 @@ App.bindTaskTimeListeners = function() {
 App.buildHintBox = function(opts) {
   const o = opts || {};
   const key = o.key || '';
-  const collapsed = !!(DATA.settings.hintBoxState || {})[key];
+  const _hbStored = (DATA.settings.hintBoxState || {})[key];
+  const collapsed = _hbStored === undefined ? !!o.collapsed : !!_hbStored;
   const icon = o.icon ? `<i class="ti ${o.icon}"></i>` : '';
   const summary = o.summary ? `<span class="hintbox-summary">${U.esc(o.summary)}</span>` : '';
   const tip = collapsed ? ` data-tip="${U.esc((o.title || '') + '|' + (o.summary || '') + ' — 點擊展開看完整說明')}"` : '';
@@ -5740,6 +5741,154 @@ App._renderStage2 = function() {
   if (document.body.classList.contains('viewonly')) {
     document.querySelectorAll('#page-stage2 input, #page-stage2 select, #page-stage2 .s2-del, #page-stage2 .dt-insert-btn').forEach(el => { el.disabled = true; });
   }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// §4.8.7.4b 塊3a-刀1：第一頁入口教育卡（Mockup①，文-A 定稿）。openModal 渲染三情境說明卡（純說明、非選項），→ _renderStage1Preview。
+App._scheduleEduCard = function() {
+  const cards = [
+    { icon: 'ti-calendar', tag: '填開始日', tagcls: 's1-tag-start', title: '有開工日，想知道做到幾號',
+      desc: '已經確定哪天開工，系統會正向順推，算出最後一天能完工。' },
+    { icon: 'ti-flag', tag: '填上市日期', tagcls: 's1-tag-end', title: '有上市日期，想知道最晚幾時要開工',
+      desc: '輸入您的上市日期，系統會逆向倒推最晚開工日。<br><span class="edu-warn-tag">超強防呆</span><br>若倒推後發現開工日「早已過去」，系統會聰明地改以今天開工重新順推，直接建議您最快何時能完工。' },
+    { icon: 'ti-arrows-left-right', tag: '都填', tagcls: 's1-tag-both', title: '開工日和上市日期都有，想知道時間夠不夠',
+      desc: '開工日和上市日期都定了，系統會雙向比對，精算出中間還剩多少天彈性（餘裕時間），最完整、最精準。' },
+  ];
+  const cardsHtml = cards.map(c =>
+    '<div class="s1-edu-card">' +
+      '<div class="s1-edu-cardhd"><i class="ti ' + c.icon + ' s1-edu-ico"></i>' +
+        '<span class="s1-edu-tag ' + c.tagcls + '">' + c.tag + '</span></div>' +
+      '<div class="s1-edu-cardtitle">' + c.title + '</div>' +
+      '<div class="s1-edu-carddesc">' + c.desc + '</div>' +
+    '</div>'
+  ).join('');
+  App.openModal({
+    title: '<i class="ti ti-book-open"></i> 排程模式說明指南',
+    body: '<div class="s1-edu">' +
+      '<div class="s1-edu-lead">本頁為功能導覽，免點選字卡。先閱讀以下三種排程邏輯，稍後在下一頁直接填寫日期即可。</div>' +
+      '<div class="s1-edu-cards">' + cardsHtml + '</div>' +
+      '<div class="s1-edu-bulb"><i class="ti ti-bulb"></i><span>免煩惱！下一頁不論您填哪一格，系統都會自動判斷最佳排程方向。如果手頭都有日期，建議全部填上，算出來的時間最精準。</span></div>' +
+    '</div>',
+    footer: '<button class="tb-action ghost" onclick="App.closeModal()">取消</button>' +
+      '<button class="tb-action" onclick="App.closeModal();App._renderStage1Preview()">我懂了，開始填寫 →</button>',
+  });
+};
+
+// §4.8.7.4b 塊3a-刀1：第一階段「大局時間」預覽頁（靜態版面，假資料，照第②張定稿 + 今日文案/UI 調整）。
+// 本步仍靜態（只主案一條 + ＋新增子案佔位 + 動態提示靜態情境A）；第三步才接 _reschedulePreview/_computeSlack 真資料 + 動態提示切換。
+// console 可直接呼叫 App._scheduleEduCard() / App._renderStage1Preview() 看版面；尚未接 modal flow。
+App._renderStage1Preview = function() {
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  // 假資料：主案 7.3kW（4 階段，綠燈）。子案本步預設不顯示（＋方框佔位），下一步接真資料才動態增減。
+  const main = { name: '7.3kW 主案', start: '2026-03-02', end: '2026-12-28', light: 'green', slack: 12,
+    stages: [
+      { stage: '設計', start: '2026-03-02', end: '2026-05-15' },
+      { stage: '手工機', start: '2026-05-18', end: '2026-07-31' },
+      { stage: '性試機', start: '2026-08-03', end: '2026-10-09' },
+      { stage: '量試機', start: '2026-10-12', end: '2026-12-28' },
+    ] };
+  // mini-gantt（複用 .s2-gantt 結構，靜態無選中/onclick）
+  const miniGantt = (stages) => {
+    const toNum = (d) => d ? Date.parse(d) : NaN;
+    const allS = stages.map(s => toNum(s.start)).filter(n => !isNaN(n));
+    const allE = stages.map(s => toNum(s.end)).filter(n => !isNaN(n));
+    const minN = allS.length ? Math.min.apply(null, allS) : 0;
+    const maxN = allE.length ? Math.max.apply(null, allE) : 0;
+    const span = (maxN - minN) || 1;
+    const shortD = (x) => { const p = String(x).split('-'); return (p[1] || '') + '/' + (p[2] || ''); };
+    let rows = '';
+    stages.forEach(r => {
+      const a = toNum(r.start), b = toNum(r.end);
+      const left = ((a - minN) / span) * 100;
+      const width = Math.max(((b - a) / span) * 100, 1.5);
+      rows +=
+        '<div class="s2-grow">' +
+          '<div class="s2-gname">' + U.esc(r.stage) + '</div>' +
+          '<div class="s2-gbar-track"><div class="s2-gbar" style="left:' + left + '%;width:' + width + '%"></div></div>' +
+          '<div class="s2-gdate">' + shortD(r.start) + ' → ' + shortD(r.end) + '</div>' +
+        '</div>';
+    });
+    return '<div class="s2-gantt-axis">' + rows + '</div>';
+  };
+  const lightTxt = (light, slack) => light === 'green' ? ('可行·餘裕 ' + slack + ' 天')
+    : light === 'yellow' ? ('偏緊·餘裕 ' + slack + ' 天')
+    : ('不足·超出 ' + slack + ' 工作天');
+  // 動態狀態提示（文-C 情境A，本步靜態；第三步隨填法切換）
+  const dynHint = '<div class="s1-dynhint"><i class="ti ti-arrow-narrow-right"></i><span>正向排程中：系統正從您的開工日往後順推，自動算出最後的預計完工日。</span></div>';
+  // 主案卡（複用 .case-card）；日期欄使用者面用「上市日期」
+  const mainCol =
+    '<div class="s1-case-col case-card s2-case-main">' +
+      '<div class="s1-case-head">' +
+        '<span class="stage-cap-pill cap-0">主案</span>' +
+        '<input type="text" class="s1-case-name" value="' + U.esc(main.name) + '">' +
+      '</div>' +
+      '<div class="s1-case-dates">' +
+        '<label>開始日<input type="date" value="' + main.start + '"></label>' +
+        '<label>上市日期<input type="date" value="' + main.end + '"></label>' +
+      '</div>' +
+      dynHint +
+      '<div class="s1-stagelist">' + main.stages.map(s => '<span class="s1-stage-chip">' + U.esc(s.stage) + '</span>').join('') + '</div>' +
+    '</div>';
+  // ＋新增子案 方框（直立虛線，本步佔位）
+  const addCase = '<div class="s1-add-case" onclick="void 0"><i class="ti ti-plus"></i><span>新增子案</span></div>';
+  // 說明區（文-B；箭頭統一中文冒號「：」，防呆句 terracotta 強調）
+  const tips =
+    '<div class="s1-tips">' +
+      '<div class="s1-tips-hd"><i class="ti ti-info-circle"></i>排程小秘訣</div>' +
+      '<div class="s1-tips-line"><span class="s1-tips-dot"></span>只填開始日：自動順推，算出預計完工日。</div>' +
+      '<div class="s1-tips-line"><span class="s1-tips-dot"></span>只填上市日期：自動倒推最晚開工日<b class="s1-tips-warn">（若發現來不及，會自動改為建議最快完工日）</b>。</div>' +
+      '<div class="s1-tips-line"><span class="s1-tips-dot"></span>兩者皆填齊：精算時間夠不夠，產出中間的「餘裕天數」。</div>' +
+      '<div class="s1-tips-line s1-tips-cap"><i class="ti ti-info-circle"></i>若有多個產品規格（如 7.3kW ／ 2.2kW），點擊主案右側 ＋【新增子案】即可獨立排程。</div>' +
+    '</div>';
+  // 燈號 HintBox（文-D 完整版，預設收起 collapsed）
+  const helpBody =
+    '<div class="slack-help-line"><span class="slack-dot sd-green"></span>可行（餘裕 ＞5 工作天）：時間充裕，遊刃有餘！中間還有超過一週的緩衝，遇到突發狀況也不怕。</div>' +
+    '<div class="slack-help-line"><span class="slack-dot sd-yellow"></span>偏緊（餘裕 0~4 工作天）：勉強做完，但毫無緩衝。時程扣得很死，一旦中間有任務卡住就會延誤。</div>' +
+    '<div class="slack-help-line"><span class="slack-dot sd-red"></span>不足（照範本工期排會超出上市日期）：時程爆表！依照現有範本一定會超過上市日期，需要調整人力或壓縮工期。</div>';
+  const hint = App.buildHintBox({ key: 's1-slack-help', icon: 'ti-help', title: '餘裕燈號代表什麼？', summary: '綠可行 ／ 黃偏緊 ／ 紅不足', bodyHtml: helpBody, collapsed: true });
+  // 頂部：專案名稱（label+窄 input） + 顏色 + 範本 橫排
+  const swatches = (typeof PROJ_COLORS !== 'undefined' ? PROJ_COLORS : []).map((c, i) => '<div class="cp-swatch' + (i === 0 ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '"></div>').join('');
+  const top =
+    '<div class="s1-top">' +
+      '<div class="s1-top-col"><span class="s1-top-label">專案名稱</span><input type="text" class="s1-proj-name" value="範例專案" placeholder="專案名稱"></div>' +
+      '<div class="s1-top-col"><span class="s1-top-label">辨識顏色</span><div class="color-picker s1-colors">' + swatches + '</div></div>' +
+      '<div class="s1-top-col"><span class="s1-top-label">選擇範本</span><select class="s1-tpl-sel"><option>產品開發範本</option></select></div>' +
+    '</div>';
+  // 預覽區塊（本步只主案一條）
+  const previewBlocks =
+    '<div class="s1-prev-case">' +
+      '<div class="s1-prev-head">' +
+        '<span class="s1-prev-name">' + U.esc(main.name) + '</span>' +
+        '<span class="s1-prev-range">' + fmtD(main.start) + ' → ' + fmtD(main.end) + '</span>' +
+        '<span class="slack-pill slack-pill-' + main.light + '"><span class="slack-dot"></span>' + lightTxt(main.light, main.slack) + '</span>' +
+      '</div>' +
+      miniGantt(main.stages) +
+    '</div>';
+  // 隱藏全域 topbar（智慧排程鈕/重複標題不屬此頁）；本頁自帶麵包屑 + 大標題。（flow 接線後離開頁面再恢復）
+  const tb = document.querySelector('.main > .topbar');
+  if (tb) tb.classList.add('topbar-hidden');
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  const page = document.getElementById('page-stage1');
+  page.classList.add('active');
+  page.innerHTML =
+    '<div class="s1-preview">' +
+      '<div class="s1-pagehd">' +
+        '<div class="s1-crumb">總儀表板 <span class="s1-crumb-sep">/</span> 新增專案</div>' +
+        '<div class="s1-pagetitle">套用範本創建</div>' +
+      '</div>' +
+      top +
+      tips +
+      '<div class="s1-cases">' + mainCol + addCase + '</div>' +
+      '<div class="s1-prev-section">' +
+        '<div class="s1-prev-title">階段區間預覽</div>' +
+        hint +
+        previewBlocks +
+      '</div>' +
+      '<div class="stage2-foot">' +
+        '<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>' +
+        '<button class="tb-action" onclick="void 0">下一步：檢視任務</button>' +
+      '</div>' +
+    '</div>';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
