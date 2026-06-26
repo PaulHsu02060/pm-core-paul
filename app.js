@@ -5817,15 +5817,17 @@ App._renderStage1Preview = function() {
   const dynHint = '<div class="s1-dynhint"><i class="ti ti-arrow-narrow-right"></i><span>正向排程中：系統正從您的開工日往後順推，自動算出最後的預計完工日。</span></div>';
   // 主案卡（複用 .case-card）；日期欄使用者面用「上市日期」
   if (!App._s1DemoStages) App._s1DemoStages = main.stages.map(s => s.stage);
+  const real = App._s1ComputePreview();
+  const m0 = (real && real[0] && real[0].stages && real[0].stages.length > 0) ? real[0] : main;
   const mainCol =
     '<div class="s1-case-col case-card s2-case-main" data-case="main" data-tplvariant="主案">' +
       '<div class="s1-case-head">' +
         '<span class="stage-cap-pill cap-0">主案</span>' +
-        '<input type="text" class="s1-case-name" value="' + U.esc(main.name) + '">' +
+        '<input type="text" class="s1-case-name" value="' + U.esc(m0.name) + '">' +
       '</div>' +
       '<div class="s1-case-dates">' +
-        '<label>開始日<input type="date" class="s1-in-start" value="' + main.start + '"></label>' +
-        '<label>上市日期<input type="date" class="s1-in-end" value="' + main.end + '"></label>' +
+        '<label>開始日<input type="date" class="s1-in-start" value="' + m0.start + '"></label>' +
+        '<label>上市日期<input type="date" class="s1-in-end" value="' + m0.end + '"></label>' +
       '</div>' +
       dynHint +
       '<div class="s1-stage-hd">開發階段</div>' +
@@ -5861,11 +5863,11 @@ App._renderStage1Preview = function() {
   const previewBlocks =
     '<div class="s1-prev-case case-card s2-case-main">' +
       '<div class="s1-prev-head">' +
-        '<span class="s1-prev-name">' + U.esc(main.name) + '</span>' +
-        '<span class="s1-prev-range">' + fmtD(main.start) + ' → ' + fmtD(main.end) + '</span>' +
+        '<span class="s1-prev-name">' + U.esc(m0.name) + '</span>' +
+        '<span class="s1-prev-range">' + fmtD(m0.start) + ' → ' + fmtD(m0.end) + '</span>' +
         '<span class="slack-pill slack-pill-' + main.light + '"><span class="slack-dot"></span>' + lightTxt(main.light, main.slack) + '</span>' +
       '</div>' +
-      miniGantt(main.stages) +
+      miniGantt(m0.stages) +
     '</div>';
   // 隱藏全域 topbar（智慧排程鈕/重複標題不屬此頁）；本頁自帶麵包屑 + 大標題。（flow 接線後離開頁面再恢復）
   const tb = document.querySelector('.main > .topbar');
@@ -5912,6 +5914,37 @@ App._s1CollectInput = function() {
     cases.push({ variantName, templateVariant, startDate, endDate, direction, selectedStages });
   });
   return { projectName, color, cases };
+};
+
+App._s1ComputePreview = function() {
+  const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
+  if (!tpl) return null;
+  const input = App._s1CollectInput();
+  if (!input || !input.cases.length) return null;
+  const res = App.applyTemplate(tpl, input);
+  const byVariant = [];
+  res.variants.forEach(v => {
+    const vtasks = res.tasks.filter(t => t.variant === v.id && t.plannedStart && t.plannedEnd);
+    const stageMap = {};
+    vtasks.forEach(t => {
+      const stage = (t.desc || '').split(' / ')[0] || '其他';
+      if (!stageMap[stage]) stageMap[stage] = { stage, start: t.plannedStart, end: t.plannedEnd };
+      else {
+        if (t.plannedStart < stageMap[stage].start) stageMap[stage].start = t.plannedStart;
+        if (t.plannedEnd > stageMap[stage].end) stageMap[stage].end = t.plannedEnd;
+      }
+    });
+    const stages = (v.stages || []).map(s => stageMap[s]).filter(Boolean);
+    const allS = stages.map(s => s.start).filter(Boolean);
+    const allE = stages.map(s => s.end).filter(Boolean);
+    byVariant.push({
+      id: v.id, name: v.name,
+      start: allS.length ? allS.reduce((a,b)=>a<b?a:b) : '',
+      end: allE.length ? allE.reduce((a,b)=>a>b?a:b) : '',
+      stages: stages,
+    });
+  });
+  return byVariant;
 };
 
 // §4.8.7.4b 塊3a-刀1 第二步追加1：開發階段膠囊 inline 編輯（方案甲，事件委派）。
