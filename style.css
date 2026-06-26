@@ -1639,18 +1639,18 @@ body.viewonly .cloud-sync-sec { display: none; }
 #authBlockout.hidden { display: none; }
 
 /* ═══ §4.8.7.4b 塊3a-刀1：第一階段「大局時間」預覽頁（靜態版面） ═══ */
-.s1-preview { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.s1-preview { max-width: 957px; margin: 0 auto; padding: 16px; zoom: 1.15; }   /* 整頁等比放大 1.15（zoom 統一縮放、比例不破）；max-width 同步縮小(=1100/1.15)維持原視覺寬度、不溢出 */
 .s1-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
-.s1-proj-name { width: 300px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); }
+.s1-proj-name { width: 300px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 12px; font-weight: 400; }
 .s1-colors { display: flex; gap: 6px; align-items: center; min-height: 36px; }
-.s1-tpl-sel { padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); }
+.s1-tpl-sel { padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 12px; font-weight: 400; }
 .s1-cases { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .s1-case-col { flex: 1; min-width: 280px; padding: 14px; border-radius: var(--r8); box-shadow: var(--shadow); }
 .s1-case-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.s1-case-name { flex: 1; padding: 6px 8px; border: 1px solid var(--rule2); border-radius: var(--r6); font-weight: 600; }
+.s1-case-name { flex: 1; padding: 6px 8px; border: 1px solid var(--rule2); border-radius: var(--r6); font-weight: 400; font-size: 12px; }
 .s1-case-dates { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .s1-case-dates label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink3); }
-.s1-case-dates input, .s1-case-dates select { padding: 5px 7px; border: 1px solid var(--rule2); border-radius: var(--r4); }
+.s1-case-dates input, .s1-case-dates select { padding: 5px 7px; border: 1px solid var(--rule2); border-radius: var(--r4); font-size: 13px; }
 .s1-stagelist { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .s1-stage-chip { position: relative; padding: 3px 10px; border-radius: var(--r12); background: var(--surface2); font-size: 12px; color: var(--ink2); }
 .s1-prev-section { margin-top: 24px; }
@@ -1714,6 +1714,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-dynhint .ti { flex: none; }
 /* 初始引導態（雙空）：淡化成「等待輸入」靜態提示，非 active 運作態 */
 .s1-dynhint-init { background: var(--stone-50); color: var(--stone-400); }
+.s1-dynhint-alert { background: var(--rose-l); color: var(--rose-ink); }
 /* 預覽空狀態：骨架條（複用 .s2-gbar-none）＋正中央淡引導文案 */
 .s1-prev-empty { position: relative; }
 .s1-prev-empty-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--stone-400); pointer-events: none; }
@@ -1722,7 +1723,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-pagehd { margin-bottom: 16px; }
 .s1-crumb { font-size: 12px; color: var(--ink3); margin-bottom: 4px; }
 .s1-crumb-sep { color: var(--ink4); margin: 0 4px; }
-.s1-pagetitle { font-size: 20px; font-weight: 700; color: var(--ink); }
+.s1-pagetitle { font-size: 24px; font-weight: 700; color: var(--ink); }
 .s1-tips-warn { color: var(--terracotta); font-weight: 600; }
 
 /* ═══ §4.8.7.4b 塊3a-刀1（文案/UI v2）：小秘訣藍點 + 防呆標籤 ═══ */

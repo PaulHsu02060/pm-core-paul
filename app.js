@@ -5374,6 +5374,7 @@ App._flowStep1 = function() {
 // 點卡：記 mode、清 stage1Data，進第二步。
 App._flowPickMode = function(mode) {
   if (App._createFlow) { App._createFlow.mode = mode; App._createFlow.stage1Data = null; }
+  if (mode === 'template') { App._scheduleEduCard(); return; }   // §4.8.7.4b 3-7：範本走新流程（教育卡→第一階段預覽頁）；Excel/空白維持舊 _flowStep2
   App._flowStep2();
 };
 
@@ -5799,7 +5800,7 @@ App._renderStage1Preview = function() {
     '<div class="s1-case-col case-card s2-case-main" data-case="main" data-tplvariant="主案">' +
       '<div class="s1-case-head">' +
         '<span class="stage-cap-pill cap-0">主案</span>' +
-        '<input type="text" class="s1-case-name" value="' + U.esc(m0.name) + '">' +
+        '<input type="text" class="s1-case-name" value="' + U.esc(m0.name) + '" oninput="App._s1RefreshPreview()">' +
       '</div>' +
       '<div class="s1-case-dates">' +
         '<label>開始日<input type="date" class="s1-in-start" value=""></label>' +
@@ -5807,7 +5808,7 @@ App._renderStage1Preview = function() {
       '</div>' +
       dynHint +
       '<div class="s1-stage-hd">開發階段</div>' +
-      '<div class="s1-stage-note"><i class="ti ti-info-circle"></i>此處直接決定專案流程（由左至右）：點擊膠囊可重新命名，按 ＋ 可增減階段。<br><b class="s1-stage-note-em">調整後系統將自動重排下方甘特圖、並重新精算時間餘裕與燈號。</b></div>' +
+      '<div class="s1-stage-note"><i class="ti ti-info-circle"></i>此處直接決定專案流程（由左至右）：點擊膠囊可重新命名和刪除階段，按 ＋ 可增加階段。<br><b class="s1-stage-note-em">調整後系統將自動重排下方甘特圖、並重新精算時間餘裕與燈號。</b></div>' +
       '<div class="s1-stagelist">' + App._s1StageChipsHtml() + '</div>' +
     '</div>';
   // ＋新增子案 方框（直立虛線，本步佔位）
@@ -5834,7 +5835,7 @@ App._renderStage1Preview = function() {
   const swatches = (typeof PROJ_COLORS !== 'undefined' ? PROJ_COLORS : []).map((c, i) => '<div class="cp-swatch' + (i === 0 ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '"></div>').join('');
   const top =
     '<div class="s1-top">' +
-      '<div class="s1-top-col"><span class="s1-top-label">專案名稱</span><input type="text" class="s1-proj-name" value="範例專案" placeholder="專案名稱"></div>' +
+      '<div class="s1-top-col"><span class="s1-top-label">專案名稱</span><input type="text" class="s1-proj-name" value="範例專案" placeholder="專案名稱" oninput="App._s1SyncMainName();App._s1RefreshPreview()"></div>' +
       '<div class="s1-top-col"><span class="s1-top-label">辨識顏色</span><div class="color-picker s1-colors">' + swatches + '</div></div>' +
       '<div class="s1-top-col"><span class="s1-top-label">選擇範本</span><select class="s1-tpl-sel"><option>產品開發範本</option></select></div>' +
     '</div>';
@@ -5867,6 +5868,7 @@ App._renderStage1Preview = function() {
     '</div>';
   // date input 改動 → 即時重算燈號＋甘特，局部重畫預覽區（不動輸入卡、保留焦點；§4.8.7.4b 3-3）
   page.querySelectorAll('.s1-in-start, .s1-in-end').forEach(inp => inp.addEventListener('change', App._s1RefreshPreview));
+  App._s1SyncMainName();     // 初始把專案名帶入主案名（未手改前）
   App._s1RefreshPreview();   // DOM 就緒後校正一次：依實際輸入（初始留空）同步動態提示與甘特空狀態
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
@@ -5950,25 +5952,31 @@ App._s1PreviewBlocksHtml = function(real) {
     '</div>';
 };
 
-// _s1DynHintHtml：動態狀態提示（文-C）依填法切情境——雙空=初始引導(CTA)／只開始=A順推／只上市=B倒推／兩者皆填=D雙向精算。
-//   情境C（倒推來不及防呆）牽涉引擎防呆偵測，另開未做。computedStart=倒推算出的最晚開工日（B 用，可空）。
-App._s1DynHintHtml = function(startDate, endDate, computedStart) {
+// _s1DynHintHtml：動態狀態提示（文-C）依填法切情境——雙空=初始引導(CTA)／只開始=A順推／只上市=B倒推
+//   ／只上市但來不及=C防呆(改今天順推、報最快完工日)／兩者皆填=D雙向精算。meta=_s1ComputePreview 該案資訊。
+App._s1DynHintHtml = function(startDate, endDate, meta) {
   // 雙空＝初始引導：尚無基準日，給行動導引，不顯示「排程中」假象
   if (!startDate && !endDate) {
     return '<i class="ti ti-calendar-event"></i><span>請輸入或選擇日期：填入「開始日」或「上市日期」，系統將自動為您啟動智慧時程推算。</span>';
   }
+  const fmt = (x) => x ? String(x).replace(/-/g, '/') : '';
   const eff = App._effScheduleDir(startDate, endDate, 'forward');
-  let txt;
+  let ic = 'ti-arrow-narrow-right', txt;
   if (eff === 'interval') {
     txt = '雙向精算中：已幫您比對開工與上市日期，中間的彈性天數已呈現在下方的「餘裕燈號」中。';
+  } else if (eff === 'backward' && meta && meta.backFallback) {
+    // 情境C：倒推最晚開工日已過 → 改今天順推、報最快完工日
+    ic = 'ti-alert-triangle';
+    const d = fmt(meta.forwardFinish);
+    txt = '時空警報！上市日期太緊，最晚開工日已過。系統已自動改以「今天」開工順推' + (d ? ('，最快完工日為 ' + d + '。') : '。');
   } else if (eff === 'backward') {
-    const d = computedStart ? String(computedStart).replace(/-/g, '/') : '';
+    const d = meta ? fmt(meta.backStart) : '';
     txt = d ? ('逆向倒推中：已為您推算出最晚必須在 ' + d + ' 前開工，才趕得上上市。')
             : '逆向倒推中：系統正從您的上市日期往前推算最晚開工日。';
   } else {
     txt = '正向排程中：系統正從您的開工日往後順推，自動算出最後的預計完工日。';
   }
-  return '<i class="ti ti-arrow-narrow-right"></i><span>' + txt + '</span>';
+  return '<i class="ti ' + ic + '"></i><span>' + txt + '</span>';
 };
 
 // _s1RefreshPreview：date/階段膠囊改動時即時重算，局部重畫預覽容器＋同步更新動態提示（不動輸入卡、保留焦點）。
@@ -5982,10 +5990,22 @@ App._s1RefreshPreview = function() {
     const page = document.getElementById('page-stage1');
     const s = ((page && page.querySelector('.s1-in-start')) || {}).value || '';
     const e = ((page && page.querySelector('.s1-in-end')) || {}).value || '';
-    const cs = (real && real[0]) ? real[0].start : '';
-    hintBox.innerHTML = App._s1DynHintHtml(s, e, cs);
+    const meta = (real && real[0]) ? real[0] : null;
+    hintBox.innerHTML = App._s1DynHintHtml(s, e, meta);
     hintBox.classList.toggle('s1-dynhint-init', !s && !e);   // 雙空＝淡化引導態
+    hintBox.classList.toggle('s1-dynhint-alert', !!(meta && meta.backFallback));   // 情境C 來不及＝紅底警示
   }
+};
+
+// _s1SyncMainName：頂部專案名帶入主案名——專案名每次修改都覆蓋主案名；改主案名不回寫專案名（單向）。
+//   （此關聯只在「專案↔各案」之間；主案與子案名彼此不連動，留待 3-5 子案。）
+App._s1SyncMainName = function() {
+  const page = document.getElementById('page-stage1');
+  if (!page) return;
+  const proj = page.querySelector('.s1-proj-name');
+  const main = page.querySelector('.s1-case-col[data-case="main"] .s1-case-name');
+  if (!proj || !main) return;
+  main.value = proj.value;
 };
 
 App._s1CollectInput = function() {
@@ -6063,9 +6083,21 @@ App._s1ComputePreview = function() {
     const vsch = v.schedule || {};
     const pseudoResults = vtasks.map(t => ({ lateStart: t.plannedStart, lateFinish: t.plannedEnd }));
     const sl = App._computeSlack(pseudoResults, vsch.startDate, vsch.endDate);
-    // #2 per-stage 上色（interval 才有）：順推各段、比對上市日期算 margin→綠/黃/紅，並改 stage 起訖為順推值。
-    if (App._effScheduleDir(vsch.startDate, vsch.endDate, vsch.direction) === 'interval') {
+    // per-stage 上色＋方向情境（§4.8.7.4b #2＋情境C 防呆）
+    const eff = App._effScheduleDir(vsch.startDate, vsch.endDate, vsch.direction);
+    let backStart = '', backFallback = false, forwardFinish = '';
+    if (eff === 'interval') {
+      // interval：順推各段、比對上市日期算 margin → 綠/黃/紅，並改 stage 起訖為順推值
       App._s1ColorStagesForward(res, v, stages, vsch.startDate, vsch.endDate);
+    } else if (eff === 'backward' && vsch.endDate) {
+      backStart = stages.reduce((m, s) => (s.start && (!m || s.start < m)) ? s.start : m, '');
+      const todayIso = D.fmt(D.today(), 'iso');
+      if (backStart && backStart < todayIso) {
+        // 情境C 防呆：倒推最晚開工日早於今天＝來不及 → 改以今天順推（並比對上市日期上色）
+        App._s1ColorStagesForward(res, v, stages, todayIso, vsch.endDate);
+        backFallback = true;
+        forwardFinish = stages.reduce((m, s) => (s.end > m) ? s.end : m, '');
+      }
     }
     const allS = stages.map(s => s.start).filter(Boolean);
     const allE = stages.map(s => s.end).filter(Boolean);
@@ -6077,6 +6109,7 @@ App._s1ComputePreview = function() {
       light: sl ? sl.light : '',
       slack: sl ? sl.slack : null,
       overDays: sl ? sl.overDays : null,
+      dir: eff, backStart: backStart, backFallback: backFallback, forwardFinish: forwardFinish,
     });
   });
   return byVariant;
