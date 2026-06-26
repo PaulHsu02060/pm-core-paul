@@ -1647,8 +1647,8 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-case-dates { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .s1-case-dates label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink3); }
 .s1-case-dates input, .s1-case-dates select { padding: 5px 7px; border: 1px solid var(--rule2); border-radius: var(--r4); }
-.s1-stagelist { display: flex; gap: 6px; flex-wrap: wrap; }
-.s1-stage-chip { padding: 3px 10px; border-radius: var(--r12); background: var(--surface2); font-size: 12px; color: var(--ink2); }
+.s1-stagelist { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.s1-stage-chip { position: relative; padding: 3px 10px; border-radius: var(--r12); background: var(--surface2); font-size: 12px; color: var(--ink2); }
 .s1-prev-section { margin-top: 24px; }
 .s1-prev-title { font-weight: 600; font-size: 14px; margin-bottom: 10px; color: var(--ink); }
 .s1-prev-case { padding: 12px; margin-bottom: 14px; border-radius: var(--r8); box-shadow: var(--shadow); }
@@ -1684,8 +1684,6 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-edu-bulb .ti { flex: none; font-size: 16px; margin-top: 1px; }
 .s1-top-col { display: flex; flex-direction: column; gap: 4px; }
 .s1-top-label { font-size: 12px; color: var(--ink3); }
-.s1-tips { padding: 12px 14px; margin-bottom: 16px; background: var(--surface2); border-radius: var(--r8); }
-.s1-tips-hd { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--ink); }
 .s1-tips-line { font-size: 12px; line-height: 1.7; color: var(--ink2); }
 .s1-tips-cap { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--ink3); font-size: 11px; }
 .s1-add-case { flex: 0 0 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 1px dashed var(--sage-300); border-radius: var(--r8); color: var(--sage-600); cursor: pointer; font-size: 13px; }
@@ -1709,3 +1707,19 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-colors .cp-swatch { position: relative; }
 .s1-colors .cp-swatch.on { border-color: transparent; }
 .s1-colors .cp-swatch.on::after { content: '✓'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--ink-inverse); font-size: 14px; font-weight: 700; line-height: 1; }
+
+/* ═══ §4.8.7.4b 塊3a-刀1（第二步追加：膠囊 inline 編輯）═══ */
+.s1-stage-hd { font-weight: 600; font-size: 13px; color: var(--ink); margin-bottom: 2px; }
+.s1-stage-note { font-size: 12px; color: var(--ink3); margin-bottom: 8px; }
+.s1-stage-chip .chip-text { cursor: text; }
+.s1-stage-chip .chip-del { display: none; position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; line-height: 14px; text-align: center; border-radius: 50%; background: var(--ink4); color: var(--ink-inverse); font-size: 11px; cursor: pointer; }
+.s1-stage-chip:hover .chip-del { display: block; }
+.s1-stage-add { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; border: 1px dashed var(--sage-300); color: var(--sage-600); cursor: pointer; }
+.s1-stage-add:hover { background: var(--sage-50); }
+.chip-edit { width: 80px; padding: 2px 6px; border: 1px solid var(--sage-400); border-radius: var(--r6); font-size: 12px; }
+
+/* ═══ §4.8.7.4b 塊3a-刀1（膠囊優化批：箭頭/改名暗示/刪除調色/備註強調）═══ */
+.s1-stage-arrow { color: var(--ink4); font-size: 14px; vertical-align: middle; margin: 0 1px; }
+.s1-stage-note i { margin-right: 4px; }
+.s1-stage-note-em { color: var(--ink2); font-weight: 600; }
+.s1-stage-chip .chip-del:hover { background: var(--rose); }

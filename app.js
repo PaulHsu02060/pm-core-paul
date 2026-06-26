@@ -5816,6 +5816,7 @@ App._renderStage1Preview = function() {
   // 動態狀態提示（文-C 情境A，本步靜態；第三步隨填法切換）
   const dynHint = '<div class="s1-dynhint"><i class="ti ti-arrow-narrow-right"></i><span>正向排程中：系統正從您的開工日往後順推，自動算出最後的預計完工日。</span></div>';
   // 主案卡（複用 .case-card）；日期欄使用者面用「上市日期」
+  if (!App._s1DemoStages) App._s1DemoStages = main.stages.map(s => s.stage);
   const mainCol =
     '<div class="s1-case-col case-card s2-case-main">' +
       '<div class="s1-case-head">' +
@@ -5827,19 +5828,21 @@ App._renderStage1Preview = function() {
         '<label>上市日期<input type="date" value="' + main.end + '"></label>' +
       '</div>' +
       dynHint +
-      '<div class="s1-stagelist">' + main.stages.map(s => '<span class="s1-stage-chip">' + U.esc(s.stage) + '</span>').join('') + '</div>' +
+      '<div class="s1-stage-hd">開發階段</div>' +
+      '<div class="s1-stage-note"><i class="ti ti-info-circle"></i>此處直接決定專案流程（由左至右）：點擊膠囊可重新命名，按 ＋ 可增減階段。<br><b class="s1-stage-note-em">調整後系統將自動重排下方甘特圖、並重新精算時間餘裕與燈號。</b></div>' +
+      '<div class="s1-stagelist">' + App._s1StageChipsHtml() + '</div>' +
     '</div>';
   // ＋新增子案 方框（直立虛線，本步佔位）
   const addCase = '<div class="s1-add-case" onclick="void 0"><i class="ti ti-plus"></i><span>新增子案</span></div>';
   // 說明區（文-B；箭頭統一中文冒號「：」，防呆句 terracotta 強調）
-  const tips =
-    '<div class="s1-tips">' +
-      '<div class="s1-tips-hd"><i class="ti ti-info-circle"></i>排程小秘訣</div>' +
+  const tips = App.buildHintBox({
+    key: 's1-sched-tips', icon: 'ti-info-circle', title: '排程小秘訣', summary: '怎麼填日期決定排程方向', collapsed: false,
+    bodyHtml:
       '<div class="s1-tips-line"><span class="s1-tips-dot"></span>只填開始日：自動順推，算出預計完工日。</div>' +
       '<div class="s1-tips-line"><span class="s1-tips-dot"></span>只填上市日期：自動倒推最晚開工日<b class="s1-tips-warn">（若發現來不及，會自動改為建議最快完工日）</b>。</div>' +
       '<div class="s1-tips-line"><span class="s1-tips-dot"></span>兩者皆填齊：精算時間夠不夠，產出中間的「餘裕天數」。</div>' +
-      '<div class="s1-tips-line s1-tips-cap"><i class="ti ti-info-circle"></i>若有多個產品規格（如 7.3kW ／ 2.2kW），點擊主案右側 ＋【新增子案】即可獨立排程。</div>' +
-    '</div>';
+      '<div class="s1-tips-line s1-tips-cap"><i class="ti ti-info-circle"></i>若有多個產品規格（如 7.3kW ／ 2.2kW），點擊主案右側 ＋【新增子案】即可獨立排程。</div>'
+  });
   // 燈號 HintBox（文-D 完整版，預設收起 collapsed）
   const helpBody =
     '<div class="slack-help-line"><span class="slack-dot sd-green"></span>可行（餘裕 ＞5 工作天）：時間充裕，遊刃有餘！中間還有超過一週的緩衝，遇到突發狀況也不怕。</div>' +
@@ -5856,7 +5859,7 @@ App._renderStage1Preview = function() {
     '</div>';
   // 預覽區塊（本步只主案一條）
   const previewBlocks =
-    '<div class="s1-prev-case">' +
+    '<div class="s1-prev-case case-card s2-case-main">' +
       '<div class="s1-prev-head">' +
         '<span class="s1-prev-name">' + U.esc(main.name) + '</span>' +
         '<span class="s1-prev-range">' + fmtD(main.start) + ' → ' + fmtD(main.end) + '</span>' +
@@ -5891,6 +5894,67 @@ App._renderStage1Preview = function() {
     '</div>';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
+
+// §4.8.7.4b 塊3a-刀1 第二步追加1：開發階段膠囊 inline 編輯（方案甲，事件委派）。
+// 靜態假資料暫存 App._s1DemoStages（module 內）；第三步接真 _createFlow 改存 case.selectedStages/stageRenames。
+App._s1StageChipsHtml = function() {
+  const arr = App._s1DemoStages || [];
+  return arr.map((name, i) =>
+    '<span class="s1-stage-chip" data-idx="' + i + '"><span class="chip-text">' + U.esc(name) + '</span><span class="chip-del" title="刪除">×</span></span>'
+  ).join('<i class="ti ti-chevron-right s1-stage-arrow"></i>') + '<span class="s1-stage-add" title="新增階段"><i class="ti ti-plus"></i></span>';
+};
+App._renderStageChips = function() {
+  const box = document.querySelector('#page-stage1 .s1-stagelist');
+  if (box) box.innerHTML = App._s1StageChipsHtml();
+};
+App._stageChipToInput = function(textEl) {
+  if (!textEl) return;
+  const chip = textEl.closest('.s1-stage-chip'); if (!chip) return;
+  const idx = +chip.getAttribute('data-idx');
+  const cur = (App._s1DemoStages[idx] != null) ? App._s1DemoStages[idx] : '';
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.className = 'chip-edit'; inp.value = cur;
+  chip.classList.add('editing');
+  textEl.style.display = 'none';
+  const delEl = chip.querySelector('.chip-del'); if (delEl) delEl.style.display = 'none';
+  chip.insertBefore(inp, textEl);
+  inp.focus(); inp.select();
+  let done = false;
+  const commit = () => {
+    if (done) return; done = true;
+    const v = inp.value.trim();
+    if (v === '') App._s1DemoStages.splice(idx, 1);
+    else App._s1DemoStages[idx] = v;
+    App._renderStageChips();
+  };
+  inp.addEventListener('blur', commit);
+  inp.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); }
+    else if (ev.key === 'Escape') { inp.value = cur; inp.blur(); }
+  });
+};
+App._bindStageChipEvents = function() {
+  if (App._stageChipDelegated) return;   // 只綁一次（仿 §6.5 _taskTimeDelegated）
+  App._stageChipDelegated = true;
+  document.addEventListener('click', (e) => {
+    const page = document.getElementById('page-stage1');
+    if (!page || !page.classList.contains('active')) return;   // 僅第一階段頁作用
+    const del = e.target.closest('.chip-del');
+    if (del) { const chip = del.closest('.s1-stage-chip'); if (chip) { App._s1DemoStages.splice(+chip.getAttribute('data-idx'), 1); App._renderStageChips(); } return; }
+    const add = e.target.closest('.s1-stage-add');
+    if (add) {
+      App._s1DemoStages.push('');
+      App._renderStageChips();
+      const chips = document.querySelectorAll('#page-stage1 .s1-stage-chip');
+      const last = chips[chips.length - 1];
+      if (last) App._stageChipToInput(last.querySelector('.chip-text'));
+      return;
+    }
+    const txt = e.target.closest('.chip-text');
+    if (txt) { App._stageChipToInput(txt); return; }
+  });
+};
+App._bindStageChipEvents();
 
 // 第③段上一步（路線B）：退回第②段並用 _createFlow.stage1Data 回填（部門先還原；_flowStep2 因 stage1Data 有值不重設 _tplDepts）。
 App._flowStage3Back = function() {
