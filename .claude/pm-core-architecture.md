@@ -358,6 +358,43 @@ Auth（檢視/編輯/登入）
 - 燈號 UI 掛點：這張圖頭部（caseRange 那行旁／上方），加餘裕顯示區塊。
 - 頭尾星期幾：開始日、結束日顯示星期幾（一~日）；任務細節列不逐筆掛星期幾（避免擠）。
 
+##### 4.8.7.4b 塊3a-刀1 施工規格：第一階段預覽頁 + 燈號說明卡（照 Mockup②③，引擎已備純接 UI）
+
+> 本小節是塊3a 第一刀的施工接線規格。引擎（computeScheduleBackward 塊2、_computeSlack 塊3a 計算層 c22b9c5）已備，本刀純接 UI——把休眠的餘裕/燈號算法接上 Mockup②③ 的呈現。不重述 §4.8.7.4 的算法（餘裕＝可用−需要、三級燈號門檻已定案）。
+> 設計來源：2026-06-26 塊3a-刀1 mockup-to-code。
+
+**現況**：_stage1FormHtml（:5312）填完直接 _flowStage2Next（:5459）跳第二階段，中間無「大局時間預覽頁」。Mockup② 要在第一階段填完日期後、當頁顯示主案/另案各階段甘特落點 + 燈號，讓 PM 早期就看到大方向可不可行（呼應 §4.8.6 早期攔截）。
+
+**A. 第一階段預覽（Mockup②）**
+- 新增 `App._renderStage1Preview(userInput)`：複用 `_reschedulePreview` 算各案 plannedStart/End 落點、`_computeSlack` 算燈號，render 進 `#page-stage1` 下方預覽區（不另開頁，同頁下方展開）。
+- 版面照 Mockup②：頂部「專案名 + 顏色點 + 範本選擇」並排；主案/另案左右兩欄（`.s1-case-col`，沿用 case-card 語意）；各欄含案名 / 開始日 / 結束日 / 排程方向。
+- 排程方向欄改成跟著日期自動判定 `_effScheduleDir`（開始+結束＝interval／只結束＝backward／其餘＝forward，§4.8.7.2），不再是純下拉；保留手動覆寫逃生口。
+- 底部「階段區間預覽」：每案一條 mini-gantt（複用 `s2-gantt` 樣式）+ 各階段日期右對齊 + 案別總區間燈號膠囊（`.slack-pill`，比照 cap-pill）。
+- 燈號膠囊文案（對 _computeSlack 的 light + slack/overDays）：
+  - 綠（light==='green'）：底 --sage-chip ／ 點 --sage-500，文案「可行·餘裕 N 天」（N＝slack）。
+  - 黃（light==='yellow'）：底 --amber-l ／ 點 --amber，文案「偏緊·餘裕 N 天」（N＝slack）。
+  - 紅（light==='red'）：底 --rose-l ／ 點 --rose，文案「不足·超出 N 工作天」（N＝overDays）。
+- 「下一步：檢視任務」鈕進第二階段（現有 _flowStage2Next，不改流程）。
+
+**B. 燈號說明（Mockup③，複用昨日 HintBox 共用組件，不另造）**
+- 用 `App.buildHintBox({ key:'s1-slack-help', title:'餘裕燈號代表什麼', summary:'綠可行／黃偏緊／紅不足', icon:'ti-help', collapsed:true, bodyHtml: 三條燈號說明 })` 掛在第一階段預覽區燈號旁。
+- 自帶兩段式 tooltip（收起態 hover 浮短提示「餘裕燈號代表什麼｜綠可行／黃偏緊／紅不足 — 點擊展開看完整說明」、點擊展開全文）、展開／收起持久化（Storage.save）——全部複用 buildHintBox，零新組件。
+- bodyHtml 三條（照 Mockup③ + §4.8.7.4 定稿，各帶 `.slack-dot` 圓點走 :root sage／amber／rose）：
+  - 綠「可行（餘裕 ＞5 工作天）：時間充足，遊刃有餘。」
+  - 黃「偏緊（餘裕 0~4 工作天）：勉強做完，但無緩衝。」
+  - 紅「不足：照範本工期排會超出結束日。」
+- 不另造 _slackHelpCard ／ 不另寫 tooltip 引擎——違反單一真實來源。
+
+**C. class／變數**
+- 燈號：`s2-slack-dot` ／ `s2-slack-msg`（已存在 :6070，換新白話文案，不另造）。
+- 甘特：複用 `s2-gantt`。
+- 新增（走 :root，禁寫死 hex）：`.s1-preview` ／ `.s1-case-col` ／ `.slack-pill` ／ `.slack-dot`。
+
+**D. 施工順序（鐵則：先 UI 後接資料）**
+先 `_renderStage1Preview` 靜態版面（假資料）→ 接 `_reschedulePreview` ／ `_computeSlack` 真資料 → 燈號說明卡 → 本地測。
+燈號說明用 buildHintBox（key=s1-slack-help），tooltip／持久化全繼承，不重做。
+塊3a-刀1 不碰第二階段 ／ 溢出三層（屬刀2 + 塊3b）。
+
 ##### 4.8.7.5 溢出三層 UI 接線（紅燈，細化 §4.8.4）
 
 > §4.8.4 已定「為什麼三層」。本節細化「這張圖上三層怎麼接、狀態怎麼存」，補 §4.8.4 未涵蓋的層三兩段式 + 儲存閘門 + 目標日預設 + 範本/專案儲存差異。
