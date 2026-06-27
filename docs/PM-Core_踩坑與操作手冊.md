@@ -182,3 +182,27 @@ old_string 只匹配舊段一部分，新內容疊後面、舊段殘留。整段
 **操作提醒**
 排程顯示層若改動「無前置任務的落點」邏輯，務必三個入口（`_s1ColorStagesForward`／`_s1ComputePreview`／`_s2GanttHtml`）一起檢查，
 別只補一條路徑。`_chainStages` 假設階段為**循序**（本範本成立）；若日後有真正並行階段，需另議（強制循序會把並行段串成序列）。
+
+---
+
+## 坑 7：Excel 新建專案一進 Stage 2 就爆 TypeError（variant 缺 schedule）（2026-06-28）
+
+**現象**
+「新增專案 → 從 Excel 匯入」選檔解析成功（顯示「✓ 已讀取 N 筆任務」），但一按「下一步：檢視任務」就死，
+Console 紅字 `Uncaught TypeError: Cannot read properties of undefined (reading 'startDate')`（app.js:`_s2VariantSlack`）。
+Dev 端整條 Excel 新建因此完全不能用（檔案本身完全正常——分頁/表頭/8 必要欄都對）。
+
+**根因（已查證，附行號）**
+- 範本路徑 `applyTemplate`（app.js:2615）建的案別 variant 形狀＝`{ id, name, schedule:{startDate,endDate,direction}, stages }`。
+- Excel 路徑 `buildWbsPreview`（app.js:10952）卻只建 `{ id, name }`，**沒有 `schedule`**。
+- Stage 2 餘裕計算 `_s2VariantSlack`（app.js:7022）一連串**直接讀 `v.schedule.startDate/endDate/direction`，無 `|| {}` 防呆**
+  → `v.schedule` 為 undefined → 讀 `.startDate` 即爆。（同檔 `_s2GanttHtml` 6837 反而有 `v.schedule || {}` 防呆，故只 slack 爆。）
+
+**正解（已根治，commit `fa6336d`）**
+`buildWbsPreview` 的 variant 補上 `schedule: { startDate:'', endDate:'', direction:'forward' }`＋`stages: []`，形狀對齊 `applyTemplate`。
+Excel 匯入本來就**沒有「目標上市窗」**，空 schedule 下 `_s2VariantSlack` 自然回 `null`（不顯燈號）＝正確語意；甘特照樣讀任務 plannedStart/End。
+
+**操作提醒**
+- 兩條建專案路徑（範本 `applyTemplate`／Excel `buildWbsPreview`）**回傳的 variant 形狀必須一致**——下游 Stage 2 render 同一套，缺欄就炸。日後改 variant 結構要兩邊同步。
+- Stage 2 一堆 `v.schedule.X` 是**直接讀、無防呆**（7022/7063/7116…），靠「variant 一定帶 schedule」這個前提撐著；新增任何 variant 來源都要記得帶 schedule。
+- 連帶教訓：Excel 新建這條路徑體質弱（舊 `saveProject` 還留過「下一批實作」死 stub、掛在舊版 `_renderStage2`），多案別大檔匯入值得完整走查一遍。

@@ -62,9 +62,9 @@
 
 ## §B 本週進度（每週滾動，只留當週）
 
-### 2026-06-27（本週）
+### 2026-06-27～28（本週）
 
-**目前 HEAD**：`c5ca512`｜版本號 app.js `?v=20260627-31`／style.css `?v=20260627-32`｜本 session 全部已驗＋commit＋push
+**目前 HEAD**：`42e6e7b`｜版本號 app.js `?v=20260628-3`／style.css `?v=20260628-1`｜兩 session 全部已驗＋commit＋push
 
 **已落地（本 session，皆已驗）**
 - **智慧排程衝突面板大整修（§4.8.7.x）**：③子案燈號 backward 同源 `2b6994f`／N2 interval 餘裕改真實順推 `f09f27e`／N1 採用層一後停留(燈亮+層二反灰鎖) `120e404`／第3 Stage2上一步分情境路由(回面板保留設定/回Stage1)+第1進大表前掃紅案閘門 `384643e`／**A 瓶頸建議改模擬法+每階段代表+有效縮減上限** `9e0c6c7`／層二重算撈新瓶頸小祕訣+主按鈕去層三化「進入Stage 2」 `3b0de48`／HintBox底色+展開+文案去層三化 `eaa7b71`。
@@ -73,6 +73,9 @@
 - **文件**：§17 全域定時備份規格 `1b8036d`。
 - **任務 modal 內層排版重構（§6.2）**：六分區＋排程時程群組卡＋時程三劍客；預計開始改單一可編輯日期格（data-autostart 防誤落錨、未經手不釘錨保住下游連動）；砍可切分；HintBox 預設收起；欄位標題 13px 暖墨（scope `.tf-redesign`）`bae6919`。
 - **清退役 .ovf-* 層三孤兒 CSS（§4.8.7.9）**：40 個 zero-reference class 移除（腳本交叉比對 app.js+templates+index.html，剩 56 全有引用、括號平衡）`c5ca512`。
+- **（06-28）Dashboard 階段一降噪（儀表板，§6.2 同盤）**：兩說明卡(階段進度/部門負荷)預設收起；6 數據卡改白底＋頂部細彩線＋數字 24px＋標籤縮小（清 6 個 `--kpi-*-l` 孤兒 var、tone 改 `border-top-color`）；匯出 Excel 改 ghost 次要鈕＋下載 icon；延遲徽章與逾期 N 天改 terracotta 暖膠囊（保色只加膠囊形）`59755b7`。
+- **（06-28）修 Excel 新建匯入爆 Stage 2**：`buildWbsPreview` 案別 variant 缺 `schedule` → `_s2VariantSlack` 直讀 `v.schedule.startDate` 爆 TypeError；形狀對齊 `applyTemplate`（補空 schedule＋stages，Excel 無目標窗→餘裕回 null）`fa6336d`（見踩坑手冊坑 7）。
+- **（06-28）移除 saveProject 不可達舊 create 死碼**：含 Excel「下一批實作」stub＋讀已不存在的 `pf-mode`；唯一呼叫點只在編輯彈窗渲染（id 恆有值），create 分支不可達 → 收斂成純編輯（新增專案走 `_flowStep1` 多步流程）`42e6e7b`。
 
 **真關鍵路徑已解（§A）**：原「長工時門檻近似」由模擬法取代（`_effectiveGains` 各任務縮到底看總時程真縮否、`_taskCap` 二分有效縮減上限+clamp防縮過頭、`_ovfTopTasks` 每階段選 gain 最大代表）——根治「同階段並行互拖、改了沒用」。
 
