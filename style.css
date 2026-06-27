@@ -1568,6 +1568,8 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; margin-top: 8px; }
 .data-table.s2-tbl thead th { padding: 9px 11px; text-align: center; font-weight: 500; font-size: 13px; color: var(--stone-100); white-space: nowrap; vertical-align: middle; background: var(--sage-700); }
 .data-table.s2-tbl thead th.col-mid, .data-table.s2-tbl thead th.col-flex { text-align: left; }
+.data-table.s2-tbl thead th.s2-dur-th, .data-table.s2-tbl thead th.s2-deliver-th { text-align: center; }
+.s2-tbl td.s2-dur, .s2-tbl td.s2-deliver { text-align: center; }
 .data-table.s2-tbl thead .s2-all-th { margin-left: 8px; font-size: 11px; font-weight: 400; color: var(--sage-200); white-space: nowrap; cursor: pointer; }
 .data-table.s2-tbl thead tr:first-child th:first-child { border-top-left-radius: var(--r10); }
 .data-table.s2-tbl thead tr:first-child th:last-child { border-top-right-radius: var(--r10); }

@@ -5778,11 +5778,16 @@ App._flowStage1Next = function() {
     });
     return;
   }
+  App._s2From = 'stage1';   // §第3：綠/黃直接進 Stage 2（未經 overflow 面板）→「上一步」回 Stage 1
   this._renderStage2New();
 };
 
-// 上一步：切回 page-stage1（不重繪，保留輸入）。topbar 維持隱藏（仍在流程內）。
+// 上一步分情境（§第3）：經 overflow 面板來的回面板、保留層一二設定（層別/工期/採用的上市日全在）；綠黃直接來的回 Stage 1。
 App._s2BackToStage1 = function() {
+  if (App._s2From === 'overflow' && App._ovfState) {
+    App._ovfRender();   // 回智慧排程面板，_ovfState 不重置 → 設定全保留，不會被打回 Stage 1 重來
+    return;
+  }
   document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
   const p = document.getElementById('page-stage1');
   if (p) p.classList.add('active');
@@ -6723,7 +6728,7 @@ App._s2ListHtml = function(variantId) {
       '<th class="col-mid" rowspan="2">部門</th>' +
       '<th class="col-mid" rowspan="2">負責人</th>' +
       '<th class="col-pred-group" colspan="3">前置任務</th>' +
-      '<th class="col-mid" rowspan="2">工期</th>' +
+      '<th class="col-mid s2-dur-th" rowspan="2">工期</th>' +
       '<th class="col-mid" rowspan="2">日期（起訖）</th>' +
       '<th class="col-mid s2-deliver-th" rowspan="2">需交付<label class="s2-all-th"><input type="checkbox"' + (allDeliver ? ' checked' : '') + ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"> 全選</label></th>' +
       '<th class="col-action" rowspan="2"></th>' +
@@ -7117,6 +7122,7 @@ App._renderOverflowFlow = function() {
   let firstRed = null;
   variants.forEach(v => { if (firstRed) return; const s = App._s2VariantSlack(v.id); if (s && s.light === 'red') firstRed = v.id; });
   App._ovfState = { tab: firstRed || (variants[0] && variants[0].id) || null, sel: {}, modified: {}, topN: {}, baseTask: baseTask, baseEnd: baseEnd, baseOver: baseOver };
+  App._s2From = 'overflow';   // §第3：Stage 2 來源＝智慧排程面板 →「上一步」回此面板（保留層一二設定），非回 Stage 1
   App._ovfRender();
 };
 App._ovfRender = function() {
@@ -7313,8 +7319,25 @@ App._ovfAfterResolve = function(vid) {
     U.toast('✓ 本案已解決，請繼續處理下一個時程不足的案別：' + (reds[0].name || ''), 'success');
   }
 };
-// 前往 Stage 2（任務大表）：層三已退役，直接前往（帶入層二改好的工期）。剩餘紅案由 Stage 2 頂部 dashboard＋⚠️標籤指引逐項補完，不在此硬擋。
+// 前往 Stage 2（任務大表）：§第1 進場前掃所有案，仍有紅燈（未處理）→ 彈設計款窗列出哪些案尚缺幾天，按「仍要進」才進、否則留在面板逐案處理。
 App._ovfGotoStage2 = function() {
+  const res = App._tplPreview;
+  const reds = res ? (res.variants || []).filter(v => { const s = App._s2VariantSlack(v.id); return s && s.light === 'red'; }) : [];
+  if (reds.length) {
+    const names = reds.map(v => {
+      const s = App._s2VariantSlack(v.id);
+      const isMain = (res.variants || [])[0] && (res.variants || [])[0].id === v.id;
+      return '・' + (isMain ? '主案' : '子案') + ' ' + U.esc(v.name || '') + '（尚缺 ' + (s ? s.overDays : 0) + ' 個工作天）';
+    }).join('<br>');
+    App.confirmModal({
+      icon: 'ti-alert-triangle', iconBg: '--rose-l', iconColor: '--rose',
+      title: '還有案別時程未處理',
+      msg: '以下案別仍時程不足、尚未在本面板處理：<br><br>' + names + '<br><br>可切換上方頁籤逐案處理，或仍要直接進入任務大表逐項微調？',
+      okText: '仍要進入大表 →', cancelText: '留在此繼續處理',
+      onConfirm: function() { App._renderStage2New(); }
+    });
+    return;
+  }
   App._renderStage2New();
 };
 // 案頭前後時程對照看板：原始 Stage1 區間 ➔ 變更後區間（順延 N 工作天）。未變更則只顯示需求上市日。
