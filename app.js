@@ -7023,10 +7023,22 @@ App._s2VariantSlack = function(variantId) {
   const res = this._tplPreview; if (!res) return null;
   const v = (res.variants || []).find(x => x.id === variantId); if (!v) return null;
   const dir = App._effScheduleDir(v.schedule.startDate, v.schedule.endDate, v.schedule.direction);
-  if (dir === 'interval') {
-    const ts = (res.tasks || []).filter(t => t.variant === variantId);
-    const results = ts.map(t => ({ lateStart: t.plannedStart || null, lateFinish: t.plannedEnd || null }));
-    return App._computeSlack(results, v.schedule.startDate, v.schedule.endDate);
+  if (dir === 'interval' && v.schedule.startDate && v.schedule.endDate) {
+    // interval（開始+結束都填）：改用「從開始日順推各段取最末完工」算 earliestFinish／餘裕（與 backward 分支、Gantt _s1ColorStagesForward 同源）。
+    // 取代舊 _computeSlack 用 needed=workdaysBetween(minStart,maxFinish) 的近似——近似 earliestFinish 與真實順推完工不一致，
+    // 造成「採用最快上市日後仍判紅、Gantt 階段紅但 banner 說達標、slack off-by-one 顯示紅+尚缺0天」。順推冪等：採用 fin 當上市日後再順推仍得 fin → slack=0 → 達標。
+    const g = App._s2GroupByStage(variantId);
+    const stages = g.order.map(st => ({ stage: st }));
+    App._s1ColorStagesForward(res, v, stages, v.schedule.startDate, v.schedule.endDate);
+    let fin = ''; stages.forEach(s => { if (s.end && s.end > fin) fin = s.end; });
+    if (!fin) return null;
+    const start = v.schedule.startDate, end = v.schedule.endDate;
+    const available = D.workdaysBetween(start, end);
+    const needed = D.workdaysBetween(start, fin);
+    const slack = available - needed;
+    return { available, needed, slack,
+      light: slack >= 5 ? 'green' : (slack >= 0 ? 'yellow' : 'red'),
+      earliestFinish: fin, overDays: slack < 0 ? Math.max(0, D.workdaysBetween(end, fin) - 1) : 0 };
   }
   if (dir === 'backward' && v.schedule.endDate) {
     // backward（只填上市日）：順推自今日＋階段串接取最末完工（與 Stage1 情境C 同源；desc==stage key 對得上），比對上市日 → 紅/黃/綠。
