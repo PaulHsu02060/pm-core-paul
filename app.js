@@ -5623,60 +5623,15 @@ App.saveProject = function(id) {
   const color = colorEl ? colorEl.dataset.color : PROJ_COLORS[0];
   const note = document.getElementById('pf-note').value.trim();
 
-  if (id) {
-    if (App._roGuard()) return;
-    const p = this.getProj(id);
-    if (p) { p.name = name; p.color = color; p.note = note; }
-  } else {
-    const mode = document.getElementById('pf-mode') ? document.getElementById('pf-mode').value : 'blank';
-    if (mode === 'template') {
-      const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
-      if (!tpl) { U.toast('⚠ 找不到範本', 'warning'); return; }
-      // 統一 per-card 掃法：主案卡 + 0~N 另案卡各組一個 case entry（只讀自己卡內欄位，不跨卡）。
-      // variantName=顯示名(分 id)、templateVariant=範本來源 key(引擎反查)——兩欄分開，餵錯多案會撞回一起。
-      // cards 順序＝DOM 序：主案卡在 #pf-otherCases 之前 → cases[0] 恆主案。
-      const cards = document.querySelectorAll('#pf-tplBox .case-card');
-      const cases = [];
-      for (const card of cards) {
-        const isMain = card.dataset.case === 'main';
-        const nameEl = card.querySelector('.case-variant-name');
-        const variantName = nameEl ? nameEl.value.trim() : '';   // 純讀欄位，無兜底
-        if (!variantName) { U.toast(isMain ? '⚠️請填主案的案別名稱' : '⚠️請填另案的案別名稱', 'warning'); return; }   // 統一：任一卡名稱空就擋
-        const startEl = card.querySelector('.case-start');
-        const startDate = startEl ? startEl.value : '';
-        if (isMain && !startDate) { U.toast('⚠ 套用範本請填主案開始日', 'warning'); return; }   // 保留既有：主案開始日必填
-        const stages = [...card.querySelectorAll('.stage-pick.on')].map(b => b.dataset.stage);
-        if (!stages.length) { U.toast('⚠️請為「' + variantName + '」至少選一個階段', 'warning'); return; }   // 每案 min-1 階段
-        cases.push({
-          variantName,
-          templateVariant: isMain ? '主案' : '另案',
-          startDate,
-          endDate: (card.querySelector('.case-end') || {}).value || '',
-          direction: (card.querySelector('.case-direction') || {}).value || 'forward',
-          selectedStages: stages,
-        });
-      }
-      // 部門/擔當：直接用 App._tplDepts（共用部門編輯元件即時維護的暫存）；空部門/無成員由引擎 ③ 跳過。
-      const userInput = { projectName: name, color, note, cases, depts: App._tplDepts || [] };
-      // B 步驟1：preview-then-commit（§8d.15 N.1）——算出 res 不落地，整包存 _tplPreview，
-      // 關第一階段 modal、開第二階段頁；depts/variants 掛回 + push/save 留到「建立專案」鈕。
-      this._tplPreview = App.applyTemplate(tpl, userInput);
-      this.closeModal();
-      this._renderStage2();
-      return;
-    }
-    if (mode === 'excel') { U.toast('⚠ Excel 匯入下一批實作', 'warning'); return; }
-    if (App._roGuard()) return;
-    const np = { id: U.id(), name, color, note, synced: false, createdAt: new Date().toISOString() };
-    ensurePdcaData(np);
-    DATA.projects.push(np);
-    this.currentProjectId = np.id;
-  }
+  // 此函式只處理「編輯既有專案」。新增專案走 _flowStep1 多步流程；
+  // 舊單一彈窗的 create 分支（pf-mode + template/blank + Excel「下一批實作」stub）已退役、不可達，移除。
+  if (App._roGuard()) return;
+  const p = this.getProj(id);
+  if (p) { p.name = name; p.color = color; p.note = note; }
   Storage.save();
   this.closeModal();
   this.refreshAll();
-  U.toast(id ? '✓ 專案已更新' : '✓ 專案已建立');
-  if (!id) this.showPage('project', null);
+  U.toast('✓ 專案已更新');
 };
 
 // ─── 範本第二階段：編輯任務骨架頁（§8d.15）。B 步驟2：頁殼+標頭+案別區塊；Gantt軸/任務清單留步驟3/4。───
