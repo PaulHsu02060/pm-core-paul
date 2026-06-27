@@ -6696,13 +6696,7 @@ App._s2ListHtml = function(variantId) {
   let seqBase = 0;
   for (let i = 0; i < selIdx; i++) seqBase += (g.byStage[g.order[i]] || []).length;
   const allDeliver = group.length > 0 && group.every(t => t.mustDeliver);
-  let rows =
-    '<tr class="s2-stage-row">' +
-      '<td colspan="9">' + U.esc(sel) + '</td>' +
-      '<td class="col-mid s2-deliver"><label class="s2-all"><input type="checkbox"' + (allDeliver ? ' checked' : '') +
-        ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"> 全選</label></td>' +
-      '<td class="col-action"></td>' +
-    '</tr>';
+  let rows = '';   // §N3-A：刪除「階段名＋全選」分隔列，純列 Task（當前階段由甘特＋Banner 已標示）；全選移到表頭「需交付」欄
   const caseDurs = (res.tasks || []).filter(x => x.variant === variantId).map(x => x.durationDays || 0).slice().sort((a, b) => b - a);
   const critThr = caseDurs.length ? Math.max(15, caseDurs[Math.floor(caseDurs.length / 3)] || 0) : 15;
   group.forEach((t, gi) => {
@@ -6731,7 +6725,7 @@ App._s2ListHtml = function(variantId) {
       '<th class="col-pred-group" colspan="3">前置任務</th>' +
       '<th class="col-mid" rowspan="2">工期</th>' +
       '<th class="col-mid" rowspan="2">日期（起訖）</th>' +
-      '<th class="col-mid" rowspan="2">需交付</th>' +
+      '<th class="col-mid s2-deliver-th" rowspan="2">需交付<label class="s2-all-th"><input type="checkbox"' + (allDeliver ? ' checked' : '') + ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"> 全選</label></th>' +
       '<th class="col-action" rowspan="2"></th>' +
     '</tr>' +
     '<tr>' +

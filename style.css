@@ -1565,8 +1565,10 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-unassigned-bar { margin: 18px 0 0; padding: 10px 12px; background: var(--terracotta-l); border-left: 3px solid var(--terracotta); border-radius: var(--r6); font-size: 12px; color: var(--terracotta-ink); }
 
 /* ── 範本第二階段 步驟4：任務清單可編輯（負責人下拉＋需交付勾選）── */
-.s2-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 15px; margin-top: 8px; }
-.data-table.s2-tbl thead th { padding: 9px 11px; text-align: center; font-weight: 500; font-size: 14px; color: var(--stone-100); white-space: nowrap; vertical-align: middle; background: var(--sage-700); }
+.s2-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; margin-top: 8px; }
+.data-table.s2-tbl thead th { padding: 9px 11px; text-align: center; font-weight: 500; font-size: 13px; color: var(--stone-100); white-space: nowrap; vertical-align: middle; background: var(--sage-700); }
+.data-table.s2-tbl thead th.col-mid, .data-table.s2-tbl thead th.col-flex { text-align: left; }
+.data-table.s2-tbl thead .s2-all-th { margin-left: 8px; font-size: 11px; font-weight: 400; color: var(--sage-200); white-space: nowrap; cursor: pointer; }
 .data-table.s2-tbl thead tr:first-child th:first-child { border-top-left-radius: var(--r10); }
 .data-table.s2-tbl thead tr:first-child th:last-child { border-top-right-radius: var(--r10); }
 /* 前置任務跨三欄群組表頭（置中）＋下排子欄標題（序號/銜接方式/緩衝） */
@@ -1575,8 +1577,6 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* 前置三欄內容置中、內距收緊 */
 .s2-tbl td.col-pred { text-align: center; padding-left: 6px; padding-right: 6px; }
 .s2-tbl td { padding: 6px 10px; border-bottom: 1px solid var(--stone-100); color: var(--stone-600); vertical-align: middle; }
-.s2-stage-row td { background: var(--sage-50); font-weight: 600; color: var(--sage-700); }
-.s2-case-other .s2-stage-row td { background: var(--slate-l); color: var(--slate-ink); }
 .s2-tbl tr.s2-crit > td { background: var(--terracotta-l); }
 .s2-crit-tag { background: var(--rose-l); color: var(--rose-ink); font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; margin-left: 6px; white-space: nowrap; }
 .data-table.s2-tbl tbody tr:nth-child(even) { background: transparent; }   /* 關閉通用斑馬，改用 .s2-rz 精準上色（避開階段列/插入列） */
@@ -1586,23 +1586,21 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-all { font-size: 11.5px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .s2-sub { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--stone-400); background: var(--stone-50); padding: 1px 7px; border-radius: 99px; }
 /* 輸入框/下拉平時透明無邊框（降噪）；滑入該列才浮現淡邊框＋白底 */
-.s2-name-inp, .s2-owner-sel, .s2-dur-inp { font-size: 13.5px; padding: 3px 6px; border: 1px solid transparent; border-radius: var(--r6); background: transparent; color: var(--stone-600); transition: border-color .12s, background .12s; }
-.s2-name-inp { width: 100%; font-size: 15px; color: var(--ink); }
+.s2-name-inp, .s2-owner-sel, .s2-dur-inp { font-size: 13px; padding: 3px 6px; border: 1px solid transparent; border-radius: var(--r6); background: transparent; color: var(--stone-600); transition: border-color .12s, background .12s; }
+.s2-name-inp { width: 100%; font-size: 13px; color: var(--ink); }
 .s2-dur-inp { width: 52px; text-align: center; }
 .s2-tbl tbody tr[data-taskid]:hover .s2-name-inp, .s2-tbl tbody tr[data-taskid]:hover .s2-owner-sel, .s2-tbl tbody tr[data-taskid]:hover .s2-dur-inp { border-color: var(--stone-200); background: var(--paper); }
 .s2-name-inp:focus, .s2-owner-sel:focus, .s2-dur-inp:focus { border-color: var(--sage-500); background: var(--paper); outline: none; }
 .s2-owner-unassigned { color: var(--stone-500); }
 .s2-pred { color: var(--stone-500); white-space: nowrap; }
 .s2-pred-hl { background: var(--sage-50); }
-.s2-pred-multi { font-size: 12.5px; color: var(--stone-500); }
+.s2-pred-multi { font-size: 13px; color: var(--stone-500); }
 /* 前置組合框：序號/白話型別/緩衝三控制項收進一個淡底膠囊（無接縫）；滑入該列才浮主題色細框 */
 .s2-predcombo { display: inline-flex; align-items: center; gap: 4px; background: var(--stone-50); border: 1px solid transparent; border-radius: var(--r6); padding: 2px 5px; white-space: nowrap; transition: border-color .12s; }
 .s2-tbl tbody tr[data-taskid]:hover .s2-predcombo { border-color: var(--sage-500); }
 /* 前置三欄：各自獨立儲存格，欄寬由表格分配、互不重疊；序號窄、銜接方式較寬、緩衝最窄 */
-.data-table.s2-tbl td.s2-pc-seqcell { width: 110px; }
-.data-table.s2-tbl td.s2-pc-typecell { width: 134px; }
-.data-table.s2-tbl td.s2-pc-lagcell { width: 62px; }
-.s2-pc-seq, .s2-pc-type, .s2-pc-lag { font-size: 12.5px; border: 1px solid transparent; background: transparent; color: var(--stone-600); border-radius: var(--r6); box-sizing: border-box; width: 100%; padding: 3px 4px; transition: border-color .12s, background .12s; }
+/* 前置三欄寬度交給 table-layout:auto 自適應（§8g，不寫死）；cell 內 .s2-pc-* width:100% 吃滿欄，表頭/內容同欄自動對齊 */
+.s2-pc-seq, .s2-pc-type, .s2-pc-lag { font-size: 13px; border: 1px solid transparent; background: transparent; color: var(--stone-600); border-radius: var(--r6); box-sizing: border-box; width: 100%; padding: 3px 4px; transition: border-color .12s, background .12s; }
 /* 下拉右側留箭頭空間，序號/型別文字不被箭頭壓到 */
 .s2-pc-seq, .s2-pc-type { padding: 3px 18px 3px 6px; }
 .s2-pc-lag { text-align: center; }
