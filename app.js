@@ -6702,11 +6702,10 @@ App._s2ListHtml = function(variantId) {
   for (let i = 0; i < selIdx; i++) seqBase += (g.byStage[g.order[i]] || []).length;
   const allDeliver = group.length > 0 && group.every(t => t.mustDeliver);
   let rows = '';   // §N3-A：刪除「階段名＋全選」分隔列，純列 Task（當前階段由甘特＋Banner 已標示）；全選移到表頭「需交付」欄
-  const caseDurs = (res.tasks || []).filter(x => x.variant === variantId).map(x => x.durationDays || 0).slice().sort((a, b) => b - a);
-  const critThr = caseDurs.length ? Math.max(15, caseDurs[Math.floor(caseDurs.length / 3)] || 0) : 15;
+  const gains = App._effectiveGains(variantId);   // §A 有效縮短瓶頸（模擬法）：gain>0＝改其工期能真正縮短總工期
   group.forEach((t, gi) => {
     const seq = seqBase + gi + 1;
-    const isCrit = (t.durationDays || 0) >= critThr;   // §4.8.7.10 關鍵路徑近似＝長工時門檻（真關鍵路徑＝最長依賴鏈，待辦）
+    const isCrit = (gains.get(t.id) || 0) > 0;   // §A 改其工期能有效縮短總天數（取代長工時門檻近似）
     rows +=
       '<tr data-taskid="' + t.id + '" class="' + (seq % 2 === 0 ? 's2-rz ' : '') + (isCrit ? 's2-crit' : '') + '">' +
         '<td class="col-num">' + seq + '</td>' +
@@ -7161,7 +7160,14 @@ App._ovfTabsInner = function() {
   }).join('');
 };
 App._ovfSelectTab = function(vid) { App._ovfState.tab = vid; App._ovfRefresh(); };
-App._ovfPickLayer = function(vid, n) { App._ovfState.sel[vid] = n; App._ovfRefresh(); };
+App._ovfPickLayer = function(vid, n) {
+  App._ovfState.sel[vid] = n;
+  if (n === '2') {   // §b 進層二＝開始調整：snapshot 此刻尚缺當基準，「已縮短」與當下尚缺同基準、不再對不上
+    const s = App._s2VariantSlack(vid);
+    App._ovfState.baseOver[vid] = (s && s.light === 'red') ? s.overDays : 0;
+  }
+  App._ovfRefresh();
+};
 App._ovfCaseHtml = function(vid) {
   const res = this._tplPreview; const v = (res.variants || []).find(x => x.id === vid); if (!v) return '';
   const isMain = (res.variants || [])[0] && (res.variants || [])[0].id === vid;
@@ -7231,41 +7237,112 @@ App._ovfLayer2Panel = function(vid, s, v) {
       App._ovfTop3Html(vid, s) +
     '</div></div>';
 };
-// 精選長工時：取「全階段工期最長」前 5，**清單穩定**（首次算定 id 存 _ovfState.topN，之後不因扣減重排→修「手動值跳回」bug）。
+// §A 有效縮短瓶頸（模擬法）：對各任務模擬「工期縮到 1 天」重算總完工日，能真正縮短總天數的才算「有效瓶頸」、縮短量＝該任務有效上限。
+// 取代 CPM 零浮時近似——零浮時會把「多前置匯合（如 13『6,9』）的並行等長鏈」全標關鍵，但改其中單一條、另一條還拖著＝改了沒用（Paul 實測「扣不下來」根因）。
+// 回 Map(id → 可縮短日曆天上限)；>0＝改了有效。純函式（clone，不碰 res.tasks），只順推不逆推。
+App._effectiveGains = function(variantId) {
+  const res = this._tplPreview; if (!res) return new Map();
+  const ts = (res.tasks || []).filter(t => t.variant === variantId);
+  if (!ts.length) return new Map();
+  const todayIso = D.fmt(D.today(), 'iso');
+  const finishOf = (tasks) => {
+    const fwd = tasks.map(t => Object.assign({}, t, { start: '' }));
+    fwd.forEach(t => { if (!t.predecessor) t.plannedStart = todayIso; });   // 統一起點（瓶頸結構與絕對起點無關）
+    const r = computeSchedule(fwd); let fin = '';
+    r.results.forEach(x => { if (x.suggestedEnd && x.suggestedEnd > fin) fin = x.suggestedEnd; });
+    return fin;
+  };
+  const baseFin = finishOf(ts);
+  const gains = new Map();
+  ts.forEach(t => {
+    if ((t.durationDays || 0) <= 1) { gains.set(t.id, 0); return; }
+    const sim = ts.map(x => x.id === t.id ? Object.assign({}, x, { durationDays: 1 }) : x);
+    const f = finishOf(sim);
+    const g = (f && baseFin) ? Math.max(0, Math.round((new Date(baseFin) - new Date(f)) / 86400000)) : 0;
+    gains.set(t.id, g);
+  });
+  return gains;
+};
+// 精選：只列「關鍵路徑上」的長工時前 5（§A，改了才有效縮短總工期）。清單穩定（首次算定存 topN，扣減不重排→防手動值跳回）；
+// 「重新計算/再次重算」時清 topN 重列當前關鍵路徑（壓縮後關鍵路徑可能轉移到另一條鏈）。
 App._ovfTopTasks = function(vid) {
   const res = this._tplPreview; const st = App._ovfState;
   if (st && st.topN && st.topN[vid]) {
     return st.topN[vid].map(id => (res.tasks || []).find(t => t.id === id)).filter(Boolean);
   }
-  const ts = (res.tasks || []).filter(t => t.variant === vid && (t.durationDays || 0) > 0).slice()
-    .sort((a, b) => (b.durationDays || 0) - (a.durationDays || 0)).slice(0, 5);
+  const gains = App._effectiveGains(vid);
+  // §A 每階段取「改了最有效(gain 最大>0)」的 1 個代表 → 避免同階段並行等長任務一次列多個(改任一個被另一個拖、白改)。
+  // 同階段並行互拖(全 gain=0)→該階段不列；改源頭/串行瓶頸(讓整階段一起動)會被選為代表。跨階段按 gain 排序取前 5(自然 3~5 個)。
+  const byStage = {};
+  (res.tasks || []).filter(t => t.variant === vid).forEach(t => {
+    const s = (t.stage || '').trim() || '其他';
+    (byStage[s] = byStage[s] || []).push(t);
+  });
+  const reps = [];
+  Object.keys(byStage).forEach(s => {
+    const cand = byStage[s].filter(t => (gains.get(t.id) || 0) > 0).sort((a, b) => (gains.get(b.id) || 0) - (gains.get(a.id) || 0));
+    if (cand.length) reps.push(cand[0]);
+  });
+  reps.sort((a, b) => (gains.get(b.id) || 0) - (gains.get(a.id) || 0));
+  const ts = reps.slice(0, 5);
   if (st) { if (!st.topN) st.topN = {}; st.topN[vid] = ts.map(t => t.id); }
   return ts;
+};
+// §c 有效縮減上限：對單一任務二分搜尋「工期最多能縮幾天、再縮就被並行任務接手、總時程不再變短」。
+// 回 {dur, cap(最多有效縮減工作天), minDur(縮到此值就見底)}。純函式只順推。供 Top5 顯示上限＋扣減 clamp 防縮過頭。
+App._taskCap = function(vid, taskId) {
+  const res = this._tplPreview; if (!res) return { dur: 0, cap: 0, minDur: 0 };
+  const ts = (res.tasks || []).filter(t => t.variant === vid);
+  const t = ts.find(x => x.id === taskId); if (!t) return { dur: 0, cap: 0, minDur: 0 };
+  const dur = t.durationDays || 0;
+  if (dur <= 1) return { dur, cap: 0, minDur: dur };
+  const todayIso = D.fmt(D.today(), 'iso');
+  const finWith = (d) => {
+    const fwd = ts.map(x => Object.assign({}, x, { start: '', durationDays: x.id === taskId ? d : (x.durationDays || 0) }));
+    fwd.forEach(x => { if (!x.predecessor) x.plannedStart = todayIso; });
+    const r = computeSchedule(fwd); let f = '';
+    r.results.forEach(z => { if (z.suggestedEnd && z.suggestedEnd > f) f = z.suggestedEnd; });
+    return f;
+  };
+  const baseFin = finWith(dur), minFin = finWith(1);
+  if (!baseFin || !minFin || minFin >= baseFin) return { dur, cap: 0, minDur: dur };   // 縮了也不影響總時程（非瓶頸）
+  let lo = 1, hi = dur - 1, cap = dur - 1;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (finWith(dur - mid) <= minFin) { cap = mid; hi = mid - 1; } else lo = mid + 1; }
+  return { dur, cap, minDur: dur - cap };
 };
 App._ovfTop3Html = function(vid, s) {
   const ts = App._ovfTopTasks(vid);
   const rows = ts.map((t, i) => {
     const dur = t.durationDays || 0;
-    const d1 = Math.min(3, Math.max(1, Math.round(dur * 0.15)));
-    const d2 = Math.min(5, Math.max(2, Math.round(dur * 0.25)));
+    const cp = App._taskCap(vid, t.id);
+    const cap = cp.cap, minDur = cp.minDur;
+    let d1 = Math.min(3, Math.max(1, Math.round(dur * 0.15)));
+    let d2 = Math.min(5, Math.max(2, Math.round(dur * 0.25)));
+    d1 = Math.min(d1, cap); d2 = Math.min(d2, cap);   // §c 膠囊不超過有效上限
     const meta = [(t.stage || '').trim(), (t.role || '').trim()].filter(Boolean).join(' · ') || '未分階段';
+    const capNote = cap > 0
+      ? '<span class="ovf-t3cap">工期 ' + dur + ' 天，但最多有效縮 <b>' + cap + '</b> 天（縮到 ' + minDur + ' 天就見底，再縮會被並行任務接手、省不了總時程）</span>'
+      : '<span class="ovf-t3cap none">此任務已不在瓶頸上，縮了不影響總時程</span>';
+    const pills = cap > 0
+      ? '<button class="ovf-pill" onclick="App._ovfTrim(\'' + vid + '\',\'' + t.id + '\',' + d1 + ')">−' + d1 + ' 天</button>' +
+        (d2 > d1 ? '<button class="ovf-pill" onclick="App._ovfTrim(\'' + vid + '\',\'' + t.id + '\',' + d2 + ')">−' + d2 + ' 天</button>' : '') +
+        '<span class="ovf-t3or">或</span>' +
+        '<span class="ovf-t3man">手動 <input type="number" min="' + minDur + '" class="ovf-t3inp" value="' + dur + '" ' +
+          'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" ' +
+          'onchange="App._ovfSetDur(\'' + vid + '\',\'' + t.id + '\',this.value)"> 天</span>'
+      : '';
     return '<div class="ovf-t3row">' +
       '<span class="ovf-t3n">' + String.fromCharCode(65 + i) + '</span>' +
       '<span class="ovf-t3nmwrap"><span class="ovf-t3nm" title="' + U.esc(t.name) + '">' + U.esc(t.name) + '</span>' +
         '<span class="ovf-t3meta">' + U.esc(meta) + '</span></span>' +
-      '<span class="ovf-t3dur">目前工期 <b>' + dur + '</b> 個工作天</span><span class="ovf-t3arr">→</span>' +
-      '<button class="ovf-pill" onclick="App._ovfTrim(\'' + vid + '\',\'' + t.id + '\',' + d1 + ')">−' + d1 + ' 天</button>' +
-      '<button class="ovf-pill" onclick="App._ovfTrim(\'' + vid + '\',\'' + t.id + '\',' + d2 + ')">−' + d2 + ' 天</button>' +
-      '<span class="ovf-t3or">或</span>' +
-      '<span class="ovf-t3man">手動 <input type="number" min="0" class="ovf-t3inp" value="' + dur + '" ' +
-        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" ' +
-        'onchange="App._ovfSetDur(\'' + vid + '\',\'' + t.id + '\',this.value)"> 天</span>' +
+      '<span class="ovf-t3dur">目前工期 <b>' + dur + '</b> 天</span><span class="ovf-t3arr">→</span>' +
+      pills + capNote +
     '</div>';
   }).join('');
   const resolved = !s || s.light !== 'red';
   const hd = resolved
-    ? '<div class="ovf-t3hd ok"><i class="ti ti-circle-check"></i> 時間已足夠！可直接建立，或繼續微調以下長工時主線任務：</div>'
-    : '<div class="ovf-t3hd"><i class="ti ti-alert-triangle"></i> 時間仍不足 ' + s.overDays + ' 個工作天！系統為您精選「影響總時程最巨」的 Top 5 長工時主線任務（標階段·部門），請嘗試縮減：</div>';
+    ? '<div class="ovf-t3hd ok"><i class="ti ti-circle-check"></i> 時間已足夠！可直接建立，或繼續微調以下各階段瓶頸任務：</div>'
+    : '<div class="ovf-t3hd"><i class="ti ti-alert-triangle"></i> 時間仍不足 ' + s.overDays + ' 個工作天！系統為您精選各階段「改了最能縮短總時程」的瓶頸任務（每階段一個·避免並行互拖白改），請嘗試縮減：</div>';
   return '<div class="ovf-t3box">' + hd + rows + App._ovfMiniBattleHtml(vid, s) +
     '<div class="ovf-t3foot"><button class="tb-action ovf-recalc" onclick="App._ovfReeval(\'' + vid + '\')">再次重算</button>' +
       (resolved ? '' : '<span class="ovf-t3hint">仍不足？按右下角「下一步：進階調整任務工期」進大表逐項微調。</span>') + '</div>' +
@@ -7363,18 +7440,27 @@ App._ovfRecalc = function(vid) {
   const box = document.getElementById('ovf-casebox'); const inp = box ? box.querySelector('.ovf-l2-date') : null;
   const val = inp ? inp.value : '';
   if (val && val > v.schedule.endDate) { v.schedule.endDate = val; App._reschedulePreview(res.tasks, res.variants, []); }
+  if (App._ovfState && App._ovfState.topN) delete App._ovfState.topN[vid];   // §A 重算→清 Top5 快取，重列當前關鍵路徑
   App._ovfRefresh();
   App._ovfResultModal(vid);   // 回饋一律走中央白底窗（取代右下角灰 toast）；無效/未填日期＝就地重算現況
 };
 App._ovfTrim = function(vid, taskId, days) {
   const res = this._tplPreview; const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
-  t.durationDays = Math.max(0, (t.durationDays || 0) - days);
+  const cp = App._taskCap(vid, taskId);
+  const target = (t.durationDays || 0) - days;
+  const clamped = Math.max(cp.minDur, target);   // §c 不能縮過有效上限（再縮被並行任務接手、白縮）
+  if (clamped > target) U.toast('已達有效上限（縮到 ' + cp.minDur + ' 天），再縮也省不了總時程——瓶頸已轉移到並行任務', 'warning');
+  t.durationDays = Math.max(0, clamped);
   App._ovfState.modified[taskId] = true;
   App._reschedulePreview(res.tasks, res.variants, []); App._ovfRefresh();
 };
 App._ovfSetDur = function(vid, taskId, value) {
   const res = this._tplPreview; const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
-  t.durationDays = Math.max(0, parseInt(value) || 0);
+  const cp = App._taskCap(vid, taskId);
+  const target = Math.max(0, parseInt(value) || 0);
+  const clamped = Math.max(cp.minDur, target);   // §c clamp 到有效上限
+  if (clamped > target) U.toast('已達有效上限（縮到 ' + cp.minDur + ' 天），再縮也省不了總時程——瓶頸已轉移到並行任務', 'warning');
+  t.durationDays = clamped;
   App._ovfState.modified[taskId] = true;
   App._reschedulePreview(res.tasks, res.variants, []); App._ovfRefresh();
 };
@@ -7402,7 +7488,7 @@ App._ovfResultModal = function(vid) {
   }
 };
 // 再次重算：刷新即時戰報＋彈結果回饋窗（與重新計算同一回饋來源）。
-App._ovfReeval = function(vid) { App._ovfRefresh(); App._ovfResultModal(vid); };
+App._ovfReeval = function(vid) { if (App._ovfState && App._ovfState.topN) delete App._ovfState.topN[vid]; App._ovfRefresh(); App._ovfResultModal(vid); };   // §A 再次重算→清 Top5 快取，重列當前關鍵路徑
 // 上一步：在層別內（選過層二/三）先退回三層選擇（保留本案排程編輯，不離開面板）；已在三層選擇頁才回 Stage 1。
 App._ovfBack = function() {
   const tab = App._ovfState ? App._ovfState.tab : null;
