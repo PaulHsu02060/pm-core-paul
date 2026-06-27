@@ -3452,7 +3452,7 @@ App.buildProjectHeaderHtml = function() {
           </div>
         </div>
         <span class="hdr-menu-wrap">
-          <button class="tb-action ink hdr-menu-toggle" data-edit-hide onclick="App.toggleExportMenu(event, '${proj.id}')">匯出 Excel ▾</button>
+          <button class="tb-action ghost hdr-menu-toggle" data-edit-hide onclick="App.toggleExportMenu(event, '${proj.id}')"><i class="ti ti-download" style="font-size:15px; vertical-align:-2px; margin-right:5px; color:var(--sage-600);"></i>匯出 Excel ▾</button>
           <div class="hdr-menu hdr-menu-right" id="hdrExportMenu">
             <div class="hdr-menu-title">匯出完整 WBS Excel</div>
             <div class="hdr-menu-sub">含專案資訊 + 甘特圖分頁</div>
@@ -3921,7 +3921,7 @@ App.buildProjStagesHtml = function(proj) {
   return `<div class="proj-stages-card">
     <div class="proj-stages-head">階段進度 <span class="proj-stages-count">${stages.length} 個階段</span></div>
     ${App.buildHintBox({
-      key: 'stage-progress', icon: 'ti-stairs', title: '階段進度怎麼算', summary: '完成%、件數、日期的計算方式',
+      key: 'stage-progress', icon: 'ti-stairs', title: '階段進度怎麼算', summary: '完成%、件數、日期的計算方式', collapsed: true,
       bodyHtml:
         '<div class="ht-rule ht-start"><b>完成%</b><span>將這階段「所有任務的進度」加起來算平均（每個任務的影響力都一樣）。任務有寫進度就依比例計算；沒寫進度的話，已完成的算 100%、沒完成的算 0%。例：階段內有 4 個任務，進度分別是 100 / 50 / 0 / 0，平均下來該階段進度就是 38%。</span></div>' +
         '<div class="ht-rule ht-dur"><b>件數</b><span>顯示「已完成的任務數 / 總任務數」。例：5/16 代表這個階段總共有 16 個任務，目前已經搞定 5 個。</span></div>' +
@@ -4019,7 +4019,7 @@ App.buildProjDeptHtml = function(proj) {
       </div>
     </div>
     ${App.buildHintBox({
-      key: 'dept-load', icon: 'ti-users-group', title: '部門負荷怎麼看', summary: '掌握各部門的工作量與四種任務狀態',
+      key: 'dept-load', icon: 'ti-users-group', title: '部門負荷怎麼看', summary: '掌握各部門的工作量與四種任務狀態', collapsed: true,
       bodyHtml:
         '<div class="ht-rule ht-start"><b>怎麼分組</b><span>系統會自動依照任務的「負責部門」來分類，幫你盤點每個團隊手上有多少工作、目前進度到哪。如果任務沒有設定部門，就會統一收納在「未指派」。</span></div>' +
         '<div class="ht-rule ht-dur"><b>四種狀態</b><span>每項任務只會落入一種狀態：已完成 / 延遲 / 進行中 / 待辦。下方的進度條就是依照這四種狀態的比例來上色的喔！</span></div>' +

@@ -15,12 +15,7 @@
   --sidebar-ink2: #7FA08C;      /* sidebar 次要字 */
   --sidebar-rule: rgba(255,255,255,.1);   /* 深底分隔線/邊框/虛線框 */
   --sidebar-card: rgba(255,255,255,.08);  /* 深底半透明卡 */
-  --kpi-task-l: #EDF1E8;        /* KPI TASKS 淺底 */
-  --kpi-done-l: #E1F0E4;        /* KPI DONE 淺底 */
-  --kpi-wip-l: #E8EFF5;         /* KPI IN-PROGRESS 淺底 */
-  --kpi-delayed-l: #FBE9E0;     /* KPI DELAYED 淺底 */
-  --kpi-overall-l: #E8EDE0;   /* OVERALL 淺 sage 底 */
-  --kpi-days-l: #FAEEDA;      /* WORKDAYS LEFT 淺琥珀底 */
+  /* KPI 卡淺底 --kpi-*-l 已移除(2026-06-28 階段一)：數據卡改白底+頂部細彩線，tone 改 border-top-color */
   --head-band: #E8EDE0;         /* 待辦表頭橫槓底 */
   --head-band-strong: var(--sage-700);  /* 待辦任務表頭:深 sage 反白底 */
 
@@ -412,18 +407,18 @@ body.viewonly .cloud-sync-sec { display: none; }
   box-shadow: var(--shadow-sm);
   padding: 12px 14px;
   flex-direction: column; align-items: flex-start; gap: 2px;   /* 直排:標題上、大數字、說明下 */
-  border-left: 3px solid var(--rule);                          /* 左彩條:預設中性,warn 覆蓋 */
+  border-top: 3px solid var(--rule);                           /* 頂部細彩線:預設中性,tone/warn 覆蓋 */
 }
-.proj-kpi .stat.kpi-warn { border-left-color: var(--terracotta); }
-.proj-kpi .stat.kpi-tone-task    { background: var(--kpi-task-l); }
-.proj-kpi .stat.kpi-tone-done    { background: var(--kpi-done-l); }
-.proj-kpi .stat.kpi-tone-wip     { background: var(--kpi-wip-l); }
-.proj-kpi .stat.kpi-tone-delayed { background: var(--kpi-delayed-l); }
-.proj-kpi .stat.kpi-tone-overall { background: var(--kpi-overall-l); }
-.proj-kpi .stat.kpi-tone-days    { background: var(--kpi-days-l); }
+.proj-kpi .stat.kpi-warn { border-top-color: var(--terracotta); }
+.proj-kpi .stat.kpi-tone-task    { border-top-color: var(--ink4); }
+.proj-kpi .stat.kpi-tone-done    { border-top-color: var(--sage-500); }
+.proj-kpi .stat.kpi-tone-wip     { border-top-color: var(--navy); }
+.proj-kpi .stat.kpi-tone-delayed { border-top-color: var(--terracotta); }
+.proj-kpi .stat.kpi-tone-overall { border-top-color: var(--sage-500); }
+.proj-kpi .stat.kpi-tone-days    { border-top-color: var(--amber); }
 /* DOM 序是 num→label→sub,用 order 反轉成 label→num→sub,不動 app.js */
-.proj-kpi .stat-label { order: 1; }
-.proj-kpi .stat-num { order: 2; }
+.proj-kpi .stat-label { order: 1; font-size: 11px; }
+.proj-kpi .stat-num { order: 2; font-size: 24px; }
 .proj-kpi .stat-sub { order: 3; flex-basis: auto; }
 
 /* ─── 專案階段進度卡(專案頁,圖1 第二塊)─── */
@@ -533,7 +528,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .dept-overdue-name { flex: 1; min-width: 0; }
 .dept-overdue-name > div:first-child { font-size: 13.5px; color: var(--ink2); }
 .dept-overdue-sub { font-size: 12px; color: var(--ink3); margin-top: 1px; }
-.dept-overdue-days { font-family: var(--mono); font-size: 11px; color: var(--terracotta); flex-shrink: 0; }
+.dept-overdue-days { font-family: var(--mono); font-size: 11px; color: var(--terracotta-ink); background: var(--terracotta-l); border-radius: 99px; padding: 3px 9px; flex-shrink: 0; }
 
 /* ─── CARDS ─── */
 .card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 18px 20px; margin-bottom: 18px; }
@@ -1211,7 +1206,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .rp-status { font-size: 11.5px; color: var(--ink2); }
 .rp-status.done { color: var(--sage-600); }
 .rp-status.wip { color: var(--amber-ink); }
-.rp-status.late { color: var(--terracotta); font-weight: 600; }
+.rp-status.late { color: var(--terracotta-ink); font-weight: 500; background: var(--terracotta-l); border-radius: 99px; padding: 2px 8px; }
 .rp-note { font-size: 11px; color: var(--ink3); font-style: italic; }
 
 .empty-report { text-align: center; padding: 40px 20px; color: var(--ink3); }
