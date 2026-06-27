@@ -562,6 +562,8 @@ Auth（檢視/編輯/登入）
 
 ##### 4.8.7.9 智慧排程衝突處理面板（獨立聚焦頁，取代 §4.8.7.8 嵌入版；2026-06-27，`[unverified]`）
 
+> ⚠ **層三部分已被 §4.8.7.10 取代（2026-06-27）**：本節「層三＝獨立 segmented＋即時戰報＋時程異動表」經使用者拍板**砍掉**（過度設計、操作割裂），改為「層二搞不定 → 直接進 Stage 2，Stage 2 頂部進度條嵌 dashboard 指引」。已刪 `_ovfSegmentedHtml`／`_ovfBattleHtml`／`_ovfStage3TableHtml`／`_ovfLayer3CardHtml`／`_ovfLockedTableHtml`。**層一/層二聚焦面板＋Top3 快選＋mini戰報＋對照看板仍有效**，見 §4.8.7.10。
+
 > 設計來源：2026-06-27 一連串 mockup-to-code 定案（使用者拍板）。取代 §4.8.7.8「嵌入 Stage 2、堆疊逐案」舊版。
 > 版本：app.js／style.css `?v=20260627-16`。⚠ 全批 `[unverified]`，待線上逐項驗。
 
@@ -604,6 +606,31 @@ Auth（檢視/編輯/登入）
 3. `[unverified]`：待線上逐項驗（子案 backward 有選項、方案一二達標進 Stage 2 不跳原生框、對照看板、無灰 toast、Stage1 膠囊與甘特一致）。
 
 **關鍵函式**：`_renderOverflowFlow`／`_ovfRender`／`_ovfRefresh`／`_ovfTabsInner`／`_ovfSelectTab`／`_ovfPickLayer`／`_ovfCaseHtml`／`_ovfRangeBadge`／`_ovfLayer1Html`／`_ovfLayer2CardHtml`／`_ovfLayer2Panel`／`_ovfTop3Html`／`_ovfMiniBattleHtml`／`_ovfLayer3CardHtml`／`_ovfLockedTableHtml`／`_ovfSegmentedHtml`／`_ovfBattleHtml`／`_ovfStage3TableHtml`／`_ovfAdoptFastest`／`_ovfRecalc`／`_ovfReeval`／`_ovfResultModal`／`_ovfTrim`／`_ovfSetDur`／`_ovfAfterResolve`／`_ovfGotoStage2`／`_ovfBack`；引擎/共用：`_chainStagesBackward`／`_s1ColorStagesForward`／`_s2VariantSlack`(+backward)／`_reschedulePreview`／`confirmModal`(+icon)；接線：`_flowStage1Next`(③)／`_renderStage2New`(移除舊溢出)／`_s2RefreshCase`(移除舊溢出)。**CSS**：`.ovf-*`（分頁/三層卡/Top3/mini戰報/segmented/戰報/時程異動表/對照看板，全走 `:root`）。
+
+##### 4.8.7.10 層三退役 → 層二直通 Stage 2 ＋ Stage 2 嵌入式 dashboard（2026-06-27，`[unverified]`）
+
+> 設計演進：§4.8.7.9 的「層三獨立頁（segmented＋戰報＋時程異動表／甘特＋抽屜）」經多版 mockup 後使用者判定**過度設計、操作割裂**，拍板砍掉。
+> 終極邏輯：**有衝突時頂部只到層二；層二的大方向日期＋Top3 長工時搞不定 → 按右下角「下一步：進階調整任務工期」直接進 Stage 2 標準大表**（完整繼承層二改好的工期），由 Stage 2 既有版面**無縫嵌入**輕量 dashboard 指引補完。版本 app.js／style.css `?v=20260627-20`。
+
+**A. 退役層三（移除，不再有獨立頁）**
+- 刪 `_ovfSegmentedHtml`／`_ovfBattleHtml`／`_ovfStage3TableHtml`／`_ovfLayer3CardHtml`／`_ovfLockedTableHtml`＋ `_ovfCaseHtml` 的 `sel==='3'` 分支＋層二 Top3 的「解鎖層三」連結。
+- `_ovfGotoStage2` 簡化為直接 `_renderStage2New()`（不軟擋；剩餘紅案由 Stage 2 dashboard 指引）。底部主鈕文案「下一步：進階調整任務工期 →」。
+- **保留**：層一 `_ovfLayer1Html`／層二 `_ovfLayer2CardHtml`+`_ovfLayer2Panel`+`_ovfTop3Html`（Top5 穩定清單＋階段·部門＋Enter 存）＋mini戰報 `_ovfMiniBattleHtml`＋對照看板 `_ovfRangeBadge`；方案一/二達標仍 `_ovfAfterResolve` → Stage 2。
+- ⚠ `.ovf-seg*`／`.ovf-battle*`／`.ovf-s3*`／`.ovf-tbl*`／`.ovf-locktable`／`.ovf-p3*` CSS 暫留為 dead（無害，待清）。
+
+**B. Stage 2 嵌入式 dashboard（純加法，零刪既有欄位/按鈕）**
+- `_s2StageStatuses(variantId)`：**單一真實來源**——抽出「各階段上色（interval/backward 同 §4.8.7.4b 邏輯）＋每階段 `lack`＝該段落點超出上市日的工作天」；甘特標籤與當前階段橫條共用，避免兩套漂移。
+- `_s2GanttHtml`：每階段進度條尾端加狀態標籤 `[✓正常]`（綠/黃）／`[⚠️尚缺N天]`（紅）；紅標 `onclick` → `_s2GotoStage`（選該階段→表格切該階段任務＋平滑捲到表）。只填單一日期（無上市日）→不顯示標籤。
+- `_s2BannerHtml`：當前階段橫條加狀態文字「（時程充足）／（⚠ 排程尚缺 N 個工作天，請縮減下方關鍵路徑工期）」。
+- `_s2ListHtml`：關鍵路徑列**淡橘底高亮＋「關鍵路徑」tag**（`isCrit`＝長工時門檻近似 `max(15, 案內工期前 1/3)`）。工期框直接改 → `_s2SetDuration`（既有，重排）→ 標籤即時連動。
+- 資料繼承：Stage 2 讀同一份 `_tplPreview`，層二的工期改動天然帶入，無需額外傳遞。
+
+**已知近似／待辦**
+1. 關鍵路徑＝長工時門檻近似（真關鍵路徑＝最長依賴鏈，待辦）。
+2. dead `.ovf-*` CSS 待清。
+3. `[unverified]`：待線上驗（層三入口消失、層二「下一步」直通 Stage 2、進度條紅標可點捲到階段、當前階段狀態文字、關鍵路徑高亮、改工期→標籤連動）。
+
+**關鍵函式**：移除見 A；新增/改 `_s2StageStatuses`／`_s2GotoStage`／`_s2GanttHtml`(+標籤)／`_s2BannerHtml`(+狀態)／`_s2ListHtml`(+關鍵路徑高亮)；接線 `_ovfCaseHtml`／`_ovfGotoStage2`／`_ovfTop3Html`。**CSS**：`.s2-gstat`(.ok/.bad)／`.s2n-bn-bad`/`.s2n-bn-ok`／`.s2-crit`(列)/`.s2-crit-tag`／`.ovf-t3hint`。
 
 ### 4.9 工期排程接 UI 自動觸發（2026-06-13 已落地，commit `cc7436a`）
 

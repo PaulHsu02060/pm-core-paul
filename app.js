@@ -6703,12 +6703,15 @@ App._s2ListHtml = function(variantId) {
         ' onchange="App._s2DeliverAll(\'' + variantId + '\', ' + selIdx + ', this.checked)"> 全選</label></td>' +
       '<td class="col-action"></td>' +
     '</tr>';
+  const caseDurs = (res.tasks || []).filter(x => x.variant === variantId).map(x => x.durationDays || 0).slice().sort((a, b) => b - a);
+  const critThr = caseDurs.length ? Math.max(15, caseDurs[Math.floor(caseDurs.length / 3)] || 0) : 15;
   group.forEach((t, gi) => {
     const seq = seqBase + gi + 1;
+    const isCrit = (t.durationDays || 0) >= critThr;   // §4.8.7.10 關鍵路徑近似＝長工時門檻（真關鍵路徑＝最長依賴鏈，待辦）
     rows +=
-      '<tr data-taskid="' + t.id + '"' + (seq % 2 === 0 ? ' class="s2-rz"' : '') + '>' +
+      '<tr data-taskid="' + t.id + '" class="' + (seq % 2 === 0 ? 's2-rz ' : '') + (isCrit ? 's2-crit' : '') + '">' +
         '<td class="col-num">' + seq + '</td>' +
-        '<td class="col-flex" title="' + U.esc(t.name) + '"><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)"></td>' +
+        '<td class="col-flex" title="' + U.esc(t.name) + '"><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)">' + (isCrit ? '<span class="s2-crit-tag">關鍵路徑</span>' : '') + '</td>' +
         '<td class="col-mid s2-deptcell" title="此任務所屬部門（在「新增/編輯部門」設定負責人）">' + (U.esc(t.role) || '<span class="s2-dept-none">—</span>') + '</td>' +
         '<td class="col-mid"><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
         this._s2PredCells(t, variantId) +
@@ -6825,26 +6828,42 @@ App._s2StageRanges = function(variantId) {
 // Gantt 階段軸：每階段一列(色點+名+橫條+日期)，橫條 left/width 相對該案總區間；選中階段加 .on 高亮。
 // 階段燈號＋落點：完全共用 Stage 1 的 _s1ColorStagesForward（interval/情境C 用「順推落點 vs 上市日期」算 margin
 // 上色，超出上市日的段顯紅且橫條延伸可見；純順推/倒推來得及則維持原落點、不上色＝綠）。確保 Stage 1↔2 同案同色同落點。
-App._s2GanttHtml = function(variantId) {
+// §4.8.7.10：Stage 2 各階段時程狀態（單一真實來源，甘特標籤＋當前階段橫條共用）。
+// 上色（interval/backward 同 Stage1 邏輯）＋算每階段 lack＝該段落點超出上市日的工作天（>0＝紅、尚缺 N）。
+App._s2StageStatuses = function(variantId) {
   const res = this._tplPreview;
   const data = this._s2StageRanges(variantId);
   const order = data.order, ranges = data.ranges;
-  if (!order.length) return '';
   const v = res ? (res.variants || []).find(x => x.id === variantId) : null;
+  let ed = '';
   if (res && v) {
     const vsch = v.schedule || {};
+    ed = vsch.endDate || '';
     const eff = App._effScheduleDir(vsch.startDate, vsch.endDate, vsch.direction);
     if (eff === 'interval') {
       App._s1ColorStagesForward(res, v, ranges, vsch.startDate, vsch.endDate);
-    } else if (eff === 'backward' && vsch.endDate) {
+    } else if (eff === 'backward' && ed) {
       const backStart = ranges.reduce((m, s) => (s.start && (!m || s.start < m)) ? s.start : m, '');
       const todayIso = D.fmt(D.today(), 'iso');
-      if (backStart && backStart < todayIso) App._s1ColorStagesForward(res, v, ranges, todayIso, vsch.endDate);
+      if (backStart && backStart < todayIso) App._s1ColorStagesForward(res, v, ranges, todayIso, ed);
       else App._chainStages(ranges);
     } else {
-      App._chainStages(ranges);   // forward（只填開始日）：套順序鏈，跳階段時下游不浮到前面
+      App._chainStages(ranges);
     }
   }
+  ranges.forEach(r => { r.lack = (ed && r.end && r.end > ed) ? Math.max(0, D.workdaysBetween(ed, r.end) - 1) : 0; });
+  return { order: order, ranges: ranges, endDate: ed };
+};
+// 點甘特⚠️標籤：選中該階段（表格換成該階段任務）＋平滑捲到任務表。
+App._s2GotoStage = function(variantId, si) {
+  App._s2SelectStage(variantId, si);
+  const list = document.querySelector('.s2-list[data-variant="' + variantId + '"]');
+  if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+App._s2GanttHtml = function(variantId) {
+  const data = App._s2StageStatuses(variantId);
+  const order = data.order, ranges = data.ranges, ed = data.endDate;
+  if (!order.length) return '';
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
   const toNum = (d) => d ? Date.parse(d) : NaN;
   const sel = (this._s2Stage && this._s2Stage[variantId]) || order[0];
@@ -6873,27 +6892,35 @@ App._s2GanttHtml = function(variantId) {
     const dateLbl = (r.start || r.end) ? (oneD(r.start) + ' → ' + oneD(r.end)) : '待排';
     const dateFull = (r.start || r.end) ? (fmtD(r.start) + ' → ' + fmtD(r.end)) : '待排';
     const dot = (isNaN(a) || isNaN(b)) ? '<span class="s2-gdot"></span>' : '<span class="s2-gdot s2-gdot-' + light + '"></span>';
+    // §4.8.7.10 嵌入 dashboard：階段尾端狀態標籤（紅＝尚缺 N 天、可點捲到該階段；綠＝正常）。只填單一日期(無上市日)→不顯示。
+    const stat = !ed ? '' : (r.lack > 0
+      ? '<span class="s2-gstat bad" onclick="event.stopPropagation();App._s2GotoStage(\'' + variantId + '\', ' + si + ')"><i class="ti ti-alert-triangle"></i> 尚缺 ' + r.lack + ' 天</span>'
+      : '<span class="s2-gstat ok"><i class="ti ti-circle-check"></i> 正常</span>');
     rows +=
       '<div class="s2-grow' + (isSel ? ' on' : '') + '" onclick="App._s2SelectStage(\'' + variantId + '\', ' + si + ')">' +
         dot +
         '<div class="s2-gname">' + U.esc(r.stage) + '</div>' +
         bar +
         '<div class="s2-gdate" title="' + dateFull + '">' + dateLbl + '</div>' +
+        stat +
       '</div>';
   });
   return '<div class="s2-gantt-axis">' + rows + '</div>';
 };
 // 階段 Banner（Mockup）：當前階段名＋該段日期區間（Deadline）。固定專案綠（不隨階段換色），切階段更新文字。
 App._s2BannerHtml = function(variantId) {
-  const data = this._s2StageRanges(variantId);
+  const data = App._s2StageStatuses(variantId);
   if (!data.order.length) return '';
   const sel = (this._s2Stage && this._s2Stage[variantId]) || data.order[0];
   const r = data.ranges.find(x => x.stage === sel) || {};
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
   const dl = (r.start || r.end) ? (fmtD(r.start) + ' → ' + fmtD(r.end)) : '（待排）';
+  const status = (data.endDate && r.lack > 0)
+    ? '<span class="s2n-bn-bad">（⚠ 排程尚缺 ' + r.lack + ' 個工作天，請縮減下方關鍵路徑工期）</span>'
+    : (data.endDate ? '<span class="s2n-bn-ok">（時程充足）</span>' : '');
   return '<div class="s2n-banner">' +
       '<i class="ti ti-tool s2n-bn-ico"></i>' +
-      '<span class="s2n-bn-name">當前階段：' + U.esc(sel) + '</span>' +
+      '<span class="s2n-bn-name">當前階段：' + U.esc(sel) + status + '</span>' +
       '<span class="s2n-bn-dl"><i class="ti ti-calendar"></i> 階段 Deadline：' + dl + '</span>' +
     '</div>';
 };
@@ -7072,7 +7099,7 @@ App._renderOverflowFlow = function() {
   });
   let firstRed = null;
   variants.forEach(v => { if (firstRed) return; const s = App._s2VariantSlack(v.id); if (s && s.light === 'red') firstRed = v.id; });
-  App._ovfState = { tab: firstRed || (variants[0] && variants[0].id) || null, sel: {}, modified: {}, baseTask: baseTask, baseEnd: baseEnd, baseOver: baseOver };
+  App._ovfState = { tab: firstRed || (variants[0] && variants[0].id) || null, sel: {}, modified: {}, topN: {}, baseTask: baseTask, baseEnd: baseEnd, baseOver: baseOver };
   App._ovfRender();
 };
 App._ovfRender = function() {
@@ -7089,7 +7116,7 @@ App._ovfRender = function() {
       '<div class="ovf-casebox" id="ovf-casebox">' + App._ovfCaseHtml(App._ovfState.tab) + '</div>' +
       '<div class="stage2-foot">' +
         '<button class="tb-action ghost" onclick="App._ovfBack()">上一步</button>' +
-        '<button class="tb-action" onclick="App._ovfGotoStage2()">前往調整任務細節 →</button>' +
+        '<button class="tb-action" onclick="App._ovfGotoStage2()">下一步：進階調整任務工期 →</button>' +
       '</div>' +
     '</div>';
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -7127,19 +7154,15 @@ App._ovfCaseHtml = function(vid) {
   const banner = resolved
     ? '<div class="ovf-banner ok"><i class="ti ti-circle-check"></i> 時程已足夠：已成功解決排程衝突' + (s ? '（餘裕 ' + s.slack + ' 個工作天）' : '') + '。</div>'
     : '<div class="ovf-banner"><span class="ovf-bdot"></span> 排程時間不足：照範本工期排，比需求上市日晚 <b>' + s.overDays + '</b> 個工作天（尚缺 ' + s.overDays + ' 個工作天）</div>';
-  // 層三／層二面板：選了就原地留存（即使編到綠燈也不塌回小卡，避免「跳走」錯覺）
-  if (sel === '3') {
-    return head + banner + App._ovfSegmentedHtml(vid) + App._ovfBattleHtml(vid) + App._ovfStage3TableHtml(vid);
-  }
+  // §4.8.7.10：砍層三獨立頁，頂部只到層二。層二搞不定 → 按右下角「下一步」直接進 Stage 2 大表逐項微調（帶入層二改好的工期）。
   if (sel === '2') {
     return head + banner + App._ovfLayer2Panel(vid, s, v);
   }
-  // 階段一（未選層別）：已解決＝綠 Banner＋建立提示；仍紅＝三層卡＋鎖表
   if (resolved) {
-    return head + banner + '<div class="ovf-resolved-hint"><i class="ti ti-arrow-down-circle"></i> 可直接點右下角「前往調整任務細節」，或切換上方其他案別繼續處理。</div>';
+    return head + banner + '<div class="ovf-resolved-hint"><i class="ti ti-arrow-down-circle"></i> 可直接點右下角「下一步」進任務大表，或切換上方其他案別繼續處理。</div>';
   }
-  return head + banner + '<div class="ovf-hd">排程時間不足（尚缺 ' + s.overDays + ' 個工作天），請選擇一種方式處理：</div>' +
-    App._ovfLayer1Html(vid, s, v) + App._ovfLayer2CardHtml(vid, v) + App._ovfLayer3CardHtml(vid) + App._ovfLockedTableHtml();
+  return head + banner + '<div class="ovf-hd">排程時間不足（尚缺 ' + s.overDays + ' 個工作天），請用以下方式處理；仍不足可按右下角「下一步：進階調整任務工期」進大表逐項微調：</div>' +
+    App._ovfLayer1Html(vid, s, v) + App._ovfLayer2CardHtml(vid, v);
 };
 App._ovfLayer1Html = function(vid, s, v) {
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
@@ -7172,31 +7195,44 @@ App._ovfLayer2Panel = function(vid, s, v) {
       App._ovfTop3Html(vid, s) +
     '</div></div>';
 };
-App._ovfTop3Html = function(vid, s) {
-  const res = this._tplPreview;
+// 精選長工時：取「全階段工期最長」前 5，**清單穩定**（首次算定 id 存 _ovfState.topN，之後不因扣減重排→修「手動值跳回」bug）。
+App._ovfTopTasks = function(vid) {
+  const res = this._tplPreview; const st = App._ovfState;
+  if (st && st.topN && st.topN[vid]) {
+    return st.topN[vid].map(id => (res.tasks || []).find(t => t.id === id)).filter(Boolean);
+  }
   const ts = (res.tasks || []).filter(t => t.variant === vid && (t.durationDays || 0) > 0).slice()
-    .sort((a, b) => (b.durationDays || 0) - (a.durationDays || 0)).slice(0, 3);
+    .sort((a, b) => (b.durationDays || 0) - (a.durationDays || 0)).slice(0, 5);
+  if (st) { if (!st.topN) st.topN = {}; st.topN[vid] = ts.map(t => t.id); }
+  return ts;
+};
+App._ovfTop3Html = function(vid, s) {
+  const ts = App._ovfTopTasks(vid);
   const rows = ts.map((t, i) => {
     const dur = t.durationDays || 0;
     const d1 = Math.min(3, Math.max(1, Math.round(dur * 0.15)));
     const d2 = Math.min(5, Math.max(2, Math.round(dur * 0.25)));
+    const meta = [(t.stage || '').trim(), (t.role || '').trim()].filter(Boolean).join(' · ') || '未分階段';
     return '<div class="ovf-t3row">' +
       '<span class="ovf-t3n">' + String.fromCharCode(65 + i) + '</span>' +
-      '<span class="ovf-t3nm" title="' + U.esc(t.name) + '">' + U.esc(t.name) + '</span>' +
+      '<span class="ovf-t3nmwrap"><span class="ovf-t3nm" title="' + U.esc(t.name) + '">' + U.esc(t.name) + '</span>' +
+        '<span class="ovf-t3meta">' + U.esc(meta) + '</span></span>' +
       '<span class="ovf-t3dur">目前工期 <b>' + dur + '</b> 個工作天</span><span class="ovf-t3arr">→</span>' +
       '<button class="ovf-pill" onclick="App._ovfTrim(\'' + vid + '\',\'' + t.id + '\',' + d1 + ')">−' + d1 + ' 天</button>' +
       '<button class="ovf-pill" onclick="App._ovfTrim(\'' + vid + '\',\'' + t.id + '\',' + d2 + ')">−' + d2 + ' 天</button>' +
       '<span class="ovf-t3or">或</span>' +
-      '<span class="ovf-t3man">手動 <input type="number" min="0" class="ovf-t3inp" value="' + dur + '" onchange="App._ovfSetDur(\'' + vid + '\',\'' + t.id + '\',this.value)"> 天</span>' +
+      '<span class="ovf-t3man">手動 <input type="number" min="0" class="ovf-t3inp" value="' + dur + '" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" ' +
+        'onchange="App._ovfSetDur(\'' + vid + '\',\'' + t.id + '\',this.value)"> 天</span>' +
     '</div>';
   }).join('');
   const resolved = !s || s.light !== 'red';
   const hd = resolved
     ? '<div class="ovf-t3hd ok"><i class="ti ti-circle-check"></i> 時間已足夠！可直接建立，或繼續微調以下長工時主線任務：</div>'
-    : '<div class="ovf-t3hd"><i class="ti ti-alert-triangle"></i> 時間仍不足 ' + s.overDays + ' 個工作天！系統為您精選「影響總時程最巨」的 Top 3 長工時主線任務，請嘗試縮減：</div>';
+    : '<div class="ovf-t3hd"><i class="ti ti-alert-triangle"></i> 時間仍不足 ' + s.overDays + ' 個工作天！系統為您精選「影響總時程最巨」的 Top 5 長工時主線任務（標階段·部門），請嘗試縮減：</div>';
   return '<div class="ovf-t3box">' + hd + rows + App._ovfMiniBattleHtml(vid, s) +
     '<div class="ovf-t3foot"><button class="tb-action ovf-recalc" onclick="App._ovfReeval(\'' + vid + '\')">再次重算</button>' +
-      (resolved ? '' : '<a class="ovf-unlock" onclick="App._ovfPickLayer(\'' + vid + '\',\'3\')">仍不足，進階全盤調整（解鎖層三）→</a>') + '</div>' +
+      (resolved ? '' : '<span class="ovf-t3hint">仍不足？按右下角「下一步：進階調整任務工期」進大表逐項微調。</span>') + '</div>' +
   '</div>';
 };
 App._ovfMiniBattleHtml = function(vid, s) {
@@ -7212,90 +7248,11 @@ App._ovfMiniBattleHtml = function(vid, s) {
               : '<b class="ovf-mini-lack">還差 ' + nowOver + ' 個工作天</b><span class="ovf-mini-cut">（已縮短 ' + cut + ' 天）</span>') + '</div>' +
     '<div class="ovf-mini-judge">' + (enough
       ? '<i class="ti ti-circle-check"></i> 已解決，按上方「建立專案」或「再次重算」確認。'
-      : '<i class="ti ti-alert-triangle"></i> <b>仍超出目標</b>，建議繼續扣減長工時，或點下方「解鎖層三」進行全盤手動調整。') + '</div>' +
+      : '<i class="ti ti-alert-triangle"></i> <b>仍超出目標</b>，建議繼續扣減長工時，或按右下角「下一步：進階調整任務工期」進大表逐項微調。') + '</div>' +
   '</div>';
 };
-App._ovfLayer3CardHtml = function(vid) {
-  return '<div class="ovf-plan ovf-p3">' +
-    '<div class="ovf-radio" onclick="App._ovfPickLayer(\'' + vid + '\',\'3\')"></div>' +
-    '<div class="ovf-pbody">' +
-      '<div class="ovf-pt" onclick="App._ovfPickLayer(\'' + vid + '\',\'3\')">壓縮任務工期（全盤手動） <span class="ovf-tag hard">較費力</span> <span class="ovf-p3lock"><i class="ti ti-lock"></i> 點此解鎖</span></div>' +
-      '<div class="ovf-pd">解鎖後可在下方完整任務表逐項調整工期（建議優先標長工時任務），改完即時重算戰報。</div>' +
-    '</div></div>';
-};
-App._ovfLockedTableHtml = function() {
-  return '<div class="ovf-locktable"><i class="ti ti-lock"></i> 完整任務表鎖定中——先試試上方精選任務快選，或選「方案三：壓縮任務工期」解鎖。</div>';
-};
-App._ovfSegmentedHtml = function(vid) {
-  return '<div class="ovf-seg-wrap"><div class="ovf-seg">' +
-      '<div class="ovf-sgm" onclick="App._ovfPickLayer(\'' + vid + '\',null)"><span class="sl1">層一</span><span class="sl2">採用建議上市日</span></div>' +
-      '<div class="ovf-sgm" onclick="App._ovfPickLayer(\'' + vid + '\',\'2\')"><span class="sl1">層二</span><span class="sl2">延後上市日</span></div>' +
-      '<div class="ovf-sgm on"><i class="ti ti-check"></i><span class="sl1">層三</span><span class="sl2">壓縮任務工期</span></div>' +
-    '</div><div class="ovf-seg-tri"></div>' +
-    '<div class="ovf-seg-hint"><i class="ti ti-hand-finger"></i> 提示：您隨時可點擊上方按鈕，切換回層一或層二重新試算。</div></div>';
-};
-App._ovfBattleHtml = function(vid) {
-  const res = this._tplPreview; const v = (res.variants || []).find(x => x.id === vid);
-  const st = App._ovfState; const s = App._s2VariantSlack(vid);
-  const fmtMD = (x) => x ? String(x).slice(5).replace('-', '/') : '—';
-  const fmtY = (x) => x ? String(x).replace(/-/g, '/') : '—';
-  const isMain = (res.variants || [])[0] && (res.variants || [])[0].id === vid;
-  const ts = (res.tasks || []).filter(t => t.variant === vid);
-  const rng = (list, useBase) => { let a = null, b = null; list.forEach(t => { const o = useBase ? st.baseTask[t.id] : { s: t.plannedStart, e: t.plannedEnd }; if (!o) return; if (o.s && (!a || o.s < a)) a = o.s; if (o.e && (!b || o.e > b)) b = o.e; }); return { a: a, b: b }; };
-  const w0 = rng(ts, true), w1 = rng(ts, false);
-  const wCut = (w0.b && w1.b) ? D.workdaysBetween(w1.b, w0.b) : 0;
-  const g = this._s2GroupByStage(vid); const st0 = g.order[0]; const stTasks = g.byStage[st0] || [];
-  const c0 = rng(stTasks, true), c1 = rng(stTasks, false);
-  const cCut = (c0.b && c1.b) ? D.workdaysBetween(c1.b, c0.b) : 0;
-  const origOver = st.baseOver[vid] || 0; const nowOver = (s && s.light === 'red') ? s.overDays : 0;
-  const reached = nowOver <= 0;
-  const row = (k, oldTxt, newHtml, chipCls, chipIco, chipTxt) =>
-    '<div class="ovf-brow"><div class="ovf-bk">' + k + '</div><div class="ovf-bold">' + oldTxt + '</div><div class="ovf-bnew">' + newHtml + '</div>' +
-    '<div class="ovf-bjudge"><span class="ovf-chip ' + chipCls + '"><i class="ti ' + chipIco + '"></i> ' + chipTxt + '</span></div></div>';
-  return '<div class="ovf-battle' + (reached ? ' done' : '') + '">' +
-    '<div class="ovf-battle-hd"><i class="ti ti-report-analytics"></i> 時程異動即時戰報</div>' +
-    '<div class="ovf-bhead"><div>監控指標</div><div>變更前狀況</div><div>變更後最新狀態</div><div class="ovf-bjh">狀態判定</div></div>' +
-    row('當前階段（' + (st0 || '—') + '）', fmtMD(c0.a) + ' → ' + fmtMD(c0.b),
-      '<span class="ovf-arr">➔</span> ' + fmtMD(c1.a) + ' → ' + fmtMD(c1.b) + ' <span class="ovf-bcut">（縮短 ' + cCut + ' 個工作天）</span>',
-      cCut > 0 ? 'cgreen' : 'cgray', cCut > 0 ? 'ti-bolt' : 'ti-minus', cCut > 0 ? '階段提早' : '未變') +
-    row((isMain ? '主案' : '子案') + '整體工期', fmtY(w0.a) + ' → ' + fmtY(w0.b),
-      '<span class="ovf-arr">➔</span> ' + fmtY(w1.a) + ' → ' + fmtY(w1.b) + ' <span class="ovf-bcut">（共縮短 ' + wCut + ' 天）</span>',
-      reached ? 'cgreen' : 'camber', reached ? 'ti-circle-check' : 'ti-alert-triangle', reached ? '已達標' : '仍超出') +
-    row('目標上市日對齊', '預期 ' + fmtY(v.schedule.endDate),
-      reached ? '<b class="ovf-bok">餘裕已歸零，剛好對齊</b>' : '<b class="ovf-black">還差 ' + nowOver + ' 個工作天</b> <span class="ovf-bsub">（原缺 ' + origOver + ' 天）</span>',
-      reached ? 'cgreen' : 'cred', reached ? 'ti-circle-check' : 'ti-circle-x', reached ? '已達標！可建立' : '尚未達標') +
-  '</div>';
-};
-App._ovfStage3TableHtml = function(vid) {
-  const res = this._tplPreview; const st = App._ovfState;
-  const g = this._s2GroupByStage(vid);
-  const flat = g.order.reduce((a, s) => a.concat(g.byStage[s] || []), []);
-  const durs = flat.map(t => t.durationDays || 0).slice().sort((a, b) => b - a);
-  const thr = durs.length ? Math.max(15, durs[Math.floor(durs.length / 3)] || 0) : 15;
-  const fmtMD = (x) => x ? String(x).slice(5).replace('-', '/') : '—';
-  let rowsHtml = ''; let curStage = null; let seq = 0;
-  flat.forEach(t => {
-    seq++;
-    if (t.stage !== curStage) { curStage = t.stage; rowsHtml += '<tr class="ovf-strow"><td colspan="5">' + U.esc(curStage || '（未分階段）') + '</td></tr>'; }
-    const dur = t.durationDays || 0;
-    const isLong = dur >= thr;
-    const base = st.baseTask[t.id] || {};
-    const changed = !!st.modified[t.id];
-    const chg = changed
-      ? '<span class="ovf-zo">原 ' + fmtMD(base.s) + ' → ' + fmtMD(base.e) + '</span><br><span class="ovf-zn">新 ' + fmtMD(t.plannedStart) + ' → ' + fmtMD(t.plannedEnd) + '</span>'
-      : '<span class="ovf-z0">' + fmtMD(t.plannedStart) + ' → ' + fmtMD(t.plannedEnd) + '</span>';
-    rowsHtml += '<tr class="' + (changed ? 'ovf-rmod' : '') + '">' +
-      '<td class="ovf-c-seq">' + seq + '</td>' +
-      '<td class="ovf-c-nm">' + U.esc(t.name) + (changed ? ' <span class="ovf-mod-tag">· 已修改</span>' : '') + '</td>' +
-      '<td class="ovf-c-tag">' + (isLong ? '<span class="ovf-longtag">關鍵路徑·長工時</span>' : '') + '</td>' +
-      '<td class="ovf-c-dur"><input type="number" min="0" class="ovf-dur-inp' + (changed ? ' on' : '') + '" value="' + dur + '" onchange="App._ovfSetDur(\'' + vid + '\',\'' + t.id + '\',this.value)"></td>' +
-      '<td class="ovf-c-chg">' + chg + '</td></tr>';
-  });
-  return '<div class="ovf-s3">' +
-    '<div class="ovf-s3-hd"><span>逐項調整工期，改完即時重算戰報；改過的列反色＋並列原→新日期。</span>' +
-      '<button class="tb-action ovf-recalc" onclick="App._ovfRefresh()"><i class="ti ti-refresh"></i> 儲存重算</button></div>' +
-    '<table class="ovf-tbl"><thead><tr><th>序</th><th>任務名</th><th>標記</th><th>工期</th><th>時程異動</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
-};
+// §4.8.7.10：層三獨立頁退役（2026-06-27）。已刪 _ovfLayer3CardHtml／_ovfLockedTableHtml／_ovfSegmentedHtml／_ovfBattleHtml／_ovfStage3TableHtml。
+// 層二搞不定 → 右下角「下一步」直接進 Stage 2 大表（帶入層二工期），由 Stage 2 頂部進度條 dashboard＋⚠️標籤指引補完。
 App._ovfAdoptFastest = function(vid) {
   const res = this._tplPreview; const v = (res.variants || []).find(x => x.id === vid); if (!v) return;
   const s = App._s2VariantSlack(vid); if (!s || !s.earliestFinish) return;
@@ -7325,20 +7282,8 @@ App._ovfAfterResolve = function(vid) {
     U.toast('✓ 本案已解決，請繼續處理下一個時程不足的案別：' + (reds[0].name || ''), 'success');
   }
 };
-// 前往 Stage 2（任務細節編輯）：仍有紅案→設計款軟提醒（不硬擋）；全綠→直接前往。
+// 前往 Stage 2（任務大表）：層三已退役，直接前往（帶入層二改好的工期）。剩餘紅案由 Stage 2 頂部 dashboard＋⚠️標籤指引逐項補完，不在此硬擋。
 App._ovfGotoStage2 = function() {
-  const res = App._tplPreview;
-  const reds = res ? (res.variants || []).filter(x => { const ss = App._s2VariantSlack(x.id); return ss && ss.light === 'red'; }) : [];
-  if (reds.length) {
-    App.confirmModal({
-      icon: 'ti-alert-triangle', iconBg: '--rose-l', iconColor: '--rose',
-      title: '仍有案別時程不足',
-      msg: '尚有 <b>' + reds.length + '</b> 個案別時程不足，仍要前往任務細節編輯嗎？（可於下一頁再回來調整）',
-      okText: '仍要前往', okClass: 'danger', cancelText: '返回處理',
-      onConfirm: function() { App._renderStage2New(); }
-    });
-    return;
-  }
   App._renderStage2New();
 };
 // 案頭前後時程對照看板：原始 Stage1 區間 ➔ 變更後區間（順延 N 工作天）。未變更則只顯示需求上市日。
