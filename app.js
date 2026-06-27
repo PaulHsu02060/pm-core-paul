@@ -10949,7 +10949,9 @@ function buildWbsPreview(parsed) {
   project.depts = depts;
   // 案別清單（id 制）
   const variantNames = [...new Set(rows.map(r => r.variant).filter(v => v && v.trim()))];
-  const variants = variantNames.map(name => ({ id: U.id(), name }));
+  // variant 形狀對齊 applyTemplate（含 schedule/stages）：Excel 無「目標上市窗」→ schedule 留空（餘裕回 null 不顯燈號）。
+  // 缺 schedule 會讓 Stage 2 餘裕計算 _s2VariantSlack 直接讀 v.schedule.startDate 爆 TypeError（Excel 新建一進 Stage 2 必炸）。
+  const variants = variantNames.map(name => ({ id: U.id(), name, schedule: { startDate: '', endDate: '', direction: 'forward' }, stages: [] }));
   project.variants = variants;
   // 反查表
   const nameToId = {};
