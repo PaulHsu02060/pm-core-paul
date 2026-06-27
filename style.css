@@ -1627,6 +1627,30 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-slack-red { background: var(--rose-l); border-color: var(--rose); color: var(--rose-ink); }
 .s2-slack-red .s2-slack-dot { background: var(--rose); }
 
+/* ── §4.8.7.5 溢出三層紅燈引導面板（紅燈時顯示，綠/黃 → 不顯示）── */
+.s2-ovf { border: 1px solid var(--rose-l); border-radius: var(--r10); background: var(--paper); padding: 12px 14px; margin-bottom: 12px; }
+.s2-ovf-hd { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--rose-ink); margin-bottom: 10px; }
+.s2-ovf-hd i { font-size: 16px; }
+.s2-ovf-plan { display: flex; gap: 11px; align-items: flex-start; background: var(--surface); border: 1px solid var(--stone-100); border-left: 4px solid var(--stone-200); border-radius: var(--r8); padding: 10px 12px; }
+.s2-ovf-plan + .s2-ovf-plan { margin-top: 8px; }
+.s2-ovf-e1 { border-left-color: var(--sage-500); }
+.s2-ovf-e2 { border-left-color: var(--amber); }
+.s2-ovf-e3 { border-left-color: var(--rose); }
+.s2-ovf-no { flex: none; width: 23px; height: 23px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: var(--ink-inverse); }
+.s2-ovf-e1 .s2-ovf-no { background: var(--sage-600); }
+.s2-ovf-e2 .s2-ovf-no { background: var(--amber); }
+.s2-ovf-e3 .s2-ovf-no { background: var(--rose); }
+.s2-ovf-body { flex: 1 1 auto; min-width: 0; }
+.s2-ovf-t { font-size: 13px; font-weight: 500; color: var(--ink2); display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.s2-ovf-tag { font-size: 11px; padding: 1px 8px; border-radius: 99px; }
+.s2-ovf-tag.easy { background: var(--sage-50); color: var(--sage-700); }
+.s2-ovf-tag.hard { background: var(--rose-l); color: var(--rose-ink); }
+.s2-ovf-d { font-size: 12.5px; color: var(--ink3); line-height: 1.55; }
+.s2-ovf-d b { color: var(--ink2); font-weight: 500; }
+.s2-ovf-row { display: flex; align-items: center; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+.s2-ovf-date { font-size: 13px; padding: 5px 9px; border: 1px solid var(--stone-200); border-radius: var(--r6); background: var(--paper); color: var(--ink2); }
+.s2-ovf-btn { font-size: 12.5px; padding: 7px 13px; }
+
 /* ── 範本第二階段 步驟3：Gantt 階段軸（色點＋綠黃紅燈號，點階段切換清單）── */
 .s2-gantt-axis { margin: 4px 0 12px; }
 .s2-grow { display: flex; align-items: center; gap: 9px; padding: 8px 6px; border-radius: var(--r6); cursor: pointer; }

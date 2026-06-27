@@ -523,11 +523,36 @@ Auth（檢視/編輯/登入）
 5. 序號手動輸入：無效輸入（未來序/亂字）→ 清空前置（重繪後欄位變空）。
 6. 多前置任務在此頁**唯讀**，不可編多前置（維持單前置組合框）。
 7. backward「倒推來得及」模式也套了 `_chainStages`，但較少實測（interval/情境C/forward 已線上看過）。
-8. **溢出三層紅燈 UI（§4.8.7.5）尚未接到新 Stage 2**：新流程紅燈目前只在甘特/燈號「顯示」，未做層一（改結束日）／層二（手填重算）／層三（壓縮任務卡頁）。
+8. **溢出三層紅燈 UI（§4.8.7.5）第一刀已落地（見 §4.8.7.8，2026-06-27）**：層一（採用建議上市日）／層二（手填重算）／層三（引導改工期）＋逐案接力＋建立軟提醒閘門已做；**未做**＝多案 Tab 切換版面（目前用堆疊逐案）、方案三鎖表＋關鍵路徑標記、彈窗改設計款（目前用原生 confirm）。
 9. 舊 `_renderStage2`／`_stage2Commit` 仍在（dead render path，未清理）；`_s2SetPred`／`_s2PredOptions`／`_s2PredSeqOptions` 已被三欄組合框取代、成為 dead code。
 10. **`[unverified]`**：2026-06-27 commit `13928f1` 標未驗證，待線上逐項驗（各排程方向×跳階段甘特順序、序號手打/下拉/綁更早、綁未來被擋、負責人自動帶入、前置三欄不壓字）。
 
 **關鍵函式（app.js）**：`_flowStage1Next`／`_s2BackToStage1`／`_s2CommitNew`／`_s2DeptPanelHtml`／`_s2OpenDeptModal`／`_s2ApplyDepts`／`_renderStage2New`／`_s2BannerHtml`／`_chainStages`／`_s2GanttHtml`／`_s2ListHtml`／`_s2PredCells`／`_s2PredSeqInput`／`_s2PredTypeOptions`／`_s2SetPredCombo`／`_s2ParsePred`／`_s2RefreshCase`；既有複用：`_s1ColorStagesForward`／`applyTemplate`(+role)／`_stage2Commit`／`buildHintBox`／`buildDeptRowsHtml`/`deptUI`／`_s2OwnerOptions`／`_s2GroupByStage`／`_reschedulePreview`／`_s2SlackHtml`。**CSS**：`.s2n-*`（頁殼/部門面板/Banner/說明列）、`.s2-tbl` 系列（圓角表頭/斑馬/三欄前置 `.s2-pc-*`/`.col-pred*`）、`.s2-gdot*`（甘特燈號色點）。
+
+##### 4.8.7.8 溢出三層紅燈引導 第一刀落地紀錄（2026-06-27，`[unverified]`）
+
+> 承 §4.8.7.5 規格、§4.8.7.7 新 Stage 2。本刀把紅燈（餘裕<0）的層一/層二引導＋建立閘門接到新 Stage 2。
+> **採堆疊逐案（非 Tab）**：每個 interval 紅燈案別在自己的 slack 框下渲染引導面板，多子案各自處理；
+> 接力靠 toast＋捲動到下一個紅案（取代 mockup 的 Tab 切換，先求功能到位、整合既有堆疊版面、低風險）。
+> 版本：app.js／style.css `?v=20260627-10`。⚠ `[unverified]`，待線上驗。
+
+**已完成（✅）**
+1. `_s2VariantSlack(variantId)`：抽出「該案餘裕」共用（interval 才算，否則 null）；燈號 HTML／引導／閘門同一真實來源。
+2. `_s2OverflowGuideHtml(variantId)`：紅燈才渲染的引導面板（層一綠／層二琥珀／層三紅，escalation 左框色）。掛在 `.s2-overflow-wrap[data-variant]`，`_renderStage2New` 接在 slack 框下、`_s2RefreshCase` 連動刷新。
+3. **層一** `_s2AdoptFastest`：採用 `_computeSlack.earliestFinish`（最快可行上市日）→ `confirm` → 改 `v.schedule.endDate` → `_reschedulePreview` 重排 → 重繪（轉綠/黃、引導面板自動消失）。
+4. **層二** `_s2OverflowRecalc`：手填晚日期（須 > 原 endDate，否則 toast 擋）→ 改 endDate 重排重繪；仍紅則面板更新缺口、夠了轉綠。
+5. **層三**：引導文字指向下方任務表（工期欄本就可改、即時重算）；鎖表＋關鍵路徑標記留第二刀。
+6. **接力** `_s2OverflowHandoff`：某案解決後若仍有其他紅案 → toast「還有 N 個案別時程不足」＋捲動到下一個紅案；全解決 → 「可以建立」。
+7. **建立軟提醒閘門**：`_s2CommitNew` 偵測任一紅燈案 → `confirm`「有 N 個案別時程不足，確定強制建立？」（軟提醒，不硬擋）。
+8. CSS `.s2-ovf*`（全走 `:root`：rose/sage/amber escalation）。
+
+**未做／後續（❌）**
+1. **多案 Tab 切換版面**（mockup 模式 A）：目前用堆疊逐案＋接力捲動；Tab 是可選的呈現重構。
+2. **層三鎖表＋關鍵路徑標記**：方案三未選時鎖住工期表（半透明遮罩）＋標記關鍵路徑長工期任務（需算最長依賴鏈）。
+3. **彈窗改設計款**：層一採用／建立閘門目前用原生 `confirm`；mockup 設計的三款確認彈窗（circle-check／calendar／tool）＋「主案完成→引導子案」衔接彈窗待接 `openModal`。
+4. `[unverified]`：待線上驗（紅燈案層一一鍵改上市日轉綠、層二手填重算、多子案接力、建立軟提醒）。
+
+**關鍵函式**：`_s2VariantSlack`／`_s2OverflowGuideHtml`／`_s2AdoptFastest`／`_s2OverflowRecalc`／`_s2OverflowHandoff`；接線改 `_renderStage2New`／`_s2RefreshCase`／`_s2CommitNew`；複用 `_computeSlack`／`_reschedulePreview`／`_effScheduleDir`。
 
 ### 4.9 工期排程接 UI 自動觸發（2026-06-13 已落地，commit `cc7436a`）
 

@@ -5777,6 +5777,12 @@ App._s2BackToStage1 = function() {
 
 // 建立專案：先還原全域 topbar（離開流程頁）再走既有 _stage2Commit（落地邏輯單一真實來源、不重寫）。
 App._s2CommitNew = function() {
+  // 紅燈軟提醒閘門（§4.8.7.5）：有案別餘裕<0 → 先確認，不硬擋（可先用紅燈引導調上市日/工期）。
+  const res = this._tplPreview;
+  if (res) {
+    const reds = (res.variants || []).filter(v => { const s = App._s2VariantSlack(v.id); return s && s.light === 'red'; });
+    if (reds.length && !confirm('有 ' + reds.length + ' 個案別時程不足（餘裕 < 0）。\n\n確定強制建立？（可先用上方紅燈引導調整上市日或工期）')) return;
+  }
   const tb = document.querySelector('.main > .topbar');
   if (tb) tb.classList.remove('topbar-hidden');
   App._stage2Commit();
@@ -5916,6 +5922,7 @@ App._renderStage2New = function() {
           '<span class="s2-case-range">' + caseRange(v.id) + '</span>' +
         '</div>' +
         '<div class="s2-slack-wrap" data-variant="' + v.id + '">' + this._s2SlackHtml(v.id) + '</div>' +
+        '<div class="s2-overflow-wrap" data-variant="' + v.id + '">' + this._s2OverflowGuideHtml(v.id) + '</div>' +
         '<div class="s2n-body">' +
           '<div class="s2n-left">' + this._s2DeptPanelHtml(v.id) + '</div>' +
           '<div class="s2-gantt s2n-right" data-variant="' + v.id + '">' + this._s2GanttHtml(v.id) + '</div>' +
@@ -6910,13 +6917,20 @@ App._s2PredCells = function(t, variantId) {
 };
 // 餘裕燈號 HTML（interval 才顯示，§4.8.7.4）：純讀 _tplPreview，初繪與 refresh 共用（單一真實來源）。
 // 非 interval（純 forward/backward）回 '' 不顯示（§4.8.5：餘裕需雙錨開始+結束）。
+// 該案餘裕（interval 才算，非 interval 回 null）：抽共用，供燈號 HTML／溢出引導／建立閘門同一真實來源。
+App._s2VariantSlack = function(variantId) {
+  const res = this._tplPreview; if (!res) return null;
+  const v = (res.variants || []).find(x => x.id === variantId);
+  if (!v || App._effScheduleDir(v.schedule.startDate, v.schedule.endDate, v.schedule.direction) !== 'interval') return null;
+  const ts = (res.tasks || []).filter(t => t.variant === variantId);
+  const results = ts.map(t => ({ lateStart: t.plannedStart || null, lateFinish: t.plannedEnd || null }));
+  return App._computeSlack(results, v.schedule.startDate, v.schedule.endDate);
+};
 App._s2SlackHtml = function(variantId) {
   const res = this._tplPreview; if (!res) return '';
   const v = (res.variants || []).find(x => x.id === variantId);
-  if (!v || App._effScheduleDir(v.schedule.startDate, v.schedule.endDate, v.schedule.direction) !== 'interval') return '';
-  const ts = (res.tasks || []).filter(t => t.variant === variantId);
-  const results = ts.map(t => ({ lateStart: t.plannedStart || null, lateFinish: t.plannedEnd || null }));
-  const s = App._computeSlack(results, v.schedule.startDate, v.schedule.endDate);
+  if (!v) return '';
+  const s = App._s2VariantSlack(variantId);
   if (!s) return '';
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
   const wkd = (iso) => iso ? '（週' + ['日','一','二','三','四','五','六'][new Date(iso).getDay()] + '）' : '';
@@ -6938,6 +6952,81 @@ App._s2SlackHtml = function(variantId) {
     fastest +
   '</div>';
 };
+// ─── §4.8.7.5 溢出三層紅燈引導（第一刀：層一改上市日＋層二手填重算＋層三引導改工期）───
+// 紅燈（餘裕<0）才渲染；逐案各自一塊。層三在此刀只引導去下方工期表（表本就可改、即時重算），鎖表/關鍵路徑標記留第二刀。
+App._s2OverflowGuideHtml = function(variantId) {
+  const s = App._s2VariantSlack(variantId);
+  if (!s || s.light !== 'red') return '';
+  const res = this._tplPreview;
+  const v = (res.variants || []).find(x => x.id === variantId); if (!v) return '';
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  const wkd = (iso) => iso ? '（週' + ['日','一','二','三','四','五','六'][new Date(iso).getDay()] + '）' : '';
+  const fast = s.earliestFinish, ed = v.schedule.endDate;
+  return '<div class="s2-ovf">' +
+    '<div class="s2-ovf-hd"><i class="ti ti-alert-triangle"></i> 排程時間不足（尚缺 ' + s.overDays + ' 個工作天），請選擇一種方式處理：</div>' +
+    '<div class="s2-ovf-plan s2-ovf-e1">' +
+      '<div class="s2-ovf-no">1</div>' +
+      '<div class="s2-ovf-body">' +
+        '<div class="s2-ovf-t">採用系統建議的最快可行上市日 <span class="s2-ovf-tag easy">最省力</span></div>' +
+        '<div class="s2-ovf-d">依現有工期與前置，最快 <b>' + fmtD(fast) + wkd(fast) + '</b> 可上市，比原定 ' + fmtD(ed) + ' 順延 ' + s.overDays + ' 個工作天。</div>' +
+        '<div class="s2-ovf-row"><button class="tb-action s2-ovf-btn" onclick="App._s2AdoptFastest(\'' + variantId + '\')">把上市日期改成 ' + fmtD(fast) + '</button></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="s2-ovf-plan s2-ovf-e2">' +
+      '<div class="s2-ovf-no">2</div>' +
+      '<div class="s2-ovf-body">' +
+        '<div class="s2-ovf-t">延後需求上市日</div>' +
+        '<div class="s2-ovf-d">重新指定一個您可以接受的較晚日期（須晚於 ' + fmtD(ed) + '），並由系統重新計算時間差。</div>' +
+        '<div class="s2-ovf-row"><input class="s2-ovf-date" type="date" min="' + ed + '"><button class="tb-action ghost s2-ovf-btn" onclick="App._s2OverflowRecalc(\'' + variantId + '\')">重新計算餘裕</button></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="s2-ovf-plan s2-ovf-e3">' +
+      '<div class="s2-ovf-no">3</div>' +
+      '<div class="s2-ovf-body">' +
+        '<div class="s2-ovf-t">壓縮任務工期 <span class="s2-ovf-tag hard">較費力</span></div>' +
+        '<div class="s2-ovf-d">直接在下方任務表改工期讓總時程縮短（建議先改長工期任務）；改完即時重算，餘裕轉正燈號就會變綠。</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+};
+// 層一：採用系統建議最快可販日（earliestFinish）→ 確認後改 endDate → 重排 → 重繪該案（轉綠/黃）。
+App._s2AdoptFastest = function(variantId) {
+  const res = this._tplPreview; if (!res) return;
+  const v = (res.variants || []).find(x => x.id === variantId); if (!v) return;
+  const s = App._s2VariantSlack(variantId); if (!s || !s.earliestFinish) return;
+  const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  if (!confirm('確認更換為系統建議上市日？\n\n本案需求上市日將改為 ' + fmtD(s.earliestFinish) + '（順延 ' + s.overDays + ' 個工作天），系統會重算並點亮綠燈。')) return;
+  v.schedule.endDate = s.earliestFinish;
+  App._reschedulePreview(res.tasks, res.variants, []);
+  this._s2RefreshCase(variantId);
+  App._s2OverflowHandoff(variantId);
+};
+// 接力引導：某案解決後，若仍有其他案別紅燈 → toast 提示＋捲動到下一個紅案（多子案在堆疊版面的「前往處理子案」）。
+App._s2OverflowHandoff = function(justResolvedId) {
+  const res = this._tplPreview; if (!res) return;
+  const after = App._s2VariantSlack(justResolvedId);
+  if (after && after.light === 'red') return;   // 本案仍紅（層二填的日期還不夠）→ 留在本案、不接力
+  const reds = (res.variants || []).filter(v => { const s = App._s2VariantSlack(v.id); return s && s.light === 'red'; });
+  if (!reds.length) { U.toast('✓ 所有案別時程都已解決，可以建立專案', 'success'); return; }
+  const names = reds.map(v => v.name || '案別').join('、');
+  U.toast('本案已解決，還有 ' + reds.length + ' 個案別時程不足（' + names + '），請繼續往下處理', 'warning');
+  const el = document.querySelector('.s2n-case[data-variant="' + reds[0].id + '"]');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+// 層二：手填晚日期 → 改 endDate → 重排 → 重繪（即時更新缺口；夠了燈號轉綠、引導面板自動消失）。
+App._s2OverflowRecalc = function(variantId) {
+  const res = this._tplPreview; if (!res) return;
+  const v = (res.variants || []).find(x => x.id === variantId); if (!v) return;
+  const wrap = document.querySelector('.s2-overflow-wrap[data-variant="' + variantId + '"]');
+  const inp = wrap ? wrap.querySelector('.s2-ovf-date') : null;
+  const val = inp ? inp.value : '';
+  if (!val) { U.toast('⚠ 請先選一個晚於原上市日的日期', 'warning'); return; }
+  if (val <= v.schedule.endDate) { U.toast('⚠ 新日期須晚於原上市日 ' + String(v.schedule.endDate).replace(/-/g, '/'), 'warning'); return; }
+  v.schedule.endDate = val;
+  App._reschedulePreview(res.tasks, res.variants, []);
+  this._s2RefreshCase(variantId);
+  App._s2OverflowHandoff(variantId);
+};
 // 點階段：設選中 → 只重繪該案（軸高亮 + 清單篩選），不洗整頁（已改 owner/mustDeliver 存 _tplPreview 不掉）。
 App._s2SelectStage = function(variantId, si) {
   const g = this._s2GroupByStage(variantId);
@@ -6950,6 +7039,8 @@ App._s2SelectStage = function(variantId, si) {
 App._s2RefreshCase = function(variantId) {
   const slack = document.querySelector('.s2-slack-wrap[data-variant="' + variantId + '"]');
   if (slack) slack.innerHTML = this._s2SlackHtml(variantId);
+  const ovf = document.querySelector('.s2-overflow-wrap[data-variant="' + variantId + '"]');
+  if (ovf) ovf.innerHTML = this._s2OverflowGuideHtml(variantId);
   const gantt = document.querySelector('.s2-gantt[data-variant="' + variantId + '"]');
   if (gantt) gantt.innerHTML = this._s2GanttHtml(variantId);
   const bn = document.querySelector('.s2n-banner-wrap[data-variant="' + variantId + '"]');
