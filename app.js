@@ -6843,10 +6843,21 @@ App._s2StageStatuses = function(variantId) {
     if (eff === 'interval') {
       App._s1ColorStagesForward(res, v, ranges, vsch.startDate, vsch.endDate);
     } else if (eff === 'backward' && ed) {
-      const backStart = ranges.reduce((m, s) => (s.start && (!m || s.start < m)) ? s.start : m, '');
+      // 比照 Stage 1 _s1ComputePreview backward 分支：先反向串接（末段貼齊上市日、各段依序往前），算出真最晚開工日 backStart；
+      // backStart < today＝來不及 → 以今天順推上色（_s1ColorStagesForward 內含 margin 上色，超出上市日顯紅）；
+      // 來得及 → 各段比對上市日算 margin 上色（≥5 綠／0~4 黃／<0 紅）。修「甘特條全綠但 lack 標籤紅」的不同源矛盾。
+      App._chainStagesBackward(ranges, ed);
       const todayIso = D.fmt(D.today(), 'iso');
-      if (backStart && backStart < todayIso) App._s1ColorStagesForward(res, v, ranges, todayIso, ed);
-      else App._chainStages(ranges);
+      const backStart = ranges.length ? (ranges[0].start || '') : '';
+      if (backStart && backStart < todayIso) {
+        App._s1ColorStagesForward(res, v, ranges, todayIso, ed);
+      } else {
+        ranges.forEach(s => {
+          if (!s.end) return;
+          const margin = (s.end <= ed) ? D.workdaysBetween(s.end, ed) - 1 : -(D.workdaysBetween(ed, s.end) - 1);
+          s.light = margin >= 5 ? 'green' : (margin >= 0 ? 'yellow' : 'red');
+        });
+      }
     } else {
       App._chainStages(ranges);
     }
