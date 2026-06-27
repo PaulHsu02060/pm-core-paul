@@ -1,22 +1,22 @@
 // PM-Core 標準版專案模板（公司標準開發 WBS，67 筆 5 階段）
 // 2026-06-16 由標準 WBS Excel 轉出。主案+另案同源（另案預設全 5 階段，user 自行刪減）。
-// 階段碼=中文（設計/手工機/性試機/量試機/量產機），碼=顯示名一致。里程碑 durationDays=0。
+// 階段碼=中文（設計/手工機/性試/量試/量產），碼=顯示名一致。里程碑 durationDays=0。
 // 四繳付欄（mustDeliver/deliverableType/requiredTask/mustIssue）不在範本層，套用時走預設兜底。
 var PRODUCT_DEV_TEMPLATE = {
   templateId: "product-dev-v1",
   templateName: "標準版（公司標準開發流程）",
-  description: "公司標準產品開發 WBS，5 階段完整流程：設計→手工機→性試機→量試機→量產機",
+  description: "公司標準產品開發 WBS，5 階段完整流程：設計→手工機→性試→量試→量產",
   version: "2026-06-16",
   stageDefaults: [
     { "stage": "設計", "stageNameCN": "設計", "order": 1 },
     { "stage": "手工機", "stageNameCN": "手工機", "order": 2 },
-    { "stage": "性試機", "stageNameCN": "性試機", "order": 3 },
-    { "stage": "量試機", "stageNameCN": "量試機", "order": 4 },
-    { "stage": "量產機", "stageNameCN": "量產機", "order": 5 }
+    { "stage": "性試", "stageNameCN": "性試", "order": 3 },
+    { "stage": "量試", "stageNameCN": "量試", "order": 4 },
+    { "stage": "量產", "stageNameCN": "量產", "order": 5 }
   ],
   roles: [ "系統工程師", "結構工程師", "硬體工程師", "韌體工程師", "馬達驅動工程師", "機構工程師", "採購", "生產", "品保", "品管", "PM" ],
   cases: [
-    { "variant": "主案", "stages": ["設計","手工機","性試機","量試機","量產機"], "modules": [
+    { "variant": "主案", "stages": ["設計","手工機","性試","量試","量產"], "modules": [
         { "stage": "設計", "stageNameCN": "設計", "tasks": [
             { "tplId": "t1", "n": 1, "name": "周邊/規格訂定", "type": "任務", "subgroup": "系統", "durationDays": 10, "predecessor": "", "deliverable": "", "role": "系統工程師" },
             { "tplId": "t2", "n": 2, "name": "系統部件選型", "type": "任務", "subgroup": "系統", "durationDays": 5, "predecessor": "1FF", "deliverable": "", "role": "系統工程師" },
@@ -49,7 +49,7 @@ var PRODUCT_DEV_TEMPLATE = {
             { "tplId": "t27", "n": 27, "name": "長材備料BOM發行", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "26FF", "deliverable": "", "role": "結構工程師" },
             { "tplId": "t28", "n": 28, "name": "試作圖面發行", "type": "任務", "subgroup": "", "durationDays": 10, "predecessor": "26FF", "deliverable": "", "role": "結構工程師" }
         ] },
-        { "stage": "性試機", "stageNameCN": "性試機", "tasks": [
+        { "stage": "性試", "stageNameCN": "性試", "tasks": [
             { "tplId": "t29", "n": 29, "name": "詢價/發注", "type": "任務", "subgroup": "模具製作", "durationDays": 15, "predecessor": "28FS+3", "deliverable": "", "role": "採購" },
             { "tplId": "t30", "n": 30, "name": "試模", "type": "任務", "subgroup": "模具製作", "durationDays": 15, "predecessor": "29FS+50", "deliverable": "", "role": "採購" },
             { "tplId": "t31", "n": 31, "name": "驗收", "type": "任務", "subgroup": "模具製作", "durationDays": 20, "predecessor": "34FS+20", "deliverable": "", "role": "採購" },
@@ -70,7 +70,7 @@ var PRODUCT_DEV_TEMPLATE = {
             { "tplId": "t46", "n": 46, "name": "正式圖面發行", "type": "任務", "subgroup": "", "durationDays": 15, "predecessor": "45FF", "deliverable": "", "role": "機構工程師" },
             { "tplId": "t47", "n": 47, "name": "部品認定完成", "type": "任務", "subgroup": "", "durationDays": 25, "predecessor": "46FS+3", "deliverable": "", "role": "採購" }
         ] },
-        { "stage": "量試機", "stageNameCN": "量試機", "tasks": [
+        { "stage": "量試", "stageNameCN": "量試", "tasks": [
             { "tplId": "t48", "n": 48, "name": "移行", "type": "里程碑", "subgroup": "", "durationDays": 0, "predecessor": "47FS+10", "deliverable": "", "role": "品保" },
             { "tplId": "t49", "n": 49, "name": "組立", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "48FS+10", "deliverable": "", "role": "生產" },
             { "tplId": "t50", "n": 50, "name": "DR", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "49FS+3", "deliverable": "", "role": "品保" },
@@ -84,7 +84,7 @@ var PRODUCT_DEV_TEMPLATE = {
             { "tplId": "t58", "n": 58, "name": "節能標章", "type": "任務", "subgroup": "", "durationDays": 50, "predecessor": "56FS+5", "deliverable": "", "role": "品管" },
             { "tplId": "t59", "n": 59, "name": "MIT標章", "type": "任務", "subgroup": "", "durationDays": 50, "predecessor": "55FS+15", "deliverable": "", "role": "品管" }
         ] },
-        { "stage": "量產機", "stageNameCN": "量產機", "tasks": [
+        { "stage": "量產", "stageNameCN": "量產", "tasks": [
             { "tplId": "t60", "n": 60, "name": "移行", "type": "里程碑", "subgroup": "", "durationDays": 0, "predecessor": "55,56,57,58,59", "deliverable": "", "role": "品保" },
             { "tplId": "t61", "n": 61, "name": "組立", "type": "任務", "subgroup": "", "durationDays": 10, "predecessor": "60", "deliverable": "", "role": "生產" },
             { "tplId": "t62", "n": 62, "name": "DR", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "61FS+3", "deliverable": "", "role": "品保" },
@@ -95,7 +95,7 @@ var PRODUCT_DEV_TEMPLATE = {
             { "tplId": "t67", "n": 67, "name": "部品認定完成", "type": "任務", "subgroup": "", "durationDays": 5, "predecessor": "66FS+3", "deliverable": "", "role": "採購" }
         ] }
     ] },
-    { "variant": "另案", "stages": ["設計","手工機","性試機","量試機","量產機"], "modules": [
+    { "variant": "另案", "stages": ["設計","手工機","性試","量試","量產"], "modules": [
         { "stage": "設計", "stageNameCN": "設計", "tasks": [
             { "tplId": "t1", "n": 1, "name": "周邊/規格訂定", "type": "任務", "subgroup": "系統", "durationDays": 10, "predecessor": "", "deliverable": "", "role": "系統工程師" },
             { "tplId": "t2", "n": 2, "name": "系統部件選型", "type": "任務", "subgroup": "系統", "durationDays": 5, "predecessor": "1FF", "deliverable": "", "role": "系統工程師" },
@@ -128,7 +128,7 @@ var PRODUCT_DEV_TEMPLATE = {
             { "tplId": "t27", "n": 27, "name": "長材備料BOM發行", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "26FF", "deliverable": "", "role": "結構工程師" },
             { "tplId": "t28", "n": 28, "name": "試作圖面發行", "type": "任務", "subgroup": "", "durationDays": 10, "predecessor": "26FF", "deliverable": "", "role": "結構工程師" }
         ] },
-        { "stage": "性試機", "stageNameCN": "性試機", "tasks": [
+        { "stage": "性試", "stageNameCN": "性試", "tasks": [
             { "tplId": "t29", "n": 29, "name": "詢價/發注", "type": "任務", "subgroup": "模具製作", "durationDays": 15, "predecessor": "28FS+3", "deliverable": "", "role": "採購" },
             { "tplId": "t30", "n": 30, "name": "試模", "type": "任務", "subgroup": "模具製作", "durationDays": 15, "predecessor": "29FS+50", "deliverable": "", "role": "採購" },
             { "tplId": "t31", "n": 31, "name": "驗收", "type": "任務", "subgroup": "模具製作", "durationDays": 20, "predecessor": "34FS+20", "deliverable": "", "role": "採購" },
@@ -149,7 +149,7 @@ var PRODUCT_DEV_TEMPLATE = {
             { "tplId": "t46", "n": 46, "name": "正式圖面發行", "type": "任務", "subgroup": "", "durationDays": 15, "predecessor": "45FF", "deliverable": "", "role": "機構工程師" },
             { "tplId": "t47", "n": 47, "name": "部品認定完成", "type": "任務", "subgroup": "", "durationDays": 25, "predecessor": "46FS+3", "deliverable": "", "role": "採購" }
         ] },
-        { "stage": "量試機", "stageNameCN": "量試機", "tasks": [
+        { "stage": "量試", "stageNameCN": "量試", "tasks": [
             { "tplId": "t48", "n": 48, "name": "移行", "type": "里程碑", "subgroup": "", "durationDays": 0, "predecessor": "47FS+10", "deliverable": "", "role": "品保" },
             { "tplId": "t49", "n": 49, "name": "組立", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "48FS+10", "deliverable": "", "role": "生產" },
             { "tplId": "t50", "n": 50, "name": "DR", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "49FS+3", "deliverable": "", "role": "品保" },
@@ -163,7 +163,7 @@ var PRODUCT_DEV_TEMPLATE = {
             { "tplId": "t58", "n": 58, "name": "節能標章", "type": "任務", "subgroup": "", "durationDays": 50, "predecessor": "56FS+5", "deliverable": "", "role": "品管" },
             { "tplId": "t59", "n": 59, "name": "MIT標章", "type": "任務", "subgroup": "", "durationDays": 50, "predecessor": "55FS+15", "deliverable": "", "role": "品管" }
         ] },
-        { "stage": "量產機", "stageNameCN": "量產機", "tasks": [
+        { "stage": "量產", "stageNameCN": "量產", "tasks": [
             { "tplId": "t60", "n": 60, "name": "移行", "type": "里程碑", "subgroup": "", "durationDays": 0, "predecessor": "55,56,57,58,59", "deliverable": "", "role": "品保" },
             { "tplId": "t61", "n": 61, "name": "組立", "type": "任務", "subgroup": "", "durationDays": 10, "predecessor": "60", "deliverable": "", "role": "生產" },
             { "tplId": "t62", "n": 62, "name": "DR", "type": "任務", "subgroup": "", "durationDays": 2, "predecessor": "61FS+3", "deliverable": "", "role": "品保" },
