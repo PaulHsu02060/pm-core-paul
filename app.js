@@ -7138,7 +7138,7 @@ App._ovfRender = function() {
       '<div class="ovf-casebox" id="ovf-casebox">' + App._ovfCaseHtml(App._ovfState.tab) + '</div>' +
       '<div class="stage2-foot">' +
         '<button class="tb-action ghost" onclick="App._ovfBack()">上一步</button>' +
-        '<button class="tb-action" onclick="App._ovfGotoStage2()">下一步：進階調整任務工期 →</button>' +
+        '<button class="tb-action ovf-next-btn" onclick="App._ovfGotoStage2()">下一步：進入 Stage 2 調整各階段工期 →</button>' +
       '</div>' +
     '</div>';
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -7345,7 +7345,7 @@ App._ovfTop3Html = function(vid, s) {
     : '<div class="ovf-t3hd"><i class="ti ti-alert-triangle"></i> 時間仍不足 ' + s.overDays + ' 個工作天！系統為您精選各階段「改了最能縮短總時程」的瓶頸任務（每階段一個·避免並行互拖白改），請嘗試縮減：</div>';
   return '<div class="ovf-t3box">' + hd + rows + App._ovfMiniBattleHtml(vid, s) +
     '<div class="ovf-t3foot"><button class="tb-action ovf-recalc" onclick="App._ovfReeval(\'' + vid + '\')">再次重算</button>' +
-      (resolved ? '' : '<span class="ovf-t3hint">仍不足？按右下角「下一步：進階調整任務工期」進大表逐項微調。</span>') + '</div>' +
+      (resolved ? '' : '<span class="ovf-t3tip"><i class="ti ti-bulb"></i> 小祕訣：每按一次重算，系統會自動撈出下一批<b>不重複</b>的瓶頸任務讓您繼續縮減，可一路扣到<b>尚缺歸零</b>；仍不足也可按右下角「下一步」進大表微調。</span>') + '</div>' +
   '</div>';
 };
 App._ovfMiniBattleHtml = function(vid, s) {

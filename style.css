@@ -1707,6 +1707,10 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ovf-t3foot { display: flex; align-items: center; gap: 18px; margin-top: 13px; border-top: 1px solid var(--rule); padding-top: 12px; flex-wrap: wrap; }
 .ovf-recalc { font-size: 12.5px; padding: 7px 15px; }
 .ovf-t3hint { font-size: 11px; color: var(--ink4); }
+.ovf-t3tip { font-size: 13px; color: var(--ink3); line-height: 1.5; flex: 1 1 320px; }
+.ovf-t3tip i { color: var(--amber-accent); margin-right: 2px; }
+.ovf-t3tip b { color: var(--ink); font-weight: 600; }
+.ovf-next-btn { font-size: 15px; font-weight: 700; }
 .ovf-mini { margin-top: 12px; background: var(--cream); border: 1px solid var(--rule); border-radius: var(--r8); padding: 11px 13px; }
 .ovf-mini-hd { font-size: 11.5px; font-weight: 600; color: var(--ink2); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
 .ovf-mini-hd i { color: var(--amber-accent); font-size: 14px; }
