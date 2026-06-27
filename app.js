@@ -5929,14 +5929,14 @@ App._renderStage2New = function() {
   // 頂部說明：標準收折 HintBox（buildHintBox，字級吃 UI-CSS 規範、收合狀態持久化）
   const topGuide = App.buildHintBox({
     key: 's2-guide', icon: 'ti-info-circle', title: '任務骨架編輯指南',
-    summary: '先設部門→自動帶負責人（手動優先）；點甘特切換階段', collapsed: true,
+    summary: '先設部門→自動帶負責人（手動優先）；點甘特切換階段', collapsed: false,
     bodyHtml:
       '<div class="s2n-gd-row"><i class="ti ti-speakerphone"></i><span><b>重要：請先設定「部門與負責人」</b>（下方卡片右上按鈕）。系統會依角色自動指派負責人；若你後續手動修改過，系統以手動為準、不予覆蓋。</span></div>' +
       '<div class="s2n-gd-row"><i class="ti ti-chart-bar"></i><span><b>點選上方甘特圖可切換階段</b>。下方任務表會同步切換成該階段的任務。</span></div>'
   });
   const predHelpHtml = (i) => App.buildHintBox({
     key: 's2-pred-help-' + i, icon: 'ti-link', title: '前置任務設定指南',
-    summary: '序號→銜接方式→緩衝；只能綁當前或過去 3 階段，嚴禁綁未來', collapsed: true,
+    summary: '序號→銜接方式→緩衝；只能綁當前或過去 3 階段，嚴禁綁未來', collapsed: false,
     bodyHtml:
       '<div class="s2n-gd-row"><i class="ti ti-pointer"></i><span><b>操作方式</b>：先選「前置序號」→ 再選「銜接方式」（如：完成後才開始）→ 最後填「緩衝天數」。</span></div>' +
       '<div class="s2n-gd-row s2n-gd-warn"><i class="ti ti-alert-circle"></i><span><b>防呆限制</b>：前置只能綁「當前階段」或「過去最多 3 個階段內」的任務；嚴禁綁未來項目（否則時程會跨度過大失控）。</span></div>' +
@@ -7194,7 +7194,7 @@ App._ovfCaseHtml = function(vid) {
   if (resolved) {
     return head + banner + '<div class="ovf-resolved-hint"><i class="ti ti-arrow-down-circle"></i> 可直接點右下角「下一步」進任務大表，或切換上方其他案別繼續處理。</div>';
   }
-  return head + banner + '<div class="ovf-hd">排程時間不足（尚缺 ' + s.overDays + ' 個工作天），請用以下方式處理；仍不足可按右下角「下一步：進階調整任務工期」進大表逐項微調：</div>' +
+  return head + banner + '<div class="ovf-hd">排程時間不足（尚缺 ' + s.overDays + ' 個工作天），請用以下方式處理；仍不足可按右下角「下一步：進入 Stage 2」進大表逐項微調：</div>' +
     App._ovfLayer1Html(vid, s, v) + App._ovfLayer2CardHtml(vid, v);
 };
 App._ovfLayer1Html = function(vid, s, v, selected) {
@@ -7361,7 +7361,7 @@ App._ovfMiniBattleHtml = function(vid, s) {
               : '<b class="ovf-mini-lack">還差 ' + nowOver + ' 個工作天</b><span class="ovf-mini-cut">（已縮短 ' + cut + ' 天）</span>') + '</div>' +
     '<div class="ovf-mini-judge">' + (enough
       ? '<i class="ti ti-circle-check"></i> 已解決，按上方「建立專案」或「再次重算」確認。'
-      : '<i class="ti ti-alert-triangle"></i> <b>仍超出目標</b>，建議繼續扣減長工時，或按右下角「下一步：進階調整任務工期」進大表逐項微調。') + '</div>' +
+      : '<i class="ti ti-alert-triangle"></i> <b>仍超出目標</b>，建議繼續扣減瓶頸任務，或按右下角「下一步：進入 Stage 2」進大表逐項微調。') + '</div>' +
   '</div>';
 };
 // §4.8.7.10：層三獨立頁退役（2026-06-27）。已刪 _ovfLayer3CardHtml／_ovfLockedTableHtml／_ovfSegmentedHtml／_ovfBattleHtml／_ovfStage3TableHtml。
@@ -7482,7 +7482,7 @@ App._ovfResultModal = function(vid) {
     App.confirmModal({
       icon: 'ti-calendar', iconBg: '--amber-l', iconColor: '--amber-accent',
       title: '重新計算完成：時間仍不足',
-      msg: '目前仍差 <b>' + s.overDays + '</b> 個工作天。您可以繼續扣減上方長工時任務、改更晚的上市日，或解鎖「層三」進行全盤手動調整。',
+      msg: '目前仍差 <b>' + s.overDays + '</b> 個工作天。您可以繼續扣減上方瓶頸任務、改更晚的上市日，或按右下角「下一步」進 Stage 2 大表逐項微調。',
       okText: '我知道了', cancelText: null
     });
   }
