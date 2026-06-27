@@ -6709,9 +6709,9 @@ App._s2ListHtml = function(variantId) {
     rows +=
       '<tr data-taskid="' + t.id + '" class="' + (seq % 2 === 0 ? 's2-rz ' : '') + (isCrit ? 's2-crit' : '') + '">' +
         '<td class="col-num">' + seq + '</td>' +
-        '<td class="col-flex" title="' + U.esc(t.name) + '"><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)">' + (isCrit ? '<span class="s2-crit-tag">關鍵路徑</span>' : '') + '</td>' +
+        '<td class="col-flex s2-namecell" title="' + U.esc(t.name) + '"><div class="s2-nameflex"><input class="s2-name-inp" value="' + U.esc(t.name) + '" onchange="App._s2SetName(\'' + t.id + '\', this.value)">' + (isCrit ? '<span class="s2-crit-tag">關鍵路徑</span>' : '') + '</div></td>' +
         '<td class="col-mid s2-deptcell" title="此任務所屬部門（在「新增/編輯部門」設定負責人）">' + (U.esc(t.role) || '<span class="s2-dept-none">—</span>') + '</td>' +
-        '<td class="col-mid"><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
+        '<td class="col-mid s2-ownercell"><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._s2SetOwner(\'' + t.id + '\', this.value)">' + this._s2OwnerOptions(t) + '</select></td>' +
         this._s2PredCells(t, variantId) +
         '<td class="col-mid s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
         '<td class="col-mid s2-date" title="' + (t.plannedStart ? (fmtD(t.plannedStart) + ' → ' + fmtD(t.plannedEnd)) : '') + '">' + (t.plannedStart ? (mmdd(t.plannedStart) + ' → ' + mmdd(t.plannedEnd)) : '（待排）') + '</td>' +

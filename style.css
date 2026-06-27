@@ -1567,10 +1567,8 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* ── 範本第二階段 步驟4：任務清單可編輯（負責人下拉＋需交付勾選）── */
 .s2-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; margin-top: 8px; }
 .data-table.s2-tbl thead th { padding: 9px 11px; text-align: center; font-weight: 500; font-size: 13px; color: var(--stone-100); white-space: nowrap; vertical-align: middle; background: var(--sage-700); }
-.data-table.s2-tbl thead th.col-mid, .data-table.s2-tbl thead th.col-flex { text-align: left; }
-.data-table.s2-tbl thead th.s2-dur-th, .data-table.s2-tbl thead th.s2-deliver-th { text-align: center; }
-.s2-tbl td.s2-dur, .s2-tbl td.s2-deliver { text-align: center; }
-.data-table.s2-tbl thead .s2-all-th { margin-left: 8px; font-size: 11px; font-weight: 400; color: var(--sage-200); white-space: nowrap; cursor: pointer; }
+.data-table.s2-tbl tbody td.col-mid { text-align: center; }
+.data-table.s2-tbl thead .s2-all-th { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; color: var(--sage-200); white-space: nowrap; cursor: pointer; }
 .data-table.s2-tbl thead tr:first-child th:first-child { border-top-left-radius: var(--r10); }
 .data-table.s2-tbl thead tr:first-child th:last-child { border-top-right-radius: var(--r10); }
 /* 前置任務跨三欄群組表頭（置中）＋下排子欄標題（序號/銜接方式/緩衝） */
@@ -1590,6 +1588,20 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* 輸入框/下拉平時透明無邊框（降噪）；滑入該列才浮現淡邊框＋白底 */
 .s2-name-inp, .s2-owner-sel, .s2-dur-inp { font-size: 13px; padding: 3px 6px; border: 1px solid transparent; border-radius: var(--r6); background: transparent; color: var(--stone-600); transition: border-color .12s, background .12s; }
 .s2-name-inp { width: 100%; font-size: 13px; color: var(--ink); }
+.data-table.s2-tbl td.col-flex.s2-namecell { max-width: none; overflow: visible; text-overflow: clip; }
+.s2-nameflex { display: flex; align-items: center; gap: 6px; }
+.s2-nameflex .s2-name-inp { flex: 1 1 auto; width: auto; min-width: 80px; }
+.s2-nameflex .s2-crit-tag { flex: none; margin-left: 0; }
+/* §欄寬引導（auto 框架內給合理下限，穩定排版；非死寫固定，內容更寬仍可撐） */
+.data-table.s2-tbl td.s2-namecell { min-width: 160px; }
+.data-table.s2-tbl td.col-num { min-width: 38px; }
+.data-table.s2-tbl td.s2-deptcell { min-width: 80px; }
+.data-table.s2-tbl td.s2-ownercell { min-width: 84px; }
+.data-table.s2-tbl td.s2-pc-typecell { max-width: 124px; }
+.data-table.s2-tbl .s2-pc-seq { width: 54px; }
+.data-table.s2-tbl .s2-pc-lag { width: 44px; }
+.data-table.s2-tbl td.s2-dur { min-width: 50px; }
+.data-table.s2-tbl td.s2-date { min-width: 98px; }
 .s2-dur-inp { width: 52px; text-align: center; }
 .s2-tbl tbody tr[data-taskid]:hover .s2-name-inp, .s2-tbl tbody tr[data-taskid]:hover .s2-owner-sel, .s2-tbl tbody tr[data-taskid]:hover .s2-dur-inp { border-color: var(--stone-200); background: var(--paper); }
 .s2-name-inp:focus, .s2-owner-sel:focus, .s2-dur-inp:focus { border-color: var(--sage-500); background: var(--paper); outline: none; }
