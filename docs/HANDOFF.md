@@ -64,17 +64,18 @@
 
 ### 2026-06-27（本週）
 
-**目前 HEAD**：`1b8036d`｜版本號 app.js／style.css `?v=20260627-30`｜本 session 全部已線上驗＋commit
+**目前 HEAD**：`c5ca512`｜版本號 app.js `?v=20260627-31`／style.css `?v=20260627-32`｜本 session 全部已驗＋commit＋push
 
 **已落地（本 session，皆已驗）**
 - **智慧排程衝突面板大整修（§4.8.7.x）**：③子案燈號 backward 同源 `2b6994f`／N2 interval 餘裕改真實順推 `f09f27e`／N1 採用層一後停留(燈亮+層二反灰鎖) `120e404`／第3 Stage2上一步分情境路由(回面板保留設定/回Stage1)+第1進大表前掃紅案閘門 `384643e`／**A 瓶頸建議改模擬法+每階段代表+有效縮減上限** `9e0c6c7`／層二重算撈新瓶頸小祕訣+主按鈕去層三化「進入Stage 2」 `3b0de48`／HintBox底色+展開+文案去層三化 `eaa7b71`。
 - **Stage2 大表排版（§4.8.7.7/§8g）**：刪階段分隔列(全選移表頭)+前置移固定寬走auto+字級13px+表頭文字欄靠左 `b7cf531`／部門「..」修復(任務名flex)+各欄min-width引導+前置三欄收窄+全選移需交付下+**表頭全置中/內容col-mid置中/任務名靠左** `441b943`。
 - **範本**：階段名去「機」(性試/量試/量產，手工機保留) `cc20d3e`。
 - **文件**：§17 全域定時備份規格 `1b8036d`。
+- **任務 modal 內層排版重構（§6.2）**：六分區＋排程時程群組卡＋時程三劍客；預計開始改單一可編輯日期格（data-autostart 防誤落錨、未經手不釘錨保住下游連動）；砍可切分；HintBox 預設收起；欄位標題 13px 暖墨（scope `.tf-redesign`）`bae6919`。
+- **清退役 .ovf-* 層三孤兒 CSS（§4.8.7.9）**：40 個 zero-reference class 移除（腳本交叉比對 app.js+templates+index.html，剩 56 全有引用、括號平衡）`c5ca512`。
 
 **真關鍵路徑已解（§A）**：原「長工時門檻近似」由模擬法取代（`_effectiveGains` 各任務縮到底看總時程真縮否、`_taskCap` 二分有效縮減上限+clamp防縮過頭、`_ovfTopTasks` 每階段選 gain 最大代表）——根治「同階段並行互拖、改了沒用」。
 
 **下一件（已定案未做，重點）**
 1. **§17 全域定時備份+還原**（取代 §8d.18 草稿方向，Paul 拍板）：B 後端 time-trigger 每天快照 → 前端整碗還原 → 後續單一專案還原。**從 ① 後端 .gs 起**（time-trigger + `doGet snapshots`/`snapshot` 兩 API，最高風險、獨立 session、照 §8f 鐵則新部署測試 URL 驗完才切正式）。完整規格見架構 §17、pickup 見 `SESSION-HANDOFF.md`。
-2. 清 dead `.ovf-seg*`/`.ovf-battle*`/`.ovf-s3*`/`.ovf-tbl*`/`.ovf-locktable`/`.ovf-p3*` CSS（層三退役孤兒，無害待清）。
-3. overflow 面板字級（Paul 第一批給的字級表，面板大改後規範過時，待 Paul 重看現況再決定要不要調）。
+2. overflow 面板字級（Paul 第一批給的字級表，面板大改後規範過時，待 Paul 重看現況再決定要不要調）。
