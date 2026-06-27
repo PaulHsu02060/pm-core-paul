@@ -4679,16 +4679,7 @@ App.startModeOf = function(t) {
   return (t && t.start && String(t.start).trim()) ? 'manual' : 'auto';
 };
 
-// 切換雙態：改 #tf-start-block 的 data-mode（CSS 據此顯示對應子區塊）；切到手動且空白時預填今天
-App.setStartMode = function(m) {
-  const block = document.getElementById('tf-start-block');
-  if (!block) return;
-  block.dataset.mode = m;
-  if (m === 'manual') {
-    const inp = document.getElementById('tf-start');
-    if (inp) { if (!inp.value) inp.value = D.fmt(D.today(), 'iso'); inp.focus(); }
-  }
-};
+// 重構（取消自動/手動切換）：預計開始改單一可編輯日期格，setStartMode 已移除。
 
 // 計量方式切換（殼，第27項）：純改 data-measure + active class，CSS 控顯隱；
 //   tf-duration/tf-hours 的 DOM 永遠在，不增刪、不碰資料層，saveTask 照常讀得到。
@@ -4704,10 +4695,11 @@ App.setMeasureMode = function(m) {
 //   手動態：startMode='manual'，start = #tf-start 值（引擎據此當錨點）
 //   自動態：startMode='auto'，start = ''（清空，引擎視為非錨點、由前置推算）
 App.readStartField = function() {
-  const block = document.getElementById('tf-start-block');
-  const mode = (block && block.dataset.mode === 'manual') ? 'manual' : 'auto';
-  const val = (document.getElementById('tf-start') || {}).value || '';
-  return { startMode: mode, start: mode === 'manual' ? val : '' };
+  // 重構：預計開始為單一可編輯日期格。經手填/改（data-autostart 已清）=手動錨點；未經手=自動，不落錨、下游連動。
+  const el = document.getElementById('tf-start');
+  if (!el || el.dataset.autostart === '1') return { startMode: 'auto', start: '' };
+  const val = el.value || '';
+  return { startMode: val ? 'manual' : 'auto', start: val };
 };
 
 // §6.5c 錨點：取有效開始日。手動態用 tf-start 手填值；自動態 tf-start 為空，改讀隱藏 tf-effstart（=getEffectiveSchedule(t).start，渲染時寫入）。
@@ -4752,6 +4744,7 @@ App.bindTaskTimeListeners = function() {
   App._taskTimeDelegated = true;
   const f = (e) => {
     const id = e.target && e.target.id;
+    if (id === 'tf-start' && e.target.dataset) delete e.target.dataset.autostart;   // 重構：手改開始日 → 落為手動錨點
     if (id === 'tf-duration' || id === 'tf-start') App.recalcTaskTimeFields();
   };
   document.addEventListener('input', f);
@@ -4804,35 +4797,27 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
   const t = task || {};
   const v = (x) => (x == null ? '' : x);
   const startMode = (mode === 'new') ? 'auto' : App.startModeOf(t);   // 2-A：新任務一律 auto；編輯讀 startMode（含舊任務相容）
-  const autoStartDisplay = (mode !== 'new' && t.scheduledStart && String(t.scheduledStart).trim()) ? D.fmt(t.scheduledStart, 'ymd') : '待排程引擎推算';
+  const effSch = getEffectiveSchedule(t);
+  const isAutoStart = (startMode === 'auto');                              // 重構：無手填 t.start = 依前置自動排
+  const startInputVal = isAutoStart ? (effSch.start || '') : v(t.start);   // 自動態預填引擎算到的日；data-autostart 標記，未經手不落錨（保住下游連動）
+  const startHint = isAutoStart
+    ? (effSch.start ? '預計開始目前依前置排到 ' + D.fmt(effSch.start, 'ymd') + '；直接改此日即固定為起點，下游接著排。改完成日會自動反推工期。'
+                    : '預計開始留白＝依前置自動排；填入日期即固定為起點。改完成日會自動反推工期。')
+    : '預計開始已固定為起點，下游接著排；清空可改回依前置自動排。改完成日會自動反推工期。';
   return `
-    <div class="task-form" data-measure="${measure}">
+    <div class="task-form tf-redesign" data-measure="${measure}">
     ${mode === 'new' ? `
     <div class="form-field">
       <label>專案</label>
       <select id="tf-project"><option value="" ${!t.project ? 'selected' : ''}>— 請選擇 —</option>${DATA.projects.map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
     </div>` : `
-    <div class="form-field">
+    <div class="form-field tf-proj-field">
       <label>專案</label>
       <div class="task-proj-readonly">${U.esc((DATA.projects.find(p => p.id === t.project) || {}).name || '')}</div>
     </div>`}
-    <div class="form-field">
+    <div class="form-field tf-field-name">
       <label>任務名稱 *</label>
       <input type="text" id="tf-name" value="${U.esc(v(t.name))}" placeholder="例：完成 BOM 表 6 型壁掛機">
-    </div>
-    <div class="measure-toggle">
-      <button type="button" class="measure-btn ${measure==='duration'?'active':''}" data-measure="duration" onclick="App.setMeasureMode('duration')">工期制（工作天）</button>
-      <button type="button" class="measure-btn ${measure==='hours'?'active':''}" data-measure="hours" onclick="App.setMeasureMode('hours')">時段制（工時 h）</button>
-    </div>
-    <div class="form-row">
-      <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
-      <div class="form-field"><label>類型 <span data-tip="類型|任務=要排程的工作；里程碑=時間點標記（工期0）；群組=純分類母項，不排程" style="cursor:help;">?</span></label>
-        <select id="tf-taskType">
-          <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
-          <option value="milestone" ${t.taskType === 'milestone' ? 'selected' : ''}>◆ 里程碑</option>
-          <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
-        </select>
-      </div>
     </div>
     <div class="form-row">
       <div class="form-field"><label>階段</label>
@@ -4844,45 +4829,62 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
         <datalist id="tf-subgroup-list">${this.subgroupDatalistOptions(t.project)}</datalist>
       </div>
     </div>
-    <div class="form-field">
-      <label>預計開始</label>
-      <div id="tf-start-block" class="startmode" data-mode="${startMode}">
-        <div class="startmode-auto">
-          <div class="startmode-display"><span class="startmode-badge">自動</span><span class="startmode-value">${U.esc(autoStartDisplay)}</span></div>
-          <button type="button" class="startmode-switch" onclick="App.setStartMode('manual')">改用手動指定日期</button>
-          <div class="field-hint">由前置任務推算，會隨前置調整自動更新。</div>
-        </div>
-        <div class="startmode-manual">
-          <div class="startmode-manual-line">
-            <input type="date" id="tf-start" value="${v(t.start)}">
-            <button type="button" class="startmode-switch" onclick="App.setStartMode('auto')">改回自動排</button>
-          </div>
-          <div class="field-hint">這天固定不動，不受前置推算影響。</div>
-        </div>
+    <div class="measure-toggle">
+      <button type="button" class="measure-btn ${measure==='duration'?'active':''}" data-measure="duration" onclick="App.setMeasureMode('duration')">工期制（工作天）</button>
+      <button type="button" class="measure-btn ${measure==='hours'?'active':''}" data-measure="hours" onclick="App.setMeasureMode('hours')">時段制（工時 h）</button>
+    </div>
+
+    <div class="tf-section-label">權責</div>
+    <div class="form-row">
+      <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
+      <div class="form-field"><label>類型 <span data-tip="類型|任務=要排程的工作；里程碑=時間點標記（工期0）；群組=純分類母項，不排程" style="cursor:help;">?</span></label>
+        <select id="tf-taskType">
+          <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
+          <option value="milestone" ${t.taskType === 'milestone' ? 'selected' : ''}>◆ 里程碑</option>
+          <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
+        </select>
       </div>
     </div>
-    <input type="hidden" id="tf-effstart" value="${v(getEffectiveSchedule(t).start)}">
-    <div class="form-row dur-only">
-      <div class="form-field"><label>預計完成 / Deadline</label><input type="date" id="tf-end" value="${v(getEffectiveSchedule(t).end)}"></div>
-    </div>
-    <div class="form-row mg-duration">
-      <div class="form-field"><label>工期（工作天）</label><input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" step="1"></div>
-    </div>
-    <div class="dur-only">${App.buildHintBox({
-      key: 'task-time', icon: 'ti-clock-bolt', title: '時間怎麼連動', summary: '填兩個，第三個自動算',
+
+    <div class="tf-sched-card">
+      <div class="tf-sched-title"><i class="ti ti-clock-bolt" aria-hidden="true"></i>排程與時程</div>
+      <div class="form-field dur-only tf-pred-field">
+        <label>前置任務</label>
+        ${App.buildPredListHtml(t)}
+      </div>
+      <div class="tf-chain">
+        <div class="tf-chain-cell tf-start-cell">
+          <div class="tf-cell-label">預計開始</div>
+          <input type="date" id="tf-start" value="${startInputVal}"${isAutoStart ? ' data-autostart="1"' : ''}>
+        </div>
+        <div class="tf-chain-arrow dur-only"><i class="ti ti-arrow-right" aria-hidden="true"></i></div>
+        <div class="tf-chain-cell tf-dur-cell mg-duration">
+          <div class="tf-cell-label tf-cell-accent">工期（天）</div>
+          <input type="number" id="tf-duration" value="${v(t.durationDays) || 1}" step="1">
+        </div>
+        <div class="tf-chain-cell tf-hours-cell mg-hours">
+          <div class="tf-cell-label">預估工時 (h)</div>
+          <input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5">
+        </div>
+        <div class="tf-chain-arrow dur-only"><i class="ti ti-arrow-right" aria-hidden="true"></i></div>
+        <div class="tf-chain-cell tf-end-cell dur-only">
+          <div class="tf-cell-label">預計完成 / Deadline</div>
+          <input type="date" id="tf-end" value="${v(effSch.end)}">
+        </div>
+      </div>
+      <input type="hidden" id="tf-effstart" value="${v(effSch.start)}">
+      <div class="field-hint tf-chain-hint dur-only">${startHint}</div>
+      <div class="dur-only">${App.buildHintBox({
+      key: 'task-time', icon: 'ti-clock-bolt', title: '時間怎麼連動', summary: '填兩個，第三個自動算', collapsed: true,
       bodyHtml:
         '<div class="ht-rule ht-start"><b>改開始日</b><span>工期不動，自動算出新的完成日。例：開始改 6/25、工期 5 天 → 完成自動變 7/1（跳週末與國定假日）。</span></div>' +
         '<div class="ht-rule ht-dur"><b>改工期</b><span>開始日當錨不動，自動算出新的完成日。例：工期改 7 天 → 完成日往後移到第 7 個工作天。</span></div>' +
         '<div class="ht-rule ht-end"><b>改完成日</b><span>開始日不動，回算工期（等於調整這任務要做多久）。例：完成改 7/3 → 工期自動變成 6/25 到 7/3 的工作天數。</span></div>' +
         '<div class="ht-rule ht-down"><b>下游連動</b><span>這任務時間一改，有設前置的下游任務跟著自動重排；你手動指定過日期的任務不會被動到。</span></div>'
     })}</div>
-    <div class="form-row mg-hours">
-      <div class="form-field"><label>預估工時 (h)</label><input type="number" id="tf-hours" value="${v(t.estHours) || 1}" min="0.5" step="0.5"></div>
     </div>
-    <div class="form-field dur-only">
-      <label>前置任務</label>
-      ${App.buildPredListHtml(t)}
-    </div>
+
+    <div class="tf-section-label">狀態與說明</div>
     <div class="form-row">
       <div class="form-field"><label>緊急程度 <span data-tip="緊急程度|系統自動推算，可手動覆蓋" style="cursor:help;">?</span></label>
         <select id="tf-urgency">
@@ -4904,6 +4906,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
       <label>說明</label>
       <textarea id="tf-desc" placeholder="任務詳細說明（選填）">${U.esc(v(t.desc))}</textarea>
     </div>
+
     <div class="form-collapse ${mode === 'edit' ? 'open' : ''}" id="tf-actualSection">
       <div class="form-collapse-head" onclick="document.getElementById('tf-actualSection').classList.toggle('open')">
         <span class="form-collapse-chevron">▸</span> 實際執行
@@ -4923,6 +4926,8 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
         </div>
       </div>
     </div>
+
+    <div class="tf-section-label">風險與其他</div>
     <div class="form-field">
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="tf-riskHL" ${t.riskHL ? 'checked' : ''} style="width:auto;">
@@ -4937,12 +4942,6 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
     <div class="form-field dur-only">
       <label>備註</label>
       <input type="text" id="tf-note" value="${U.esc(v(t.note))}">
-    </div>
-    <div class="form-field dur-only">
-      <label style="display:flex; align-items:center; gap:6px;">
-        <input type="checkbox" id="tf-split" ${t.canSplit !== false ? 'checked' : ''} style="width:auto;">
-        可切分（≥4h 任務拆成多天）
-      </label>
     </div>
     <div class="form-field dur-only">
       <label style="display:flex; align-items:center; gap:6px;">
@@ -5036,7 +5035,7 @@ App.saveNewTask = function(projId, _skipNegCheck) {
     requiredTask: true,    // §7.1（預設全必要）
     mustIssue: false,      // §7.1
     note: document.getElementById('tf-note').value.trim(),
-    canSplit: document.getElementById('tf-split').checked,
+    canSplit: true,   // 表單改造：可切分欄位移除，新任務沿用預設可切分
     scheduleToCalendar: document.getElementById('tf-cal').checked,
     completedAt: status === 'done' ? new Date().toISOString() : null,
     createdAt: new Date().toISOString(),
@@ -5208,7 +5207,7 @@ App.saveTask = function(id, _skipNegCheck) {
   t.deliverable = document.getElementById('tf-deliverable').value.trim();
   t.deliverableLink = document.getElementById('tf-deliverableLink').value.trim();
   t.note      = document.getElementById('tf-note').value.trim();
-  t.canSplit  = document.getElementById('tf-split').checked;
+  // 表單改造：可切分欄位移除，編輯不覆蓋既有 t.canSplit
   t.scheduleToCalendar = document.getElementById('tf-cal').checked;
   ensureDeliverFields(t);   // §7.1：UI 未接，只補缺不蓋既有值（單一兜底，不寫死預設覆蓋）
 

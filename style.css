@@ -1343,21 +1343,6 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ht-rule.ht-end { background: var(--slate-l); color: var(--slate-ink); }
 .ht-rule.ht-down { background: var(--rose-l); color: var(--rose-ink); }
 
-/* 2-A：預計開始「自動／手動」雙態（data-mode 顯隱對應子區塊） */
-.startmode { display: flex; flex-direction: column; gap: var(--r4); }
-.startmode[data-mode="auto"] .startmode-manual { display: none; }
-.startmode[data-mode="manual"] .startmode-auto { display: none; }
-.startmode-auto, .startmode-manual { display: flex; flex-direction: column; gap: var(--r4); }
-/* 自動態：灰底唯讀顯示列 */
-.startmode-display { display: flex; align-items: center; gap: var(--r6); height: 36px; padding: 0 var(--r8); border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface2); }
-/* 「自動」badge：比照 .tag-meeting 的 slate（info）配對 */
-.startmode-badge { font-size: 11px; font-weight: 500; color: var(--slate-ink); background: var(--slate-l); padding: 2px var(--r6); border-radius: var(--r6); }
-.startmode-value { font-size: 13px; color: var(--ink3); }
-.startmode-manual-line { display: flex; align-items: center; gap: var(--r6); }
-.startmode-manual-line input { flex: 1 1 auto; min-width: 0; height: 36px; padding: 0 var(--r8); }
-/* 切換鈕：text-link（比照 .pred-add 慣例） */
-.startmode-switch { flex: 0 0 auto; border: none; background: none; cursor: pointer; color: var(--sage-700); font-size: 12px; padding: 2px 0; white-space: nowrap; }
-.startmode-switch:hover { text-decoration: underline; }
 
 /* 計量方式切換（第27項，殼）：總開關在表單頂，data-measure 放 .task-form 遙控下方分散欄位 */
 .task-form[data-measure="duration"] .mg-hours { display: none; }
@@ -1372,6 +1357,31 @@ body.viewonly .cloud-sync-sec { display: none; }
   border: 2px solid var(--sage-600);
   font-weight: 500;
 }
+
+/* ── 任務 modal 排版重構（.tf-redesign 限定，不影響其他表單）─────────────── */
+/* 欄位標題改 13px sentence-case 暖墨（覆蓋全站 11px mono uppercase） */
+.tf-redesign .form-field label { font-size: 13px; font-weight: 500; color: var(--ink2); font-family: var(--sans); letter-spacing: normal; text-transform: none; }
+.tf-redesign .tf-field-name input { font-size: 15px; }
+/* 分區小標＋細線 */
+.tf-redesign .tf-section-label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 500; color: var(--ink4); letter-spacing: .04em; margin: 18px 0 8px; }
+.tf-redesign .tf-section-label::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
+/* 排程與時程群組卡 */
+.tf-redesign .tf-sched-card { background: var(--surface2); border: 1px solid var(--rule); border-radius: var(--r12); padding: 14px; margin-bottom: 18px; }
+.tf-redesign .tf-sched-title { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 500; color: var(--sage-700); margin-bottom: 14px; }
+.tf-redesign .tf-sched-title i { font-size: 17px; color: var(--sage-600); }
+.tf-redesign .tf-pred-field { margin-bottom: 14px; }
+/* 時程三劍客橫列：預計開始 → 工期 → 預計完成（皆可直接編輯） */
+.tf-redesign .tf-chain { display: flex; align-items: stretch; gap: 0; border-top: 1px dashed var(--rule); padding-top: 14px; }
+.tf-redesign .tf-chain-cell { display: flex; flex-direction: column; }
+.tf-redesign .tf-start-cell, .tf-redesign .tf-end-cell { flex: 1; }
+.tf-redesign .tf-dur-cell, .tf-redesign .tf-hours-cell { width: 100px; flex: none; }
+.tf-redesign .tf-chain-arrow { display: flex; align-items: flex-end; padding: 0 7px 9px; }
+.tf-redesign .tf-chain-arrow i { font-size: 16px; color: var(--stone-300); }
+.tf-redesign .tf-cell-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink3); margin-bottom: 4px; }
+.tf-redesign .tf-cell-accent { justify-content: center; color: var(--sage-700); font-weight: 500; }
+.tf-redesign .tf-chain input { width: 100%; box-sizing: border-box; height: 38px; padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface); font-size: 13px; }
+.tf-redesign .tf-dur-cell input { text-align: center; background: var(--sage-50); border: 1.5px solid var(--sage-300); font-weight: 500; color: var(--sage-700); }
+.tf-redesign .tf-chain-hint { margin-top: 8px; color: var(--ink4); line-height: 1.5; }
 
 /* Color picker */
 .color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
