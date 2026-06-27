@@ -1627,29 +1627,141 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2-slack-red { background: var(--rose-l); border-color: var(--rose); color: var(--rose-ink); }
 .s2-slack-red .s2-slack-dot { background: var(--rose); }
 
-/* ── §4.8.7.5 溢出三層紅燈引導面板（紅燈時顯示，綠/黃 → 不顯示）── */
-.s2-ovf { border: 1px solid var(--rose-l); border-radius: var(--r10); background: var(--paper); padding: 12px 14px; margin-bottom: 12px; }
-.s2-ovf-hd { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--rose-ink); margin-bottom: 10px; }
-.s2-ovf-hd i { font-size: 16px; }
-.s2-ovf-plan { display: flex; gap: 11px; align-items: flex-start; background: var(--surface); border: 1px solid var(--stone-100); border-left: 4px solid var(--stone-200); border-radius: var(--r8); padding: 10px 12px; }
-.s2-ovf-plan + .s2-ovf-plan { margin-top: 8px; }
-.s2-ovf-e1 { border-left-color: var(--sage-500); }
-.s2-ovf-e2 { border-left-color: var(--amber); }
-.s2-ovf-e3 { border-left-color: var(--rose); }
-.s2-ovf-no { flex: none; width: 23px; height: 23px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: var(--ink-inverse); }
-.s2-ovf-e1 .s2-ovf-no { background: var(--sage-600); }
-.s2-ovf-e2 .s2-ovf-no { background: var(--amber); }
-.s2-ovf-e3 .s2-ovf-no { background: var(--rose); }
-.s2-ovf-body { flex: 1 1 auto; min-width: 0; }
-.s2-ovf-t { font-size: 13px; font-weight: 500; color: var(--ink2); display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
-.s2-ovf-tag { font-size: 11px; padding: 1px 8px; border-radius: 99px; }
-.s2-ovf-tag.easy { background: var(--sage-50); color: var(--sage-700); }
-.s2-ovf-tag.hard { background: var(--rose-l); color: var(--rose-ink); }
-.s2-ovf-d { font-size: 12.5px; color: var(--ink3); line-height: 1.55; }
-.s2-ovf-d b { color: var(--ink2); font-weight: 500; }
-.s2-ovf-row { display: flex; align-items: center; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
-.s2-ovf-date { font-size: 13px; padding: 5px 9px; border: 1px solid var(--stone-200); border-radius: var(--r6); background: var(--paper); color: var(--ink2); }
-.s2-ovf-btn { font-size: 12.5px; padding: 7px 13px; }
+/* ── §4.8.7.5/.8 舊版嵌入式溢出引導 `.s2-ovf*` CSS 已退役（2026-06-27），由下方 §4.8.7.9 `.ovf-*` 取代 ── */
+
+/* ── §4.8.7.9 智慧排程衝突處理面板（聚焦獨立頁：分頁＋三層卡＋層二Top3快選＋層三戰報/時程異動表）── */
+.ovf-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); margin-bottom: 16px; flex-wrap: wrap; }
+.ovf-tab { background: none; border: none; border-bottom: 2px solid transparent; padding: 9px 15px; cursor: pointer; font-size: 13px; color: var(--ink4); display: flex; align-items: center; gap: 7px; }
+.ovf-tab:hover { color: var(--ink2); }
+.ovf-tab.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--terracotta); }
+.ovf-tab-lack { color: var(--rose); font-size: 12px; }
+.ovf-tab-ok { color: var(--sage-600); font-size: 12px; }
+.ovf-case-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.ovf-case-name { font-size: 17px; font-weight: 600; color: var(--ink); }
+.ovf-case-range { margin-left: auto; font-size: 12px; color: var(--ink4); }
+.ovf-rangebadge { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ovf-rb-old { color: var(--ink4); }
+.ovf-rb-old i { font-size: 12px; vertical-align: -1px; }
+.ovf-rb-arr { color: var(--terracotta); font-weight: 700; }
+.ovf-rb-new { color: var(--ink2); font-weight: 500; }
+.ovf-rb-delay { color: var(--terracotta-ink); background: var(--terracotta-l); padding: 1px 6px; border-radius: var(--r4); }
+.ovf-resolved { display: flex; align-items: center; gap: 8px; background: var(--sage-50); border: 1px solid var(--sage-chip); border-radius: var(--r10); padding: 14px 16px; font-size: 13px; color: var(--sage-700); }
+.ovf-resolved i { font-size: 18px; }
+.ovf-banner { background: var(--rose-l); border: 1px solid var(--rose); border-radius: var(--r10); padding: 11px 14px; font-size: 13px; font-weight: 600; color: var(--rose-ink); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.ovf-banner b { color: var(--rose-ink); }
+.ovf-bdot { width: 9px; height: 9px; border-radius: 50%; background: var(--rose); flex: none; }
+.ovf-banner.ok { background: var(--sage-50); border-color: var(--sage-chip); color: var(--sage-700); }
+.ovf-banner.ok i { font-size: 16px; color: var(--sage-600); }
+.ovf-resolved-hint { display: flex; align-items: center; gap: 8px; background: var(--sage-50); border: 1px solid var(--sage-chip); border-radius: var(--r10); padding: 14px 16px; font-size: 13px; color: var(--sage-700); }
+.ovf-resolved-hint i { font-size: 17px; }
+.ovf-l2-recalc-btn { background: var(--surface); color: var(--amber-ink); border: 1px solid var(--amber-accent); border-radius: var(--r8); padding: 6px 13px; font-size: 12.5px; font-weight: 500; cursor: pointer; }
+.ovf-l2-recalc-btn:hover { background: var(--amber-l); }
+.ovf-t3hd.ok { color: var(--sage-700); }
+.ovf-t3hd.ok i { color: var(--sage-600); }
+.ovf-hd { font-size: 13.5px; font-weight: 600; color: var(--ink2); margin-bottom: 10px; }
+.ovf-plan { display: flex; gap: 11px; align-items: flex-start; background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--stone-200); border-radius: 0 var(--r10) var(--r10) 0; padding: 12px 14px; margin-bottom: 10px; }
+.ovf-p1 { border-left-color: var(--sage-500); }
+.ovf-p2 { border-left-color: var(--amber); }
+.ovf-p2.on { background: var(--amber-l); border-color: var(--amber); }
+.ovf-p3 { border-left-color: var(--rose); }
+.ovf-radio { flex: none; width: 16px; height: 16px; border: 2px solid var(--stone-200); border-radius: 50%; cursor: pointer; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+.ovf-radio.on { border-color: var(--amber); }
+.ovf-radio.on span { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+.ovf-pbody { flex: 1 1 auto; min-width: 0; }
+.ovf-pt { font-size: 13.5px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 7px; margin-bottom: 4px; cursor: pointer; flex-wrap: wrap; }
+.ovf-p2.on .ovf-pt { color: var(--amber-ink); }
+.ovf-pd { font-size: 12px; color: var(--ink4); line-height: 1.55; }
+.ovf-tag { font-size: 11px; padding: 1px 8px; border-radius: 99px; }
+.ovf-tag.easy { background: var(--sage-chip); color: var(--sage-700); }
+.ovf-tag.mid { background: var(--surface); color: var(--amber-ink); border: 1px solid var(--amber); }
+.ovf-tag.hard { background: var(--rose-l); color: var(--rose-ink); }
+.ovf-p1btn { font-size: 12.5px; padding: 7px 13px; margin-top: 9px; }
+.ovf-p3lock { font-size: 11px; color: var(--ink4); }
+.ovf-l2-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.ovf-l2-date { font-size: 12.5px; padding: 6px 9px; border: 1px solid var(--stone-200); border-radius: var(--r8); background: var(--surface); color: var(--ink2); }
+.ovf-t3box { margin-top: 12px; background: var(--surface); border: 1px solid var(--amber); border-radius: var(--r10); padding: 13px 15px; }
+.ovf-t3hd { font-size: 12.5px; font-weight: 600; color: var(--amber-ink); display: flex; gap: 7px; margin-bottom: 10px; line-height: 1.45; }
+.ovf-t3hd i { color: var(--amber-accent); font-size: 16px; flex: none; margin-top: 1px; }
+.ovf-t3row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.ovf-t3n { background: var(--sage-50); color: var(--sage-700); font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; flex: none; }
+.ovf-t3nm { font-size: 13px; color: var(--ink); width: 84px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovf-t3dur { font-size: 12px; color: var(--ink4); }
+.ovf-t3dur b { color: var(--ink2); }
+.ovf-t3arr, .ovf-t3or { color: var(--ink4); font-size: 12px; }
+.ovf-t3man { font-size: 12px; color: var(--ink3); }
+.ovf-t3inp { width: 50px; padding: 4px 6px; border: 1px solid var(--stone-200); border-radius: var(--r6); font-size: 12px; text-align: center; }
+.ovf-pill { min-width: 64px; text-align: center; background: var(--amber-l); color: var(--amber-ink); border: 1px solid var(--amber); border-radius: 99px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.ovf-pill:hover { background: var(--amber); color: var(--ink-inverse); }
+.ovf-t3foot { display: flex; align-items: center; gap: 18px; margin-top: 13px; border-top: 1px solid var(--rule); padding-top: 12px; flex-wrap: wrap; }
+.ovf-recalc { font-size: 12.5px; padding: 7px 15px; }
+.ovf-unlock { font-size: 12px; color: var(--amber-accent); font-weight: 600; cursor: pointer; border-bottom: 1px solid var(--amber-accent); }
+.ovf-mini { margin-top: 12px; background: var(--cream); border: 1px solid var(--rule); border-radius: var(--r8); padding: 11px 13px; }
+.ovf-mini-hd { font-size: 11.5px; font-weight: 600; color: var(--ink2); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+.ovf-mini-hd i { color: var(--amber-accent); font-size: 14px; }
+.ovf-mini-row { display: flex; align-items: baseline; gap: 7px; font-size: 11.5px; flex-wrap: wrap; margin-bottom: 6px; }
+.ovf-mini-k { color: var(--ink4); min-width: 78px; }
+.ovf-mini-old { color: var(--ink4); }
+.ovf-mini-arr { color: var(--rose); font-weight: 700; }
+.ovf-mini-lack { color: var(--rose-ink); }
+.ovf-mini-ok { color: var(--sage-700); }
+.ovf-mini-cut { color: var(--sage-700); font-weight: 600; }
+.ovf-mini-judge { font-size: 11px; color: var(--ink3); line-height: 1.5; }
+.ovf-mini-judge b { color: var(--amber-ink); }
+.ovf-locktable { background: var(--cream); border: 1px solid var(--rule); border-radius: var(--r10); padding: 18px; text-align: center; font-size: 12.5px; color: var(--ink3); margin-top: 4px; }
+.ovf-locktable i { margin-right: 6px; }
+.ovf-seg-wrap { margin-bottom: 14px; }
+.ovf-seg { display: inline-flex; border: 1px solid var(--stone-200); border-radius: var(--r8); overflow: hidden; box-shadow: var(--shadow-sm); }
+.ovf-sgm { display: flex; align-items: center; gap: 5px; padding: 7px 14px; background: var(--stone-50); color: var(--ink3); border-right: 1px solid var(--stone-200); cursor: pointer; }
+.ovf-sgm:last-child { border-right: none; }
+.ovf-sgm:hover:not(.on) { background: var(--stone-100); }
+.ovf-sgm.on { background: var(--rose); color: var(--ink-inverse); }
+.ovf-sgm .sl1 { font-size: 12.5px; font-weight: 600; }
+.ovf-sgm .sl2 { font-size: 11px; color: var(--ink4); }
+.ovf-sgm.on .sl2 { color: var(--ink-inverse); opacity: .9; }
+.ovf-seg-tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 7px solid var(--rose); margin-left: 74px; }
+.ovf-seg-hint { font-size: 11px; color: var(--ink4); margin-top: 6px; }
+.ovf-seg-hint i { color: var(--amber-accent); }
+.ovf-battle { background: var(--rose-l); border: 1px solid var(--rose-chip); border-radius: var(--r12); padding: 13px 15px; margin-bottom: 16px; }
+.ovf-battle.done { background: var(--sage-50); border-color: var(--sage-chip); }
+.ovf-battle-hd { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 11px; display: flex; align-items: center; gap: 6px; }
+.ovf-battle-hd i { font-size: 17px; color: var(--rose); }
+.ovf-battle.done .ovf-battle-hd i { color: var(--sage-600); }
+.ovf-bhead { display: grid; grid-template-columns: 120px 1fr 1.3fr 110px; gap: 8px; font-size: 11px; color: var(--ink4); font-weight: 600; padding-bottom: 7px; border-bottom: 1px solid var(--rule); }
+.ovf-bjh { text-align: center; }
+.ovf-brow { display: grid; grid-template-columns: 120px 1fr 1.3fr 110px; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); font-size: 11.5px; }
+.ovf-bk { font-weight: 600; color: var(--ink2); }
+.ovf-bold { color: var(--ink4); }
+.ovf-bnew { color: var(--ink2); }
+.ovf-arr { color: var(--rose); font-weight: 700; }
+.ovf-battle.done .ovf-arr { color: var(--sage-600); }
+.ovf-bcut { color: var(--sage-700); font-weight: 600; }
+.ovf-bjudge { text-align: center; }
+.ovf-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.ovf-chip.cgreen { background: var(--sage-50); color: var(--sage-700); }
+.ovf-chip.camber { background: var(--amber-l); color: var(--amber-ink); }
+.ovf-chip.cred { background: var(--rose-l); color: var(--rose-ink); }
+.ovf-chip.cgray { background: var(--stone-100); color: var(--ink3); }
+.ovf-battle.done .ovf-chip.cgreen { background: var(--sage-600); color: var(--ink-inverse); }
+.ovf-black { color: var(--rose-ink); }
+.ovf-bok { color: var(--sage-700); }
+.ovf-bsub { color: var(--ink4); }
+.ovf-s3 { margin-top: 2px; }
+.ovf-s3-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 11.5px; color: var(--ink4); flex-wrap: wrap; }
+.ovf-tbl { width: 100%; border-collapse: collapse; border: 1px solid var(--rule); border-radius: var(--r10); overflow: hidden; font-size: 12.5px; }
+.ovf-tbl thead th { background: var(--sage-700); color: var(--ink-inverse); font-size: 12px; font-weight: 600; padding: 9px 12px; text-align: left; }
+.ovf-tbl tbody td { padding: 8px 12px; border-top: 1px solid var(--rule); }
+.ovf-strow td { background: var(--cream); font-weight: 600; color: var(--ink2); font-size: 11.5px; padding: 6px 12px; }
+.ovf-rmod td { background: var(--terracotta-l); }
+.ovf-mod-tag { color: var(--terracotta-ink); font-size: 11px; }
+.ovf-longtag { background: var(--rose-l); color: var(--rose-ink); font-size: 11px; padding: 1px 7px; border-radius: 99px; }
+.ovf-c-seq { width: 30px; color: var(--ink4); }
+.ovf-c-tag { width: 130px; }
+.ovf-c-dur { width: 74px; }
+.ovf-c-chg { width: 160px; font-size: 11px; line-height: 1.45; }
+.ovf-dur-inp { width: 52px; padding: 5px; text-align: center; border: 1px solid var(--stone-200); border-radius: var(--r6); font-size: 12.5px; }
+.ovf-dur-inp.on { border: 1.5px solid var(--amber-accent); background: var(--terracotta-l); color: var(--amber-ink); font-weight: 600; }
+.ovf-zo, .ovf-z0 { color: var(--ink4); }
+.ovf-zn { color: var(--ink2); font-weight: 600; }
 
 /* ── 範本第二階段 步驟3：Gantt 階段軸（色點＋綠黃紅燈號，點階段切換清單）── */
 .s2-gantt-axis { margin: 4px 0 12px; }
@@ -1797,15 +1909,17 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* ═══ §4.8.7.4b 塊3a-刀1（步2）：教育卡 + 第一頁文案版面 ═══ */
 .s1-edu-lead { font-size: 13px; color: var(--ink2); margin-bottom: 14px; }
 .s1-edu-cards { display: flex; gap: 12px; flex-wrap: wrap; }
-.s1-edu-card { flex: 1; min-width: 200px; padding: 14px; border: 1px solid var(--rule); border-radius: var(--r8); background: var(--surface); box-shadow: var(--shadow); }
+.s1-edu-card { flex: 1; min-width: 200px; padding: 14px; border: 1.5px solid var(--amber-accent); border-radius: var(--r8); background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; }
+.s1-edu-coretop { min-height: 80px; }
 .s1-edu-cardhd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .s1-edu-ico { font-size: 22px; color: var(--ink3); }
 .s1-edu-tag { padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
 .s1-tag-start { background: var(--sage-100); color: var(--sage-800); }
 .s1-tag-end { background: var(--terracotta-l); color: var(--terracotta-ink); }
 .s1-tag-both { background: var(--navy-from); color: var(--navy-ink); }
-.s1-edu-cardtitle { font-weight: 600; font-size: 13px; margin-bottom: 6px; color: var(--ink); }
-.s1-edu-carddesc { font-size: 13px; line-height: 1.5; color: var(--ink2); }
+.s1-edu-cardtitle { font-weight: 600; font-size: 14px; margin-bottom: 5px; color: var(--ink); }
+.s1-edu-carddesc { font-size: 12.5px; line-height: 1.55; color: var(--ink3); }
+.s1-edu-secret { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--rule2); font-size: 11px; line-height: 1.55; color: var(--ink4); }
 .s1-edu-bulb { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 10px 12px; background: var(--sage-50); border-radius: var(--r8); font-size: 12px; line-height: 1.6; color: var(--sage-700); }
 .s1-edu-bulb .ti { flex: none; font-size: 16px; margin-top: 1px; margin-right: 2px; }
 .s1-top-col { display: flex; flex-direction: column; gap: 4px; }

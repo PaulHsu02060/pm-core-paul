@@ -531,6 +531,12 @@ Auth（檢視/編輯/登入）
 
 ##### 4.8.7.8 溢出三層紅燈引導 第一刀落地紀錄（2026-06-27，`[unverified]`）
 
+> ⚠ **已被 §4.8.7.9 取代並退役（2026-06-27）**：本節描述的「嵌入 Stage 2、堆疊逐案、非 Tab」舊版溢出引導
+> （`_s2OverflowGuideHtml`／`_s2AdoptFastest`／`_s2OverflowRecalc`／`_s2OverflowHandoff`＋`.s2-ovf*` CSS）
+> 經使用者實測後否決（「不該一進來就攤 Stage 2 全表、版型對不上定案 mockup」），改為 §4.8.7.9 的**獨立聚焦分頁面板**。
+> 本批已**移除**舊函式與接線（`_renderStage2New`／`_s2RefreshCase` 不再渲染 `_s2OverflowGuideHtml`）。本節保留為設計沿革。
+> **仍保留共用**：`_s2VariantSlack`（餘裕單一真實來源，新面板續用）、`_s2CommitNew`／`_s2DoCommit`（建立路徑）、`_s2SlackHtml`（Stage 2 狀態條）。
+
 > 承 §4.8.7.5 規格、§4.8.7.7 新 Stage 2。本刀把紅燈（餘裕<0）的層一/層二引導＋建立閘門接到新 Stage 2。
 > **採堆疊逐案（非 Tab）**：每個 interval 紅燈案別在自己的 slack 框下渲染引導面板，多子案各自處理；
 > 接力靠 toast＋捲動到下一個紅案（取代 mockup 的 Tab 切換，先求功能到位、整合既有堆疊版面、低風險）。
@@ -553,6 +559,51 @@ Auth（檢視/編輯/登入）
 4. `[unverified]`：待線上驗（紅燈案層一一鍵改上市日轉綠、層二手填重算、多子案接力、建立軟提醒）。
 
 **關鍵函式**：`_s2VariantSlack`／`_s2OverflowGuideHtml`／`_s2AdoptFastest`／`_s2OverflowRecalc`／`_s2OverflowHandoff`；接線改 `_renderStage2New`／`_s2RefreshCase`／`_s2CommitNew`；複用 `_computeSlack`／`_reschedulePreview`／`_effScheduleDir`。
+
+##### 4.8.7.9 智慧排程衝突處理面板（獨立聚焦頁，取代 §4.8.7.8 嵌入版；2026-06-27，`[unverified]`）
+
+> 設計來源：2026-06-27 一連串 mockup-to-code 定案（使用者拍板）。取代 §4.8.7.8「嵌入 Stage 2、堆疊逐案」舊版。
+> 版本：app.js／style.css `?v=20260627-16`。⚠ 全批 `[unverified]`，待線上逐項驗。
+
+**核心流程（單一閉環）**
+- 第一階段填寫頁「下一步：檢視任務」`_flowStage1Next`：`applyTemplate`（不落地）→ 偵測任一案別紅燈（`_s2VariantSlack.light==='red'`）：
+  - **時間足夠** → 直接 `_renderStage2New`（編輯任務骨架頁，§4.8.7.7）。
+  - **時間不足** → 彈**過渡中繼彈窗 ③**（`confirmModal`，ti-chart-bar）「偵測到時程衝突！已為您開啟智慧排程引導」→ 按「開始智慧排程」→ `_renderOverflowFlow`（聚焦面板）。
+- 聚焦面板解決後 → **路由回 `_renderStage2New`**（任務細節/負責人在 Stage 2 處理，不在面板硬擋）→ Stage 2 footer 才走 `_s2CommitNew`／`_stage2Commit` 建立（單一建立路徑）。
+
+**版面（`_renderOverflowFlow`／`_ovfRender`，渲染進 `#page-stage2`）**
+1. **頂部分頁** `_ovfTabsInner`：每案一頁，紅燈標「● 尚缺 N 天」、已解決標「✓ 已足夠」；`_ovfSelectTab` 切案。
+2. **案頭前後時程對照看板** `_ovfRangeBadge`：`原始 start→baseEnd ➔ 新時程 start→curEnd（順延 N 個工作天）`（陶土色膠囊）；進場 snapshot `_ovfState.baseEnd/baseTask` 當「變更前」基準。
+3. **綠/紅 Banner**：紅＝排程不足；解決後 `_ovfCaseHtml` 轉綠成功 Banner（`.ovf-banner.ok`）。
+4. **三層卡（階段一，未選層別且紅）**：層一 `_ovfLayer1Html`（採用系統建議上市日 `earliestFinish`）／層二 `_ovfLayer2CardHtml`／層三 `_ovfLayer3CardHtml`＋鎖表 `_ovfLockedTableHtml`。**選了層別就原地留存**（即使編到綠燈也不塌回小卡，避免跳走錯覺）。
+5. **層二展開（sel='2'）** `_ovfLayer2Panel`：日期框＋`_ovfRecalc`（重新計算餘裕，可見的 `.ovf-l2-recalc-btn`）＋**Top 3 長工時快選** `_ovfTop3Html`（`-N天` 膠囊 `_ovfTrim`／手動 `_ovfSetDur`，即時扣工期重排）＋**層二 mini 戰報** `_ovfMiniBattleHtml`（已縮短 N／還差 M，足夠轉綠）。
+6. **層三（sel='3'）**：Segmented Control 切換卡 `_ovfSegmentedHtml`（層三選中、可切回層一/二）＋**即時戰報** `_ovfBattleHtml`（當前階段／整體工期／目標對齊三列，前後對比＋達標整欄轉綠 ✓）＋**時程異動表** `_ovfStage3TableHtml`（序/任務/標記/工期/原→新日期，改過列反色＋工期框高亮 `_ovfSetDur`）。
+
+**達標路由與回饋（重點修正）**
+- **方案一** `_ovfAdoptFastest`：`confirmModal`（circle-check）確認 → 改 endDate 重排 → `_ovfAfterResolve`：**全案達標→`_renderStage2New`**；仍有紅案→自動切下一紅案接力（toast）。
+- **方案二** `_ovfRecalc`／`_ovfReeval`：重算後一律彈**中央白底結果窗** `_ovfResultModal`（取代右下角灰 toast）——足夠→主鈕「**確認並前往調整任務細節**」→`_ovfAfterResolve`（路由 Stage 2，**不在此建立、不觸發原生「未指派負責人」confirm**）；不足→單按鈕資訊窗（`cancelText:null`）。
+- **底部主鈕**「前往調整任務細節 →」`_ovfGotoStage2`：紅案→設計款軟提醒（不硬擋）；全綠→直接前往。**上一步** `_ovfBack`：在層別內先退回三層選擇（保留本案編輯），已在三層選擇頁才回 Stage 1。
+
+**彈窗設計系統（履行「禁原生 confirm」鐵則）**
+- 增強既有共用 `App.confirmModal`（§6.5，渲染 `#confirmOverlay` 疊在 #modal 上）：選用 `icon`／`iconBg`／`iconColor`（圖示圓）＋`okClass`（危險鈕）＋`cancelText:null`（單按鈕）。**向後相容**既有負工期彈窗 2 個呼叫端。
+- 溢出全部確認（③過渡／方案一/二／建立軟提醒）走 `confirmModal`；已**移除**面板內所有 `confirm()`／驗證 toast。
+
+**Stage 1 排程預覽 backward 修正（同批，§4.8.7.4b 連帶）**
+- `_chainStagesBackward(stages, deadline)`：backward 跳階段時各段 lateFinish 全錨 deadline → 甘特塌成一團、順序錯亂（坑6 backward 版）。新增「末段對齊 deadline、各段依序往前、保留工期跨度」反向順序鏈；`_s1ComputePreview` backward 分支先串接、再回算真最晚開工日，真來不及才走情境C（紅＋報最快完工）。
+- **Stage 1 整體膠囊與甘特同源**：`_s1ComputePreview` 的 light/slack/overDays 改用「串接後各段最末落點 vs 上市日」算（interval／backward 皆套），修「膠囊綠但甘特紅」矛盾（跳階段時 `_computeSlack` 低估 needed 誤判餘裕為正）。
+- **`_s2VariantSlack` 補 backward**：原只算 interval（backward 回 null → 溢出面板誤判已足夠、無選項）；補「順推自今日＋串接取最末完工（複用 `_s1ColorStagesForward`，`desc==stage` key 對得上）vs 上市日」→ 正確判紅、給 `earliestFinish`/`overDays`。
+
+**已知近似（待後續精修）**
+1. **「關鍵路徑·長工時」標記**＝工期門檻近似（前 1/3 或 ≥15 天），真關鍵路徑（最長依賴鏈）待做。
+2. **Top 3 膠囊級距**（-N天）＝工期比例（≈15%／25%）算，非寫死 -3/-5。
+3. **`_s2VariantSlack` backward** 每次呼叫跑一次 `computeSchedule`（互動層級無感，案數極多時略重）。
+
+**未做／後續（❌）**
+1. 退役舊 §4.8.7.8 `_s2Overflow*` **已隨本批移除**；Stage 2 內若紅案（被軟提醒「仍要前往」帶入、或在 Stage 2 改工期變紅）目前只剩狀態條顯紅＋可在 Stage 2 任務表直接改工期，**無嵌入引導**（設計上溢出引導集中在聚焦面板）。如要「Stage 2 紅案導回聚焦面板」是後續可選增強。
+2. 真關鍵路徑標記、層三鎖表（半透明遮罩）。
+3. `[unverified]`：待線上逐項驗（子案 backward 有選項、方案一二達標進 Stage 2 不跳原生框、對照看板、無灰 toast、Stage1 膠囊與甘特一致）。
+
+**關鍵函式**：`_renderOverflowFlow`／`_ovfRender`／`_ovfRefresh`／`_ovfTabsInner`／`_ovfSelectTab`／`_ovfPickLayer`／`_ovfCaseHtml`／`_ovfRangeBadge`／`_ovfLayer1Html`／`_ovfLayer2CardHtml`／`_ovfLayer2Panel`／`_ovfTop3Html`／`_ovfMiniBattleHtml`／`_ovfLayer3CardHtml`／`_ovfLockedTableHtml`／`_ovfSegmentedHtml`／`_ovfBattleHtml`／`_ovfStage3TableHtml`／`_ovfAdoptFastest`／`_ovfRecalc`／`_ovfReeval`／`_ovfResultModal`／`_ovfTrim`／`_ovfSetDur`／`_ovfAfterResolve`／`_ovfGotoStage2`／`_ovfBack`；引擎/共用：`_chainStagesBackward`／`_s1ColorStagesForward`／`_s2VariantSlack`(+backward)／`_reschedulePreview`／`confirmModal`(+icon)；接線：`_flowStage1Next`(③)／`_renderStage2New`(移除舊溢出)／`_s2RefreshCase`(移除舊溢出)。**CSS**：`.ovf-*`（分頁/三層卡/Top3/mini戰報/segmented/戰報/時程異動表/對照看板，全走 `:root`）。
 
 ### 4.9 工期排程接 UI 自動觸發（2026-06-13 已落地，commit `cc7436a`）
 
