@@ -7181,14 +7181,26 @@ App._ovfCaseHtml = function(vid) {
   if (sel === '2') {
     return head + banner + App._ovfLayer2Panel(vid, s, v);
   }
+  if (sel === '1') {
+    // §N1：採用層一後 → 層一卡選中（燈亮）＋層二卡反灰鎖；達標 banner；按右下角「下一步」進 Stage 2 或切上方 Tab 處理別案。
+    return head + banner + App._ovfLayer1Html(vid, s, v, true) + App._ovfLayer2CardHtml(vid, v, true);
+  }
   if (resolved) {
     return head + banner + '<div class="ovf-resolved-hint"><i class="ti ti-arrow-down-circle"></i> 可直接點右下角「下一步」進任務大表，或切換上方其他案別繼續處理。</div>';
   }
   return head + banner + '<div class="ovf-hd">排程時間不足（尚缺 ' + s.overDays + ' 個工作天），請用以下方式處理；仍不足可按右下角「下一步：進階調整任務工期」進大表逐項微調：</div>' +
     App._ovfLayer1Html(vid, s, v) + App._ovfLayer2CardHtml(vid, v);
 };
-App._ovfLayer1Html = function(vid, s, v) {
+App._ovfLayer1Html = function(vid, s, v, selected) {
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
+  if (selected) {
+    return '<div class="ovf-plan ovf-p1 on">' +
+      '<div class="ovf-radio on"><span></span></div>' +
+      '<div class="ovf-pbody">' +
+        '<div class="ovf-pt">已採用系統建議的最快可行上市日 <span class="ovf-tag easy">已套用</span></div>' +
+        '<div class="ovf-pd">上市日已改為 <b>' + fmtD(v.schedule.endDate) + '</b>，系統已重排並點亮綠燈。如需改用其他方式，按左下「上一步」可退回重選。</div>' +
+      '</div></div>';
+  }
   return '<div class="ovf-plan ovf-p1">' +
     '<div class="ovf-radio" onclick="App._ovfAdoptFastest(\'' + vid + '\')"></div>' +
     '<div class="ovf-pbody">' +
@@ -7197,12 +7209,13 @@ App._ovfLayer1Html = function(vid, s, v) {
       '<button class="tb-action ovf-p1btn" onclick="App._ovfAdoptFastest(\'' + vid + '\')">把上市日期改成 ' + fmtD(s.earliestFinish) + '</button>' +
     '</div></div>';
 };
-App._ovfLayer2CardHtml = function(vid, v) {
+App._ovfLayer2CardHtml = function(vid, v, locked) {
   const fmtD = (x) => x ? String(x).replace(/-/g, '/') : '';
-  return '<div class="ovf-plan ovf-p2">' +
-    '<div class="ovf-radio" onclick="App._ovfPickLayer(\'' + vid + '\',\'2\')"></div>' +
+  const click = locked ? '' : ' onclick="App._ovfPickLayer(\'' + vid + '\',\'2\')"';
+  return '<div class="ovf-plan ovf-p2' + (locked ? ' locked' : '') + '">' +
+    '<div class="ovf-radio"' + click + '></div>' +
     '<div class="ovf-pbody">' +
-      '<div class="ovf-pt" onclick="App._ovfPickLayer(\'' + vid + '\',\'2\')">延後需求上市日 <span class="ovf-tag mid">中度微調 · 核心主線</span></div>' +
+      '<div class="ovf-pt"' + click + '>延後需求上市日 <span class="ovf-tag mid">中度微調 · 核心主線</span></div>' +
       '<div class="ovf-pd">重新指定一個您可以接受的較晚日期（須晚於 ' + fmtD(v.schedule.endDate) + '），或在內部精選長工時任務快速縮減。</div>' +
     '</div></div>';
 };
@@ -7288,7 +7301,8 @@ App._ovfAdoptFastest = function(vid) {
     onConfirm: function() {
       v.schedule.endDate = s.earliestFinish;
       App._reschedulePreview(res.tasks, res.variants, []);
-      App._ovfAfterResolve(vid);     // 達標→前往 Stage 2 任務細節編輯；仍有別案紅→接力切換
+      App._ovfState.sel[vid] = '1';   // §N1：採用層一後停留本案，層一燈亮、層二鎖；使用者自行按「下一步」進 Stage 2 或切 Tab 處理別案
+      App._ovfRefresh();
     }
   });
 };
