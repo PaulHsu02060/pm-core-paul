@@ -89,6 +89,10 @@ const DEFAULT_SETTINGS = {
   splitThreshold: 4,
   doneRetentionDays: 30,
   previewWeeks: 2,
+  // 總儀表板時程表顯示偏好（純顯示，存全域→上雲跨機）；午休 12:00–13:00 固定，不受此影響。
+  gridStartHour: 8,
+  gridEndHour: 18,
+  gridSlotMinutes: 30,   // 30=半小時一格 / 60=一小時一格
   // HintBox 區塊級說明框收合狀態：{ [key]: true=收起 }；undefined/false=展開（預設展開）。整包隨 settings 持久化＋上雲。
   hintBoxState: {},
   // 【需求 A】手動釘選到本週的 task id；釘選後不因 plannedStart 在未來被排程踢出
@@ -2915,7 +2919,8 @@ App.renderDashboard = function() {
               <button class="rw-arrow" onclick="App.dashboardWeekShift(1)" title="下一週">›</button>
               ${this.dashboardWeekOffset !== 0 ? `<button class="rw-arrow" onclick="App.dashboardWeekOffset=0; App.renderDashboard();" title="回到本週" style="background: var(--sage-50); color: var(--sage-700);">今</button>` : ''}
             </div>
-            <button class="tb-action" data-edit onclick="App.openHoursTaskDialog()" style="margin-left:auto;">+ 新增小時 Task</button>
+            <button class="rw-arrow" title="時程表顯示設定（時間範圍 / 半小時或一小時一格）" onclick="App.openGridSettingsModal()" style="margin-left:auto;"><i class="ti ti-settings"></i></button>
+            <button class="tb-action" data-edit onclick="App.openHoursTaskDialog()">+ 新增小時 Task</button>
           </div>
           ${scheduleHtml}
           <div class="legend-row">
@@ -2970,7 +2975,11 @@ App.buildWeekScheduleHtml = function(targetMonday) {
   }
 
   // Rows: 09 10 11 12 14 15 16 17
-  const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+  // 顯示時數由全域設定生成（gridStartHour..gridEndHour-1）；午休 hr===12 固定不受影響
+  const _gs = Math.max(0, Math.min(22, parseInt(DATA.settings.gridStartHour, 10) || 8));
+  const _ge = Math.max(_gs + 1, Math.min(24, parseInt(DATA.settings.gridEndHour, 10) || 18));
+  const hours = []; for (let _h = _gs; _h < _ge; _h++) hours.push(_h);
+  const _slots = (parseInt(DATA.settings.gridSlotMinutes, 10) === 60) ? [0] : [0, 30];   // 一小時/半小時一格
   const items = (DATA.schedule.items || []).filter(it => it.week === wk);
   // Legacy DATA.meetings
   const meetings = DATA.meetings.filter(m => {
@@ -3069,7 +3078,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
   }
 
   for (const hr of hours) {
-    for (const mm of [0, 30]) {
+    for (const mm of _slots) {
     // 午休：12:00 改成「時間欄(靠上) + 橫貫五天的單一午休帶」，12:30 子列整列跳過
     if (hr === 12) {
       if (mm === 0) {
@@ -4355,6 +4364,47 @@ App._refreshMeetingUI = function() {
   if (typeof App.renderDashboard === 'function') App.renderDashboard();
   const mb = document.querySelector('#modal .modal-body');
   if (mb && document.getElementById('meetingModalBody')) mb.innerHTML = App.buildMeetingModalBody();
+};
+
+// 時程表顯示設定（設計款彈窗）：起訖時數 + 半/一小時密度。值存全域 settings → 上雲跨機。午休 12–13 固定。
+App.openGridSettingsModal = function() {
+  const s = DATA.settings;
+  const opt = (sel, lo, hi) => { let o = ''; for (let h = lo; h <= hi; h++) o += `<option value="${h}"${h === sel ? ' selected' : ''}>${String(h).padStart(2, '0')}:00</option>`; return o; };
+  const sm = parseInt(s.gridSlotMinutes, 10) === 60 ? 60 : 30;
+  App.openModal({
+    title: '⚙ 時程表顯示設定',
+    body: `<div class="form-field"><label>顯示時間範圍</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <select onchange="App.setGridSetting('gridStartHour', this.value)" style="flex:1;">${opt(parseInt(s.gridStartHour, 10) || 8, 0, 22)}</select>
+          <span style="color:var(--ink4);">→</span>
+          <select onchange="App.setGridSetting('gridEndHour', this.value)" style="flex:1;">${opt(parseInt(s.gridEndHour, 10) || 18, 1, 24)}</select>
+        </div></div>
+      <div class="form-field"><label>時間格密度</label>
+        <div class="measure-toggle" style="max-width:280px;">
+          <button type="button" class="measure-btn ${sm !== 60 ? 'active' : ''}" onclick="App.setGridSetting('gridSlotMinutes', 30)">半小時一格</button>
+          <button type="button" class="measure-btn ${sm === 60 ? 'active' : ''}" onclick="App.setGridSetting('gridSlotMinutes', 60)">一小時一格</button>
+        </div></div>
+      <div class="field-hint">☕ 午休 12:00–13:00 固定，不受此設定影響。</div>
+      <div class="field-hint">☁ 此偏好存全域設定、自動同步雲端、跨機一致。</div>`,
+    footer: '<button class="tb-action ghost" onclick="App.closeModal()">關閉</button>',
+  });
+};
+
+App.setGridSetting = function(key, val) {
+  if (App._roGuard && App._roGuard()) return;
+  let v = parseInt(val, 10);
+  if (isNaN(v)) return;
+  if (key === 'gridStartHour') v = Math.max(0, Math.min(22, v));
+  else if (key === 'gridEndHour') v = Math.max(1, Math.min(24, v));
+  else if (key === 'gridSlotMinutes') v = (v === 60) ? 60 : 30;
+  DATA.settings[key] = v;
+  if (DATA.settings.gridEndHour <= DATA.settings.gridStartHour) {   // 夾住起<迄，避免空表
+    if (key === 'gridStartHour') DATA.settings.gridEndHour = Math.min(24, DATA.settings.gridStartHour + 1);
+    else DATA.settings.gridStartHour = Math.max(0, DATA.settings.gridEndHour - 1);
+  }
+  Storage.save();          // 寫 localStorage + 觸發雲端上傳
+  App.renderDashboard();   // 週曆即時重畫
+  App.openGridSettingsModal();   // 重開反映夾過/切換後的狀態
 };
 
 App.buildGeneratePanelHtml = function() {
