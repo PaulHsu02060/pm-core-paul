@@ -4281,6 +4281,7 @@ App.openMeetingModal = function() {
     title: '📅 會議時程設定',
     body: App.buildMeetingModalBody(),
     footer: '<button class="tb-action" onclick="App.closeModal()" style="background:var(--stone-200); color:var(--ink2);">關閉</button>',
+    wide: true,
   });
   // 剪貼簿貼上截圖（Ctrl+V）：document 級只綁一次，handler 內判斷彈窗開著才吃
   if (!App._meetingPasteBound) {
@@ -11723,8 +11724,9 @@ App._confirmModalYes = function() {
   if (cb) cb();
 };
 
-App.openModal = function({ title, body, footer }) {
+App.openModal = function({ title, body, footer, wide }) {
   const modal = document.getElementById('modal');
+  modal.classList.toggle('modal-wide', !!wide);   // 寬版（如會議設定彈窗：確認清單欄位多）
   modal.innerHTML = `
     <div class="modal-head">
       <h3>${title}</h3>
