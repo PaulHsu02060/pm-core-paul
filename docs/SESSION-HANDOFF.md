@@ -1,13 +1,13 @@
 # Session 交接快照（2026-06-29 收工 — 雙軌導覽拆分前夕）
 
 > 給「重開 session」直接讀的 pickup。**這是快照**；定案/細節以
-> `docs/dual-track-nav-design.md`（雙軌導覽）、`pm-core-architecture.md`、`PM-Core_踩坑與操作手冊.md`、`HANDOFF.md §B` 為單一真實來源。
+> `pm-core-architecture.md` **§18 雙軌導覽**、`PM-Core_踩坑與操作手冊.md`、`HANDOFF.md §B` 為單一真實來源。
 > 下個 session 開工後此檔可覆蓋成新快照。
 
 ## 開工先做（鐵則）
 1. cwd 是 pm-core-paul；`git remote -v` 確認指向 `PaulHsu02060/pm-core-paul`。
 2. `git pull` → `git log -3` 確認 HEAD 與 origin/main 齊平（**目前應為 `3bc4ac5`**）。
-3. 讀必讀：`HANDOFF.md`（§A 鐵則＋§B 本週）、`AGENT_GATE.md`、`pm-core-architecture.md`、`PM-Core_踩坑與操作手冊.md`；做 CSS 前讀 `UI-CSS-設計規範.md`；**這次主題先讀 `docs/dual-track-nav-design.md`**。
+3. 讀必讀：`HANDOFF.md`（§A 鐵則＋§B 本週）、`AGENT_GATE.md`、`pm-core-architecture.md`、`PM-Core_踩坑與操作手冊.md`；做 CSS 前讀 `UI-CSS-設計規範.md`；**這次主題先讀架構文件 §18 雙軌導覽**。
 
 ## 目前狀態
 - HEAD `3bc4ac5`（origin 齊平）；版本號 index.html `app.js?v=20260628-16`、`style.css?v=20260628-8`。
@@ -17,10 +17,10 @@
 ## 本 session 做了什麼（已驗＋commit＋push）
 - `b42066d` 週曆：半小時→**一小時一格**＋暖綠一體化配色＋事件**依分鐘比例定位**（純視覺、拖放不動）；OCR `TIME` 吃 3-4 位連續數字救「830→8:30」。
 - `3bc4ac5` 會議彈窗重組：**管理主頁**(定期+特定清單＋欄位標題列＋編輯/刪除/啟用)＋「＋新增事件」子頁(手動填入帶標籤下拉／上傳截圖)＋存完回主頁；OCR 缺星期改色框不空擋。
-- 文件：新增 `docs/dual-track-nav-design.md`（雙軌導覽定案）、滾動 `HANDOFF.md §B`、本檔。
+- 文件：架構文件新增 **§18 雙軌導覽**（定案）、滾動 `HANDOFF.md §B`、本檔。
 
 ## 明天要做（已定案，從這開始）
-**雙軌導覽重組** — 完整規格見 `docs/dual-track-nav-design.md`。重點：
+**雙軌導覽重組** — 完整規格見架構文件 **§18**。重點：
 
 - **這是重組不是重蓋**：現「總儀表板」已有三子視圖（儀表板=微觀／甘特圖=跨專案／月曆=全專案）。拆成兩個 sidebar 節點：
   - 🟢 **個人工作台**（=現「儀表板」tab 內容，週曆/會議/便利貼/個人 KPI，無甘特）＝**預設首頁**。
