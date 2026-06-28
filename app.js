@@ -4343,11 +4343,7 @@ App.buildMeetingModalBody = function() {
         <input id="mCatLabel" placeholder="分類名稱（自訂，如：打掃、外出、私人）">
       </div>
       <div class="am-row">
-        <select id="mDay">
-          <option value="1">週一</option><option value="2">週二</option>
-          <option value="3">週三</option><option value="4">週四</option>
-          <option value="5">週五</option><option value="6">週六</option><option value="0">週日</option>
-        </select>
+        <input type="date" id="mDate" value="${D.fmt(D.today(), 'iso')}" title="日期（週期性事件以此為起算錨點、星期由此自動推算）">
         <input type="time" id="mStart" value="10:00">
       </div>
       <div class="am-row">
@@ -4450,27 +4446,25 @@ App.addManualMeeting = function() {
   const cat = (document.getElementById('mCat') || {}).value || 'meeting';   // 內部分類桶：meeting / cleaning（皆避開排程、週曆分色）
   const catLabelRaw = ((document.getElementById('mCatLabel') || {}).value || '').trim();   // 雜項自訂顯示名（打掃/外出/私人…，不綁死打掃）
   const catLabel = cat === 'cleaning' ? (catLabelRaw || '雜項') : '';
-  const dayNum = parseInt(document.getElementById('mDay').value);
+  const dateStr = (document.getElementById('mDate') || {}).value || D.fmt(D.today(), 'iso');
   const start = document.getElementById('mStart').value;
   const end = document.getElementById('mEnd').value;
   const title = document.getElementById('mTitle').value.trim();
   if (!title) { U.toast('⚠ 請填主題', 'warning'); return; }
-
-  const monday = D.monday();
-  const target = D.addDays(monday, dayNum === 0 ? 6 : dayNum - 1);
+  const dayNum = new Date(dateStr + 'T00:00:00').getDay();   // 由日期推星期（0-6），週期性據此重複
 
   if (freq === 'once') {
-    // 一次性 → 當週那天，存 DATA.meetings
+    // 一次性 → 該日期，存 DATA.meetings
     DATA.meetings.push({
-      id: U.id(), date: D.fmt(target, 'iso'), startTime: start, endTime: end,
+      id: U.id(), date: dateStr, startTime: start, endTime: end,
       title, category: cat, categoryLabel: catLabel,
     });
   } else {
-    // 週期性（每週/隔週/每月）→ 存 settings.recurringMeetings（與設定頁定期事件同源、自動重複上週曆）
+    // 週期性（每週/隔週/每月）→ 存 settings.recurringMeetings（與設定頁定期事件同源、自動重複上週曆）；該日期當起算錨點
     if (!DATA.settings.recurringMeetings) DATA.settings.recurringMeetings = [];
     DATA.settings.recurringMeetings.push({
       id: U.id(), category: cat, categoryLabel: catLabel, frequency: freq,
-      day: dayNum, start, end, title, startDate: D.fmt(target, 'iso'), endDate: '', enabled: true,
+      day: dayNum, start, end, title, startDate: dateStr, endDate: '', enabled: true,
     });
   }
   Storage.save();
@@ -7815,6 +7809,35 @@ App.removeShot = function(id) {
   this.renderShotList();
 };
 
+// OCR 前處理：深底（白字行事曆截圖）平均亮度低 → 反相成白底黑字，tesseract 準度大增。失敗就回原圖。
+App._preprocessForOcr = function(dataUrl) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
+          if (!c.width || !c.height) { resolve(dataUrl); return; }
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const d = ctx.getImageData(0, 0, c.width, c.height);
+          const px = d.data; let sum = 0;
+          for (let i = 0; i < px.length; i += 4) sum += px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+          const avg = sum / (px.length / 4);
+          if (avg < 110) {   // 深底 → 反相
+            for (let i = 0; i < px.length; i += 4) { px[i] = 255 - px[i]; px[i + 1] = 255 - px[i + 1]; px[i + 2] = 255 - px[i + 2]; }
+            ctx.putImageData(d, 0, 0);
+            resolve(c.toDataURL('image/png'));
+          } else { resolve(dataUrl); }
+        } catch (e) { resolve(dataUrl); }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch (e) { resolve(dataUrl); }
+  });
+};
+
 App.runOCR = async function() {
   if (this.shotFiles.length === 0) return;
   const btn = document.getElementById('ocrRunBtn');
@@ -7830,11 +7853,14 @@ App.runOCR = async function() {
     let total = this.shotFiles.length;
     let done = 0;
     const allMeetings = [];
+    const allRaw = [];
 
     for (const shot of this.shotFiles) {
       if (btn) btn.textContent = `⏳ 辨識中 (${++done}/${total})...`;
       try {
-        const { data: { text } } = await window.tesseractWorker.recognize(shot.dataUrl);
+        const procUrl = await App._preprocessForOcr(shot.dataUrl);   // 深底自動反相，提升白字辨識
+        const { data: { text } } = await window.tesseractWorker.recognize(procUrl);
+        allRaw.push(text);
         const meetings = parseMeetingText(text);
         // Apply week offset
         const offset = shot.week === 'last' ? -7 : shot.week === 'next' ? 7 : 0;
@@ -7863,7 +7889,12 @@ App.runOCR = async function() {
     }
     const unique = Object.values(grouped);
 
-    this.renderOCRResult(unique);
+    if (unique.length === 0) {
+      const wrap = document.getElementById('ocrResult');
+      if (wrap) wrap.innerHTML = `<div style="padding:10px; background:var(--terracotta-l); border-radius:6px; font-size:11px; color:var(--terracotta-ink); margin-top:10px; line-height:1.6;">⚠ 沒解析到有「起訖時間」的項目。<b>深色截圖辨識較差</b>——改用淺色背景或「單日檢視」截圖較準，或改「手動」輸入。<details style="margin-top:6px;"><summary style="cursor:pointer;">看 OCR 原始辨識文字（診斷用）</summary><pre style="white-space:pre-wrap; word-break:break-all; font-size:10px; max-height:160px; overflow:auto; margin-top:4px; color:var(--ink2);">${U.esc(allRaw.join('\n---\n').slice(0, 1500)) || '（空白：完全沒辨識到文字，多半是深底+低對比）'}</pre></details></div>`;
+    } else {
+      this.renderOCRResult(unique);
+    }
     if (btn) { btn.disabled = false; btn.textContent = '🪄 一次解析全部'; }
   } catch (e) {
     console.error('OCR error:', e);
