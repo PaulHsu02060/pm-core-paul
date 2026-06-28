@@ -1050,6 +1050,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ocr-row .ocr-tt { flex: 2 1 130px; }
 .ocr-row .ocr-dash { color: var(--ink4); flex: 0 0 auto; }
 .ocr-row .ocr-day:focus, .ocr-row .ocr-st:focus, .ocr-row .ocr-et:focus, .ocr-row .ocr-tt:focus { background: var(--surface); border-color: var(--sage-500); }
+.ocr-row .ocr-day.ocr-day-need { border-color: var(--amber); background: var(--amber-l); }   /* 週檢視抓不到日期 → 提示需選星期 */
 .ocr-tip { font-size: 10.5px; color: var(--ink3); padding: 6px 0 0; line-height: 1.5; }
 
 /* Generate */

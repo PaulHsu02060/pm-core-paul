@@ -4315,7 +4315,8 @@ App._meetingPasteHandler = function(e) {
   }
   if (!files.length) return;
   e.preventDefault();
-  // 自動切到「截圖」tab
+  // 自動進「新增」子頁並切到「上傳截圖」tab
+  App.showMeetingAddView();
   const shot = document.getElementById('am-shot'), manual = document.getElementById('am-manual');
   if (shot && manual) {
     shot.style.display = ''; manual.style.display = 'none';
@@ -4328,49 +4329,90 @@ App._meetingPasteHandler = function(e) {
 // 彈窗 body：截圖（OCR）+ 手動兩 tab（手動頻率 §階段二再補）。包一層 #meetingModalBody 供加入後就地刷新。
 App.buildMeetingModalBody = function() {
   return `<div id="meetingModalBody">
-    <div class="add-meeting-tabs">
-      <button class="am-tab active" onclick="App.switchAmTab(this, 'shot')">📷 截圖</button>
-      <button class="am-tab" onclick="App.switchAmTab(this, 'manual')">⌨ 手動</button>
+    <!-- 管理主頁（開啟即見） -->
+    <div id="am-home">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin:2px 0 8px;">
+        <div style="font-size:13px; font-weight:600; color:var(--ink2);">⏰ 定期事件（會議 / 打掃）</div>
+        <button class="am-add-btn" data-edit onclick="App.showMeetingAddView()" style="width:auto; padding:5px 14px; font-size:12px;">＋ 新增事件</button>
+      </div>
+      <div id="recurringMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden;">${App.buildRecurringMeetingsHtml()}</div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin:16px 0 8px;">
+        <div style="font-size:13px; font-weight:600; color:var(--ink2);">📌 特定日期事件</div>
+        <button class="tb-action ghost" data-edit onclick="App.addSpecialMeeting()" style="font-size:11px; padding:3px 9px;">＋ 新增</button>
+      </div>
+      <div id="specialMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:240px; overflow-y:auto;">${App.buildSpecialMeetingsHtml()}</div>
     </div>
 
-    <div id="am-shot" class="am-form">
-      <div class="am-drop" id="shotDrop" onclick="document.getElementById('shotInput').click()">
-        <div class="ic">🖼</div>
-        <div class="tx">點擊、拖曳，或直接 Ctrl+V 貼上截圖</div>
-        <div class="sub">免費 · 純本地辨識 · 截圖不會被儲存（可多張）</div>
+    <!-- 新增（手動填入 / 上傳截圖） -->
+    <div id="am-add" style="display:none">
+      <div style="margin:0 0 10px;">
+        <span onclick="App.showMeetingManageView()" style="display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--sage-700); cursor:pointer;">‹ 返回清單</span>
       </div>
-      <input type="file" id="shotInput" multiple accept="image/*" style="display:none"
-             onchange="App.handleShotUpload(this.files)">
-      <div id="shotList" class="shot-list" style="display:none;"></div>
-      <div id="ocrResult"></div>
-      <div class="ocr-tip">💡 週檢視日期抓不到時請在清單自己選；想最準用「單日檢視」截圖。多張自動去重。</div>
-    </div>
+      <div class="add-meeting-tabs">
+        <button class="am-tab active" onclick="App.switchAmTab(this, 'manual')">⌨ 手動填入</button>
+        <button class="am-tab" onclick="App.switchAmTab(this, 'shot')">📷 上傳截圖</button>
+      </div>
 
-    <div id="am-manual" class="am-form" style="display:none">
-      <div class="am-row">
-        <select id="mFreq" title="一次性存當週；每週/隔週/每月存定期事件、之後自動重複出現">
-          <option value="once">不定期單次</option>
-          <option value="weekly">每週</option>
-          <option value="biweekly">隔週</option>
-          <option value="monthly">每月（第N個週幾）</option>
-        </select>
-        <select id="mCat" title="分類：雜項只能手動加（行事曆截圖不會有），兩類都會被智慧排程避開" onchange="App._toggleMcatLabel()">
-          <option value="meeting">📅 會議</option>
-          <option value="cleaning">🏷 雜項</option>
-        </select>
+      <div id="am-manual" class="am-form">
+        <div class="form-row">
+          <div class="form-field">
+            <label>類型 *</label>
+            <select id="mCat" onchange="App._toggleMcatLabel()">
+              <option value="meeting">📅 會議</option>
+              <option value="cleaning">🧹 雜項</option>
+            </select>
+          </div>
+          <div class="form-field" style="flex:2;">
+            <label>名稱 *</label>
+            <input type="text" id="mTitle" placeholder="例：主管週會 / 輪值掃地">
+          </div>
+        </div>
+        <div class="form-row" id="mCatLabelRow" style="display:none;">
+          <div class="form-field">
+            <label>分類名稱（雜項自訂）</label>
+            <input id="mCatLabel" placeholder="如：打掃、外出、私人">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>頻率 *</label>
+            <select id="mFreq">
+              <option value="once">單次（當週）</option>
+              <option value="weekly">每週</option>
+              <option value="biweekly">隔週</option>
+              <option value="monthly">每月（第N個週幾）</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>日期 *</label>
+            <input type="date" id="mDate" value="${D.fmt(D.today(), 'iso')}">
+          </div>
+          <div class="form-field">
+            <label>開始時間 *</label>
+            <input type="time" id="mStart" value="10:00">
+          </div>
+          <div class="form-field">
+            <label>結束時間 *</label>
+            <input type="time" id="mEnd" value="11:00">
+          </div>
+        </div>
+        <button class="am-add-btn" data-edit onclick="App.addManualMeeting()">＋ 加入</button>
+        <div class="ocr-tip">頻率選「每週/隔週/每月」存定期事件、自動重複；「單次」只放當週。星期由日期自動推算。</div>
       </div>
-      <div class="am-row" id="mCatLabelRow" style="display:none;">
-        <input id="mCatLabel" placeholder="分類名稱（自訂，如：打掃、外出、私人）">
+
+      <div id="am-shot" class="am-form" style="display:none">
+        <div class="am-drop" id="shotDrop" onclick="document.getElementById('shotInput').click()">
+          <div class="ic">🖼</div>
+          <div class="tx">點擊、拖曳，或直接 Ctrl+V 貼上截圖</div>
+          <div class="sub">免費 · 純本地辨識 · 截圖不會被儲存（可多張）</div>
+        </div>
+        <input type="file" id="shotInput" multiple accept="image/*" style="display:none"
+               onchange="App.handleShotUpload(this.files)">
+        <div id="shotList" class="shot-list" style="display:none;"></div>
+        <div id="ocrResult"></div>
+        <div class="ocr-tip">💡 週檢視日期抓不到時請在清單自己選；想最準用「單日檢視」截圖。多張自動去重。</div>
       </div>
-      <div class="am-row">
-        <input type="date" id="mDate" value="${D.fmt(D.today(), 'iso')}" title="日期（週期性事件以此為起算錨點、星期由此自動推算）">
-        <input type="time" id="mStart" value="10:00">
-      </div>
-      <div class="am-row">
-        <input type="time" id="mEnd" value="11:00">
-        <input id="mTitle" placeholder="主題（如：主管週會、輪值掃地）">
-      </div>
-      <button class="am-add-btn" data-edit onclick="App.addManualMeeting()">＋ 加入</button>
     </div>
   </div>`;
 };
@@ -4441,10 +4483,22 @@ App.buildGeneratePanelHtml = function() {
 App.switchAmTab = function(btn, name) {
   btn.parentElement.querySelectorAll('.am-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['shot','paste','manual'].forEach(n => {
+  ['shot','manual'].forEach(n => {
     const el = document.getElementById('am-' + n);
     if (el) el.style.display = n === name ? '' : 'none';
   });
+};
+
+// 會議彈窗：管理主頁 ↔ 新增（手動/截圖）子頁切換
+App.showMeetingAddView = function() {
+  const home = document.getElementById('am-home'), add = document.getElementById('am-add');
+  if (home) home.style.display = 'none';
+  if (add) add.style.display = '';
+};
+App.showMeetingManageView = function() {
+  const home = document.getElementById('am-home'), add = document.getElementById('am-add');
+  if (add) add.style.display = 'none';
+  if (home) home.style.display = '';
 };
 
 App.deleteMeeting = function(id) {
@@ -7938,7 +7992,7 @@ App.renderOCRResult = function(meetings) {
       days.map(([v, l]) => `<option value="${v}"${wdSel === v ? ' selected' : ''}>${l}</option>`).join('');
     return `<div class="ocr-row" data-off="${m._off || 0}">
       <input type="checkbox" class="ocr-ck" checked>
-      <select class="ocr-day">${dayOpts}</select>
+      <select class="ocr-day${wdSel ? '' : ' ocr-day-need'}">${dayOpts}</select>
       <input type="time" class="ocr-st" value="${m.startTime || ''}">
       <span class="ocr-dash">–</span>
       <input type="time" class="ocr-et" value="${m.endTime || ''}">
@@ -7962,9 +8016,11 @@ App.confirmOCRMeetings = function() {
   let added = 0, skipped = 0;
   rows.forEach(row => {
     if (!row.querySelector('.ocr-ck').checked) return;
-    const dayV = row.querySelector('.ocr-day').value;
+    const daySel = row.querySelector('.ocr-day');
+    const dayV = daySel.value;
     const st = row.querySelector('.ocr-st').value;
-    if (dayV === '' || !st) { skipped++; return; }   // 沒選星期或沒起始時間 → 跳過
+    if (dayV === '' || !st) { skipped++; daySel.classList.add('ocr-day-need'); return; }   // 缺星期/起始時間 → 標色框、不擋整批
+    daySel.classList.remove('ocr-day-need');
     const et = row.querySelector('.ocr-et').value;
     const tt = row.querySelector('.ocr-tt').value.trim();
     const off = parseInt(row.dataset.off || '0', 10) || 0;
@@ -7973,7 +8029,7 @@ App.confirmOCRMeetings = function() {
     DATA.meetings.push({ id: U.id(), date, startTime: st, endTime: et, title: tt || '會議', category: 'meeting' });
     added++;
   });
-  if (added === 0) { U.toast(skipped ? '⚠ 勾選的列缺星期或時間，請補上' : '⚠ 沒有勾選任何會議', 'warning'); return; }
+  if (added === 0) { U.toast(skipped ? '幫色框標出的列選個星期就能加入（週檢視抓不到日期）' : '⚠ 沒有勾選任何會議', 'warning'); return; }
   Storage.save();
   this.shotFiles = [];
   App._refreshMeetingUI();
@@ -10467,7 +10523,14 @@ App.buildRecurringMeetingsHtml = function() {
   }
   const dayLabels = ['週日','週一','週二','週三','週四','週五','週六'];
   const freqLabels = { once: '單次', daily: '每天', weekly: '每週', biweekly: '隔週(一天)', triweekly: '隔兩週(一天)', 'biweekly-allday': '隔週整週每天', 'triweekly-allday': '隔兩週整週每天' };
-  let html = '';
+  let html = `<div style="display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid var(--rule); background:var(--surface2); font-size:10.5px; font-weight:600; color:var(--ink3); letter-spacing:.03em;">
+    <span style="width:34px;">啟用</span>
+    <span style="min-width:78px;">頻率</span>
+    <span style="min-width:40px;">星期</span>
+    <span style="min-width:105px;">時間</span>
+    <span style="flex:1;">事件名稱</span>
+    <span style="min-width:88px; text-align:right;">操作</span>
+  </div>`;
   list.forEach((m, idx) => {
     const cat = m.category || 'meeting';
     const icon = cat === 'cleaning' ? '🧹' : '📅';
@@ -10498,7 +10561,12 @@ App.buildSpecialMeetingsHtml = function() {
   // Sort by date asc, future first
   const sorted = [...list].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const today = D.fmt(D.today(), 'iso');
-  let html = '';
+  let html = `<div style="display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid var(--rule); background:var(--surface2); font-size:10.5px; font-weight:600; color:var(--ink3); letter-spacing:.03em;">
+    <span style="min-width:90px;">日期</span>
+    <span style="min-width:105px;">時間</span>
+    <span style="flex:1;">事件名稱</span>
+    <span style="min-width:88px; text-align:right;">操作</span>
+  </div>`;
   sorted.forEach((m, idx) => {
     const isPast = m.date && m.date < today;
     html += `<div class="mt-row" style="display:flex; align-items:center; gap:8px; padding:9px 12px; ${idx < sorted.length-1 ? 'border-bottom:1px solid var(--rule);' : ''} ${isPast ? 'opacity:0.4;' : ''}">
@@ -10521,6 +10589,7 @@ App.editRecurringMeeting = function(id) {
 };
 
 App.openRecurringMeetingDialog = function(id) {
+  App._reopenMeetingManage = !!document.getElementById('meetingModalBody');   // 從 Dashboard 會議彈窗進來 → 存完回管理分頁
   const m = id ? (DATA.settings.recurringMeetings || []).find(x => x.id === id) : null;
   const isNew = !m;
   const today = D.fmt(D.today(), 'iso');
@@ -10643,9 +10712,10 @@ App.saveRecurringMeeting = function(id) {
   }
   Storage.save();
   this.closeModal();
-  document.getElementById('recurringMeetingList').innerHTML = this.buildRecurringMeetingsHtml();
+  const _rl = document.getElementById('recurringMeetingList'); if (_rl) _rl.innerHTML = this.buildRecurringMeetingsHtml();
   U.toast('✓ 已儲存');
   if (App.currentPage === 'dashboard') this.renderDashboard();
+  if (App._reopenMeetingManage) { App._reopenMeetingManage = false; App.openMeetingModal(); }
 };
 
 App.toggleRecurringMeeting = function(id) {
@@ -10675,6 +10745,7 @@ App.editSpecialMeeting = function(id) {
 };
 
 App.openSpecialMeetingDialog = function(id) {
+  App._reopenMeetingManage = !!document.getElementById('meetingModalBody');   // 從 Dashboard 會議彈窗進來 → 存完回管理分頁
   const m = id ? (DATA.settings.specialMeetings || []).find(x => x.id === id) : null;
   const isNew = !m;
   const today = D.fmt(D.today(), 'iso');
@@ -10750,9 +10821,10 @@ App.saveSpecialMeeting = function(id) {
   }
   Storage.save();
   this.closeModal();
-  document.getElementById('specialMeetingList').innerHTML = this.buildSpecialMeetingsHtml();
+  const _sl = document.getElementById('specialMeetingList'); if (_sl) _sl.innerHTML = this.buildSpecialMeetingsHtml();
   U.toast('✓ 已儲存');
   if (App.currentPage === 'dashboard') this.renderDashboard();
+  if (App._reopenMeetingManage) { App._reopenMeetingManage = false; App.openMeetingModal(); }
 };
 
 App.deleteSpecialMeeting = function(id) {
