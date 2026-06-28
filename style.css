@@ -49,6 +49,12 @@
   --xl-gantt-done: #3B6B4A;     /* Excel甘特 完成(深綠,同螢幕) */
   --xl-gantt-wip: #4A6B85;      /* Excel甘特 進行中(navy,同螢幕) */
   --xl-gantt-late: #C4633E;     /* Excel甘特 逾期(terracotta,同螢幕) */
+  /* 週曆事件卡 B 款配色（Paul 2026-06-28 指定；偏冷藍/琥珀＋純白網格＋冷灰線，hex 集中於此） */
+  --cal-cell-bg: #FFFFFF;        /* 空白格純白 */
+  --cal-grid-line: #F1F5F9;      /* 格線/間隙 冷灰 */
+  --cal-axis-bg: #F8FAFC;        /* 時間軸欄底 極淡冷灰 */
+  --cal-mtg-bg: #F0F9FF; --cal-mtg-line: #0284C7; --cal-mtg-ink: #0C4A6E;     /* 會議 冰川藍 */
+  --cal-misc-bg: #FFFBEB; --cal-misc-line: #F59E0B; --cal-misc-ink: #78350F;  /* 雜項 奶茶琥珀 */
   --xl-gantt-holiday: #F7DDE4;  /* Excel甘特 假日(淡粉紅,僅標表頭) */
 
   --amber-accent: #d99a3c;        /* 琥珀強調色（框/圈底） */
@@ -560,18 +566,18 @@ body.viewonly .cloud-sync-sec { display: none; }
 .dash-grid { display: grid; grid-template-columns: 1fr 240px; gap: 22px; }
 
 /* ─── WEEK SCHEDULE ─── */
-.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 4px; }
-.ws-time-col { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: right; padding-right: 8px; align-self: center; padding-top: 0; line-height: 24px; }
+.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 4px; background: var(--cal-grid-line); padding: 4px; border-radius: var(--r8); }
+.ws-time-col { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: right; padding-right: 8px; align-self: center; padding-top: 0; line-height: 24px; background: var(--cal-axis-bg); border-radius: var(--r4); }
 .ws-time-col.ws-time-lunch { align-self: start; padding-top: 8px; }
-.ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; }
+.ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-cell-bg); border-radius: var(--r6); }
 .ws-day-header .date { font-family: var(--sans); font-weight: 600; font-size: 20px; display: block; color: var(--ink2); margin-bottom: 2px; }
 .ws-day-header.today .date { color: var(--sage-600); }
 .ws-day-header.today { background: var(--sage-50); border-radius: var(--r6); }
-.ws-cell { background: var(--surface2); border-radius: var(--r6); height: 24px; position: relative; }
+.ws-cell { background: var(--cal-cell-bg); border-radius: var(--r6); height: 24px; position: relative; }
 .ws-lunch-band {
   grid-column: span 5;
   height: 24px; margin: 8px 0;
-  background: var(--stone-50); border: 1px solid var(--rule); border-radius: var(--r6);
+  background: var(--cal-grid-line); border: none; border-radius: var(--r6);
   color: var(--ink4);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1px;
@@ -582,7 +588,8 @@ body.viewonly .cloud-sync-sec { display: none; }
   border-radius: var(--r4); padding: 6px 8px;
   font-size: 11px; line-height: 1.2;
   overflow: hidden; cursor: pointer;
-  border-left: 3px solid; transition: transform .1s;
+  border-left: 4px solid; transition: transform .1s;
+  box-shadow: 0 1px 2px rgba(58,51,42,.04);
   z-index: 1;
 }
 .ws-event.ws-ev-task { display: flex; align-items: flex-start; padding: 5px 8px; }
@@ -594,13 +601,14 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ws-event.deep { background: var(--sage-50); border-color: var(--sage-500); color: var(--sage-800); }
 .ws-event.admin { background: var(--amber-l); border-color: var(--amber); color: var(--amber-ink); }
 .ws-event.meeting {
-  background: var(--navy-from);
-  border-color: var(--navy);
-  color: var(--navy-ink);
+  background: var(--cal-mtg-bg);
+  border-color: var(--cal-mtg-line);
+  color: var(--cal-mtg-ink);
 }
 .ws-event.auto-meeting {
-  background: var(--navy-from);
-  border-left: 4px solid var(--navy);
+  background: var(--cal-mtg-bg);
+  border-left: 4px solid var(--cal-mtg-line);
+  color: var(--cal-mtg-ink);
   cursor: default;
   font-weight: 500;
   display: flex;
@@ -611,9 +619,9 @@ body.viewonly .cloud-sync-sec { display: none; }
   padding-left: 10px;
 }
 .ws-event.cleaning {
-  background: var(--clay-from);
-  border-left: 4px solid var(--clay);
-  color: var(--clay-ink);
+  background: var(--cal-misc-bg);
+  border-left: 4px solid var(--cal-misc-line);
+  color: var(--cal-misc-ink);
   cursor: default;
   font-weight: 500;
   display: flex;

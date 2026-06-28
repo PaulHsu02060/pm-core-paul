@@ -4276,7 +4276,7 @@ App.openMeetingModal = function() {
   App.openModal({
     title: '📅 會議時程設定',
     body: App.buildMeetingModalBody(),
-    footer: '<button class="tb-action ghost" onclick="App.closeModal()">關閉</button>',
+    footer: '<button class="tb-action" onclick="App.closeModal()" style="background:var(--stone-200); color:var(--ink2);">關閉</button>',
   });
   // 剪貼簿貼上截圖（Ctrl+V）：document 級只綁一次，handler 內判斷彈窗開著才吃
   if (!App._meetingPasteBound) {
@@ -4382,7 +4382,7 @@ App.openGridSettingsModal = function() {
         </div></div>
       <div class="field-hint">☕ 午休 12:00–13:00 固定，不受此設定影響。</div>
       <div class="field-hint">☁ 此偏好存全域設定、自動同步雲端、跨機一致。</div>`,
-    footer: '<button class="tb-action ghost" onclick="App.closeModal()">關閉</button>',
+    footer: '<button class="tb-action" onclick="App.closeModal()" style="background:var(--stone-200); color:var(--ink2);">關閉</button>',
   });
 };
 
