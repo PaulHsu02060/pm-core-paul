@@ -930,59 +930,68 @@ function cleanOldDoneTasks() {
 }
 
 // ─── REGEX MEETING PARSER ──────────────────────────────
+// 放寬版（2026-06-28）：不要求同行有日期；只要有「起–迄時間範圍」就當一場（過濾時間軸單一刻度）。
+// 時間吃 上午/下午/早上/晚上/中午 + H[:MM] + 點[MM分] → 正規化 24h。標題用本行剩字或上一行；
+// 日期抓得到(MM/DD 或 星期)就填、抓不到留空，交確認清單讓 User 自己選星期（週檢視截圖先天對不回日期）。
 function parseMeetingText(text) {
   if (!text) return [];
-  const meetings = [];
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  // Patterns to match. Examples:
-  // 5/19 (一) 10:00-11:00 移行會議
-  // 5/19 10:00-11:00 移行會議
-  // 一 10:00-11:00 移行會議
-  // 週一 10:00 移行會議
-  // 5月19日 10:00-11:00 移行會議
-  const dayMap = { '日':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6 };
+  const dayMap = { '日':0, '天':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6 };
   const today = D.today();
   const monday = D.monday(today);
 
+  const toHM = (mer, body) => {
+    if (!body) return null;
+    const m = String(body).match(/(\d{1,2})(?:[:：](\d{1,2}))?\s*(?:點|時)?\s*(\d{1,2})?\s*分?/);
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    let mi = m[2] != null ? parseInt(m[2], 10) : (m[3] != null ? parseInt(m[3], 10) : 0);
+    if (/下午|晚上|傍晚|午後/.test(mer || '') && h < 12) h += 12;
+    if (/上午|早上|凌晨|清晨/.test(mer || '') && h === 12) h = 0;
+    if (/中午/.test(mer || '') && h < 12) h = 12;
+    if (h > 23 || mi > 59) return null;
+    return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+  };
+
+  const MER = '上午|下午|早上|晚上|傍晚|午後|凌晨|清晨|中午';
+  const TIME = '\\d{1,2}(?:[:：]\\d{1,2})?\\s*(?:點|時)?(?:\\d{1,2}\\s*分)?';
+  const RANGE = new RegExp(`(${MER})?\\s*(${TIME})\\s*[\\-–—~～至到]+\\s*(${MER})?\\s*(${TIME})`);
+
+  const out = [];
+  let prevTitle = '';
   for (const line of lines) {
-    // Try MM/DD format
-    let m = line.match(/(\d{1,2})[\/月](\d{1,2})[日\)\s]?[^\d]*?(\d{1,2}):(\d{2})[\-~~~]?(\d{1,2}:\d{2})?\s*(.+?)$/);
-    if (m) {
-      const month = parseInt(m[1]), day = parseInt(m[2]);
-      const hour = parseInt(m[3]), min = parseInt(m[4]);
-      const end = m[5] || '';
-      const title = (m[6] || '').replace(/^[（(].*?[）)]\s*/, '').trim();
-      const year = today.getFullYear();
-      const date = new Date(year, month - 1, day, hour, min);
-      // adjust year if date is too far in past
-      if (D.daysBetween(today, date) < -180) date.setFullYear(year + 1);
-      meetings.push({
-        date: D.fmt(date, 'iso'),
-        startTime: `${String(hour).padStart(2,'0')}:${String(min).padStart(2,'0')}`,
-        endTime: end || '',
-        title: title || '會議',
-      });
+    const rm = line.match(RANGE);
+    if (!rm) {
+      const t = line.trim();
+      if (t && t.length <= 40 && !/^(GMT|UTC)/i.test(t) && !/^(週|星期)?[日一二三四五六]\s*\d{0,2}$/.test(t)) prevTitle = t;
       continue;
     }
-    // Try weekday format
-    m = line.match(/(?:週|星期)?([日一二三四五六])[^\d]*?(\d{1,2}):(\d{2})[\-~~~]?(\d{1,2}:\d{2})?\s*(.+?)$/);
-    if (m) {
-      const dayIdx = dayMap[m[1]];
-      const hour = parseInt(m[2]), min = parseInt(m[3]);
-      const end = m[4] || '';
-      const title = (m[5] || '').trim();
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + (dayIdx === 0 ? 6 : dayIdx - 1));
-      date.setHours(hour, min);
-      meetings.push({
-        date: D.fmt(date, 'iso'),
-        startTime: `${String(hour).padStart(2,'0')}:${String(min).padStart(2,'0')}`,
-        endTime: end || '',
-        title: title || '會議',
-      });
+    const startMer = rm[1] || '';
+    const start = toHM(startMer, rm[2]);
+    const end = toHM(rm[3] || startMer, rm[4]);   // 迄沿用起的上午/下午
+    if (!start) continue;
+    let title = line.replace(RANGE, ' ')
+      .replace(/[（(][^）)]*[）)]/g, ' ')
+      .replace(/^\s*\d{1,2}[\/月]\d{1,2}[日]?/, '')
+      .replace(/^\s*(週|星期)[日一二三四五六]/, '')
+      .replace(/[，,。\-–—~：:]+/g, ' ')
+      .trim();
+    if (!title) title = prevTitle;
+    let date = '';
+    const md = line.match(/(\d{1,2})[\/月](\d{1,2})/);
+    const wk = line.match(/(?:週|星期)([日一二三四五六])/);
+    if (md) {
+      const dt = new Date(today.getFullYear(), parseInt(md[1], 10) - 1, parseInt(md[2], 10));
+      if (D.daysBetween(today, dt) < -180) dt.setFullYear(dt.getFullYear() + 1);
+      date = D.fmt(dt, 'iso');
+    } else if (wk) {
+      const di = dayMap[wk[1]];
+      date = D.fmt(D.addDays(monday, di === 0 ? 6 : di - 1), 'iso');
     }
+    out.push({ date, startTime: start, endTime: end || '', title: title || '' });
+    prevTitle = '';
   }
-  return meetings;
+  return out;
 }
 
 // ─── DEDUPE MEETINGS ───────────────────────────────────
@@ -2925,7 +2934,7 @@ App.renderDashboard = function() {
           ${this.buildNextWeekTodoHtml()}
         </div>
       </div>
-      ${memoHtml}
+      <div class="dash-side">${App.buildMeetingPanelHtml()}${memoHtml}</div>
     </div>
   `;
   this.attachMemoDrag();
@@ -3127,8 +3136,10 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           </div>`;
         }
       } else if (meeting) {
-        html += `<div class="ws-event meeting" style="top:0;height:52px;" title="${U.esc(meeting.title)}">
-          <b>${U.esc(meeting.title).slice(0, 14)}</b>
+        const mCls = meeting.category === 'cleaning' ? 'cleaning' : 'meeting';   // 一次性會議也讀 category（會議/雜項-打掃）分色
+        const mIcon = meeting.category === 'cleaning' ? '🧹' : '📅';
+        html += `<div class="ws-event ${mCls}" style="top:0;height:52px;" title="${U.esc(meeting.title)}">
+          <b>${mIcon} ${U.esc(meeting.title).slice(0, 14)}</b>
           <div class="ev-meta">${meeting.startTime || ''}</div>
         </div>`;
       } else if (meetingAuto) {
@@ -4227,53 +4238,102 @@ App.buildMeetingPanelHtml = function() {
           const d = new Date(m.date);
           return `<div class="meeting-item">
             <span class="m-time">${wd[d.getDay()]} ${m.startTime}</span>
-            <span class="m-title">${U.esc(m.title)}</span>
+            <span class="m-title">${m.category === 'cleaning' ? '🧹' : '📅'} ${U.esc(m.title)}</span>
             <button class="m-del" data-edit onclick="App.deleteMeeting('${m.id}')">×</button>
           </div>`;
         }).join('')
       }
     </div>
 
+    <button class="am-add-btn" data-edit onclick="App.openMeetingModal()">＋ 新增 / 管理會議</button>
+  </div>`;
+};
+
+// 會議設定彈窗：截圖（OCR）+ 手動兩 tab，比右欄寬、好閱讀（Paul 要求）。設計款 openModal。
+App.openMeetingModal = function() {
+  App.shotFiles = [];
+  App.openModal({
+    title: '📅 會議時程設定',
+    body: App.buildMeetingModalBody(),
+    footer: '<button class="tb-action ghost" onclick="App.closeModal()">關閉</button>',
+  });
+  // 剪貼簿貼上截圖（Ctrl+V）：document 級只綁一次，handler 內判斷彈窗開著才吃
+  if (!App._meetingPasteBound) {
+    App._meetingPasteBound = true;
+    document.addEventListener('paste', App._meetingPasteHandler);
+  }
+};
+
+// Ctrl+V 貼上截圖 → 直接進 OCR（不必先存成 png 再上傳，UX 佳）。只在會議彈窗開著時作用。
+App._meetingPasteHandler = function(e) {
+  if (!document.getElementById('meetingModalBody')) return;   // 彈窗沒開 → 不攔
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  const files = [];
+  for (const it of items) {
+    if (it.type && it.type.indexOf('image/') === 0) { const f = it.getAsFile(); if (f) files.push(f); }
+  }
+  if (!files.length) return;
+  e.preventDefault();
+  // 自動切到「截圖」tab
+  const shot = document.getElementById('am-shot'), manual = document.getElementById('am-manual');
+  if (shot && manual) {
+    shot.style.display = ''; manual.style.display = 'none';
+    document.querySelectorAll('#meetingModalBody .am-tab').forEach(b => b.classList.toggle('active', /截圖/.test(b.textContent)));
+  }
+  App.handleShotUpload(files);
+  U.toast('📋 已貼上截圖，按「🪄 一次解析全部」辨識', 'info');
+};
+
+// 彈窗 body：截圖（OCR）+ 手動兩 tab（手動頻率 §階段二再補）。包一層 #meetingModalBody 供加入後就地刷新。
+App.buildMeetingModalBody = function() {
+  return `<div id="meetingModalBody">
     <div class="add-meeting-tabs">
       <button class="am-tab active" onclick="App.switchAmTab(this, 'shot')">📷 截圖</button>
-      <button class="am-tab" onclick="App.switchAmTab(this, 'paste')">📋 貼上</button>
       <button class="am-tab" onclick="App.switchAmTab(this, 'manual')">⌨ 手動</button>
     </div>
 
     <div id="am-shot" class="am-form">
       <div class="am-drop" id="shotDrop" onclick="document.getElementById('shotInput').click()">
         <div class="ic">🖼</div>
-        <div class="tx">點擊或拖曳上傳截圖</div>
-        <div class="sub">免費 · 純本地辨識 · 可選多張</div>
+        <div class="tx">點擊、拖曳，或直接 Ctrl+V 貼上截圖</div>
+        <div class="sub">免費 · 純本地辨識 · 截圖不會被儲存（可多張）</div>
       </div>
       <input type="file" id="shotInput" multiple accept="image/*" style="display:none"
              onchange="App.handleShotUpload(this.files)">
       <div id="shotList" class="shot-list" style="display:none;"></div>
       <div id="ocrResult"></div>
-      <div class="ocr-tip">💡 多張截圖會自動去重，可標註不同週次</div>
-    </div>
-
-    <div id="am-paste" class="am-form" style="display:none">
-      <textarea id="pasteText" placeholder="貼上會議資訊（每行一場）&#10;格式：日期 時段 主題&#10;5/19(一) 10:00-11:00 移行會議"></textarea>
-      <button class="am-add-btn" data-edit onclick="App.parseAndAddMeetings()">解析並加入</button>
+      <div class="ocr-tip">💡 週檢視日期抓不到時請在清單自己選；想最準用「單日檢視」截圖。多張自動去重。</div>
     </div>
 
     <div id="am-manual" class="am-form" style="display:none">
       <div class="am-row">
+        <select id="mCat" title="分類：雜項/打掃只能手動加（行事曆截圖不會有），都會被智慧排程避開">
+          <option value="meeting">📅 會議</option>
+          <option value="cleaning">🧹 雜項 / 打掃</option>
+        </select>
         <select id="mDay">
           <option value="1">週一</option><option value="2">週二</option>
           <option value="3">週三</option><option value="4">週四</option>
           <option value="5">週五</option><option value="6">週六</option><option value="0">週日</option>
         </select>
-        <input type="time" id="mStart" value="10:00">
       </div>
       <div class="am-row">
+        <input type="time" id="mStart" value="10:00">
         <input type="time" id="mEnd" value="11:00">
-        <input id="mTitle" placeholder="會議主題">
       </div>
-      <button class="am-add-btn" data-edit onclick="App.addManualMeeting()">＋ 加入會議</button>
+      <div class="am-row">
+        <input id="mTitle" placeholder="主題（如：主管週會、輪值掃地）">
+      </div>
+      <button class="am-add-btn" data-edit onclick="App.addManualMeeting()">＋ 加入</button>
     </div>
   </div>`;
+};
+
+// 加入/刪除會議後刷新：更新儀表板（週曆 + 右欄精簡卡），彈窗開著就就地重繪 body（更新清單、清表單）。
+App._refreshMeetingUI = function() {
+  if (typeof App.renderDashboard === 'function') App.renderDashboard();
+  const mb = document.querySelector('#modal .modal-body');
+  if (mb && document.getElementById('meetingModalBody')) mb.innerHTML = App.buildMeetingModalBody();
 };
 
 App.buildGeneratePanelHtml = function() {
@@ -4304,16 +4364,17 @@ App.deleteMeeting = function(id) {
   if (App._roGuard()) return;
   DATA.meetings = DATA.meetings.filter(m => m.id !== id);
   Storage.save();
-  this.renderProject();
+  App._refreshMeetingUI();
 };
 
 App.addManualMeeting = function() {
   if (App._roGuard()) return;
+  const cat = (document.getElementById('mCat') || {}).value || 'meeting';   // 會議 / 雜項-打掃（資料分類，週曆分色、皆避開排程）
   const dayNum = parseInt(document.getElementById('mDay').value);
   const start = document.getElementById('mStart').value;
   const end = document.getElementById('mEnd').value;
   const title = document.getElementById('mTitle').value.trim();
-  if (!title) { U.toast('⚠ 請填會議主題', 'warning'); return; }
+  if (!title) { U.toast('⚠ 請填主題', 'warning'); return; }
 
   const monday = D.monday();
   const target = D.addDays(monday, dayNum === 0 ? 6 : dayNum - 1);
@@ -4324,28 +4385,11 @@ App.addManualMeeting = function() {
     startTime: start,
     endTime: end,
     title,
+    category: cat,
   });
   Storage.save();
-  this.renderProject();
-  U.toast('✓ 會議已加入');
-};
-
-App.parseAndAddMeetings = function() {
-  if (App._roGuard()) return;
-  const text = document.getElementById('pasteText').value;
-  if (!text.trim()) { U.toast('⚠ 請貼上會議資訊', 'warning'); return; }
-  const parsed = parseMeetingText(text);
-  if (parsed.length === 0) {
-    U.toast('⚠ 無法解析，請檢查格式', 'warning');
-    return;
-  }
-  for (const m of parsed) {
-    DATA.meetings.push({ id: U.id(), ...m });
-  }
-  Storage.save();
-  document.getElementById('pasteText').value = '';
-  this.renderProject();
-  U.toast(`✓ 已加入 ${parsed.length} 場會議`);
+  App._refreshMeetingUI();
+  U.toast(cat === 'cleaning' ? '✓ 雜項已加入' : '✓ 會議已加入');
 };
 
 App.generateNow = function() {
@@ -7708,6 +7752,7 @@ App.runOCR = async function() {
         // Apply week offset
         const offset = shot.week === 'last' ? -7 : shot.week === 'next' ? 7 : 0;
         for (const m of meetings) {
+          m._off = offset;   // 該截圖的週偏移；確認清單自己選星期時據此算回正確那週
           if (offset !== 0 && m.date) {
             const d = new Date(m.date);
             d.setDate(d.getDate() + offset);
@@ -7744,48 +7789,58 @@ App.renderOCRResult = function(meetings) {
   const wrap = document.getElementById('ocrResult');
   if (!wrap) return;
   if (meetings.length === 0) {
-    wrap.innerHTML = `<div style="padding:10px; background:var(--terracotta-l); border-radius:6px; font-size:11px; color:var(--terracotta); margin-top:10px;">⚠ 沒有辨識到會議資訊，請檢查截圖或改用「貼上」方式</div>`;
+    wrap.innerHTML = `<div style="padding:10px; background:var(--terracotta-l); border-radius:6px; font-size:11px; color:var(--terracotta-ink); margin-top:10px;">⚠ 沒辨識到有「起訖時間」的項目。改用「單日檢視」截圖較準，或改用「手動」輸入。</div>`;
     return;
   }
-  // Sort by date+time
-  meetings.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
-  const wd = ['日','一','二','三','四','五','六'];
-
+  meetings.sort((a, b) => ((a.date || '') + a.startTime).localeCompare((b.date || '') + b.startTime));
+  const days = [['1','週一'],['2','週二'],['3','週三'],['4','週四'],['5','週五'],['6','週六'],['0','週日']];
+  const rows = meetings.map(m => {
+    const wdSel = m.date ? String(new Date(m.date).getDay()) : '';
+    const dayOpts = '<option value="">請選</option>' +
+      days.map(([v, l]) => `<option value="${v}"${wdSel === v ? ' selected' : ''}>${l}</option>`).join('');
+    return `<div class="ocr-row" data-off="${m._off || 0}">
+      <input type="checkbox" class="ocr-ck" checked>
+      <select class="ocr-day">${dayOpts}</select>
+      <input type="time" class="ocr-st" value="${m.startTime || ''}">
+      <span class="ocr-dash">–</span>
+      <input type="time" class="ocr-et" value="${m.endTime || ''}">
+      <input type="text" class="ocr-tt" value="${U.esc(m.title || '')}" placeholder="（未命名）">
+    </div>`;
+  }).join('');
   wrap.innerHTML = `<div class="ocr-result">
-    <div class="ocr-result-head">
-      辨識完成 · 自動去重後共 <b>&nbsp;${meetings.length}</b>&nbsp; 場
-    </div>
-    ${meetings.map((m, i) => {
-      const d = m.date ? new Date(m.date) : null;
-      const dateStr = d ? `${wd[d.getDay()]} ${m.startTime}` : m.startTime || '?';
-      return `<label class="ocr-row">
-        <input type="checkbox" checked data-idx="${i}">
-        <span class="ocr-time">${dateStr}</span>
-        <span class="ocr-title">${U.esc(m.title)}</span>
-        <span class="ocr-src">${m.sources.join(', ')}</span>
-      </label>`;
-    }).join('')}
-    <div style="display:flex; gap:6px; margin-top:8px;">
-      <button class="am-add-btn" style="flex:1;" onclick='App.confirmOCRMeetings(${JSON.stringify(meetings).replace(/'/g, "&#39;")})'>加入勾選</button>
-      <button class="am-add-btn" style="background:var(--stone-100); color:var(--ink2);" onclick="App.cancelOCR()">取消</button>
+    <div class="ocr-result-head">辨識完成 · 去重後 <b>&nbsp;${meetings.length}</b>&nbsp; 場，勾選並修正後加入</div>
+    ${rows}
+    <div style="display:flex; gap:6px; margin-top:10px;">
+      <button class="am-add-btn" style="flex:1;" onclick="App.confirmOCRMeetings()">加入勾選</button>
+      <button class="am-add-btn" style="flex:0 0 auto; background:var(--stone-100); color:var(--ink2);" onclick="App.cancelOCR()">取消</button>
     </div>
   </div>`;
 };
 
-App.confirmOCRMeetings = function(meetings) {
-  const checks = document.querySelectorAll('.ocr-row input[type=checkbox]');
-  let added = 0;
-  checks.forEach((c, i) => {
-    if (c.checked) {
-      const m = meetings[i];
-      DATA.meetings.push({ id: U.id(), ...m });
-      added++;
-    }
+App.confirmOCRMeetings = function() {
+  if (App._roGuard()) return;
+  const rows = document.querySelectorAll('#ocrResult .ocr-row');
+  const monday = D.monday();
+  let added = 0, skipped = 0;
+  rows.forEach(row => {
+    if (!row.querySelector('.ocr-ck').checked) return;
+    const dayV = row.querySelector('.ocr-day').value;
+    const st = row.querySelector('.ocr-st').value;
+    if (dayV === '' || !st) { skipped++; return; }   // 沒選星期或沒起始時間 → 跳過
+    const et = row.querySelector('.ocr-et').value;
+    const tt = row.querySelector('.ocr-tt').value.trim();
+    const off = parseInt(row.dataset.off || '0', 10) || 0;
+    const di = parseInt(dayV, 10);
+    const date = D.fmt(D.addDays(monday, (di === 0 ? 6 : di - 1) + off), 'iso');
+    DATA.meetings.push({ id: U.id(), date, startTime: st, endTime: et, title: tt || '會議', category: 'meeting' });
+    added++;
   });
+  if (added === 0) { U.toast(skipped ? '⚠ 勾選的列缺星期或時間，請補上' : '⚠ 沒有勾選任何會議', 'warning'); return; }
   Storage.save();
   this.shotFiles = [];
-  this.renderProject();
-  U.toast(`✓ 已加入 ${added} 場會議`);
+  App._refreshMeetingUI();
+  const note = skipped ? `（${skipped} 列缺星期/時間已略過）` : '';
+  U.toast(`✓ 已加入 ${added} 場會議${note}`, 'success');
 };
 
 App.cancelOCR = function() {

@@ -1031,6 +1031,13 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ocr-row .ocr-time { font-family: var(--mono); font-weight: 600; color: var(--slate); white-space: nowrap; }
 .ocr-row .ocr-title { flex: 1; color: var(--ink2); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ocr-row .ocr-src { font-size: 9.5px; color: var(--ink3); font-family: var(--mono); white-space: nowrap; }
+/* OCR 確認清單：可編輯列（星期/起訖時間/標題，§2026-06-28 截圖匯入彈窗） */
+.ocr-row .ocr-day, .ocr-row .ocr-st, .ocr-row .ocr-et, .ocr-row .ocr-tt { padding: 5px 6px; border: 1px solid var(--rule); border-radius: var(--r6); font-size: 12px; background: var(--surface2); outline: none; min-width: 0; }
+.ocr-row .ocr-day { flex: 0 0 62px; }
+.ocr-row .ocr-st, .ocr-row .ocr-et { flex: 0 0 78px; }
+.ocr-row .ocr-tt { flex: 1; }
+.ocr-row .ocr-dash { color: var(--ink4); flex: 0 0 auto; }
+.ocr-row .ocr-day:focus, .ocr-row .ocr-st:focus, .ocr-row .ocr-et:focus, .ocr-row .ocr-tt:focus { background: var(--surface); border-color: var(--sage-500); }
 .ocr-tip { font-size: 10.5px; color: var(--ink3); padding: 6px 0 0; line-height: 1.5; }
 
 /* Generate */
