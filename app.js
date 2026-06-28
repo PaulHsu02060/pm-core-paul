@@ -947,6 +947,10 @@ function cleanOldDoneTasks() {
 // 日期抓得到(MM/DD 或 星期)就填、抓不到留空，交確認清單讓 User 自己選星期（週檢視截圖先天對不回日期）。
 function parseMeetingText(text) {
   if (!text) return [];
+  // tesseract 對中文常在每字間插空格（「上 午 8 點」「1 2 3 會 議」）→ 去掉「中日字/數字/冒號/時間字」之間的空白，否則時間/標題對不上
+  text = text.split('\n').map(l =>
+    l.replace(/[ \t]+/g, ' ').replace(/([一-鿿\d:：點時午])\s(?=[一-鿿\d:：點時午])/g, '$1')
+  ).join('\n');
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const dayMap = { '日':0, '天':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6 };
   const today = D.today();
