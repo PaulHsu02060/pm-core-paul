@@ -55,6 +55,8 @@
   --cal-axis-bg: #F8FAFC;        /* 時間軸欄底 極淡冷灰 */
   --cal-mtg-bg: #F0F9FF; --cal-mtg-line: #0284C7; --cal-mtg-ink: #0C4A6E;     /* 會議 冰川藍 */
   --cal-misc-bg: #FFFBEB; --cal-misc-line: #F59E0B; --cal-misc-ink: #78350F;  /* 雜項 奶茶琥珀 */
+  --cal-noon-bg: #F8FAFC; --cal-noon-text: #64748B;     /* 午休列底/字（極淡冷灰） */
+  --cal-today-bg: #F0FDF4; --cal-today-badge: #16A34A;  /* 今日直欄底 / 綠圓圈 */
   --xl-gantt-holiday: #F7DDE4;  /* Excel甘特 假日(淡粉紅,僅標表頭) */
 
   --amber-accent: #d99a3c;        /* 琥珀強調色（框/圈底） */
@@ -567,26 +569,26 @@ body.viewonly .cloud-sync-sec { display: none; }
 
 /* ─── WEEK SCHEDULE ─── */
 .week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 4px; background: var(--cal-grid-line); padding: 4px; border-radius: var(--r8); }
-.ws-time-col { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: right; padding-right: 8px; align-self: center; padding-top: 0; line-height: 24px; background: var(--cal-axis-bg); border-radius: var(--r4); }
+.ws-time-col { font-family: var(--mono); font-size: 11px; color: var(--ink4); text-align: right; padding-right: 8px; align-self: center; padding-top: 0; line-height: 48px; background: var(--cal-axis-bg); border-radius: var(--r4); }
 .ws-time-col.ws-time-lunch { align-self: start; padding-top: 8px; }
 .ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-cell-bg); border-radius: var(--r6); }
 .ws-day-header .date { font-family: var(--sans); font-weight: 600; font-size: 20px; display: block; color: var(--ink2); margin-bottom: 2px; }
-.ws-day-header.today .date { color: var(--sage-600); }
-.ws-day-header.today { background: var(--sage-50); border-radius: var(--r6); }
-.ws-cell { background: var(--cal-cell-bg); border-radius: var(--r6); height: 24px; position: relative; }
+.ws-day-header.today { background: var(--cal-today-bg); border-radius: var(--r6); }
+.ws-day-header.today .date { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--cal-today-badge); color: var(--ink-inverse); font-size: 16px; margin-bottom: 2px; }
+.ws-cell { background: var(--cal-cell-bg); border-radius: var(--r6); height: 48px; position: relative; }
 .ws-lunch-band {
   grid-column: span 5;
-  height: 24px; margin: 8px 0;
-  background: var(--cal-grid-line); border: none; border-radius: var(--r6);
-  color: var(--ink4);
+  height: 48px; margin: 8px 0;
+  background: var(--cal-noon-bg); border: none; border-radius: var(--r6);
+  color: var(--cal-noon-text);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1px;
   cursor: not-allowed;
 }
 .ws-event {
   position: absolute; left: 2px; right: 2px;
-  border-radius: var(--r4); padding: 6px 8px;
-  font-size: 11px; line-height: 1.2;
+  border-radius: var(--r4); padding: 6px 12px;
+  font-size: 11px; line-height: 1.3;
   overflow: hidden; cursor: pointer;
   border-left: 4px solid; transition: transform .1s;
   box-shadow: 0 1px 2px rgba(58,51,42,.04);
@@ -595,7 +597,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ws-event.ws-ev-task { display: flex; align-items: flex-start; padding: 5px 8px; }
 .ws-event.ws-ev-task b { display: inline; padding-left: 0; }
 .ws-event .ws-ev-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; padding-right: 14px; }
-.ws-event b { font-size: 12px; font-weight: 600; display: block; }
+.ws-event b { font-size: 13px; font-weight: 600; display: block; }
 .ws-event .ev-meta { font-size: 10.5px; color: var(--ink3); margin-top: 1px; font-family: var(--mono); }
 .ws-event:hover { transform: scale(1.02); z-index: 2; }
 .ws-event.deep { background: var(--sage-50); border-color: var(--sage-500); color: var(--sage-800); }

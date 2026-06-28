@@ -3140,7 +3140,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
 
           // 卡片跨格：halfCells = duration/30，套用會議已驗證的高度公式（1h→52, 2h→108, 3h→164）
           const halfCells = Math.max(2, Math.round((item.duration || 60) / 30));
-          const cardH = halfCells * 24 + (halfCells - 1) * 4;
+          const cardH = halfCells * 48 + (halfCells - 1) * 4;
 
           html += `<div class="ws-event ws-ev-task ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''} ${item.completed ? 'completed' : ''}"
             style="top:0;height:${cardH}px;"
@@ -3160,7 +3160,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         const mMisc = meeting.category === 'cleaning';   // 雜項桶（自訂分類名）；其餘＝會議
         const mIcon = mMisc ? '🏷' : '📅';
         const mLbl = (mMisc && meeting.categoryLabel) ? `[${U.esc(meeting.categoryLabel)}] ` : '';
-        html += `<div class="ws-event ${mMisc ? 'cleaning' : 'meeting'}" style="top:0;height:52px;" title="${U.esc(((mMisc && meeting.categoryLabel) ? '[' + meeting.categoryLabel + '] ' : '') + meeting.title)}">
+        html += `<div class="ws-event ${mMisc ? 'cleaning' : 'meeting'}" style="top:0;height:100px;" title="${U.esc(((mMisc && meeting.categoryLabel) ? '[' + meeting.categoryLabel + '] ' : '') + meeting.title)}">
           <b>${mIcon} ${mLbl}${U.esc(meeting.title).slice(0, 12)}</b>
           <div class="ev-meta">${meeting.startTime || ''}</div>
         </div>`;
@@ -3175,7 +3175,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           const spanHr = meetingAuto.spanHours || 1;
           // 半小時格：1 小時 = 2 格（每格 24px + row-gap 4px）
           const halfCells = spanHr * 2;
-          const cellHeight = halfCells * 24 + (halfCells - 1) * 4;
+          const cellHeight = halfCells * 48 + (halfCells - 1) * 4;
           const cssClass = aMisc ? 'cleaning' : 'auto-meeting';
           const icon = aMisc ? (meetingAuto.categoryLabel ? '🏷' : '🧹') : '📅';
           // z-index 1：低於任務（防止視覺覆蓋其他列的任務）
