@@ -3136,10 +3136,11 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           </div>`;
         }
       } else if (meeting) {
-        const mCls = meeting.category === 'cleaning' ? 'cleaning' : 'meeting';   // 一次性會議也讀 category（會議/雜項-打掃）分色
-        const mIcon = meeting.category === 'cleaning' ? '🧹' : '📅';
-        html += `<div class="ws-event ${mCls}" style="top:0;height:52px;" title="${U.esc(meeting.title)}">
-          <b>${mIcon} ${U.esc(meeting.title).slice(0, 14)}</b>
+        const mMisc = meeting.category === 'cleaning';   // 雜項桶（自訂分類名）；其餘＝會議
+        const mIcon = mMisc ? '🏷' : '📅';
+        const mLbl = (mMisc && meeting.categoryLabel) ? `[${U.esc(meeting.categoryLabel)}] ` : '';
+        html += `<div class="ws-event ${mMisc ? 'cleaning' : 'meeting'}" style="top:0;height:52px;" title="${U.esc(((mMisc && meeting.categoryLabel) ? '[' + meeting.categoryLabel + '] ' : '') + meeting.title)}">
+          <b>${mIcon} ${mLbl}${U.esc(meeting.title).slice(0, 12)}</b>
           <div class="ev-meta">${meeting.startTime || ''}</div>
         </div>`;
       } else if (meetingAuto) {
@@ -4238,7 +4239,7 @@ App.buildMeetingPanelHtml = function() {
           const d = new Date(m.date);
           return `<div class="meeting-item">
             <span class="m-time">${wd[d.getDay()]} ${m.startTime}</span>
-            <span class="m-title">${m.category === 'cleaning' ? '🧹' : '📅'} ${U.esc(m.title)}</span>
+            <span class="m-title">${m.category === 'cleaning' ? '🏷' : '📅'} ${(m.category === 'cleaning' && m.categoryLabel) ? `[${U.esc(m.categoryLabel)}] ` : ''}${U.esc(m.title)}</span>
             <button class="m-del" data-edit onclick="App.deleteMeeting('${m.id}')">×</button>
           </div>`;
         }).join('')
@@ -4307,15 +4308,18 @@ App.buildMeetingModalBody = function() {
 
     <div id="am-manual" class="am-form" style="display:none">
       <div class="am-row">
-        <select id="mCat" title="分類：雜項/打掃只能手動加（行事曆截圖不會有），都會被智慧排程避開">
+        <select id="mCat" title="分類：雜項只能手動加（行事曆截圖不會有），兩類都會被智慧排程避開" onchange="App._toggleMcatLabel()">
           <option value="meeting">📅 會議</option>
-          <option value="cleaning">🧹 雜項 / 打掃</option>
+          <option value="cleaning">🏷 雜項</option>
         </select>
         <select id="mDay">
           <option value="1">週一</option><option value="2">週二</option>
           <option value="3">週三</option><option value="4">週四</option>
           <option value="5">週五</option><option value="6">週六</option><option value="0">週日</option>
         </select>
+      </div>
+      <div class="am-row" id="mCatLabelRow" style="display:none;">
+        <input id="mCatLabel" placeholder="分類名稱（自訂，如：打掃、外出、私人）">
       </div>
       <div class="am-row">
         <input type="time" id="mStart" value="10:00">
@@ -4367,9 +4371,16 @@ App.deleteMeeting = function(id) {
   App._refreshMeetingUI();
 };
 
+// 手動分類切換：選「雜項」才顯示自訂「分類名稱」欄
+App._toggleMcatLabel = function() {
+  const row = document.getElementById('mCatLabelRow');
+  if (row) row.style.display = ((document.getElementById('mCat') || {}).value === 'cleaning') ? '' : 'none';
+};
+
 App.addManualMeeting = function() {
   if (App._roGuard()) return;
-  const cat = (document.getElementById('mCat') || {}).value || 'meeting';   // 會議 / 雜項-打掃（資料分類，週曆分色、皆避開排程）
+  const cat = (document.getElementById('mCat') || {}).value || 'meeting';   // 內部分類桶：meeting / cleaning（皆避開排程、週曆分色）
+  const catLabel = ((document.getElementById('mCatLabel') || {}).value || '').trim();   // 雜項自訂顯示名（打掃/外出/私人…，不綁死打掃）
   const dayNum = parseInt(document.getElementById('mDay').value);
   const start = document.getElementById('mStart').value;
   const end = document.getElementById('mEnd').value;
@@ -4386,6 +4397,7 @@ App.addManualMeeting = function() {
     endTime: end,
     title,
     category: cat,
+    categoryLabel: cat === 'cleaning' ? (catLabel || '雜項') : '',
   });
   Storage.save();
   App._refreshMeetingUI();
