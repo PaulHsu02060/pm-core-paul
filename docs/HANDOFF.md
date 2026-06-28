@@ -62,23 +62,15 @@
 
 ## §B 本週進度（每週滾動，只留當週）
 
-### 2026-06-27～28（本週）
+### 2026-06-28～29（本週）
 
-**目前 HEAD**：`42e6e7b`｜版本號 app.js `?v=20260628-3`／style.css `?v=20260628-1`｜兩 session 全部已驗＋commit＋push
+**目前 HEAD**：`3bc4ac5`｜版本號 app.js `?v=20260628-16`／style.css `?v=20260628-8`｜本 session 三批已驗＋commit＋push
 
 **已落地（本 session，皆已驗）**
-- **智慧排程衝突面板大整修（§4.8.7.x）**：③子案燈號 backward 同源 `2b6994f`／N2 interval 餘裕改真實順推 `f09f27e`／N1 採用層一後停留(燈亮+層二反灰鎖) `120e404`／第3 Stage2上一步分情境路由(回面板保留設定/回Stage1)+第1進大表前掃紅案閘門 `384643e`／**A 瓶頸建議改模擬法+每階段代表+有效縮減上限** `9e0c6c7`／層二重算撈新瓶頸小祕訣+主按鈕去層三化「進入Stage 2」 `3b0de48`／HintBox底色+展開+文案去層三化 `eaa7b71`。
-- **Stage2 大表排版（§4.8.7.7/§8g）**：刪階段分隔列(全選移表頭)+前置移固定寬走auto+字級13px+表頭文字欄靠左 `b7cf531`／部門「..」修復(任務名flex)+各欄min-width引導+前置三欄收窄+全選移需交付下+**表頭全置中/內容col-mid置中/任務名靠左** `441b943`。
-- **範本**：階段名去「機」(性試/量試/量產，手工機保留) `cc20d3e`。
-- **文件**：§17 全域定時備份規格 `1b8036d`。
-- **任務 modal 內層排版重構（§6.2）**：六分區＋排程時程群組卡＋時程三劍客；預計開始改單一可編輯日期格（data-autostart 防誤落錨、未經手不釘錨保住下游連動）；砍可切分；HintBox 預設收起；欄位標題 13px 暖墨（scope `.tf-redesign`）`bae6919`。
-- **清退役 .ovf-* 層三孤兒 CSS（§4.8.7.9）**：40 個 zero-reference class 移除（腳本交叉比對 app.js+templates+index.html，剩 56 全有引用、括號平衡）`c5ca512`。
-- **（06-28）Dashboard 階段一降噪（儀表板，§6.2 同盤）**：兩說明卡(階段進度/部門負荷)預設收起；6 數據卡改白底＋頂部細彩線＋數字 24px＋標籤縮小（清 6 個 `--kpi-*-l` 孤兒 var、tone 改 `border-top-color`）；匯出 Excel 改 ghost 次要鈕＋下載 icon；延遲徽章與逾期 N 天改 terracotta 暖膠囊（保色只加膠囊形）`59755b7`。
-- **（06-28）修 Excel 新建匯入爆 Stage 2**：`buildWbsPreview` 案別 variant 缺 `schedule` → `_s2VariantSlack` 直讀 `v.schedule.startDate` 爆 TypeError；形狀對齊 `applyTemplate`（補空 schedule＋stages，Excel 無目標窗→餘裕回 null）`fa6336d`（見踩坑手冊坑 7）。
-- **（06-28）移除 saveProject 不可達舊 create 死碼**：含 Excel「下一批實作」stub＋讀已不存在的 `pf-mode`；唯一呼叫點只在編輯彈窗渲染（id 恆有值），create 分支不可達 → 收斂成純編輯（新增專案走 `_flowStep1` 多步流程）`42e6e7b`。
-
-**真關鍵路徑已解（§A）**：原「長工時門檻近似」由模擬法取代（`_effectiveGains` 各任務縮到底看總時程真縮否、`_taskCap` 二分有效縮減上限+clamp防縮過頭、`_ovfTopTasks` 每階段選 gain 最大代表）——根治「同階段並行互拖、改了沒用」。
+- **週曆大改（總儀表板時程表）**：半小時→一小時一格＋暖綠一體化配色（白格/暖線/深綠會議卡 `#E4EDE8`/琥珀雜項 `#FDF6E2`/午休沙 `#F5F4EE`/今日綠圈）＋事件**依分鐘比例定位**（整點填滿、半點半格、跨點拉伸、起點早於格頂釘格頂；定位純視覺、拖放仍綁 cell data）＋OCR `TIME` 正規式吃 3-4 位連續數字救「830→8:30」`b42066d`。
+- **會議彈窗重組**：管理主頁(定期+特定清單，加欄位標題列、編輯/刪除/啟用)＋「＋新增事件」子頁(手動填入比照定期事件帶 `form-field` 標籤與下拉／上傳截圖 OCR)＋從彈窗編輯/新增存完自動回主頁(null-guard)；OCR 缺星期改琥珀色框提示、toast 不空擋、有日期自動帶星期 `3bc4ac5`。
 
 **下一件（已定案未做，重點）**
-1. **§17 全域定時備份+還原**（取代 §8d.18 草稿方向，Paul 拍板）：B 後端 time-trigger 每天快照 → 前端整碗還原 → 後續單一專案還原。**從 ① 後端 .gs 起**（time-trigger + `doGet snapshots`/`snapshot` 兩 API，最高風險、獨立 session、照 §8f 鐵則新部署測試 URL 驗完才切正式）。完整規格見架構 §17、pickup 見 `SESSION-HANDOFF.md`。
-2. overflow 面板字級（Paul 第一批給的字級表，面板大改後規範過時，待 Paul 重看現況再決定要不要調）。
+1. **雙軌導覽重組（個人工作台 / 全專案總覽）**——定案見新文件 `docs/dual-track-nav-design.md`（Q1=B：個人記錄為主、會議加可選擔當/部門欄、部門負載明示偏頗；Q2：個人工作台當預設首頁）。**Phase 0 導覽拆分先做**（低風險、把現成 `renderGantt`/`renderMonth` 搬到 portfolio）；Phase 1 總覽頁 MVP 先出 Mockup（只畫有真資料的區塊＋漂亮 empty state）；Phase 2（趨勢/里程碑月曆/部門負載併個人雜事）需快照(§17)＋會議加部門欄。**重點：現況已有跨專案甘特/月曆，是重組非重蓋。**
+2. **§17 全域定時備份+還原**（Paul 拍板）：從 ① 後端 .gs 起（time-trigger + `doGet snapshots`/`snapshot`，最高風險、獨立 session、照 §8f 新部署測試 URL 驗完才切正式）。完整規格見架構 §17。
+3. overflow 面板字級（面板大改後規範過時，待 Paul 重看現況再定）。
