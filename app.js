@@ -92,7 +92,7 @@ const DEFAULT_SETTINGS = {
   // 總儀表板時程表顯示偏好（純顯示，存全域→上雲跨機）；午休 12:00–13:00 固定，不受此影響。
   gridStartHour: 8,
   gridEndHour: 18,
-  gridSlotMinutes: 30,   // 30=半小時一格 / 60=一小時一格
+  gridSlotMinutes: 60,   // 週曆固定一小時一格（render 已強制；此值保留相容）
   // HintBox 區塊級說明框收合狀態：{ [key]: true=收起 }；undefined/false=展開（預設展開）。整包隨 settings 持久化＋上雲。
   hintBoxState: {},
   // 【需求 A】手動釘選到本週的 task id；釘選後不因 plannedStart 在未來被排程踢出
@@ -958,10 +958,16 @@ function parseMeetingText(text) {
 
   const toHM = (mer, body) => {
     if (!body) return null;
-    const m = String(body).match(/(\d{1,2})(?:[:：](\d{1,2}))?\s*(?:點|時)?\s*(\d{1,2})?\s*分?/);
-    if (!m) return null;
-    let h = parseInt(m[1], 10);
-    let mi = m[2] != null ? parseInt(m[2], 10) : (m[3] != null ? parseInt(m[3], 10) : 0);
+    let h, mi;
+    const cm = String(body).match(/(\d{1,2})[:：](\d{1,2})/);   // H:MM
+    if (cm) { h = parseInt(cm[1], 10); mi = parseInt(cm[2], 10); }
+    else {
+      const dm = String(body).match(/\d+/);
+      if (!dm) return null;
+      const dig = dm[0];
+      if (dig.length >= 3) { h = parseInt(dig.slice(0, dig.length - 2), 10); mi = parseInt(dig.slice(-2), 10); }  // 830→8:30、1030→10:30（OCR 常把冒號吃掉）
+      else { h = parseInt(dig, 10); mi = 0; }   // 8點 / 10
+    }
     if (/下午|晚上|傍晚|午後/.test(mer || '') && h < 12) h += 12;
     if (/上午|早上|凌晨|清晨/.test(mer || '') && h === 12) h = 0;
     if (/中午/.test(mer || '') && h < 12) h = 12;
@@ -970,7 +976,7 @@ function parseMeetingText(text) {
   };
 
   const MER = '上午|下午|早上|晚上|傍晚|午後|凌晨|清晨|中午';
-  const TIME = '\\d{1,2}(?:[:：]\\d{1,2})?\\s*(?:點|時)?(?:\\d{1,2}\\s*分)?';
+  const TIME = '(?:\\d{3,4}|\\d{1,2}(?:[:：]\\d{1,2})?\\s*(?:點|時)?(?:\\d{1,2}\\s*分)?)';   // 先吃 3–4 位連續數字(OCR 吃掉冒號的 830/1030)，再吃一般 H[:MM]/H點[MM分]
   const RANGE = new RegExp(`(${MER})?\\s*(${TIME})\\s*[\\-–—~～至到]+\\s*(${MER})?\\s*(${TIME})`);
 
   const out = [];
@@ -2983,7 +2989,11 @@ App.buildWeekScheduleHtml = function(targetMonday) {
   const _gs = Math.max(0, Math.min(22, parseInt(DATA.settings.gridStartHour, 10) || 8));
   const _ge = Math.max(_gs + 1, Math.min(24, parseInt(DATA.settings.gridEndHour, 10) || 18));
   const hours = []; for (let _h = _gs; _h < _ge; _h++) hours.push(_h);
-  const _slots = (parseInt(DATA.settings.gridSlotMinutes, 10) === 60) ? [0] : [0, 30];   // 一小時/半小時一格
+  const _slots = [0];   // 週曆全面一小時一格（不再有半小時子列）
+  // 比例定位：一格高 66px、格線 gap 1px → 每小時像素間距 67；事件 top/height 依實際分鐘換算
+  const CELL_H = 66, ROW_GAP = 1, PITCH = CELL_H + ROW_GAP;
+  const _tmin = (s) => { const p = String(s || '').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); };
+  const _minPx = (min) => (min / 60) * PITCH;
   const items = (DATA.schedule.items || []).filter(it => it.week === wk);
   // Legacy DATA.meetings
   const meetings = DATA.meetings.filter(m => {
@@ -3098,8 +3108,8 @@ App.buildWeekScheduleHtml = function(targetMonday) {
       const dateIso = D.fmt(d, 'iso');
       const hrStr = `${String(hr).padStart(2,'0')}:${half}`;
 
-      // Find items at this slot
-      const item = items.find(it => it.date === dateIso && it.start === hrStr);
+      // Find items at this slot（一小時格：以整點 hour 比對，HH:30 起的任務也歸入該格、靠比例定位）
+      const item = items.find(it => it.date === dateIso && Math.floor(_tmin(it.start) / 60) === hr);
       const meeting = mm === 0 ? meetings.find(m => {
         if (m.date !== dateIso) return false;
         const [mh] = (m.startTime || '').split(':').map(Number);
@@ -3108,7 +3118,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
       const meetingAuto = mm === 0 ? findMeetingAt(dateIso, hr) : null;
 
       // Cell is drop target
-      html += `<div class="ws-cell" data-date="${dateIso}" data-start="${hrStr}" ondragover="event.preventDefault(); this.classList.add('drag-over');" ondragleave="this.classList.remove('drag-over');" ondrop="App.handleScheduleDrop(event, '${dateIso}', '${hrStr}')">`;
+      html += `<div class="ws-cell ${D.isSameDay(d, today) ? 'today-col' : ''}" data-date="${dateIso}" data-start="${hrStr}" ondragover="event.preventDefault(); this.classList.add('drag-over');" ondragleave="this.classList.remove('drag-over');" ondrop="App.handleScheduleDrop(event, '${dateIso}', '${hrStr}')">`;
       if (item) {
         const task = DATA.tasks.find(t => t.id === item.taskId);
         if (task) {
@@ -3138,12 +3148,13 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           if (task.note) tipParts.push(`備註：${task.note}`);
           const tipText = tipParts.join('\n');
 
-          // 卡片跨格：halfCells = duration/30，套用會議已驗證的高度公式（1h→52, 2h→108, 3h→164）
-          const halfCells = Math.max(2, Math.round((item.duration || 60) / 30));
-          const cardH = halfCells * 48 + (halfCells - 1) * 4;
+          // 卡片比例定位：top/height 依實際起訖分鐘；起點早於本格頂則釘格頂、最小高 18px
+          const _stM = _tmin(item.start), _enM = _stM + (item.duration || 60);
+          let _top = _minPx(_stM - hr * 60); if (_top < 0) _top = 0;
+          const _h = Math.max(18, _minPx(_enM - hr * 60) - _top - ROW_GAP);
 
           html += `<div class="ws-event ws-ev-task ${cat} ${item.locked ? 'locked' : ''} ${isOverdue ? 'overdue' : ''} ${item.completed ? 'completed' : ''}"
-            style="top:0;height:${cardH}px;"
+            style="top:${_top}px;height:${_h}px;"
             ${item.completed ? '' : 'draggable="true"'}
             data-task-id="${task.id}"
             data-from-date="${dateIso}"
@@ -3160,7 +3171,11 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         const mMisc = meeting.category === 'cleaning';   // 雜項桶（自訂分類名）；其餘＝會議
         const mIcon = mMisc ? '🏷' : '📅';
         const mLbl = (mMisc && meeting.categoryLabel) ? `[${U.esc(meeting.categoryLabel)}] ` : '';
-        html += `<div class="ws-event ${mMisc ? 'cleaning' : 'meeting'}" style="top:0;height:100px;" title="${U.esc(((mMisc && meeting.categoryLabel) ? '[' + meeting.categoryLabel + '] ' : '') + meeting.title)}">
+        const _mSt = _tmin(meeting.startTime || `${hr}:00`);
+        const _mEn = meeting.endTime ? _tmin(meeting.endTime) : _mSt + 60;
+        let _mTop = _minPx(_mSt - hr * 60); if (_mTop < 0) _mTop = 0;
+        const _mH = Math.max(18, _minPx(_mEn - hr * 60) - _mTop - ROW_GAP);
+        html += `<div class="ws-event ${mMisc ? 'cleaning' : 'meeting'}" style="top:${_mTop}px;height:${_mH}px;" title="${U.esc(((mMisc && meeting.categoryLabel) ? '[' + meeting.categoryLabel + '] ' : '') + meeting.title)}">
           <b>${mIcon} ${mLbl}${U.esc(meeting.title).slice(0, 12)}</b>
           <div class="ev-meta">${meeting.startTime || ''}</div>
         </div>`;
@@ -3172,14 +3187,14 @@ App.buildWeekScheduleHtml = function(targetMonday) {
           const aLbl = (aMisc && meetingAuto.categoryLabel) ? `[${meetingAuto.categoryLabel}] ` : '';
           const catTxt = aMisc ? (meetingAuto.categoryLabel || '雜項') : '會議';
           const tip = `${aLbl}${meetingAuto.title}\n${meetingAuto.start}–${meetingAuto.end}\n${aMisc ? '🏷' : '📅'} ${catTxt}（${freqLabel(meetingAuto.frequency)}）`;
-          const spanHr = meetingAuto.spanHours || 1;
-          // 半小時格：1 小時 = 2 格（每格 24px + row-gap 4px）
-          const halfCells = spanHr * 2;
-          const cellHeight = halfCells * 48 + (halfCells - 1) * 4;
+          // 比例定位：依實際起訖分鐘；起點早於本格頂則釘格頂、最小高 18px
+          const _aSt = _tmin(meetingAuto.start), _aEn = meetingAuto.end ? _tmin(meetingAuto.end) : _aSt + 60;
+          let _aTop = _minPx(_aSt - hr * 60); if (_aTop < 0) _aTop = 0;
+          const _aH = Math.max(18, _minPx(_aEn - hr * 60) - _aTop - ROW_GAP);
           const cssClass = aMisc ? 'cleaning' : 'auto-meeting';
           const icon = aMisc ? (meetingAuto.categoryLabel ? '🏷' : '🧹') : '📅';
           // z-index 1：低於任務（防止視覺覆蓋其他列的任務）
-          html += `<div class="ws-event meeting ${cssClass}" style="top:0; height:${cellHeight}px; z-index:1;" title="${U.esc(tip)}">
+          html += `<div class="ws-event meeting ${cssClass}" style="top:${_aTop}px; height:${_aH}px; z-index:1;" title="${U.esc(tip)}">
             <b>${icon} ${U.esc(aLbl + meetingAuto.title).slice(0, 16)}</b>
             <div class="ev-meta">${meetingAuto.start}–${meetingAuto.end}</div>
           </div>`;

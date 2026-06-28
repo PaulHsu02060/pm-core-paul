@@ -49,14 +49,15 @@
   --xl-gantt-done: #3B6B4A;     /* Excel甘特 完成(深綠,同螢幕) */
   --xl-gantt-wip: #4A6B85;      /* Excel甘特 進行中(navy,同螢幕) */
   --xl-gantt-late: #C4633E;     /* Excel甘特 逾期(terracotta,同螢幕) */
-  /* 週曆事件卡 B 款配色（Paul 2026-06-28 指定；偏冷藍/琥珀＋純白網格＋冷灰線，hex 集中於此） */
+  /* 週曆事件卡 暖綠一體化配色（Paul 2026-06-28 定版；白格＋暖線＋深綠會議卡＋琥珀雜項卡，hex 集中於此） */
   --cal-cell-bg: #FFFFFF;        /* 空白格純白 */
-  --cal-grid-line: #F1F5F9;      /* 格線/間隙 冷灰 */
-  --cal-axis-bg: #F8FAFC;        /* 時間軸欄底 極淡冷灰 */
-  --cal-mtg-bg: #F0F9FF; --cal-mtg-line: #0284C7; --cal-mtg-ink: #0C4A6E;     /* 會議 冰川藍 */
-  --cal-misc-bg: #FFFBEB; --cal-misc-line: #F59E0B; --cal-misc-ink: #78350F;  /* 雜項 奶茶琥珀 */
-  --cal-noon-bg: #F8FAFC; --cal-noon-text: #64748B;     /* 午休列底/字（極淡冷灰） */
-  --cal-today-bg: #F0FDF4; --cal-today-badge: #16A34A;  /* 今日直欄底 / 綠圓圈 */
+  --cal-grid-line: #E6E4DD;      /* 格線/間隙 暖灰 */
+  --cal-mtg-bg: #E4EDE8; --cal-mtg-line: #2D5A42; --cal-mtg-ink: #12291C;     /* 會議 優雅灰綠/深炭綠字/主深綠線 */
+  --cal-misc-bg: #FDF6E2; --cal-misc-line: #D97706; --cal-misc-ink: #5C330A;  /* 雜項 暖杏底/深褐字/溫潤琥珀線 */
+  --cal-noon-bg: #F5F4EE; --cal-noon-text: #8A8275;     /* 午休整格 暖沙底/暖灰字 */
+  --cal-today-bg: #EEF6EF; --cal-today-badge: #16A34A;  /* 今日直欄底 / 綠圓圈 */
+  --cal-date-ink: #1E293B;       /* 頂部日期大字（Paul 指定深藍灰，照 Mockup 定版） */
+  --cal-time-ink: #57534E;       /* 左側時間軸 中性深暖灰 */
   --xl-gantt-holiday: #F7DDE4;  /* Excel甘特 假日(淡粉紅,僅標表頭) */
 
   --amber-accent: #d99a3c;        /* 琥珀強調色（框/圈底） */
@@ -568,18 +569,18 @@ body.viewonly .cloud-sync-sec { display: none; }
 .dash-grid { display: grid; grid-template-columns: 1fr 240px; gap: 22px; }
 
 /* ─── WEEK SCHEDULE ─── */
-.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 4px; background: var(--cal-grid-line); padding: 4px; border-radius: var(--r8); }
-.ws-time-col { font-family: var(--mono); font-size: 11px; color: var(--ink4); text-align: right; padding-right: 8px; align-self: center; padding-top: 0; line-height: 48px; background: var(--cal-axis-bg); border-radius: var(--r4); }
-.ws-time-col.ws-time-lunch { align-self: start; padding-top: 8px; }
+.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 1px; background: var(--cal-grid-line); padding: 1px; border-radius: var(--r8); }
+.ws-time-col { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--cal-time-ink); text-align: right; padding-right: 8px; align-self: stretch; padding-top: 6px; line-height: 1; background: var(--cal-cell-bg); }
 .ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-cell-bg); border-radius: var(--r6); }
-.ws-day-header .date { font-family: var(--sans); font-weight: 600; font-size: 20px; display: block; color: var(--ink2); margin-bottom: 2px; }
+.ws-day-header .date { font-family: var(--sans); font-weight: 700; font-size: 18px; display: block; color: var(--cal-date-ink); margin-bottom: 2px; }
 .ws-day-header.today { background: var(--cal-today-bg); border-radius: var(--r6); }
 .ws-day-header.today .date { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--cal-today-badge); color: var(--ink-inverse); font-size: 16px; margin-bottom: 2px; }
-.ws-cell { background: var(--cal-cell-bg); border-radius: var(--r6); height: 48px; position: relative; }
+.ws-cell { background: var(--cal-cell-bg); height: 66px; position: relative; }
+.ws-cell.today-col { background: var(--cal-today-bg); }
 .ws-lunch-band {
   grid-column: span 5;
-  height: 48px; margin: 8px 0;
-  background: var(--cal-noon-bg); border: none; border-radius: var(--r6);
+  height: 66px; margin: 0;
+  background: var(--cal-noon-bg); border: none; border-radius: 0;
   color: var(--cal-noon-text);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1px;
@@ -635,6 +636,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 }
 .ws-event.auto-meeting b, .ws-event.cleaning b { padding-left: 0; }
 .ws-event.auto-meeting .ev-meta, .ws-event.cleaning .ev-meta { padding-left: 0; }
+.ws-event.meeting .ev-meta, .ws-event.cleaning .ev-meta { color: inherit; opacity: .7; font-size: 11px; font-weight: 400; }
 .ws-event.auto-meeting:hover, .ws-event.cleaning:hover { transform: none; }
 .ws-event.other { background: var(--stone-100); border-color: var(--stone-300); color: var(--stone-600); }
 .ws-event.milestone { background: var(--terracotta-l); border-color: var(--terracotta); color: var(--terracotta-ink); }  /* M2-T3：taskType 里程碑週卡，同甘特菱形 terracotta */
