@@ -571,10 +571,10 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ws-lunch-band {
   grid-column: span 5;
   height: 24px; margin: 8px 0;
-  background: var(--khaki-bg); border: 1px solid var(--khaki); border-radius: var(--r6);
-  color: var(--khaki-ink);
+  background: var(--stone-50); border: 1px solid var(--rule); border-radius: var(--r6);
+  color: var(--ink4);
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1.5px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1px;
   cursor: not-allowed;
 }
 .ws-event {
@@ -593,13 +593,13 @@ body.viewonly .cloud-sync-sec { display: none; }
 .ws-event:hover { transform: scale(1.02); z-index: 2; }
 .ws-event.deep { background: var(--sage-50); border-color: var(--sage-500); color: var(--sage-800); }
 .ws-event.admin { background: var(--amber-l); border-color: var(--amber); color: var(--amber-ink); }
-.ws-event.meeting { 
-  background: linear-gradient(135deg, var(--navy-from) 0%, var(--navy-to) 100%);
+.ws-event.meeting {
+  background: var(--navy-from);
   border-color: var(--navy);
   color: var(--navy-ink);
 }
 .ws-event.auto-meeting {
-  background: linear-gradient(135deg, var(--navy-from) 0%, var(--navy-to) 100%);
+  background: var(--navy-from);
   border-left: 4px solid var(--navy);
   cursor: default;
   font-weight: 500;
@@ -611,7 +611,7 @@ body.viewonly .cloud-sync-sec { display: none; }
   padding-left: 10px;
 }
 .ws-event.cleaning {
-  background: linear-gradient(135deg, var(--clay-from) 0%, var(--clay-to) 100%);
+  background: var(--clay-from);
   border-left: 4px solid var(--clay);
   color: var(--clay-ink);
   cursor: default;
@@ -708,7 +708,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 
 /* ─── MEMO ─── */
 .memo-board {
-  background: var(--surface); border: 1px solid var(--rule);
+  background: var(--stone-50); border: 1px solid var(--rule);
   border-radius: var(--r12); padding: 16px;
   position: relative; min-height: 540px;
   background-image:
@@ -1043,7 +1043,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* Generate */
 .generate-section { margin-top: 18px; }
 .generate-cta {
-  background: linear-gradient(135deg, var(--sage-500) 0%, var(--sage-600) 100%);
+  background: var(--sage-600);
   color: var(--ink-inverse); border: none; border-radius: var(--r12);
   padding: 14px 18px; font-size: 14px; font-weight: 600;
   width: 100%; cursor: pointer;
