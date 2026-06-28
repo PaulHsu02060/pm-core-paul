@@ -157,3 +157,52 @@ old_string 只匹配舊段一部分，新內容疊後面、舊段殘留。整段
 - `replaceUpTo`（後面固定錨點當邊界、吃掉中間整段）或 `replaceSpanIncl`（含頭含尾整段換），每錨點 `count===1` 守門。
 - **dry-run 先印替換結果** + **計數證明**（如替換後 `const userInput` 應=1、舊 class 應=0）確認無並存、無重複，再正式寫。
 - Edit 適合**單行/小範圍**；**整段 render/函式換**用 node replaceSpan 才不會框不全。
+
+---
+
+## 坑 6：跳過中間階段→下游階段甘特浮到專案最前面（2026-06-27）
+
+**現象**
+第一/第二階段預覽選階段時若**跳過中間階段**（如選 設計／手工機／量產機、跳過 性試機／量試機），
+下游階段（量產機）的甘特長條不接在前段之後，反而**浮到專案最前面**（起點＝專案開始日），時間明顯不合理。
+
+**根因**
+跳階段時 `applyTemplate` 把指向「被砍階段」的前置剝離（excludedNs → relinkPred 移除）→ 下游階段任務變**無前置**
+→ 順推（computeSchedule）時無起算來源、落到專案開始日。Stage 1 forward 模式（只填開始日）與 Stage 2 forward 甘特
+都直接吃這個浮位落點。**初版只在 interval／情境C（`_s1ColorStagesForward`）內補了順序鏈、forward 模式漏掉**，故主案（只填開始日）仍浮。
+
+**正解（已根治）**
+抽共用函式 `App._chainStages(stages)`：依顯示順序逐段檢查，某段起點若早於前段結束日，就改「接在前段之後」
+（保留原工期跨度、idempotent）。三處接入：
+- `_s1ColorStagesForward`（interval／情境C）內呼叫 `_chainStages`。
+- `_s1ComputePreview` 的 forward／倒推來得及分支（`else`）補呼叫。
+- `_s2GanttHtml` 同分流（interval/情境C 走 `_s1ColorStagesForward`、其餘走 `_chainStages`）。
+→ Stage 1／2 各排程方向跳階段都不再浮位。
+
+**操作提醒**
+排程顯示層若改動「無前置任務的落點」邏輯，務必三個入口（`_s1ColorStagesForward`／`_s1ComputePreview`／`_s2GanttHtml`）一起檢查，
+別只補一條路徑。`_chainStages` 假設階段為**循序**（本範本成立）；若日後有真正並行階段，需另議（強制循序會把並行段串成序列）。
+
+---
+
+## 坑 7：Excel 新建專案一進 Stage 2 就爆 TypeError（variant 缺 schedule）（2026-06-28）
+
+**現象**
+「新增專案 → 從 Excel 匯入」選檔解析成功（顯示「✓ 已讀取 N 筆任務」），但一按「下一步：檢視任務」就死，
+Console 紅字 `Uncaught TypeError: Cannot read properties of undefined (reading 'startDate')`（app.js:`_s2VariantSlack`）。
+Dev 端整條 Excel 新建因此完全不能用（檔案本身完全正常——分頁/表頭/8 必要欄都對）。
+
+**根因（已查證，附行號）**
+- 範本路徑 `applyTemplate`（app.js:2615）建的案別 variant 形狀＝`{ id, name, schedule:{startDate,endDate,direction}, stages }`。
+- Excel 路徑 `buildWbsPreview`（app.js:10952）卻只建 `{ id, name }`，**沒有 `schedule`**。
+- Stage 2 餘裕計算 `_s2VariantSlack`（app.js:7022）一連串**直接讀 `v.schedule.startDate/endDate/direction`，無 `|| {}` 防呆**
+  → `v.schedule` 為 undefined → 讀 `.startDate` 即爆。（同檔 `_s2GanttHtml` 6837 反而有 `v.schedule || {}` 防呆，故只 slack 爆。）
+
+**正解（已根治，commit `fa6336d`）**
+`buildWbsPreview` 的 variant 補上 `schedule: { startDate:'', endDate:'', direction:'forward' }`＋`stages: []`，形狀對齊 `applyTemplate`。
+Excel 匯入本來就**沒有「目標上市窗」**，空 schedule 下 `_s2VariantSlack` 自然回 `null`（不顯燈號）＝正確語意；甘特照樣讀任務 plannedStart/End。
+
+**操作提醒**
+- 兩條建專案路徑（範本 `applyTemplate`／Excel `buildWbsPreview`）**回傳的 variant 形狀必須一致**——下游 Stage 2 render 同一套，缺欄就炸。日後改 variant 結構要兩邊同步。
+- Stage 2 一堆 `v.schedule.X` 是**直接讀、無防呆**（7022/7063/7116…），靠「variant 一定帶 schedule」這個前提撐著；新增任何 variant 來源都要記得帶 schedule。
+- 連帶教訓：Excel 新建這條路徑體質弱（舊 `saveProject` 還留過「下一批實作」死 stub、掛在舊版 `_renderStage2`），多案別大檔匯入值得完整走查一遍。
