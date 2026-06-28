@@ -830,6 +830,14 @@ function eventOccursOnDate(event, dateIso) {
 
   if (freq === 'weekly') return true;
 
+  // monthly：每月第 N 個星期幾（依 startDate 推算 N；day 已在上方核對）。無錨點則每月該星期幾都算。
+  if (freq === 'monthly') {
+    const nthOf = (dt) => Math.floor((dt.getDate() - 1) / 7) + 1;
+    if (!event.startDate) return true;
+    const sd = new Date(event.startDate); sd.setHours(0, 0, 0, 0);
+    return nthOf(d) === nthOf(sd);
+  }
+
   // biweekly / triweekly: 從 startDate 起算第幾週（每幾週一次）
   const start = event.startDate ? new Date(event.startDate) : new Date('2026-01-01');
   start.setHours(0,0,0,0);
@@ -2976,7 +2984,7 @@ App.buildWeekScheduleHtml = function(targetMonday) {
 
   // Helper: 把 frequency 轉成中文標籤
   function freqLabel(f) {
-    return ({ once: '單次', daily: '每天', weekly: '每週', biweekly: '隔週(一天)', triweekly: '隔兩週(一天)', 'biweekly-allday': '隔週整週每天', 'triweekly-allday': '隔兩週整週每天' })[f] || '每週';
+    return ({ once: '單次', daily: '每天', weekly: '每週', biweekly: '隔週(一天)', triweekly: '隔兩週(一天)', monthly: '每月', 'biweekly-allday': '隔週整週每天', 'triweekly-allday': '隔兩週整週每天' })[f] || '每週';
   }
 
   // Build a lookup: for each (date, hour) → which meeting?
@@ -3147,16 +3155,19 @@ App.buildWeekScheduleHtml = function(targetMonday) {
         // Show recurring / special meeting (auto-blocked)
         // Merged cell effect: only render on isFirstSlot with extended height
         if (meetingAuto.isFirstSlot) {
-          const tip = `${meetingAuto.title}\n${meetingAuto.start}–${meetingAuto.end}\n${meetingAuto.category === 'cleaning' ? '🧹 打掃' : '📅 會議'}（${freqLabel(meetingAuto.frequency)}）`;
+          const aMisc = meetingAuto.category === 'cleaning';
+          const aLbl = (aMisc && meetingAuto.categoryLabel) ? `[${meetingAuto.categoryLabel}] ` : '';
+          const catTxt = aMisc ? (meetingAuto.categoryLabel || '雜項') : '會議';
+          const tip = `${aLbl}${meetingAuto.title}\n${meetingAuto.start}–${meetingAuto.end}\n${aMisc ? '🏷' : '📅'} ${catTxt}（${freqLabel(meetingAuto.frequency)}）`;
           const spanHr = meetingAuto.spanHours || 1;
           // 半小時格：1 小時 = 2 格（每格 24px + row-gap 4px）
           const halfCells = spanHr * 2;
           const cellHeight = halfCells * 24 + (halfCells - 1) * 4;
-          const cssClass = meetingAuto.category === 'cleaning' ? 'cleaning' : 'auto-meeting';
-          const icon = meetingAuto.category === 'cleaning' ? '🧹' : '📅';
+          const cssClass = aMisc ? 'cleaning' : 'auto-meeting';
+          const icon = aMisc ? (meetingAuto.categoryLabel ? '🏷' : '🧹') : '📅';
           // z-index 1：低於任務（防止視覺覆蓋其他列的任務）
           html += `<div class="ws-event meeting ${cssClass}" style="top:0; height:${cellHeight}px; z-index:1;" title="${U.esc(tip)}">
-            <b>${icon} ${U.esc(meetingAuto.title).slice(0, 16)}</b>
+            <b>${icon} ${U.esc(aLbl + meetingAuto.title).slice(0, 16)}</b>
             <div class="ev-meta">${meetingAuto.start}–${meetingAuto.end}</div>
           </div>`;
         }
@@ -4308,24 +4319,30 @@ App.buildMeetingModalBody = function() {
 
     <div id="am-manual" class="am-form" style="display:none">
       <div class="am-row">
+        <select id="mFreq" title="一次性存當週；每週/隔週/每月存定期事件、之後自動重複出現">
+          <option value="once">不定期單次</option>
+          <option value="weekly">每週</option>
+          <option value="biweekly">隔週</option>
+          <option value="monthly">每月（第N個週幾）</option>
+        </select>
         <select id="mCat" title="分類：雜項只能手動加（行事曆截圖不會有），兩類都會被智慧排程避開" onchange="App._toggleMcatLabel()">
           <option value="meeting">📅 會議</option>
           <option value="cleaning">🏷 雜項</option>
-        </select>
-        <select id="mDay">
-          <option value="1">週一</option><option value="2">週二</option>
-          <option value="3">週三</option><option value="4">週四</option>
-          <option value="5">週五</option><option value="6">週六</option><option value="0">週日</option>
         </select>
       </div>
       <div class="am-row" id="mCatLabelRow" style="display:none;">
         <input id="mCatLabel" placeholder="分類名稱（自訂，如：打掃、外出、私人）">
       </div>
       <div class="am-row">
+        <select id="mDay">
+          <option value="1">週一</option><option value="2">週二</option>
+          <option value="3">週三</option><option value="4">週四</option>
+          <option value="5">週五</option><option value="6">週六</option><option value="0">週日</option>
+        </select>
         <input type="time" id="mStart" value="10:00">
-        <input type="time" id="mEnd" value="11:00">
       </div>
       <div class="am-row">
+        <input type="time" id="mEnd" value="11:00">
         <input id="mTitle" placeholder="主題（如：主管週會、輪值掃地）">
       </div>
       <button class="am-add-btn" data-edit onclick="App.addManualMeeting()">＋ 加入</button>
@@ -4379,8 +4396,10 @@ App._toggleMcatLabel = function() {
 
 App.addManualMeeting = function() {
   if (App._roGuard()) return;
+  const freq = (document.getElementById('mFreq') || {}).value || 'once';   // 不定期單次 / 每週 / 隔週 / 每月
   const cat = (document.getElementById('mCat') || {}).value || 'meeting';   // 內部分類桶：meeting / cleaning（皆避開排程、週曆分色）
-  const catLabel = ((document.getElementById('mCatLabel') || {}).value || '').trim();   // 雜項自訂顯示名（打掃/外出/私人…，不綁死打掃）
+  const catLabelRaw = ((document.getElementById('mCatLabel') || {}).value || '').trim();   // 雜項自訂顯示名（打掃/外出/私人…，不綁死打掃）
+  const catLabel = cat === 'cleaning' ? (catLabelRaw || '雜項') : '';
   const dayNum = parseInt(document.getElementById('mDay').value);
   const start = document.getElementById('mStart').value;
   const end = document.getElementById('mEnd').value;
@@ -4390,18 +4409,24 @@ App.addManualMeeting = function() {
   const monday = D.monday();
   const target = D.addDays(monday, dayNum === 0 ? 6 : dayNum - 1);
 
-  DATA.meetings.push({
-    id: U.id(),
-    date: D.fmt(target, 'iso'),
-    startTime: start,
-    endTime: end,
-    title,
-    category: cat,
-    categoryLabel: cat === 'cleaning' ? (catLabel || '雜項') : '',
-  });
+  if (freq === 'once') {
+    // 一次性 → 當週那天，存 DATA.meetings
+    DATA.meetings.push({
+      id: U.id(), date: D.fmt(target, 'iso'), startTime: start, endTime: end,
+      title, category: cat, categoryLabel: catLabel,
+    });
+  } else {
+    // 週期性（每週/隔週/每月）→ 存 settings.recurringMeetings（與設定頁定期事件同源、自動重複上週曆）
+    if (!DATA.settings.recurringMeetings) DATA.settings.recurringMeetings = [];
+    DATA.settings.recurringMeetings.push({
+      id: U.id(), category: cat, categoryLabel: catLabel, frequency: freq,
+      day: dayNum, start, end, title, startDate: D.fmt(target, 'iso'), endDate: '', enabled: true,
+    });
+  }
   Storage.save();
   App._refreshMeetingUI();
-  U.toast(cat === 'cleaning' ? '✓ 雜項已加入' : '✓ 會議已加入');
+  const fl = ({ once: '單次', weekly: '每週', biweekly: '隔週', monthly: '每月' })[freq] || '';
+  U.toast(`✓ 已加入${fl ? '（' + fl + '）' : ''}${cat === 'cleaning' ? '雜項' : '會議'}`, 'success');
 };
 
 App.generateNow = function() {
@@ -10424,6 +10449,7 @@ App.openRecurringMeetingDialog = function(id) {
             <option value="daily" ${cur.frequency === 'daily' ? 'selected' : ''}>每天</option>
             <option value="weekly" ${cur.frequency === 'weekly' || !cur.frequency ? 'selected' : ''}>每週</option>
             <option value="biweekly" ${cur.frequency === 'biweekly' ? 'selected' : ''}>隔週（指定一天）</option>
+            <option value="monthly" ${cur.frequency === 'monthly' ? 'selected' : ''}>每月（第N個週幾）</option>
             <option value="triweekly" ${cur.frequency === 'triweekly' ? 'selected' : ''}>隔兩週（指定一天）</option>
             <option value="biweekly-allday" ${cur.frequency === 'biweekly-allday' ? 'selected' : ''}>隔週整週每天（週一~五）</option>
             <option value="triweekly-allday" ${cur.frequency === 'triweekly-allday' ? 'selected' : ''}>隔兩週整週每天（週一~五）</option>
