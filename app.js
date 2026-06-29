@@ -5538,6 +5538,17 @@ App.saveNewTask = function(projId, _skipNegCheck) {
   } else {
     DATA.tasks.push(task);
   }
+  // 修正1：新建小時 Task 立刻在「預計開始日」放臨時時段，週曆即時可見（智慧排程整批重建 schedule.items 時自然覆蓋重排；applySchedule 是 WBS 引擎、不碰時段 items）
+  if (task.measureType === 'hours') {
+    const _ps = (document.getElementById('tf-start') && document.getElementById('tf-start').value) || D.fmt(D.today(), 'iso');
+    if (!DATA.schedule || !Array.isArray(DATA.schedule.items)) DATA.schedule = { week: null, items: [] };
+    DATA.schedule.items.push({
+      taskId: task.id, date: _ps, start: DATA.settings.workStart1 || '09:00',
+      duration: Math.max(30, Math.round((parseFloat(task.estHours) || 1) * 60)),
+      chunk: null, totalHours: parseFloat(task.estHours) || 1,
+      week: D.weekKey(new Date(_ps)), locked: false, provisional: true,
+    });
+  }
   const _sch = applySchedule(DATA.tasks, 'full');
   const _blocked = _sch.skipped.filter(s => !String(s.reason || '').startsWith('anchor'));
   const _pid = this.currentProjectId;
