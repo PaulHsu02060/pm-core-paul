@@ -3212,7 +3212,7 @@ Workspace.render = function() {
               <button class="rw-arrow" onclick="Workspace.dashboardWeekShift(1)" title="下一週">›</button>
               ${this.dashboardWeekOffset !== 0 ? `<button class="rw-arrow" onclick="Workspace.dashboardWeekOffset=0; Workspace.render();" title="回到本週" style="background: var(--sage-50); color: var(--sage-700);">今</button>` : ''}
             </div>
-            <button class="rw-arrow" title="時程表顯示設定（時間範圍 / 半小時或一小時一格）" onclick="App.openGridSettingsModal()" style="margin-left:auto;"><i class="ti ti-settings"></i></button>
+            <button class="rw-arrow" title="時程表顯示設定（顯示時間範圍）" onclick="App.openGridSettingsModal()" style="margin-left:auto;"><i class="ti ti-settings"></i></button>
             <button class="tb-action" data-edit onclick="App.openHoursTaskDialog()">+ 新增小時 Task</button>
             <button class="tb-action ghost" data-edit onclick="App.openMeetingModal()"><i class="ti ti-calendar"></i> 管理會議</button>
           </div>
@@ -3276,6 +3276,7 @@ Workspace.buildWeekScheduleHtml = function(targetMonday) {
   const _gs = Math.max(0, Math.min(22, parseInt(DATA.settings.gridStartHour, 10) || 8));
   const _ge = Math.max(_gs + 1, Math.min(24, parseInt(DATA.settings.gridEndHour, 10) || 18));
   const hours = []; for (let _h = _gs; _h < _ge; _h++) hours.push(_h);
+  const _lastHr = hours.length ? hours[hours.length - 1] : _gs;   // 最後一格 → 底部補結束時間(_ge)標籤
   const _slots = [0];   // 週曆全面一小時一格（不再有半小時子列）
   // 比例定位：一格高 66px、格線 gap 1px → 每小時像素間距 67；事件 top/height 依實際分鐘換算
   const CELL_H = 66, ROW_GAP = 1, PITCH = CELL_H + ROW_GAP;
@@ -3383,13 +3384,13 @@ Workspace.buildWeekScheduleHtml = function(targetMonday) {
     // 午休：12:00 改成「時間欄(靠上) + 橫貫五天的單一午休帶」，12:30 子列整列跳過
     if (hr === 12) {
       if (mm === 0) {
-        html += `<div class="ws-time-col ws-time-lunch"><span class="ws-tlabel">12:00</span></div>`;
+        html += `<div class="ws-time-col ws-time-lunch"><span class="ws-tlabel${hr === _gs ? ' ws-tlabel-first' : ''}">12:00</span>${hr === _lastHr ? `<span class="ws-tlabel ws-tlabel-end">${String(_ge).padStart(2,'0')}:00</span>` : ''}</div>`;
         html += `<div class="ws-lunch-band">☕ 午休時間</div>`;
       }
       continue;
     }
     const half = mm === 0 ? '00' : '30';
-    html += `<div class="ws-time-col"><span class="ws-tlabel">${String(hr).padStart(2,'0')}:${half}</span></div>`;
+    html += `<div class="ws-time-col"><span class="ws-tlabel${hr === _gs ? ' ws-tlabel-first' : ''}">${String(hr).padStart(2,'0')}:${half}</span>${hr === _lastHr ? `<span class="ws-tlabel ws-tlabel-end">${String(_ge).padStart(2,'0')}:00</span>` : ''}</div>`;
     for (let i = 0; i < 5; i++) {
       const d = D.addDays(monday, i);
       const dateIso = D.fmt(d, 'iso');
@@ -4715,7 +4716,6 @@ App._refreshMeetingUI = function() {
 App.openGridSettingsModal = function() {
   const s = DATA.settings;
   const opt = (sel, lo, hi) => { let o = ''; for (let h = lo; h <= hi; h++) o += `<option value="${h}"${h === sel ? ' selected' : ''}>${String(h).padStart(2, '0')}:00</option>`; return o; };
-  const sm = parseInt(s.gridSlotMinutes, 10) === 60 ? 60 : 30;
   App.openModal({
     title: '⚙ 時程表顯示設定',
     body: `<div class="form-field"><label>顯示時間範圍</label>
@@ -4723,11 +4723,6 @@ App.openGridSettingsModal = function() {
           <select onchange="App.setGridSetting('gridStartHour', this.value)" style="flex:1;">${opt(parseInt(s.gridStartHour, 10) || 8, 0, 22)}</select>
           <span style="color:var(--ink4);">→</span>
           <select onchange="App.setGridSetting('gridEndHour', this.value)" style="flex:1;">${opt(parseInt(s.gridEndHour, 10) || 18, 1, 24)}</select>
-        </div></div>
-      <div class="form-field"><label>時間格密度</label>
-        <div class="measure-toggle" style="max-width:280px;">
-          <button type="button" class="measure-btn ${sm !== 60 ? 'active' : ''}" onclick="App.setGridSetting('gridSlotMinutes', 30)">半小時一格</button>
-          <button type="button" class="measure-btn ${sm === 60 ? 'active' : ''}" onclick="App.setGridSetting('gridSlotMinutes', 60)">一小時一格</button>
         </div></div>
       <div class="field-hint">☕ 午休 12:00–13:00 固定，不受此設定影響。</div>
       <div class="field-hint">☁ 此偏好存全域設定、自動同步雲端、跨機一致。</div>`,
@@ -4741,15 +4736,13 @@ App.setGridSetting = function(key, val) {
   if (isNaN(v)) return;
   if (key === 'gridStartHour') v = Math.max(0, Math.min(22, v));
   else if (key === 'gridEndHour') v = Math.max(1, Math.min(24, v));
-  else if (key === 'gridSlotMinutes') v = (v === 60) ? 60 : 30;
   DATA.settings[key] = v;
   if (DATA.settings.gridEndHour <= DATA.settings.gridStartHour) {   // 夾住起<迄，避免空表
     if (key === 'gridStartHour') DATA.settings.gridEndHour = Math.min(24, DATA.settings.gridStartHour + 1);
     else DATA.settings.gridStartHour = Math.max(0, DATA.settings.gridEndHour - 1);
   }
   Storage.save();          // 寫 localStorage + 觸發雲端上傳
-  Workspace.render();   // 週曆即時重畫
-  App.openGridSettingsModal();   // 重開反映夾過/切換後的狀態
+  Workspace.render();   // 週曆即時重畫（modal 不重開，改動即時反映在 modal 兩側可見的日曆）
 };
 
 App.buildGeneratePanelHtml = function() {
