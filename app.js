@@ -2164,9 +2164,9 @@ const Auth = {
 };
 
 const App = {
-  currentPage: 'dashboard',
+  currentPage: 'workspace', // 雙軌導覽預設首頁=個人工作台(§18)
   currentProjectId: null,
-  currentView: 'dashboard', // B-1 總儀表板視圖:dashboard|gantt|month(全專案範圍)
+  currentView: 'overview', // 全專案總覽 tab:overview|gantt|month(全專案範圍,§18.4)
   projectView: 'dashboard', // B-2 專案頁視圖:dashboard|gantt|month(單專案範圍,獨立於 currentView)
   reportWeekKey: null, // for report page
 
@@ -2381,15 +2381,16 @@ const App = {
 
   // ─── PAGE NAV ───
   showPage(name, btn) {
-    if (name === 'settings' && !isAdmin()) { return this.showPage('dashboard', document.querySelector('[data-page=dashboard]')); }
+    if (name === 'settings' && !isAdmin()) { return this.showPage('workspace', document.querySelector('[data-page=workspace]')); }
     this.currentPage = name;
-    if (name === 'dashboard') this.currentView = 'dashboard';
+    if (name === 'portfolio') this.currentView = 'overview';
     if (name === 'project') this.projectView = 'dashboard';
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
 
     const titles = {
-      dashboard: '總儀表板',
+      workspace: '個人工作台',
+      portfolio: '全專案總覽',
       project:   this.currentProjectId ? this.getProj(this.currentProjectId)?.name + ' · 任務管理' : '專案',
       gantt:     '甘特圖 · 跨專案時程',
       month:     '月曆視圖',
@@ -2414,16 +2415,6 @@ const App = {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
-  switchView(view) {
-    this.currentView = view;
-    if (view === 'dashboard') { this.renderDashboard(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-    if (view === 'gantt') { this.ganttProjectFilter = new Set(DATA.projects.map(p => p.id)); this.ganttStageFilter = null; this.ganttOwnerFilter = null; }
-    document.getElementById('page-dashboard').innerHTML = `<div class="view-tabs-bar">${this.buildViewTabsHtml()}</div><div id="view-body"></div>`;
-    if (view === 'gantt') this.renderGantt('view-body');
-    if (view === 'month') this.renderMonth('view-body');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  },
-
   switchProjectView(view) {
     this.projectView = view;
     if (view === 'dashboard') { this.renderProject(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -2442,7 +2433,8 @@ const App = {
 
   renderPage(name) {
     switch (name) {
-      case 'dashboard': this.renderDashboard(); break;
+      case 'workspace': Workspace.render();     break;
+      case 'portfolio': Portfolio.render();     break;
       case 'project':   this.renderProject();   break;
       case 'gantt':     this.renderGantt();     break;
       case 'month':     this.renderMonth();     break;
@@ -2493,6 +2485,10 @@ const App = {
     this.showPage('project', btn);
   },
 };
+
+// 雙軌導覽分包（§18.7）：個人工作台 / 全專案總覽 各自命名空間，未來拆檔即剪貼。
+const Workspace = {};
+const Portfolio = {};
 
 // ═══ 範本套用引擎（§8d.6）═══════════════════════════════════
 // _reschedulePreview：applyTemplate ⑧+6b 抽出的純排程段，供 applyTemplate 與 _s2SetDuration 共用。
@@ -2789,13 +2785,46 @@ App.applyTemplate = function(template, userInput) {
 // ═══════════════════════════════════════════════════════
 //  PAGE: DASHBOARD
 // ═══════════════════════════════════════════════════════
-App.buildViewTabsHtml = function() {
+Portfolio.buildTabsHtml = function() {
+  const v = App.currentView;
   return `
     <div class="tabs">
-      <button class="tab-btn ${this.currentView === 'dashboard' ? 'active' : ''}" onclick="App.switchView('dashboard')">儀表板</button>
-      <button class="tab-btn ${this.currentView === 'gantt' ? 'active' : ''}" onclick="App.switchView('gantt')">甘特圖</button>
-      <button class="tab-btn ${this.currentView === 'month' ? 'active' : ''}" onclick="App.switchView('month')">月曆</button>
+      <button class="tab-btn ${v === 'overview' ? 'active' : ''}" onclick="Portfolio.switchTab('overview')">總覽</button>
+      <button class="tab-btn ${v === 'gantt' ? 'active' : ''}" onclick="Portfolio.switchTab('gantt')">跨專案時程</button>
+      <button class="tab-btn ${v === 'month' ? 'active' : ''}" onclick="Portfolio.switchTab('month')">歷史月曆</button>
     </div>`;
+};
+
+Portfolio.render = function() {
+  document.getElementById('page-portfolio').innerHTML =
+    `<div class="view-tabs-bar">${this.buildTabsHtml()}</div><div id="portfolio-body"></div>`;
+  this.renderBody();
+};
+
+Portfolio.switchTab = function(view) {
+  App.currentView = view;
+  if (view === 'gantt') { App.ganttProjectFilter = new Set(DATA.projects.map(p => p.id)); App.ganttStageFilter = null; App.ganttOwnerFilter = null; }
+  document.getElementById('page-portfolio').innerHTML =
+    `<div class="view-tabs-bar">${this.buildTabsHtml()}</div><div id="portfolio-body"></div>`;
+  this.renderBody();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+Portfolio.renderBody = function() {
+  const v = App.currentView;
+  if (v === 'gantt') return App.renderGantt('portfolio-body');
+  if (v === 'month') return App.renderMonth('portfolio-body');
+  this.renderOverview('portfolio-body');
+};
+
+// Phase 0：總覽頁先 placeholder；Phase 1 真內容（4 指標卡＋雙列進度矩陣＋部門負載＋當週待處理）見架構 §18.8
+Portfolio.renderOverview = function(mountId) {
+  const el = document.getElementById(mountId);
+  if (!el) return;
+  el.innerHTML = `<div class="card" style="text-align:center; padding:48px 20px;">
+    <div style="font-size:15px; font-weight:600; color:var(--ink2);">全專案總覽頁施工中</div>
+    <div style="font-size:13px; color:var(--ink3); margin-top:8px; line-height:1.7;">Phase 1 即將上線：專案健康度、跨專案總進度、核心延誤警報、部門負載、當週待處理。</div>
+  </div>`;
 };
 
 App.buildProjectViewTabsHtml = function() {
@@ -2816,7 +2845,7 @@ App.buildReportTabsHtml = function() {
     </div>`;
 };
 
-App.renderDashboard = function() {
+Workspace.render = function() {
   // Week offset: 0 = 本週, -1 = 上週, +1 = 下週...
   if (typeof this.dashboardWeekOffset !== 'number') this.dashboardWeekOffset = 0;
 
@@ -2913,21 +2942,20 @@ App.renderDashboard = function() {
     </div>
   </div>`;
 
-  document.getElementById('page-dashboard').innerHTML = `
+  document.getElementById('page-workspace').innerHTML = `
     ${statsHtml}
-    <div class="view-tabs-bar">${this.buildViewTabsHtml()}</div>
     <div class="dash-grid">
       <div>
         <div class="card" style="padding-bottom:14px;">
           <div class="card-head">
             <div class="card-title">時程表</div>
             <div class="week-nav-mini">
-              <button class="rw-arrow" onclick="App.dashboardWeekShift(-1)" title="上一週">‹</button>
-              <select class="rw-select-mini" onchange="App.dashboardWeekOffset = parseInt(this.value); App.renderDashboard();">
+              <button class="rw-arrow" onclick="Workspace.dashboardWeekShift(-1)" title="上一週">‹</button>
+              <select class="rw-select-mini" onchange="Workspace.dashboardWeekOffset = parseInt(this.value); Workspace.render();">
                 ${weekOpts.join('')}
               </select>
-              <button class="rw-arrow" onclick="App.dashboardWeekShift(1)" title="下一週">›</button>
-              ${this.dashboardWeekOffset !== 0 ? `<button class="rw-arrow" onclick="App.dashboardWeekOffset=0; App.renderDashboard();" title="回到本週" style="background: var(--sage-50); color: var(--sage-700);">今</button>` : ''}
+              <button class="rw-arrow" onclick="Workspace.dashboardWeekShift(1)" title="下一週">›</button>
+              ${this.dashboardWeekOffset !== 0 ? `<button class="rw-arrow" onclick="Workspace.dashboardWeekOffset=0; Workspace.render();" title="回到本週" style="background: var(--sage-50); color: var(--sage-700);">今</button>` : ''}
             </div>
             <button class="rw-arrow" title="時程表顯示設定（時間範圍 / 半小時或一小時一格）" onclick="App.openGridSettingsModal()" style="margin-left:auto;"><i class="ti ti-settings"></i></button>
             <button class="tb-action" data-edit onclick="App.openHoursTaskDialog()">+ 新增小時 Task</button>
@@ -2957,18 +2985,18 @@ App.renderDashboard = function() {
           ${this.buildNextWeekTodoHtml()}
         </div>
       </div>
-      <div class="dash-side">${App.buildMeetingPanelHtml()}${memoHtml}</div>
+      <div class="dash-side">${Workspace.buildMeetingPanelHtml()}${memoHtml}</div>
     </div>
   `;
   this.attachMemoDrag();
 };
 
-App.dashboardWeekShift = function(delta) {
+Workspace.dashboardWeekShift = function(delta) {
   this.dashboardWeekOffset = (this.dashboardWeekOffset || 0) + delta;
-  this.renderDashboard();
+  Workspace.render();
 };
 
-App.buildWeekScheduleHtml = function(targetMonday) {
+Workspace.buildWeekScheduleHtml = function(targetMonday) {
   const monday = targetMonday || D.monday();
   const wk = D.weekKey(monday);
   const today = D.today();
@@ -3250,7 +3278,7 @@ App.handleScheduleDrop = function(e, toDate, toStart) {
     items[draggedIdx].locked = true; // 手動移動後鎖定
   }
   Storage.save();
-  this.renderDashboard();
+  Workspace.render();
   U.toast('✓ 已調整並鎖定');
 };
 
@@ -3263,7 +3291,7 @@ App.pinTaskToWeek = function(taskId) {
   if (!s.pinnedWeekTaskIds.includes(taskId)) s.pinnedWeekTaskIds.push(taskId);
   Storage.save();
   generateSchedule();      // 重排：釘選的 task 經篩選守門（需求 A 第二塊）後會被納入本週
-  this.renderDashboard();
+  Workspace.render();
   U.toast('📌 已釘選到本週');
 };
 
@@ -3274,12 +3302,12 @@ App.unpinTaskFromWeek = function(taskId) {
   s.pinnedWeekTaskIds = (s.pinnedWeekTaskIds || []).filter(id => id !== taskId);
   Storage.save();
   generateSchedule();
-  this.renderDashboard();
+  Workspace.render();
   U.toast('已取消釘選');
 };
 
 // 【需求 A】下週待辦：分專案顯示，一週內 top5+捲軸；更遠的另開摺疊；最後已釘選清單
-App.buildNextWeekTodoHtml = function() {
+Workspace.buildNextWeekTodoHtml = function() {
   const sunday = D.addDays(D.monday(), 6);             // 本週日（沿用現法，不碰日期函式本體）
   const weekAfter = D.addDays(sunday, 7);              // 一週內上界：sunday < plannedStart <= sunday+7
   const pinnedIds = DATA.settings.pinnedWeekTaskIds || [];
@@ -3353,7 +3381,7 @@ App.buildNextWeekTodoHtml = function() {
   </div>`;
 };
 
-App.buildMemoListHtml = function() {
+Workspace.buildMemoListHtml = function() {
   if (DATA.memos.length === 0) {
     return '<div style="text-align:center; padding:60px 20px; color:var(--ink3); font-size:13px;">尚無便利貼<br><span style="font-size:11px;">點右上「＋ 新增」加一張</span></div>';
   }
@@ -3368,7 +3396,7 @@ App.buildMemoListHtml = function() {
   `).join('');
 };
 
-App.attachMemoDrag = function() {
+Workspace.attachMemoDrag = function() {
   if (document.body.classList.contains('viewonly')) return;
   let dragMemo = null, offsetX = 0, offsetY = 0;
   document.querySelectorAll('.memo').forEach(m => {
@@ -3423,7 +3451,7 @@ App.addMemo = function() {
   };
   DATA.memos.push(memo);
   Storage.save();
-  this.renderDashboard();
+  Workspace.render();
   U.toast('✓ 便利貼已加入');
 };
 
@@ -3437,14 +3465,14 @@ App.editMemo = function(id) {
     if (confirm('內容為空，刪除這張便利貼？')) {
       DATA.memos = DATA.memos.filter(m => m.id !== id);
       Storage.save();
-      this.renderDashboard();
+      Workspace.render();
       U.toast('✓ 已刪除');
     }
     return;
   }
   memo.text = trimmed.slice(0, 200);
   Storage.save();
-  this.renderDashboard();
+  Workspace.render();
   U.toast('✓ 已更新');
 };
 
@@ -3453,7 +3481,7 @@ App.deleteMemo = function(id) {
   if (!confirm('刪除這張便利貼？')) return;
   DATA.memos = DATA.memos.filter(m => m.id !== id);
   Storage.save();
-  this.renderDashboard();
+  Workspace.render();
 };
 
 App.showUrgentModal = function() {
@@ -4253,7 +4281,7 @@ App.buildKanbanCardHtml = function(t) {
   </div>`;
 };
 
-App.buildMeetingPanelHtml = function() {
+Workspace.buildMeetingPanelHtml = function() {
   const monday = D.monday();
   const thisWeek = DATA.meetings.filter(m => {
     if (!m.date) return false;
@@ -4419,7 +4447,7 @@ App.buildMeetingModalBody = function() {
 
 // 加入/刪除會議後刷新：更新儀表板（週曆 + 右欄精簡卡），彈窗開著就就地重繪 body（更新清單、清表單）。
 App._refreshMeetingUI = function() {
-  if (typeof App.renderDashboard === 'function') App.renderDashboard();
+  if (typeof Workspace.render === 'function') Workspace.render();
   const mb = document.querySelector('#modal .modal-body');
   if (mb && document.getElementById('meetingModalBody')) mb.innerHTML = App.buildMeetingModalBody();
 };
@@ -4461,7 +4489,7 @@ App.setGridSetting = function(key, val) {
     else DATA.settings.gridStartHour = Math.max(0, DATA.settings.gridEndHour - 1);
   }
   Storage.save();          // 寫 localStorage + 觸發雲端上傳
-  App.renderDashboard();   // 週曆即時重畫
+  Workspace.render();   // 週曆即時重畫
   App.openGridSettingsModal();   // 重開反映夾過/切換後的狀態
 };
 
@@ -4563,7 +4591,7 @@ App.generateNow = function() {
         共安排 <b>${result.scheduledCount}</b> 個任務時段<br>
         ${result.lockedCount > 0 ? `保留 ${result.lockedCount} 個鎖定項目<br>` : ''}
         避開 <b>${DATA.meetings.length}</b> 場會議時段<br><br>
-        <a href="#" onclick="App.showPage('dashboard', document.querySelector('[data-page=dashboard]')); return false;" style="color:var(--sage-600); font-weight:600;">→ 查看總儀表板時程表</a>
+        <a href="#" onclick="App.showPage('workspace', document.querySelector('[data-page=workspace]')); return false;" style="color:var(--sage-600); font-weight:600;">→ 查看個人工作台時程表</a>
       </div>
     `;
   }
@@ -4586,9 +4614,9 @@ App.generateGlobalSchedule = function() {
     return;
   }
   U.toast(`⚡ 本週智慧排程完成：${result.scheduledCount} 個時段`);
-  // Jump to dashboard to see the result
-  if (this.currentPage !== 'dashboard') {
-    this.showPage('dashboard', document.querySelector('[data-page=dashboard]'));
+  // Jump to workspace to see the result
+  if (this.currentPage !== 'workspace') {
+    this.showPage('workspace', document.querySelector('[data-page=workspace]'));
   }
 };
 
@@ -6684,7 +6712,7 @@ App._bindStageChipEvents();
 // 第③段上一步（路線B）：退回第②段並用 _createFlow.stage1Data 回填（部門先還原；_flowStep2 因 stage1Data 有值不重設 _tplDepts）。
 App._flowStage3Back = function() {
   if (App._createFlow && App._createFlow.mode === 'excel') {
-    this.showPage('dashboard');
+    this.showPage('workspace');
     App._flowStep2();
     const parsed = App._createFlow.excelParsed;
     const st = document.getElementById('pf-excelStatus');
@@ -6694,8 +6722,8 @@ App._flowStage3Back = function() {
     return;
   }
   const snap = App._createFlow ? App._createFlow.stage1Data : null;
-  // 先把第③段 page 切掉、回到 dashboard（與舊退場一致），再開②
-  this.showPage('dashboard');
+  // 先把第③段 page 切掉、回到個人工作台（與舊退場一致），再開②
+  this.showPage('workspace');
   if (!snap) { return App._flowStep1(); }   // 無快照（異常），退回①重來
   // 部門先還原（_flowStep2 因 stage1Data 有值不會預載，需手動還原）
   App._tplDepts = JSON.parse(JSON.stringify(snap.depts || []));
@@ -7824,8 +7852,8 @@ App.deleteProject = function(id) {
   if (this.currentProjectId === id) this.currentProjectId = null;
   Storage.save();
   this.closeModal();
-  this.showPage('dashboard', document.querySelector('[data-page=dashboard]'));
-  this.refreshAll();   // 補：刪完重繪 sidebar（清舊按鈕）+ 儀表板彙總；showPage 已先設 currentPage=dashboard，避開 renderProject null 自動跳第一個專案
+  this.showPage('workspace', document.querySelector('[data-page=workspace]'));
+  this.refreshAll();   // 補：刪完重繪 sidebar（清舊按鈕）+ 工作台彙總；showPage 已先設 currentPage=workspace，避開 renderProject null 自動跳第一個專案
 };
 
 // ═══════════════════════════════════════════════════════
@@ -10714,7 +10742,7 @@ App.saveRecurringMeeting = function(id) {
   this.closeModal();
   const _rl = document.getElementById('recurringMeetingList'); if (_rl) _rl.innerHTML = this.buildRecurringMeetingsHtml();
   U.toast('✓ 已儲存');
-  if (App.currentPage === 'dashboard') this.renderDashboard();
+  if (App.currentPage === 'workspace') Workspace.render();
   if (App._reopenMeetingManage) { App._reopenMeetingManage = false; App.openMeetingModal(); }
 };
 
@@ -10724,7 +10752,7 @@ App.toggleRecurringMeeting = function(id) {
   m.enabled = m.enabled === false;
   Storage.save();
   document.getElementById('recurringMeetingList').innerHTML = this.buildRecurringMeetingsHtml();
-  if (App.currentPage === 'dashboard') this.renderDashboard();
+  if (App.currentPage === 'workspace') Workspace.render();
 };
 
 App.deleteRecurringMeeting = function(id) {
@@ -10733,7 +10761,7 @@ App.deleteRecurringMeeting = function(id) {
   Storage.save();
   document.getElementById('recurringMeetingList').innerHTML = this.buildRecurringMeetingsHtml();
   U.toast('✓ 已刪除');
-  if (App.currentPage === 'dashboard') this.renderDashboard();
+  if (App.currentPage === 'workspace') Workspace.render();
 };
 
 App.addSpecialMeeting = function() {
@@ -10823,7 +10851,7 @@ App.saveSpecialMeeting = function(id) {
   this.closeModal();
   const _sl = document.getElementById('specialMeetingList'); if (_sl) _sl.innerHTML = this.buildSpecialMeetingsHtml();
   U.toast('✓ 已儲存');
-  if (App.currentPage === 'dashboard') this.renderDashboard();
+  if (App.currentPage === 'workspace') Workspace.render();
   if (App._reopenMeetingManage) { App._reopenMeetingManage = false; App.openMeetingModal(); }
 };
 
@@ -10833,7 +10861,7 @@ App.deleteSpecialMeeting = function(id) {
   Storage.save();
   document.getElementById('specialMeetingList').innerHTML = this.buildSpecialMeetingsHtml();
   U.toast('✓ 已刪除');
-  if (App.currentPage === 'dashboard') this.renderDashboard();
+  if (App.currentPage === 'workspace') Workspace.render();
 };
 
 App.googleSignOut = function() {

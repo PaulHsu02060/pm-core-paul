@@ -50,10 +50,13 @@
     </div>
 
     <div class="sb-section">
-      <div class="sb-label">總儀表板</div>
+      <div class="sb-label">導覽</div>
       <div class="sb-nav">
-        <button class="sb-item active" data-page="dashboard" onclick="App.showPage('dashboard', this)">
-          <span class="ico">▦</span> 總儀表板
+        <button class="sb-item active" data-page="workspace" onclick="App.showPage('workspace', this)">
+          <span class="ico">▦</span> 個人工作台
+        </button>
+        <button class="sb-item" data-page="portfolio" onclick="App.showPage('portfolio', this)">
+          <span class="ico">▤</span> 全專案總覽
         </button>
       </div>
     </div>
@@ -87,8 +90,8 @@
   <main class="main">
     <div class="topbar">
       <div>
-        <div class="tb-crumb"><span class="js-brand-name">PM-Core</span> / <b id="crumbPage">總儀表板</b></div>
-        <div class="tb-title" id="pageTitle">總儀表板</div>
+        <div class="tb-crumb"><span class="js-brand-name">PM-Core</span> / <b id="crumbPage">個人工作台</b></div>
+        <div class="tb-title" id="pageTitle">個人工作台</div>
       </div>
       <div class="tb-spacer"></div>
       <div class="tb-meta-info">
@@ -105,7 +108,8 @@
       </div>
 
       <!-- Pages are rendered dynamically -->
-      <div class="page active" id="page-dashboard"></div>
+      <div class="page active" id="page-workspace"></div>
+      <div class="page" id="page-portfolio"></div>
       <div class="page" id="page-project"></div>
       <div class="page" id="page-gantt"></div>
       <div class="page" id="page-month"></div>
@@ -138,6 +142,6 @@
 <script src="seed.sample.js?v=20260605-1"></script>
 <script src="seed.local.js?v=20260605-1"></script>
 <script src="templates/product-dev-template.js?v=20260627-1"></script>
-<script src="app.js?v=20260628-16"></script>
+<script src="app.js?v=20260629-1"></script>
 </body>
 </html>
