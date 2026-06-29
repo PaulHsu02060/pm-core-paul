@@ -1969,3 +1969,58 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s1-stage-note i { margin-right: 4px; }
 .s1-stage-note-em { color: var(--ink4); font-weight: 400; }
 .s1-stage-chip .chip-del:hover { background: var(--rose); }
+
+/* ═══ 全專案總覽 Phase 1（§18.8）═══ */
+.pf-kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 8px; }
+.pf-kpi { position: relative; background: var(--surface); border: 1px solid var(--rule); border-top: 2px solid var(--sage-600); border-radius: var(--r10); padding: 12px 14px; }
+.pf-kpi-i { position: absolute; top: 10px; right: 10px; font-size: 14px; color: var(--ink4); cursor: help; }
+.pf-kpi-lbl { font-size: 12px; color: var(--ink3); margin-bottom: 8px; }
+.pf-kpi-num { font-size: 24px; font-weight: 600; color: var(--ink); }
+.pf-kpi-unit { font-size: 13px; font-weight: 400; color: var(--ink4); }
+.pf-num-rose { color: var(--rose); }
+.pf-kpi-sub { font-size: 11px; color: var(--ink4); margin-top: 6px; }
+.pf-kpi-health { display: flex; align-items: baseline; gap: 11px; font-size: 20px; font-weight: 600; color: var(--ink); }
+.pf-hd { font-size: 13px; }
+.pf-hd-g { color: var(--sage-600); }
+.pf-hd-y { color: var(--amber-accent); }
+.pf-hd-r { color: var(--rose); }
+.pf-bar { display: block; height: 6px; background: var(--stone-100); border-radius: 99px; overflow: hidden; }
+.pf-bar.pf-bar-sm { height: 5px; margin-top: 7px; }
+.pf-bar > span { display: block; height: 100%; border-radius: 99px; }
+.pf-bar-act { background: var(--sage-600); }
+.pf-bar-plan { background: var(--stone-300); }
+.pf-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; margin: 12px 0; }
+.pf-card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 14px 16px; }
+.pf-card-t { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 10px; }
+.pf-mx-row { padding: 9px 0; border-top: 1px solid var(--rule); }
+.pf-mx-row:first-of-type { border-top: none; }
+.pf-mx-head { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink); margin-bottom: 6px; }
+.pf-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.pf-mx-name { font-weight: 500; }
+.pf-mx-stage { margin-left: auto; font-size: 11px; color: var(--ink3); }
+.pf-mx-stage-red { color: var(--rose); }
+.pf-mx-line { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-top: 3px; }
+.pf-mx-tag { width: 30px; color: var(--ink4); flex: 0 0 auto; }
+.pf-mx-line .pf-bar { flex: 1; }
+.pf-mx-pct { width: 38px; text-align: right; color: var(--ink2); flex: 0 0 auto; }
+.pf-mx-behind { color: var(--rose-ink); }
+.pf-mx-ok { color: var(--sage-600); }
+.pf-dl-row { margin-bottom: 9px; }
+.pf-dl-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); margin-bottom: 3px; }
+.pf-dl-h { color: var(--ink3); }
+.pf-wk-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
+.pf-wk-row:last-of-type { border-bottom: none; }
+.pf-wk-od { border: 1px solid var(--rose-chip); background: var(--rose-l); border-radius: var(--r8); padding: 8px 11px; margin-bottom: 6px; }
+.pf-badge { font-size: 11px; color: var(--ink-inverse); border-radius: var(--r4); padding: 2px 7px; flex: 0 0 auto; }
+.pf-badge-od { background: var(--rose); }
+.pf-badge-urg { background: var(--terracotta); }
+.pf-wk-name { color: var(--ink); }
+.pf-wk-od .pf-wk-name { color: var(--rose-ink); }
+.pf-wk-proj { margin-left: auto; font-size: 12px; color: var(--ink3); }
+.pf-mini-empty { padding: 14px 0; text-align: center; font-size: 12px; color: var(--ink4); }
+.pf-empty { text-align: center; padding: 60px 20px; color: var(--ink3); }
+.pf-empty .ti { font-size: 32px; color: var(--ink4); }
+.pf-empty-t { font-size: 15px; font-weight: 600; color: var(--ink2); margin-top: 8px; }
+.pf-empty-s { font-size: 12px; color: var(--ink4); margin-top: 6px; }
+.pf-hint-list { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.pf-hint-list b { font-weight: 600; }

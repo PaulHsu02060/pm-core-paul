@@ -2817,14 +2817,229 @@ Portfolio.renderBody = function() {
   this.renderOverview('portfolio-body');
 };
 
-// Phase 0：總覽頁先 placeholder；Phase 1 真內容（4 指標卡＋雙列進度矩陣＋部門負載＋當週待處理）見架構 §18.8
+// ═══ Phase 1 總覽算法 helper（§18.8，純資料層，不碰 DOM/Storage）═══
+Portfolio._live = function() { return (DATA.tasks || []).filter(t => !t._deleted); };
+
+// 逾期口徑（與 §4.6/KPI 一致）：未完成/未擱置且有效完成日 < 今天
+Portfolio._overdue = function(t, today) {
+  if (t.status === 'done' || t.status === 'hold') return false;
+  const end = getEffectiveSchedule(t).end;
+  return !!(end && new Date(end) < today);
+};
+
+// A 健康度：紅=有逾期／黃=14 工作天內到期未逾期／綠=其餘
+Portfolio.projectHealth = function(projId, today) {
+  const ts = this._live().filter(t => t.project === projId && t.status !== 'done');
+  if (ts.some(t => this._overdue(t, today))) return 'red';
+  const todayIso = D.fmt(today, 'iso');
+  const soon = ts.some(t => {
+    const end = getEffectiveSchedule(t).end;
+    if (!end) return false;
+    const wd = D.workdaysBetween(todayIso, end) - 1;   // 含頭尾 -1
+    return wd >= 0 && wd <= 14;
+  });
+  return soon ? 'yellow' : 'green';
+};
+
+Portfolio.healthCounts = function() {
+  const today = D.today();
+  const c = { green: 0, yellow: 0, red: 0 };
+  (DATA.projects || []).forEach(p => { c[this.projectHealth(p.id, today)]++; });
+  return c;
+};
+
+// B 總進度：全任務 taskDisplayProgress 簡單平均
+Portfolio.totalProgress = function() {
+  const ts = this._live();
+  if (!ts.length) return null;
+  return Math.round(ts.reduce((s, t) => s + taskDisplayProgress(t), 0) / ts.length);
+};
+
+// 核心延誤：跨專案逾期任務（逾期工作日多者在前）
+Portfolio.overdueTasks = function() {
+  const today = D.today(), todayIso = D.fmt(today, 'iso');
+  return this._live().filter(t => this._overdue(t, today))
+    .map(t => ({ t, days: Math.max(0, D.workdaysBetween(getEffectiveSchedule(t).end, todayIso) - 1) }))
+    .sort((a, b) => b.days - a.days);
+};
+
+// 本週個人雜事佔比：時段制本週工時 / 可用工時
+Portfolio.choreRatio = function() {
+  const wk = D.weekKey(D.monday());
+  const totalHours = (DATA.schedule.items || []).filter(it => it.week === wk).reduce((s, it) => s + (it.duration / 60), 0);
+  const availableHours = (DATA.settings.dailyHours || 6) * ((DATA.settings.workDays || []).length || 0);
+  return { totalHours: Math.round(totalHours), availableHours };
+};
+
+// C 當前階段：首個未全完成階段顯示名（getProjectStages 的 minWbs 序）
+Portfolio.currentStage = function(projId) {
+  const stages = App.getProjectStages(projId).filter(s => s.name !== '未分階段');
+  if (!stages.length) return '—';
+  const inc = stages.find(s => s.doneCount < s.itemCount);
+  return inc ? inc.name : '已完成';
+};
+
+// 專案實際/預計總進度（雙列）。實際＝任務 progress 平均；預計＝各任務「到今天應完成%」平均
+Portfolio.projectProgress = function(projId, today) {
+  const ts = this._live().filter(t => t.project === projId);
+  if (!ts.length) return { actual: null, planned: null };
+  const actual = Math.round(ts.reduce((s, t) => s + taskDisplayProgress(t), 0) / ts.length);
+  const withDates = ts.map(t => getEffectiveSchedule(t)).filter(e => e.start && e.end);
+  let planned = null;
+  if (withDates.length) {
+    const todayIso = D.fmt(today, 'iso');
+    const sum = withDates.reduce((s, e) => {
+      let pct;
+      if (todayIso <= e.start) pct = 0;
+      else if (todayIso >= e.end) pct = 100;
+      else pct = D.workdaysBetween(e.start, todayIso) / D.workdaysBetween(e.start, e.end) * 100;
+      return s + Math.max(0, Math.min(100, pct));
+    }, 0);
+    planned = Math.round(sum / withDates.length);
+  }
+  return { actual, planned };
+};
+
+// 部門負載：未完成 WBS 工期任務工時（工期×日工時），跨專案依部門名彙整（⚠ 僅 WBS、必有漏算）
+Portfolio.deptLoad = function() {
+  const daily = DATA.settings.dailyHours || 6;
+  const byName = {};
+  (DATA.projects || []).forEach(p => {
+    const nameOf = {};
+    (p.depts || []).forEach(d => { nameOf[d.id] = d.name; });
+    this._live().filter(t => t.project === p.id && t.measureType !== 'hours' && t.status !== 'done').forEach(t => {
+      const dur = Number(t.durationDays) || 0;
+      if (dur <= 0) return;
+      const nm = (t.dept && nameOf[t.dept]) ? nameOf[t.dept] : '未指派';
+      byName[nm] = (byName[nm] || 0) + dur * daily;
+    });
+  });
+  return Object.keys(byName).map(nm => ({ name: nm, hours: Math.round(byName[nm]) })).sort((a, b) => b.hours - a.hours);
+};
+
+// 當週待處理 Top N：本週內預計開始/到期且未完成；逾期優先，其餘依緊急度+到期日
+Portfolio.weeklyTop = function(n) {
+  const today = D.today(), todayIso = D.fmt(today, 'iso');
+  const monday = D.monday(today), sunday = D.addDays(monday, 6);
+  const inWeek = d => d && new Date(d) >= monday && new Date(d) <= sunday;
+  const urg = u => u === 'high' ? 0 : (u === 'low' ? 2 : 1);
+  const cand = this._live().filter(t => {
+    if (t.status === 'done' || t.status === 'hold') return false;
+    const e = getEffectiveSchedule(t);
+    return this._overdue(t, today) || inWeek(e.start) || inWeek(e.end);
+  }).map(t => {
+    const e = getEffectiveSchedule(t);
+    const od = this._overdue(t, today) ? Math.max(0, D.workdaysBetween(e.end, todayIso) - 1) : null;
+    return { t, end: e.end, od };
+  });
+  cand.sort((a, b) => {
+    if ((a.od != null) !== (b.od != null)) return (b.od != null) - (a.od != null);
+    if (a.od != null) return b.od - a.od;
+    const u = urg(a.t.urgency) - urg(b.t.urgency);
+    if (u) return u;
+    return String(a.end || '').localeCompare(String(b.end || ''));
+  });
+  return n ? cand.slice(0, n) : cand;
+};
+
+// 總覽頁渲染（§18.8）：4 指標卡＋雙列進度矩陣＋部門負載＋當週待處理＋各區塊 HintBox
 Portfolio.renderOverview = function(mountId) {
   const el = document.getElementById(mountId);
   if (!el) return;
-  el.innerHTML = `<div class="card" style="text-align:center; padding:48px 20px;">
-    <div style="font-size:15px; font-weight:600; color:var(--ink2);">全專案總覽頁施工中</div>
-    <div style="font-size:13px; color:var(--ink3); margin-top:8px; line-height:1.7;">Phase 1 即將上線：專案健康度、跨專案總進度、核心延誤警報、部門負載、當週待處理。</div>
+  const projects = DATA.projects || [];
+  if (!projects.length) {
+    el.innerHTML = `<div class="pf-empty"><i class="ti ti-layout-dashboard"></i><div class="pf-empty-t">尚無專案</div><div class="pf-empty-s">建立專案後，這裡會顯示跨專案健康度、進度與部門負載。</div></div>`;
+    return;
+  }
+  const today = D.today();
+  const hc = this.healthCounts(), tp = this.totalProgress(), ov = this.overdueTasks();
+  const cr = this.choreRatio(), dl = this.deptLoad(), wk = this.weeklyTop(8);
+
+  const kpiHtml = `<div class="pf-kpi-row">
+    <div class="pf-kpi" style="border-top-color:var(--sage-600)">
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="專案健康度|紅=有逾期任務／黃=14 工作天內到期未逾期／綠=其餘"></i>
+      <div class="pf-kpi-lbl">專案健康度</div>
+      <div class="pf-kpi-health"><span class="pf-hd pf-hd-g">●</span>${hc.green}<span class="pf-hd pf-hd-y">●</span>${hc.yellow}<span class="pf-hd pf-hd-r">●</span>${hc.red}</div>
+      <div class="pf-kpi-sub">健康 / 注意 / 延誤</div>
+    </div>
+    <div class="pf-kpi" style="border-top-color:var(--navy)">
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="跨專案總進度|全任務進度（progress）簡單平均"></i>
+      <div class="pf-kpi-lbl">跨專案總進度</div>
+      <div class="pf-kpi-num">${tp === null ? '—' : tp + '<span class="pf-kpi-unit">%</span>'}</div>
+      <div class="pf-bar pf-bar-sm"><span class="pf-bar-act" style="width:${tp || 0}%; background:var(--navy)"></span></div>
+      <div class="pf-kpi-sub">全任務進度平均</div>
+    </div>
+    <div class="pf-kpi" style="border-top-color:var(--rose)">
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="核心延誤警報|有效完成日 小於 今天且未完成的任務數（工作日逾期天數）"></i>
+      <div class="pf-kpi-lbl">核心延誤警報</div>
+      <div class="pf-kpi-num pf-num-rose">${ov.length}<span class="pf-kpi-unit"> 筆逾期</span></div>
+      <div class="pf-kpi-sub">${ov.length ? '最久：' + U.esc(ov[0].t.name) + ' 逾 ' + ov[0].days + ' 天' : '目前無逾期'}</div>
+    </div>
+    <div class="pf-kpi" style="border-top-color:var(--amber)">
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="本週個人雜事佔比|本週時段制工時 / (每日工時 × 工作天數)"></i>
+      <div class="pf-kpi-lbl">本週個人雜事佔比</div>
+      <div class="pf-kpi-num">${cr.totalHours}h<span class="pf-kpi-unit">/${cr.availableHours}h</span></div>
+      <div class="pf-kpi-sub">較上週 — 待快照</div>
+    </div>
   </div>`;
+  const kpiHint = App.buildHintBox({ key: 'portfolio-kpi', icon: 'ti-help-circle', collapsed: true, title: '指標卡怎麼算', summary: '健康度／總進度／延誤／雜事佔比',
+    bodyHtml: `<div class="pf-hint-list">
+      <div><b>健康度</b>：紅=有逾期任務／黃=14 工作天內到期未逾期／綠=其餘。</div>
+      <div><b>總進度</b>：全任務進度（progress）簡單平均。</div>
+      <div><b>延誤警報</b>：有效完成日早於今天且未完成的任務數，附最久逾期工作日。</div>
+      <div><b>雜事佔比</b>：本週時段制工時 ÷（每日工時 × 工作天數）。「較上週」需每日快照（Phase 2）。</div>
+    </div>` });
+
+  const matrixRows = projects.map(p => {
+    const pr = this.projectProgress(p.id, today);
+    const stage = this.currentStage(p.id);
+    const isRed = this.projectHealth(p.id, today) === 'red';
+    const behind = (pr.planned != null && pr.actual != null && pr.actual < pr.planned);
+    return `<div class="pf-mx-row">
+      <div class="pf-mx-head"><span class="pf-dot" style="background:${p.color || 'var(--ink4)'}"></span><span class="pf-mx-name">${U.esc(p.name)}</span><span class="pf-mx-stage${isRed ? ' pf-mx-stage-red' : ''}">${U.esc(stage)}</span></div>
+      <div class="pf-mx-line"><span class="pf-mx-tag">預計</span><span class="pf-bar"><span class="pf-bar-plan" style="width:${pr.planned || 0}%"></span></span><span class="pf-mx-pct">${pr.planned == null ? '—' : pr.planned + '%'}</span></div>
+      <div class="pf-mx-line"><span class="pf-mx-tag">實際</span><span class="pf-bar"><span class="pf-bar-act" style="width:${pr.actual || 0}%"></span></span><span class="pf-mx-pct ${behind ? 'pf-mx-behind' : 'pf-mx-ok'}">${pr.actual == null ? '—' : pr.actual + '%'}</span></div>
+    </div>`;
+  }).join('');
+  const matrixHint = App.buildHintBox({ key: 'portfolio-matrix', icon: 'ti-help-circle', collapsed: true, title: '進度矩陣怎麼看', summary: '預計 vs 實際、當前階段',
+    bodyHtml: `<div class="pf-hint-list">
+      <div><b>預計</b>：各任務「到今天應完成%」平均＝今天落在開始→完成區間的工作日比例。</div>
+      <div><b>實際</b>：各任務進度（progress）平均。</div>
+      <div><b>當前階段</b>：第一個未全部完成的階段。實際低於預計＝落後（數字標紅）。</div>
+      <div>階段層級的細部進度請進各專案頁查看。</div>
+    </div>` });
+
+  const maxLoad = dl.reduce((m, d) => Math.max(m, d.hours), 0) || 1;
+  const deptHtml = dl.length ? dl.map(d => `<div class="pf-dl-row">
+      <div class="pf-dl-head"><span>${U.esc(d.name)}</span><span class="pf-dl-h">${d.hours}h</span></div>
+      <div class="pf-bar"><span class="pf-bar-act" style="width:${Math.round(d.hours / maxLoad * 100)}%"></span></div>
+    </div>`).join('') : '<div class="pf-mini-empty">尚無 WBS 工期任務</div>';
+  const deptHint = App.buildHintBox({ key: 'portfolio-deptload', icon: 'ti-alert-triangle', collapsed: true, title: '部門負載口徑（必讀）', summary: '僅含 WBS、必有漏算',
+    bodyHtml: `<div class="pf-hint-list">
+      <div><b>口徑</b>：各部門「未完成 WBS 工期任務」工時＝工期(工作天) × 每日工時。</div>
+      <div><b>偏頗提醒</b>：僅含 WBS 工期任務；個人雜事（時段制）待 Phase 2 會議加部門欄後納入，<b>目前必有漏算</b>。</div>
+    </div>` });
+
+  const weeklyHtml = wk.length ? wk.map(x => {
+    const proj = App.getProj(x.t.project), pn = proj ? proj.name : '';
+    if (x.od != null) {
+      return `<div class="pf-wk-row pf-wk-od"><span class="pf-badge pf-badge-od">逾期 ${x.od} 天</span><span class="pf-wk-name">${U.esc(x.t.name)}</span><span class="pf-wk-proj">${U.esc(pn)}</span></div>`;
+    }
+    const urgent = x.t.urgency === 'high';
+    return `<div class="pf-wk-row">${urgent ? '<span class="pf-badge pf-badge-urg">緊急</span>' : ''}<span class="pf-wk-name">${U.esc(x.t.name)}</span><span class="pf-wk-proj">${U.esc(pn)}${x.end ? ' · ' + D.fmt(x.end, 'md') : ''}</span></div>`;
+  }).join('') : '<div class="pf-mini-empty">本週無待處理任務</div>';
+  const weeklyHint = App.buildHintBox({ key: 'portfolio-weekly', icon: 'ti-help-circle', collapsed: true, title: '當週待處理怎麼排', summary: '逾期優先、緊急度+到期日',
+    bodyHtml: `<div class="pf-hint-list">
+      <div><b>範圍</b>：本週（一～日）內預計開始或到期、且未完成的任務（逾期亦納入）。</div>
+      <div><b>排序</b>：逾期優先（逾期工作日多者在前），其餘依緊急度與到期日。</div>
+    </div>` });
+
+  el.innerHTML = `${kpiHtml}${kpiHint}
+    <div class="pf-grid">
+      <div class="pf-card"><div class="pf-card-t">專案進度矩陣</div>${matrixRows}${matrixHint}</div>
+      <div class="pf-card"><div class="pf-card-t">部門負載</div>${deptHtml}${deptHint}</div>
+    </div>
+    <div class="pf-card"><div class="pf-card-t">當週待處理</div>${weeklyHtml}${weeklyHint}</div>`;
 };
 
 App.buildProjectViewTabsHtml = function() {
