@@ -3050,15 +3050,25 @@ Portfolio.renderOverview = function(mountId) {
       <div>階段層級的細部進度請進各專案頁查看。</div>
     </div>` });
 
-  const maxLoad = dl.reduce((m, d) => Math.max(m, d.hours), 0) || 1;
-  const deptHtml = dl.length ? dl.map(d => `<div class="pf-dl-row">
-      <div class="pf-dl-head"><span>${U.esc(d.name)}</span><span class="pf-dl-h">${d.hours}h</span></div>
-      <div class="pf-bar"><span class="pf-bar-act" style="width:${Math.round(d.hours / maxLoad * 100)}%"></span></div>
-    </div>`).join('') : '<div class="pf-mini-empty">尚無 WBS 工期任務</div>';
-  const deptHint = App.buildHintBox({ key: 'portfolio-deptload', icon: 'ti-alert-triangle', collapsed: true, title: '部門負載口徑（必讀）', summary: '僅含 WBS、必有漏算',
+  const cap = this.weekCapacity();
+  const maxLoad = Math.max(dl.reduce((m, d) => Math.max(m, d.hours), 0), cap) || 1;
+  const capPct = cap > 0 ? Math.round(cap / maxLoad * 100) : 0;
+  const deptHtml = dl.length ? dl.map(d => {
+    const pPct = Math.round(d.proj / maxLoad * 100), cPct = Math.round(d.chore / maxLoad * 100);
+    return `<div class="pf-dl-row${d.over ? ' pf-dl-over' : ''}">
+      <div class="pf-dl-head"><span class="pf-dl-name">${d.over ? '<i class="ti ti-alert-triangle"></i> ' : ''}${U.esc(d.name)}</span><span class="pf-dl-h">${d.hours}h<span class="pf-dl-brk">（專案 ${d.proj} ＋ 雜事 ${d.chore}）${d.over ? ' · 超 ' + (d.hours - cap) + 'h' : ''}</span></span></div>
+      <div class="pf-bar pf-bar-stack">
+        <span class="pf-bar-proj" style="width:${pPct}%"></span>
+        <span class="pf-bar-chore" style="left:${pPct}%;width:${cPct}%"></span>
+        ${cap > 0 ? `<span class="pf-bar-cap" style="left:${capPct}%"></span>` : ''}
+      </div>
+    </div>`;
+  }).join('') : '<div class="pf-mini-empty">本週各部門無工時</div>';
+  const deptLegend = dl.length ? `<div class="pf-dl-legend"><span><i class="pf-lg-sw pf-lg-proj"></i>專案工時</span><span><i class="pf-lg-sw pf-lg-chore"></i>日常雜事工時</span><span><i class="pf-lg-cap"></i>週容量 ${cap}h</span></div>` : '';
+  const deptHint = App.buildHintBox({ key: 'portfolio-deptload', icon: 'ti-alert-triangle', collapsed: true, title: '部門負載口徑（必讀）', summary: '本週負荷·僅含已掛部門雜事·必有漏算',
     bodyHtml: `<div class="pf-hint-list">
-      <div><b>口徑</b>：各部門「未完成 WBS 工期任務」工時＝工期(工作天) × 每日工時。</div>
-      <div><b>偏頗提醒</b>：僅含 WBS 工期任務；個人雜事（時段制）待 Phase 2 會議加部門欄後納入，<b>目前必有漏算</b>。</div>
+      <div><b>口徑</b>：本週各部門工時。綠＝WBS 工期任務（工期均攤到本週工作日 × 每日工時）；琥珀＝個人時段任務（本週排程格子工時）。容量線＝每日工時 × 每週工作日。</div>
+      <div><b>偏頗提醒</b>：個人雜事僅含「已記錄並掛部門、且已排進本週」者，<b>不含會議（待 Phase 2 ③）、必有漏算</b>；未掛部門者歸「未指派」。</div>
     </div>` });
 
   const weeklyHtml = wk.length ? wk.map(x => {
@@ -3075,12 +3085,12 @@ Portfolio.renderOverview = function(mountId) {
       <div><b>排序</b>：逾期優先（逾期工作日多者在前），其餘依緊急度與到期日。</div>
     </div>` });
 
-  el.innerHTML = `${kpiHtml}${kpiHint}
+  el.innerHTML = `${kpiHint}${kpiHtml}
     <div class="pf-grid">
-      <div class="pf-card"><div class="pf-card-t">專案進度矩陣</div>${matrixRows}${matrixHint}</div>
-      <div class="pf-card"><div class="pf-card-t">部門負載</div>${deptHtml}${deptHint}</div>
+      <div class="pf-card"><div class="pf-card-t">專案進度矩陣</div>${matrixHint}${matrixRows}</div>
+      <div class="pf-card"><div class="pf-card-t">部門負載</div>${deptHint}${deptHtml}${deptLegend}</div>
     </div>
-    <div class="pf-card"><div class="pf-card-t">當週待處理</div>${weeklyHtml}${weeklyHint}</div>`;
+    <div class="pf-card"><div class="pf-card-t">當週待處理</div>${weeklyHint}${weeklyHtml}</div>`;
 };
 
 App.buildProjectViewTabsHtml = function() {
