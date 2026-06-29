@@ -10301,84 +10301,6 @@ App.renderSettings = function() {
     </div>
 
     <div class="tab-panel active" id="排程"><div class="settings-grid">
-      <!-- Work schedule -->
-      <div class="settings-section">
-        <div class="ss-title">⏰ 工時與排程</div>
-        <div class="ss-desc">設定你的工作節奏，產生智慧排程時依此規則</div>
-
-        <div class="ss-field">
-          <label>每日可用工時</label>
-          <div>
-            <input type="number" id="set-hours" value="${s.dailyHours}" min="1" max="12" step="0.5">
-            <div class="help">扣掉雜事休息後實際能做任務的時間</div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>上午時段</label>
-          <div>
-            <div class="time-range">
-              <input type="time" id="set-ws1" value="${s.workStart1}">
-              <span>到</span>
-              <input type="time" id="set-we1" value="${s.workEnd1}">
-            </div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>下午時段</label>
-          <div>
-            <div class="time-range">
-              <input type="time" id="set-ws2" value="${s.workStart2}">
-              <span>到</span>
-              <input type="time" id="set-we2" value="${s.workEnd2}">
-            </div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>黃金時段</label>
-          <div>
-            <select id="set-golden">
-              <option value="morning" ${s.goldenTime === 'morning' ? 'selected' : ''}>上午（深度工作優先）</option>
-              <option value="afternoon" ${s.goldenTime === 'afternoon' ? 'selected' : ''}>下午</option>
-              <option value="none" ${s.goldenTime === 'none' ? 'selected' : ''}>不需要規則</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>工作日</label>
-          <div>
-            <div class="day-pills" id="dayPills">
-              ${[1,2,3,4,5,6,0].map(d => {
-                const name = ['日','一','二','三','四','五','六'][d];
-                return `<button class="day-pill ${s.workDays.includes(d) ? 'on' : ''}" data-day="${d}"
-                              onclick="this.classList.toggle('on')">${name}</button>`;
-              }).join('')}
-            </div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>任務切分閾值 (h)</label>
-          <div>
-            <input type="number" id="set-split" value="${s.splitThreshold}" min="1" max="12" step="0.5">
-            <div class="help">超過此工時的任務會自動切分到多天</div>
-          </div>
-        </div>
-
-        <div class="ss-field">
-          <label>兩週預告</label>
-          <div>
-            <select id="set-preview">
-              <option value="2" ${s.previewWeeks === 2 ? 'selected' : ''}>啟用：14 天內 deadline 出現提示</option>
-              <option value="1" ${s.previewWeeks === 1 ? 'selected' : ''}>啟用：7 天內</option>
-              <option value="0" ${s.previewWeeks === 0 ? 'selected' : ''}>停用</option>
-            </select>
-          </div>
-        </div>
-      </div>
       <!-- 工作日曆（公休 / 補班）匯入 -->
       <div class="settings-section">
         <div class="ss-title">🗓 工作日曆（公休 / 補班）</div>
@@ -10393,30 +10315,6 @@ App.renderSettings = function() {
           </div>
           <div id="cal-preview" class="cal-preview"></div>
           <div id="cal-loaded" class="cal-loaded">${App.buildLoadedHolidaysHtml()}</div>
-        </div>
-      </div>
-      <!-- 會議模板 -->
-      <div class="settings-section">
-        <div class="ss-title">📅 定期事件（會議 / 打掃 等）</div>
-        <div class="ss-desc">智慧排程會自動避開這些時段，包含每天、每週、每隔一週、每隔兩週的事件</div>
-
-        <!-- 每週固定事件 -->
-        <div style="margin:14px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
-          ⏰ 定期事件
-          <button class="tb-action ghost" onclick="App.addRecurringMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
-        </div>
-        <div id="recurringMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden;">
-          ${this.buildRecurringMeetingsHtml()}
-        </div>
-
-        <!-- 特定日期事件 -->
-        <div style="margin:18px 0 8px 0; font-size:13px; font-weight:600; color:var(--ink2);">
-          📌 特定日期事件
-          <button class="tb-action ghost" onclick="App.addSpecialMeeting()" style="font-size:11px; padding:3px 9px; margin-left:8px;">＋ 新增</button>
-          <span style="font-size:10.5px; color:var(--ink3); font-weight:400; margin-left:8px;">如試作會議、PDCA、新品發表會、營業會議等</span>
-        </div>
-        <div id="specialMeetingList" style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; max-height:280px; overflow-y:auto;">
-          ${this.buildSpecialMeetingsHtml()}
         </div>
       </div>
       <!-- /排程 --></div></div>
