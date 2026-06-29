@@ -10362,6 +10362,18 @@ App.renderSettings = function() {
     </div>
 
     <div class="tab-panel active" id="排程"><div class="settings-grid">
+      <!-- 工時設定（全系統單一來源，§18.10）-->
+      <div class="settings-section">
+        <div class="ss-title">⏱ 工時設定</div>
+        <div class="ss-desc">全系統工時換算的單一來源：WBS 任務工時(estHours)、部門負載與容量線、個人雜事佔比皆依此；「每週工作日」另決定哪幾天算工作日（排程日期推算依此）。變更時會提示影響範圍。</div>
+        <div class="form-field" style="max-width:180px;"><label>每日工時 (h)</label>
+          <input type="number" id="set-hours" min="1" max="24" step="0.5" value="${s.dailyHours}">
+        </div>
+        <div class="form-field" style="margin-top:14px;"><label>每週工作日</label>
+          <div id="dayPills" class="day-pills">${[[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']].map(p => `<button type="button" class="day-pill${(s.workDays || []).includes(p[0]) ? ' on' : ''}" data-day="${p[0]}" onclick="this.classList.toggle('on')">${p[1]}</button>`).join('')}</div>
+        </div>
+      </div>
+
       <!-- 工作日曆（公休 / 補班）匯入 -->
       <div class="settings-section">
         <div class="ss-title">🗓 工作日曆（公休 / 補班）</div>
@@ -10585,9 +10597,28 @@ App.renderSettings = function() {
   Auth.renderLists();   // ④ 名單容器在「編輯權限」tab 模板，innerHTML 設好後即時填
 };
 
-App.saveSettings = function() {
+App.saveSettings = function(_skipWorkConfirm) {
   const el = (id) => document.getElementById(id);
   const sv = (id) => { const e = el(id); return e ? e.value : null; };
+  // §18.10：每日工時／每週工作日變更 → 彈影響清單確認（confirmModal 無 onCancel：取消＝整個儲存中止、工時與其餘設定都不寫，需重按儲存）
+  if (!_skipWorkConfirm) {
+    const _nh = sv('set-hours'); const _newHours = _nh !== null ? parseFloat(_nh) : null;
+    const _dp = el('dayPills');
+    const _newDays = _dp ? Array.from(_dp.querySelectorAll('.day-pill.on')).map(b => parseInt(b.dataset.day)) : null;
+    const _curDays = DATA.settings.workDays || [];
+    const _hoursChg = _newHours !== null && !isNaN(_newHours) && _newHours !== DATA.settings.dailyHours;
+    const _daysChg = _newDays !== null && (_newDays.length !== _curDays.length || _newDays.some(d => !_curDays.includes(d)));
+    if (_hoursChg || _daysChg) {
+      App.confirmModal({
+        icon: 'ti-alert-triangle', iconBg: '--amber-l', iconColor: '--amber-ink',
+        title: '確認變更工時設定',
+        msg: '修改「每日工時／每週工作日」會連動重算：<br>· WBS 任務工時換算（estHours）<br>· 部門負載與容量線<br>· 個人雜事佔比<br>· <b>每週工作日更會改變「哪幾天算工作日」→ 全系統排程日期、工期、甘特、剩餘工作天全部重算</b><br><br>確定要修改嗎？',
+        okText: '確定修改', cancelText: '取消',
+        onConfirm: () => App.saveSettings(true),
+      });
+      return;
+    }
+  }
   let v;
   if ((v = sv('set-preview')) !== null) DATA.settings.previewWeeks = parseInt(v);
   if ((v = sv('set-hours')) !== null) DATA.settings.dailyHours = parseFloat(v);
