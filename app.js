@@ -2956,26 +2956,26 @@ Portfolio.renderOverview = function(mountId) {
   const cr = this.choreRatio(), dl = this.deptLoad(), wk = this.weeklyTop(8);
 
   const kpiHtml = `<div class="pf-kpi-row">
-    <div class="pf-kpi" style="border-top-color:var(--sage-600)">
+    <div class="pf-kpi" style="border-top-color:var(--sage-700)">
       <i class="ti ti-info-circle pf-kpi-i" data-tip="專案健康度|紅=有逾期任務／黃=14 工作天內到期未逾期／綠=其餘"></i>
       <div class="pf-kpi-lbl">專案健康度</div>
       <div class="pf-kpi-health"><span class="pf-hd pf-hd-g">●</span>${hc.green}<span class="pf-hd pf-hd-y">●</span>${hc.yellow}<span class="pf-hd pf-hd-r">●</span>${hc.red}</div>
       <div class="pf-kpi-sub">健康 / 注意 / 延誤</div>
     </div>
-    <div class="pf-kpi" style="border-top-color:var(--navy)">
+    <div class="pf-kpi" style="border-top-color:var(--sage-700)">
       <i class="ti ti-info-circle pf-kpi-i" data-tip="跨專案總進度|全任務進度（progress）簡單平均"></i>
       <div class="pf-kpi-lbl">跨專案總進度</div>
       <div class="pf-kpi-num">${tp === null ? '—' : tp + '<span class="pf-kpi-unit">%</span>'}</div>
       <div class="pf-bar pf-bar-sm"><span class="pf-bar-act" style="width:${tp || 0}%; background:var(--navy)"></span></div>
       <div class="pf-kpi-sub">全任務進度平均</div>
     </div>
-    <div class="pf-kpi" style="border-top-color:var(--rose)">
+    <div class="pf-kpi" style="border-top-color:var(--danger)">
       <i class="ti ti-info-circle pf-kpi-i" data-tip="核心延誤警報|有效完成日 小於 今天且未完成的任務數（工作日逾期天數）"></i>
       <div class="pf-kpi-lbl">核心延誤警報</div>
       <div class="pf-kpi-num pf-num-rose">${ov.length}<span class="pf-kpi-unit"> 筆逾期</span></div>
       <div class="pf-kpi-sub">${ov.length ? '最久：' + U.esc(ov[0].t.name) + ' 逾 ' + ov[0].days + ' 天' : '目前無逾期'}</div>
     </div>
-    <div class="pf-kpi" style="border-top-color:var(--amber)">
+    <div class="pf-kpi" style="border-top-color:var(--sage-700)">
       <i class="ti ti-info-circle pf-kpi-i" data-tip="本週個人雜事佔比|本週時段制工時 / (每日工時 × 工作天數)"></i>
       <div class="pf-kpi-lbl">本週個人雜事佔比</div>
       <div class="pf-kpi-num">${cr.totalHours}h<span class="pf-kpi-unit">/${cr.availableHours}h</span></div>
@@ -3062,7 +3062,10 @@ App.buildReportTabsHtml = function() {
 
 Workspace.render = function() {
   // Week offset: 0 = 本週, -1 = 上週, +1 = 下週...
-  if (typeof this.dashboardWeekOffset !== 'number') this.dashboardWeekOffset = 0;
+  if (typeof this.dashboardWeekOffset !== 'number') {
+    const _dow = D.today().getDay();   // 六(6)日(0) 預設顯示下週：假日有空可先排下週（§18）
+    this.dashboardWeekOffset = (_dow === 0 || _dow === 6) ? 1 : 0;
+  }
 
   const today = D.today();
   const baseMonday = D.monday(today);
@@ -3161,7 +3164,7 @@ Workspace.render = function() {
     ${statsHtml}
     <div class="dash-grid">
       <div>
-        <div class="card" style="padding-bottom:14px;">
+        <div class="card" style="padding-bottom:14px; background:var(--pearl);">
           <div class="card-head">
             <div class="card-title">時程表</div>
             <div class="week-nav-mini">
@@ -3174,6 +3177,7 @@ Workspace.render = function() {
             </div>
             <button class="rw-arrow" title="時程表顯示設定（時間範圍 / 半小時或一小時一格）" onclick="App.openGridSettingsModal()" style="margin-left:auto;"><i class="ti ti-settings"></i></button>
             <button class="tb-action" data-edit onclick="App.openHoursTaskDialog()">+ 新增小時 Task</button>
+            <button class="tb-action ghost" data-edit onclick="App.openMeetingModal()"><i class="ti ti-calendar"></i> 管理會議</button>
           </div>
           ${scheduleHtml}
           <div class="legend-row">
@@ -3200,10 +3204,13 @@ Workspace.render = function() {
           ${this.buildNextWeekTodoHtml()}
         </div>
       </div>
-      <div class="dash-side">${Workspace.buildMeetingPanelHtml()}${memoHtml}</div>
+      <div class="dash-side">${memoHtml}</div>
     </div>
   `;
   this.attachMemoDrag();
+  // 日期列凍結：量 topbar 實際高度當 sticky 偏移（topbar 為 sticky top:0、標題在內）
+  const _tb = document.querySelector('.main > .topbar');
+  if (_tb) document.documentElement.style.setProperty('--ws-sticky-top', _tb.offsetHeight + 'px');
 };
 
 Workspace.dashboardWeekShift = function(delta) {
@@ -3218,7 +3225,7 @@ Workspace.buildWeekScheduleHtml = function(targetMonday) {
   const wd = ['一','二','三','四','五'];
 
   // Header
-  let html = '<div class="week-schedule"><div></div>';
+  let html = '<div class="week-schedule"><div class="ws-corner"></div>';
   for (let i = 0; i < 5; i++) {
     const d = D.addDays(monday, i);
     const isToday = D.isSameDay(d, today);
@@ -4493,42 +4500,6 @@ App.buildKanbanCardHtml = function(t) {
     </div>
     ${hasDates ? `<div class="kanban-card-dates">${startTxt} ~ ${endTxt}</div>` : ''}
     <div class="kanban-card-owner">${U.esc(t.owner || '—')}</div>
-  </div>`;
-};
-
-Workspace.buildMeetingPanelHtml = function() {
-  const monday = D.monday();
-  const thisWeek = DATA.meetings.filter(m => {
-    if (!m.date) return false;
-    const md = new Date(m.date);
-    return D.daysBetween(monday, md) >= 0 && D.daysBetween(monday, md) <= 6;
-  }).sort((a, b) => {
-    const ad = (a.date || '') + (a.startTime || '');
-    const bd = (b.date || '') + (b.startTime || '');
-    return ad.localeCompare(bd);
-  });
-
-  const wd = ['日','一','二','三','四','五','六'];
-
-  return `<div class="side-card">
-    <div class="side-card-title">📅 會議時程</div>
-    <div class="side-card-sub">會被排程演算法避開</div>
-
-    <div class="meeting-list">
-      ${thisWeek.length === 0 ?
-        '<div style="text-align:center; padding:14px; color:var(--ink3); font-size:11px;">本週尚無會議</div>' :
-        thisWeek.map(m => {
-          const d = new Date(m.date);
-          return `<div class="meeting-item">
-            <span class="m-time">${wd[d.getDay()]} ${m.startTime}</span>
-            <span class="m-title">${m.category === 'cleaning' ? '🏷' : '📅'} ${(m.category === 'cleaning' && m.categoryLabel) ? `[${U.esc(m.categoryLabel)}] ` : ''}${U.esc(m.title)}</span>
-            <button class="m-del" data-edit onclick="App.deleteMeeting('${m.id}')">×</button>
-          </div>`;
-        }).join('')
-      }
-    </div>
-
-    <button class="am-add-btn" data-edit onclick="App.openMeetingModal()">＋ 新增 / 管理會議</button>
   </div>`;
 };
 

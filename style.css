@@ -50,12 +50,13 @@
   --xl-gantt-wip: #4A6B85;      /* Excel甘特 進行中(navy,同螢幕) */
   --xl-gantt-late: #C4633E;     /* Excel甘特 逾期(terracotta,同螢幕) */
   /* 週曆事件卡 暖綠一體化配色（Paul 2026-06-28 定版；白格＋暖線＋深綠會議卡＋琥珀雜項卡，hex 集中於此） */
-  --cal-cell-bg: #FFFFFF;        /* 空白格純白 */
-  --cal-grid-line: #E6E4DD;      /* 格線/間隙 暖灰 */
+  --cal-cell-bg: #FAF9F5;        /* 空白格 燕麥柔白(降高光) */
+  --cal-line-h: #C4CDC5;         /* 橫線/整點 鼠尾草綠灰(實線) */
+  --cal-line-v: #D6DDD7;         /* 縱線/星期 淡綠灰(虛線) */
   --cal-mtg-bg: #E4EDE8; --cal-mtg-line: #2D5A42; --cal-mtg-ink: #12291C;     /* 會議 優雅灰綠/深炭綠字/主深綠線 */
   --cal-misc-bg: #FDF6E2; --cal-misc-line: #D97706; --cal-misc-ink: #5C330A;  /* 雜項 暖杏底/深褐字/溫潤琥珀線 */
-  --cal-noon-bg: #F5F4EE; --cal-noon-text: #8A8275;     /* 午休整格 暖沙底/暖灰字 */
-  --cal-today-bg: #EEF6EF; --cal-today-badge: #16A34A;  /* 今日直欄底 / 綠圓圈 */
+  --cal-axis-bg: #F2EFE6; --cal-noon-text: #8A8275;     /* 時間軸＋午休 暖沙灰底 / 暖灰字 */
+  --cal-today-bg: #EEF5EF; --cal-today-badge: #2D5A42;  /* 今日直欄底 淡sage / 圓圈 主深綠 */
   --cal-date-ink: #1E293B;       /* 頂部日期大字（Paul 指定深藍灰，照 Mockup 定版） */
   --cal-time-ink: #57534E;       /* 左側時間軸 中性深暖灰 */
   --xl-gantt-holiday: #F7DDE4;  /* Excel甘特 假日(淡粉紅,僅標表頭) */
@@ -68,7 +69,7 @@
   --memo-y: #FFF4B8; --memo-p: #FFD9E0; --memo-b: #C8E4F0;
   --memo-g: #D9EBC8; --memo-o: #FFD8B5;
 
-  --bg: var(--paper); --surface: #FFFFFF; --surface2: var(--cream);
+  --bg: #F5F4EE; --surface: #FFFFFF; --surface2: var(--cream); --pearl: #F9F8F3;   /* --bg 暖沙降亮(§18 工作台); --pearl 珍珠柔白卡面 */
   --rule: #E8E4D8; --rule2: #D6D1C2;
   --ink: var(--stone-900); --ink2: var(--stone-600); --ink3: var(--stone-500); --ink4: var(--stone-400);
   --ink-inverse: #FFFFFF;   /* 彩色底上的反白前景字(深色主題時仍須為白,勿與 --surface 混用) */
@@ -387,7 +388,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* ─── STATS ─── */
 .stats-row {
   display: flex; align-items: stretch;
-  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12);
+  background: var(--pearl); border: 1px solid var(--rule); border-radius: var(--r12);
   overflow: hidden; margin-bottom: 14px;
 }
 .stat {
@@ -569,18 +570,19 @@ body.viewonly .cloud-sync-sec { display: none; }
 .dash-grid { display: grid; grid-template-columns: 1fr 240px; gap: 22px; }
 
 /* ─── WEEK SCHEDULE ─── */
-.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 1px; background: var(--cal-grid-line); padding: 1px; border-radius: var(--r8); }
-.ws-time-col { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--cal-time-ink); text-align: right; padding-right: 8px; align-self: stretch; padding-top: 6px; line-height: 1; background: var(--cal-cell-bg); }
-.ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-cell-bg); border-radius: var(--r6); }
+.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 0; background: var(--cal-cell-bg); padding: 0; border-radius: var(--r8); overflow: hidden; border-top: 1px solid var(--cal-line-h); border-left: 1px solid var(--cal-line-h); }
+.ws-time-col { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--cal-time-ink); text-align: right; padding-right: 8px; align-self: stretch; padding-top: 6px; line-height: 1; background: var(--cal-axis-bg); border-right: 1px solid var(--cal-line-h); border-bottom: 1px solid var(--cal-line-h); }
+.ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-axis-bg); position: sticky; top: var(--ws-sticky-top, 76px); z-index: 6; box-shadow: 0 2px 4px rgba(58,51,42,.10); border-bottom: 1px solid var(--cal-line-h); border-right: 1px dashed var(--cal-line-v); }
+.ws-corner { position: sticky; top: var(--ws-sticky-top, 76px); z-index: 7; background: var(--cal-axis-bg); border-right: 1px solid var(--cal-line-h); border-bottom: 1px solid var(--cal-line-h); box-shadow: 0 2px 4px rgba(58,51,42,.10); }
 .ws-day-header .date { font-family: var(--sans); font-weight: 700; font-size: 18px; display: block; color: var(--cal-date-ink); margin-bottom: 2px; }
-.ws-day-header.today { background: var(--cal-today-bg); border-radius: var(--r6); }
+.ws-day-header.today { background: var(--cal-today-bg); }
 .ws-day-header.today .date { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--cal-today-badge); color: var(--ink-inverse); font-size: 16px; margin-bottom: 2px; }
-.ws-cell { background: var(--cal-cell-bg); height: 66px; position: relative; }
+.ws-cell { background: var(--cal-cell-bg); height: 66px; position: relative; border-bottom: 1px solid var(--cal-line-h); border-right: 1px dashed var(--cal-line-v); }
 .ws-cell.today-col { background: var(--cal-today-bg); }
 .ws-lunch-band {
   grid-column: span 5;
-  height: 66px; margin: 0;
-  background: var(--cal-noon-bg); border: none; border-radius: 0;
+  height: 33px; margin: 0;
+  background: var(--cal-axis-bg); border: none; border-bottom: 1px solid var(--cal-line-h); border-radius: 0;
   color: var(--cal-noon-text);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 1px;
@@ -1997,8 +1999,8 @@ body.viewonly .cloud-sync-sec { display: none; }
 .pf-mx-head { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink); margin-bottom: 6px; }
 .pf-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
 .pf-mx-name { font-weight: 500; }
-.pf-mx-stage { margin-left: auto; font-size: 11px; color: var(--ink3); }
-.pf-mx-stage-red { color: var(--rose); }
+.pf-mx-stage { margin-left: auto; font-size: 11px; color: var(--sage-700); background: var(--sage-50); border-radius: 99px; padding: 2px 9px; }
+.pf-mx-stage-red { color: var(--rose-ink); background: var(--rose-l); }
 .pf-mx-line { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-top: 3px; }
 .pf-mx-tag { width: 30px; color: var(--ink4); flex: 0 0 auto; }
 .pf-mx-line .pf-bar { flex: 1; }
