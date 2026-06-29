@@ -206,3 +206,24 @@ Excel 匯入本來就**沒有「目標上市窗」**，空 schedule 下 `_s2Vari
 - 兩條建專案路徑（範本 `applyTemplate`／Excel `buildWbsPreview`）**回傳的 variant 形狀必須一致**——下游 Stage 2 render 同一套，缺欄就炸。日後改 variant 結構要兩邊同步。
 - Stage 2 一堆 `v.schedule.X` 是**直接讀、無防呆**（7022/7063/7116…），靠「variant 一定帶 schedule」這個前提撐著；新增任何 variant 來源都要記得帶 schedule。
 - 連帶教訓：Excel 新建這條路徑體質弱（舊 `saveProject` 還留過「下一批實作」死 stub、掛在舊版 `_renderStage2`），多案別大檔匯入值得完整走查一遍。
+
+---
+
+## 坑 8：全域原生 `confirm`／`alert`／`prompt` 殘留（醜彈窗破壞一致性，2026-06-29 清零）
+
+**現象**
+刪任務/刪專案/登出/清資料/雲端下載/Excel 覆蓋/便利貼…等動作跳瀏覽器原生彈窗（灰底藍鈕），跟全站暖森林綠設計款 modal 落差極大、廉價。
+
+**根因**
+散落 **17 個 `confirm`＋2 個 `alert`＋2 個 `prompt`** 沒收斂——原生同步 API 寫起來方便（`if(!confirm())return`），但 UI 醜且不可主題化。
+
+**正解（已根治，commit `858c808`／`5f983ab`／`b4d84a8`）**
+全部改設計款彈窗：
+- 確認 → `App.confirmModal({title,msg,okText,cancelText,onConfirm,icon,iconBg,iconColor,okClass})`。**同步→非同步**：`if(!confirm())return; X` → 把 X 搬進 `onConfirm`；多重 confirm 串成巢狀 onConfirm（如 `_stage2Commit` 未指派→同名）。單鈕設 `cancelText:null`；危險動作 `okClass:'danger'`。
+- 文字輸入 → 新增共用 `App.promptModal({title,label,value,okText,onSubmit})`（textarea＋確定/取消，回值給 onSubmit），取代 `prompt`。
+- 提示 → `alert` 改 `confirmModal` 單鈕或 `U.toast`。
+
+**操作提醒**
+- **禁再用原生 `confirm`／`alert`／`prompt`**（UI 規範 §0.6）。要確認/輸入一律 `confirmModal`／`promptModal`／`openModal`。
+- `confirmModal` 公版**無 onCancel callback**（取消只關閉）；需要「取消也跑事」的（如離開設定頁三選一）改用 `openModal` 自訂 footer 多鈕。
+- 大段含 `\n`／`\uXXXX` 字面 escape 的 code 用 Edit 易框不全，改用 node 腳本替換（坑5）。

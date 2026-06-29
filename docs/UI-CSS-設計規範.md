@@ -17,6 +17,7 @@
 4. 收斂寫死值做**等值重構**，不順手改色。
 5. ⚠ 第一階段預覽頁 `.s1-preview` 目前帶 `zoom: 1.15`，**實際渲染 ≈ 設定 px × 1.15**。
    本表的 px 為「希望看到的最終大小」；在該頁設值時記得除以 1.15，或日後移除 zoom 後再校。
+6. **禁原生 `confirm`／`alert`／`prompt`**：一律走設計款彈窗——確認用 `App.confirmModal({title,msg,okText,cancelText,onConfirm,icon,iconBg,iconColor,okClass})`（單鈕設 `cancelText:null`；危險動作 `okClass:'danger'`）、文字輸入用 `App.promptModal({title,label,value,okText,onSubmit})`、一般彈窗用 `App.openModal`。原生彈窗醜且破壞視覺一致性（2026-06-29 全域清零）。
 
 ---
 
