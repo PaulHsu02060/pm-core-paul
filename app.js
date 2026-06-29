@@ -3737,10 +3737,15 @@ App.editMemo = function(id) {
 
 App.deleteMemo = function(id) {
   if (App._roGuard()) return;
-  if (!confirm('刪除這張便利貼？')) return;
-  DATA.memos = DATA.memos.filter(m => m.id !== id);
-  Storage.save();
-  Workspace.render();
+  App.confirmModal({
+    icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: '刪除這張便利貼？', okText: '刪除', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      DATA.memos = DATA.memos.filter(m => m.id !== id);
+      Storage.save();
+      Workspace.render();
+    },
+  });
 };
 
 App.showUrgentModal = function() {
@@ -4402,15 +4407,19 @@ App.restoreTask = function(id) {
 };
 
 App.permanentDeleteTask = function(id) {
-  if (!confirm('永久刪除？此操作無法復原')) return;
-  DATA.tasks = DATA.tasks.filter(t => t.id !== id);
-  // 清掉 schedule 殘留
-  if (DATA.schedule && DATA.schedule.items) {
-    DATA.schedule.items = DATA.schedule.items.filter(it => it.taskId !== id);
-  }
-  Storage.save();
-  this.refreshAll();
-  U.toast('🗑 已永久刪除');
+  App.confirmModal({
+    icon: 'ti-alert-triangle', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: '永久刪除？', msg: '此操作無法復原。', okText: '永久刪除', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      DATA.tasks = DATA.tasks.filter(t => t.id !== id);
+      if (DATA.schedule && DATA.schedule.items) {
+        DATA.schedule.items = DATA.schedule.items.filter(it => it.taskId !== id);
+      }
+      Storage.save();
+      App.refreshAll();
+      U.toast('🗑 已永久刪除');
+    },
+  });
 };
 
 // 自動清除逾期 14 天的軟刪除任務（在 load 時呼叫）
@@ -5728,19 +5737,23 @@ App.saveTask = function(id, _skipNegCheck) {
 
 App.deleteTask = function(id) {
   if (App._roGuard()) return;
-  if (!confirm('刪除任務？\n\n刪除的任務會移到專案下方「🗑 已刪除」區塊保留 14 天，期間可隨時還原。')) return;
-  const t = DATA.tasks.find(x => x.id === id);
-  if (!t) return;
-  t._deleted = true;
-  t._deletedAt = new Date().toISOString();
-  // 從 schedule 中移除
-  if (DATA.schedule && DATA.schedule.items) {
-    DATA.schedule.items = DATA.schedule.items.filter(it => it.taskId !== id);
-  }
-  Storage.save();
-  this.closeModal();
-  this.refreshAll();
-  U.toast('✓ 已移到「已刪除」區塊（14 天內可還原）');
+  App.confirmModal({
+    icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: '刪除任務？', msg: '刪除的任務會移到專案下方「🗑 已刪除」區塊保留 14 天，期間可隨時還原。', okText: '刪除', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      const t = DATA.tasks.find(x => x.id === id);
+      if (!t) return;
+      t._deleted = true;
+      t._deletedAt = new Date().toISOString();
+      if (DATA.schedule && DATA.schedule.items) {
+        DATA.schedule.items = DATA.schedule.items.filter(it => it.taskId !== id);
+      }
+      Storage.save();
+      App.closeModal();
+      App.refreshAll();
+      U.toast('✓ 已移到「已刪除」區塊（14 天內可還原）');
+    },
+  });
 };
 
 // ─── PROJECT CRUD ───
@@ -8106,14 +8119,19 @@ App.deleteProject = function(id) {
   const p = this.getProj(id);
   if (!p) return;
   const taskCnt = this.getTasksOf(id).length;
-  if (!confirm(`刪除專案「${p.name}」？\n含 ${taskCnt} 個任務也會一併刪除`)) return;
-  DATA.projects = DATA.projects.filter(x => x.id !== id);
-  DATA.tasks = DATA.tasks.filter(t => t.project !== id);
-  if (this.currentProjectId === id) this.currentProjectId = null;
-  Storage.save();
-  this.closeModal();
-  this.showPage('workspace', document.querySelector('[data-page=workspace]'));
-  this.refreshAll();   // 補：刪完重繪 sidebar（清舊按鈕）+ 工作台彙總；showPage 已先設 currentPage=workspace，避開 renderProject null 自動跳第一個專案
+  App.confirmModal({
+    icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: `刪除專案「${p.name}」？`, msg: `含 ${taskCnt} 個任務也會一併刪除。`, okText: '刪除', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      DATA.projects = DATA.projects.filter(x => x.id !== id);
+      DATA.tasks = DATA.tasks.filter(t => t.project !== id);
+      if (App.currentProjectId === id) App.currentProjectId = null;
+      Storage.save();
+      App.closeModal();
+      App.showPage('workspace', document.querySelector('[data-page=workspace]'));
+      App.refreshAll();   // 補：刪完重繪 sidebar（清舊按鈕）+ 工作台彙總；showPage 已先設 currentPage=workspace，避開 renderProject null 自動跳第一個專案
+    },
+  });
 };
 
 // ═══════════════════════════════════════════════════════
