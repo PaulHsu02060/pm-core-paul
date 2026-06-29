@@ -64,18 +64,22 @@
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：`c0f9717`｜版本號 app.js／style.css `?v=20260629-7`｜本 session 六批已 commit＋push（全 `[unverified]`、線上待驗）
+**目前 HEAD**：`b23adfd`｜版本號 app.js `?v=20260629-14`／style.css `?v=20260629-15`｜本 session 多項 DEV 驗 Pass、github.io 全量待驗
 
-**已落地（本 session，DEV 驗、github.io 未驗）**——詳見架構 **§18.9 落地紀錄**
-- 雙軌導覽 **Phase 0** 拆分：個人工作台/全專案總覽兩節點、`Workspace`/`Portfolio` 分包（§18.7）`869a955`
-- **Phase 1** 總覽頁 MVP：4 指標卡＋雙列進度矩陣（預計vs實際）＋部門負載＋當週待處理＋HintBox（§18.8）`f03d5cd`
-- 工作台 UI：暖沙底＋燕麥格＋格線A（橫實縱虛）＋日期列凍結＋午休縮半＋週末預設下週；會議面板簡化（右欄卡→週曆表頭「管理會議」鈕）；Portfolio B 卡頂線/階段膠囊 `974e16e`
-- 設定精簡：排程 tab 只留工作日曆（工時與排程/定期事件移除、會議改走管理會議彈窗）`86cc402`
-- 修正：週曆 sticky 回正＋`renderLists` 無憑證守衛(止 DEV「登入已過期」toast)＋DEV 面板預設收起 `c0f9717`
+**已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
+- 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
+- Commit 1：`Portfolio.deptLoad` 改本週負荷均攤（WBS 工期攤本週工作日×日工時）＋`weekCapacity` 容量衍生＋部門名穩健解析 `e958427`
+- Commit 2：總覽部門負載改 stacked bar（綠 `--sage-600`＋琥珀 `--amber-accent` 疊段＋`--stone-400` 容量虛線＋爆單 rose 高亮＋圖例）；四區塊 HintBox 移到 Title 下方（§6.5b 標準）`2277c53`
+- Commit 3：新增小時 Task 表單補「部門」下拉（選項Y＝全專案部門名去重池，時段制限定）＋saveNewTask/saveTask 依 measure 寫 `dept` `f5e8df5`
+- Commit 4：設定「工時設定」UI 回歸（每日工時＋每週工作日，全系統單一來源）＋變更影響彈窗確認 `4f0a7cc`
+- 修正2：任務表單必填欄位加 `*`＋空欄一次標紅 `.tf-invalid` 引導＋輸入即消紅 `e40e9c9`
+- 修正1：新建小時 Task 立刻在預計開始日放臨時時段、週曆即時可見（智慧排程整批重建時覆蓋重排）`c93fd19`
+- 修正3：設定頁有改未存、離開時彈窗提醒（儲存並離開／放棄並離開／取消）＋dirty 偵測 `a6c009f`
+- 方案一：週曆今日欄底改暖沙灰 `--cal-today-bg` `#EEF5EF→#F4F2EA`（讓彩色卡片邊界更清晰）`b23adfd`
 
-**下一件 / 待辦（本 session 撈出，未做）**
-1. **線上驗證（最優先）**：本批全 `[unverified]`，github.io 部署後逐項驗——工作台週曆凍結/配色/午休/週末、總覽頁四卡與矩陣數字、設定頁只剩工作日曆、管理會議彈窗、DEV 面板收起、不再跳 token toast。
-2. **雙軌導覽 Phase 2**（需新資料/快照）：① 小時計(時段制)Task 折算進部門負荷＋驗證 ② 趨勢「較上週」綁 §17 每日快照 ③ 會議/事件加 `dept`/`owner` 欄（跨部門雜事負載堆疊、含偏頗標註）。見 §18.9 / §18.5。
-3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（time-trigger + `doGet snapshots`/`snapshot`，最高風險、獨立 session、照 §8f 新部署驗完才切正式）。規格見 §17。
-4. **本批尾巴**：工時與排程設定 UI 已移除→工時/工作日值固定現值、不能從 UI 改（要改需重開 UI 或改資料層）；`saveSettings` 留 null-guard 工時 dead reads（無害未清）；預計%／部門負載為近似（§18.9）；DEV 收起膠囊與右下 toast 仍可能微重疊（要完全不擋可移左下）；KPI「較上週」留白。
-5. overflow 面板字級（規範過時，待 Paul 重看現況再定）。
+**下一件 / 待辦**
+1. **線上驗證（github.io）**：部門負載 stacked／容量線／爆單高亮數字、HintBox 都在 Title 下、小時 Task 即時顯示週曆＋部門下拉分流、工時設定彈窗、設定未存離開提醒、今日欄暖沙灰。
+2. **Phase 2 後續**：② 趨勢「較上週」綁 §17 每日快照 ③ 會議/事件加 `dept`/`owner` 欄（會議也堆進部門負載雜事段、含偏頗標註）。見 §18.10／§18.5。
+3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。
+4. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
+5. **已知尾巴**：部門負載橘塊只含「已掛部門且已排本週」時段任務、不含會議（待 §18.10 ③）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI「較上週」留白；overflow 面板字級（規範過時待重看）。
