@@ -5262,6 +5262,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
   const v = (x) => (x == null ? '' : x);
   const startMode = (mode === 'new') ? 'auto' : App.startModeOf(t);   // 2-A：新任務一律 auto；編輯讀 startMode（含舊任務相容）
   const effSch = getEffectiveSchedule(t);
+  const deptNames = [...new Set((DATA.projects || []).flatMap(p => (p.depts || []).map(d => (d.name || '').trim())).filter(Boolean))];   // 選項Y：全專案部門名去重池（個人雜事掛公司部門，§18.10）
   const isAutoStart = (startMode === 'auto');                              // 重構：無手填 t.start = 依前置自動排
   const startInputVal = isAutoStart ? (effSch.start || '') : v(t.start);   // 自動態預填引擎算到的日；data-autostart 標記，未經手不落錨（保住下游連動）
   const startHint = isAutoStart
@@ -5308,6 +5309,13 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
           <option value="group" ${t.taskType === 'group' ? 'selected' : ''}>▦ 群組</option>
         </select>
       </div>
+    </div>
+
+    <div class="form-field mg-hours"><label>部門 <span data-tip="部門|個人雜事掛到的公司部門（部門負載依此分流）；選項為全專案出現過的部門" style="cursor:help;">?</span></label>
+      <select id="tf-dept">
+        <option value="">未指派</option>
+        ${deptNames.map(n => `<option value="${U.esc(n)}" ${(t.dept || '') === n ? 'selected' : ''}>${U.esc(n)}</option>`).join('')}
+      </select>
     </div>
 
     <div class="tf-sched-card">
@@ -5474,6 +5482,7 @@ App.saveNewTask = function(projId, _skipNegCheck) {
     name,
     desc: document.getElementById('tf-desc').value.trim(),
     owner: document.getElementById('tf-owner').value.trim(),
+    dept: (document.querySelector('.task-form').dataset.measure === 'hours') ? ((document.getElementById('tf-dept') || {}).value || '') : '',   // 選項Y：時段制存部門名（§18.10）；工期制不掛、留 role 衍生
     category: 'deep',  // M2 表單改造：分類欄 UI 已移除，資料層保留、新任務一律 deep（工作性質維度後續另議）
     taskType: document.getElementById('tf-taskType').value,  // M2-T4：使用者顯式選擇（非 hardcode 預設，quickAdd 仍靠 ensureTaskType 兜底）
     stage: document.getElementById('tf-stage').value.trim(),       // M2-2a：與同步/匯入同欄位，trim 同收集口徑
@@ -5659,6 +5668,7 @@ App.saveTask = function(id, _skipNegCheck) {
   t.predecessor  = App.serializePredecessors();  // M2-§6.4：結構化列序列化回字串（與 saveNewTask 共用同一函式，單一真實來源）
   t.durationDays = App.readDurationField();   // §6.5c：tf-end 反推為主、工期欄為輔（helper 單一真實來源）
   t.measureType = t.measureType || 'duration';  // 第27項：edit 鎖定計量制——保留既有值不從 form 覆寫；舊資料無此欄兜 duration
+  if (t.measureType === 'hours') { const _de = document.getElementById('tf-dept'); if (_de) t.dept = _de.value; }   // 選項Y：時段制編輯同步部門名（§18.10）；工期制不碰、保 role 衍生
   t.urgency   = document.getElementById('tf-urgency').value;
   const startField = App.readStartField();   // 2-A：預計開始雙態（與 saveNewTask 共用同一取值邏輯）
   t.start     = startField.start;            // 手動態存值、自動態存 ''
