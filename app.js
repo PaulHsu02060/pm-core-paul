@@ -310,7 +310,7 @@ const CloudSync = {
       // 真故障（有 _idToken 卻 fetch/後端錯）→ alert 強提示，不分 silent（auto 也彈）；_uploadErrNotified 一次性防 auto-upload 每 3 秒彈一次（成功上傳才 reset）
       if (!this._uploadErrNotified) {
         this._uploadErrNotified = true;
-        alert('⚠ 雲端同步失敗\n\n本次改動已存在本機，但未能上傳到雲端。\n資料暫時只在這台裝置，請勿清除瀏覽器資料。\n\n可稍後重試（再次儲存會自動重傳），或聯絡系統管理員。\n\n錯誤：' + e.message);
+        App.confirmModal({ icon: 'ti-cloud-off', iconBg: '--rose-l', iconColor: '--rose-ink', title: '雲端同步失敗', msg: '本次改動已存在本機、但未上傳雲端。資料暫時只在這台裝置，請勿清除瀏覽器資料；可稍後重試（再次儲存會自動重傳）。<br>錯誤：' + U.esc(e.message), cancelText: null, okText: '我知道了' });
       }
       return false;
     } finally {
@@ -3695,44 +3695,70 @@ Workspace.attachMemoDrag = function() {
   });
 };
 
+// 設計款輸入彈窗（取代原生 prompt）：textarea + 確定/取消，確定回傳值給 onSubmit
+App.promptModal = function(opts) {
+  const o = opts || {};
+  App.openModal({
+    title: o.title || '輸入',
+    body: `<div class="form-field"><label>${U.esc(o.label || '')}</label>
+      <textarea id="pm-input" rows="${o.rows || 3}" style="width:100%;resize:vertical;" placeholder="${U.esc(o.placeholder || '')}">${U.esc(o.value || '')}</textarea></div>`,
+    footer: `<button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+             <button class="tb-action" onclick="App._promptModalOk()">${U.esc(o.okText || '確定')}</button>`,
+  });
+  App._promptModalCb = o.onSubmit || null;
+  setTimeout(() => { const i = document.getElementById('pm-input'); if (i) { i.focus(); if (i.select) i.select(); } }, 50);
+};
+App._promptModalOk = function() {
+  const i = document.getElementById('pm-input');
+  const val = i ? i.value : '';
+  const cb = App._promptModalCb;
+  App._promptModalCb = null;
+  App.closeModal();
+  if (cb) cb(val);
+};
+
 App.addMemo = function() {
   if (App._roGuard()) return;
-  const text = prompt('便利貼內容：');
-  if (!text) return;
-  const memo = {
-    id: U.id(),
-    text: text.slice(0, 80),
-    color: MEMO_COLORS[Math.floor(Math.random() * MEMO_COLORS.length)],
-    x: 10 + Math.floor(Math.random() * 100),
-    y: 10 + Math.floor(Math.random() * 50),
-    rotate: -4 + Math.floor(Math.random() * 9),
-    date: D.fmt(new Date(), 'md'),
-  };
-  DATA.memos.push(memo);
-  Storage.save();
-  Workspace.render();
-  U.toast('✓ 便利貼已加入');
+  App.promptModal({
+    title: '新增便利貼', label: '便利貼內容', placeholder: '輸入內容…', okText: '加入',
+    onSubmit: (text) => {
+      if (!text || !text.trim()) return;
+      const memo = {
+        id: U.id(),
+        text: text.slice(0, 80),
+        color: MEMO_COLORS[Math.floor(Math.random() * MEMO_COLORS.length)],
+        x: 10 + Math.floor(Math.random() * 100),
+        y: 10 + Math.floor(Math.random() * 50),
+        rotate: -4 + Math.floor(Math.random() * 9),
+        date: D.fmt(new Date(), 'md'),
+      };
+      DATA.memos.push(memo);
+      Storage.save();
+      Workspace.render();
+      U.toast('✓ 便利貼已加入');
+    },
+  });
 };
 
 App.editMemo = function(id) {
   const memo = DATA.memos.find(m => m.id === id);
   if (!memo) return;
-  const newText = prompt('編輯便利貼內容：', memo.text);
-  if (newText === null) return; // cancelled
-  const trimmed = newText.trim();
-  if (!trimmed) {
-    if (confirm('內容為空，刪除這張便利貼？')) {
-      DATA.memos = DATA.memos.filter(m => m.id !== id);
+  App.promptModal({
+    title: '編輯便利貼', label: '便利貼內容', value: memo.text, okText: '儲存',
+    onSubmit: (newText) => {
+      const trimmed = (newText || '').trim();
+      if (!trimmed) {
+        App.confirmModal({ icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink',
+          title: '內容為空，刪除這張便利貼？', okText: '刪除', cancelText: '取消', okClass: 'danger',
+          onConfirm: () => { DATA.memos = DATA.memos.filter(m => m.id !== id); Storage.save(); Workspace.render(); U.toast('✓ 已刪除'); } });
+        return;
+      }
+      memo.text = trimmed.slice(0, 200);
       Storage.save();
       Workspace.render();
-      U.toast('✓ 已刪除');
-    }
-    return;
-  }
-  memo.text = trimmed.slice(0, 200);
-  Storage.save();
-  Workspace.render();
-  U.toast('✓ 已更新');
+      U.toast('✓ 已更新');
+    },
+  });
 };
 
 App.deleteMemo = function(id) {
@@ -11996,17 +12022,7 @@ App.performExcelImport = function() {
     U.toast(`✓ 匯入完成（${added} 新增 / ${updated} 更新）`, 'success');
     // 顯眼提醒：跨裝置同步流程
     setTimeout(() => {
-      alert(
-        '✅ Excel 匯入完成！\n\n' +
-        '⚠️ 重要：跨裝置同步步驟\n' +
-        '──────────────────────────\n' +
-        '1️⃣ 立即按【設定 → ☁ 立即上傳到雲端】\n' +
-        '   讓雲端拿到合併後的最新版\n\n' +
-        '2️⃣ 明天到公司桌機，第一件事：\n' +
-        '   按【設定 → ⬇ 從雲端下載最新】\n' +
-        '   再開始操作，避免把舊資料覆蓋雲端\n\n' +
-        `本次匯入：${added} 新增 / ${updated} 更新`
-      );
+      App.confirmModal({ icon: 'ti-cloud-up', iconBg: '--sage-50', iconColor: '--sage-600', title: 'Excel 匯入完成', msg: '跨裝置同步步驟：<br>1. 立即按【設定 → 立即上傳到雲端】讓雲端拿到合併後最新版。<br>2. 到別台機器第一件事按【設定 → 從雲端下載最新】再操作，避免舊資料覆蓋雲端。<br>本次匯入：' + added + ' 新增 / ' + updated + ' 更新', cancelText: null, okText: '我知道了' });
     }, 600);
   }, 1500);
 };
