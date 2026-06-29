@@ -3201,7 +3201,7 @@ Workspace.render = function() {
     ${statsHtml}
     <div class="dash-grid">
       <div>
-        <div class="card" style="padding-bottom:14px; background:var(--pearl);">
+        <div class="card" style="padding-bottom:14px;">
           <div class="card-head">
             <div class="card-title">時程表</div>
             <div class="week-nav-mini">

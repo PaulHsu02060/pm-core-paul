@@ -51,12 +51,12 @@
   --xl-gantt-late: #C4633E;     /* Excel甘特 逾期(terracotta,同螢幕) */
   /* 週曆事件卡 暖綠一體化配色（Paul 2026-06-28 定版；白格＋暖線＋深綠會議卡＋琥珀雜項卡，hex 集中於此） */
   --cal-cell-bg: #FFFFFF;        /* 空白格 純白(v6洗淨,殺發黃) */
-  --cal-line-h: #E3E1D8;         /* 橫線/整點 暖灰(實線) */
+  --cal-line-h: #E5E1D7;         /* 橫線/整點 暖灰(實線) */
   --cal-line-v: #ECEAE2;         /* 縱線/星期 暖灰更淡(v6改實線) */
   --cal-mtg-bg: #E4EDE8; --cal-mtg-line: #2D5A42; --cal-mtg-ink: #12291C;     /* 會議 優雅灰綠/深炭綠字/主深綠線 */
   --cal-misc-bg: #FDF6E2; --cal-misc-line: #D97706; --cal-misc-ink: #5C330A;  /* 雜項 暖杏底/深褐字/溫潤琥珀線 */
   --cal-axis-bg: #F2EFE6; --cal-noon-text: #8A8275;     /* 時間軸＋午休 暖沙灰底 / 暖灰字 */
-  --cal-today-bg: #F4F2EA; --cal-today-badge: #2D5A42;  /* 今日直欄底 暖沙灰(方案一,中性軌道讓彩色卡片跳出) / 圓圈 主深綠 */
+  --cal-today-bg: #F4F7F4; --cal-today-badge: #2D5A42;  /* 今日直欄底 極淡暖綠白(與暖沙頁底色相錯位切邊界) / 圓圈 主深綠 */
   --cal-date-ink: #1E293B;       /* 頂部日期大字（Paul 指定深藍灰，照 Mockup 定版） */
   --cal-time-ink: #57534E;       /* 左側時間軸 中性深暖灰 */
   --xl-gantt-holiday: #F7DDE4;  /* Excel甘特 假日(淡粉紅,僅標表頭) */
