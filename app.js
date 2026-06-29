@@ -2002,12 +2002,23 @@ const Auth = {
       document.body.appendChild(panel);
     }
     const cur = localStorage.getItem('auth_dev_role') || '(未設)';
+    const open = this._devOpen === true;   // 預設收起，避免擋到右下 toast；點膠囊才展開
+    panel.classList.toggle('collapsed', !open);
+    if (!open) {
+      panel.innerHTML = '<button class="adp-toggle" onclick="Auth.toggleDevPanel()" title="DEV 身份切換">🔧 ' + cur + ' ▸</button>';
+      return;
+    }
     panel.innerHTML =
-      '<div class="adp-title">🔧 DEV 身份</div>' +
+      '<div class="adp-title" onclick="Auth.toggleDevPanel()" style="cursor:pointer;">🔧 DEV 身份 ▾</div>' +
       '<div class="adp-cur">目前：' + cur + '</div>' +
       ['superadmin', 'admin', 'editor', 'viewonly', 'none'].map(r =>
         '<button class="adp-btn" onclick="Auth.setDevRole(\'' + r + '\')">' + r + '</button>'
       ).join('');
+  },
+
+  toggleDevPanel() {
+    this._devOpen = !this._devOpen;
+    this.renderDevPanel();
   },
 
   // none / Can't view：全屏擋頁，只 render 自己、不碰 task/project 資料（§8f.5 / §8f.8b 隔離紀律）
@@ -2079,6 +2090,7 @@ const Auth = {
   // ④ 從後端拉兩份名單 → 快取 + 畫。失敗：toast、不洗掉現有顯示。
   async renderLists() {
     if (!document.getElementById('wl-editor-list')) return;   // 不在設定頁 → 防呆
+    if (!this._idToken) return;   // 無憑證(DEV/未登入)：不打後端、不跳「登入已過期」噪音；名單需登入後才載
     let j;
     try {
       j = await this._postBackend({ action: 'getlists', id_token: this._idToken });

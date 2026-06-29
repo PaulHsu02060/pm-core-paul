@@ -570,7 +570,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .dash-grid { display: grid; grid-template-columns: 1fr 240px; gap: 22px; }
 
 /* ─── WEEK SCHEDULE ─── */
-.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 0; background: var(--cal-cell-bg); padding: 0; border-radius: var(--r8); overflow: hidden; border-top: 1px solid var(--cal-line-h); border-left: 1px solid var(--cal-line-h); }
+.week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 0; background: var(--cal-cell-bg); padding: 0; border-top: 1px solid var(--cal-line-h); border-left: 1px solid var(--cal-line-h); }
 .ws-time-col { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--cal-time-ink); text-align: right; padding-right: 8px; align-self: stretch; padding-top: 6px; line-height: 1; background: var(--cal-axis-bg); border-right: 1px solid var(--cal-line-h); border-bottom: 1px solid var(--cal-line-h); }
 .ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-axis-bg); position: sticky; top: var(--ws-sticky-top, 76px); z-index: 6; box-shadow: 0 2px 4px rgba(58,51,42,.10); border-bottom: 1px solid var(--cal-line-h); border-right: 1px dashed var(--cal-line-v); }
 .ws-corner { position: sticky; top: var(--ws-sticky-top, 76px); z-index: 7; background: var(--cal-axis-bg); border-right: 1px solid var(--cal-line-h); border-bottom: 1px solid var(--cal-line-h); box-shadow: 0 2px 4px rgba(58,51,42,.10); }
@@ -1842,6 +1842,9 @@ body.viewonly .cloud-sync-sec { display: none; }
 .adp-cur { color: var(--ink3); margin-bottom: 6px; }
 .adp-btn { display: block; width: 100%; margin: 2px 0; padding: 4px 8px; border: 1px solid var(--rule2); border-radius: var(--r6); background: var(--surface); cursor: pointer; font-size: 11px; }
 .adp-btn:hover { background: var(--sage-50); }
+#authDevPanel.collapsed { padding: 0; border: none; background: none; box-shadow: none; }
+.adp-toggle { padding: 5px 10px; border: 1px solid var(--rule2); border-radius: 99px; background: var(--surface); cursor: pointer; font-size: 11px; color: var(--ink2); box-shadow: var(--shadow-sm); opacity: .85; }
+.adp-toggle:hover { opacity: 1; background: var(--sage-50); }
 
 /* ─── Can't view 擋頁（§8f.5）：none 全屏擋光，不顯示任何專案內容 ─── */
 #authBlockout {
