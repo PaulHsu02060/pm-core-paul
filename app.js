@@ -3127,30 +3127,14 @@ Workspace.render = function() {
   const wk = D.weekKey(monday);
   const wkNum = D.weekNum(monday);
 
-  // ─── Filter: 顯示週的「前後兩週」內該做的事 ───
-  // 以「顯示週的週中」為中心，前後兩週的視窗
-  const centerDay = D.addDays(monday, 3); // 週四為中心
-  const twoWeeksBefore = D.addDays(centerDay, -14);
-  const twoWeeksAfter  = D.addDays(centerDay, +14);
-
-  const inWindowTasks = DATA.tasks.filter(t => {
-    if (t._deleted) return false;
-    if (t.status === 'done' || t.status === 'hold') return false;
+  // ─── 工作台 KPI（微觀/小時計，§A 重定義）：今日/本週時段任務數 + 緊急小時 Task（皆只吃時段制，與時程表口徑一致）───
+  const _todayIso = D.fmt(today, 'iso');
+  const _schItems = DATA.schedule.items || [];
+  const _todayTaskCount = new Set(_schItems.filter(it => it.date === _todayIso).map(it => it.taskId)).size;
+  const _weekTaskCount = new Set(_schItems.filter(it => it.week === wk).map(it => it.taskId)).size;
+  const _urgentHours = DATA.tasks.filter(t => !t._deleted && t.measureType === 'hours' && t.status !== 'done' && t.status !== 'hold').filter(t => {
     const sch = getEffectiveSchedule(t);
-    if (!sch.start && !sch.end) return true;
-    const ts = sch.start ? new Date(sch.start) : (sch.end ? new Date(sch.end) : null);
-    const te = sch.end   ? new Date(sch.end)   : (sch.start ? new Date(sch.start) : null);
-    if (!ts || !te) return true;
-    return te >= twoWeeksBefore && ts <= twoWeeksAfter;
-  });
-
-  const activeTasks = inWindowTasks;
-  const wipTasks    = inWindowTasks.filter(t => t.status === 'wip');
-  const urgentTasks = inWindowTasks.filter(t => {
-    if (t.urgency === 'high') return true;
-    const sch = getEffectiveSchedule(t);
-    if (sch.end && D.daysBetween(today, new Date(sch.end)) <= 1) return true;
-    return false;
+    return t.urgency === 'high' || (sch.end && D.daysBetween(today, new Date(sch.end)) <= 1);
   });
 
   const totalHours = (DATA.schedule.items || [])
@@ -3185,15 +3169,15 @@ Workspace.render = function() {
   // Stats row
   const statsHtml = `<div class="stats-row">
     <div class="stat">
-      <div class="stat-num">${activeTasks.length}</div>
-      <div class="stat-label">兩週內任務</div>
+      <div class="stat-num">${_todayTaskCount}</div>
+      <div class="stat-label">今日時段任務</div>
     </div>
     <div class="stat">
-      <div class="stat-num">${wipTasks.length}</div>
-      <div class="stat-label">進行中</div>
+      <div class="stat-num">${_weekTaskCount}</div>
+      <div class="stat-label">${this.dashboardWeekOffset === 0 ? '本週' : 'W' + wkNum} 時段任務</div>
     </div>
-    <div class="stat stat-urgent" onclick="App.showUrgentModal()" title="點擊查看緊急任務">
-      <div class="stat-num">${urgentTasks.length}</div>
+    <div class="stat stat-urgent" onclick="App.showUrgentModal()" title="點擊查看緊急小時 Task">
+      <div class="stat-num">${_urgentHours.length}</div>
       <div class="stat-label">緊急 ↗</div>
     </div>
     <div class="stat">
@@ -3762,6 +3746,7 @@ App.deleteMemo = function(id) {
 App.showUrgentModal = function() {
   const urgent = DATA.tasks
     .filter(t => t.status !== 'done' && t.status !== 'hold')
+    .filter(t => t.measureType === 'hours')   // 工作台緊急卡：只列小時計（時段制）項目（§A）
     .filter(t => {
       const sch = getEffectiveSchedule(t);
       return t.urgency === 'high' || (sch.end && D.daysBetween(D.today(), new Date(sch.end)) <= 1);
