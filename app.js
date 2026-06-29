@@ -3399,13 +3399,13 @@ Workspace.buildWeekScheduleHtml = function(targetMonday) {
     // 午休：12:00 改成「時間欄(靠上) + 橫貫五天的單一午休帶」，12:30 子列整列跳過
     if (hr === 12) {
       if (mm === 0) {
-        html += `<div class="ws-time-col ws-time-lunch">12:00</div>`;
+        html += `<div class="ws-time-col ws-time-lunch"><span class="ws-tlabel">12:00</span></div>`;
         html += `<div class="ws-lunch-band">☕ 午休時間</div>`;
       }
       continue;
     }
     const half = mm === 0 ? '00' : '30';
-    html += `<div class="ws-time-col">${String(hr).padStart(2,'0')}:${half}</div>`;
+    html += `<div class="ws-time-col"><span class="ws-tlabel">${String(hr).padStart(2,'0')}:${half}</span></div>`;
     for (let i = 0; i < 5; i++) {
       const d = D.addDays(monday, i);
       const dateIso = D.fmt(d, 'iso');

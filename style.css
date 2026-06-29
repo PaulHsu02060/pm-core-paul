@@ -50,9 +50,9 @@
   --xl-gantt-wip: #4A6B85;      /* Excel甘特 進行中(navy,同螢幕) */
   --xl-gantt-late: #C4633E;     /* Excel甘特 逾期(terracotta,同螢幕) */
   /* 週曆事件卡 暖綠一體化配色（Paul 2026-06-28 定版；白格＋暖線＋深綠會議卡＋琥珀雜項卡，hex 集中於此） */
-  --cal-cell-bg: #FAF9F5;        /* 空白格 燕麥柔白(降高光) */
-  --cal-line-h: #C4CDC5;         /* 橫線/整點 鼠尾草綠灰(實線) */
-  --cal-line-v: #D6DDD7;         /* 縱線/星期 淡綠灰(虛線) */
+  --cal-cell-bg: #FFFFFF;        /* 空白格 純白(v6洗淨,殺發黃) */
+  --cal-line-h: #E3E1D8;         /* 橫線/整點 暖灰(實線) */
+  --cal-line-v: #ECEAE2;         /* 縱線/星期 暖灰更淡(v6改實線) */
   --cal-mtg-bg: #E4EDE8; --cal-mtg-line: #2D5A42; --cal-mtg-ink: #12291C;     /* 會議 優雅灰綠/深炭綠字/主深綠線 */
   --cal-misc-bg: #FDF6E2; --cal-misc-line: #D97706; --cal-misc-ink: #5C330A;  /* 雜項 暖杏底/深褐字/溫潤琥珀線 */
   --cal-axis-bg: #F2EFE6; --cal-noon-text: #8A8275;     /* 時間軸＋午休 暖沙灰底 / 暖灰字 */
@@ -571,13 +571,14 @@ body.viewonly .cloud-sync-sec { display: none; }
 
 /* ─── WEEK SCHEDULE ─── */
 .week-schedule { display: grid; grid-template-columns: 64px repeat(5, 1fr); gap: 0; background: var(--cal-cell-bg); padding: 0; border-top: 1px solid var(--cal-line-h); border-left: 1px solid var(--cal-line-h); }
-.ws-time-col { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--cal-time-ink); text-align: right; padding-right: 8px; align-self: stretch; padding-top: 6px; line-height: 1; background: var(--cal-axis-bg); border-right: 1px solid var(--cal-line-h); border-bottom: 1px solid var(--cal-line-h); }
-.ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-axis-bg); position: sticky; top: var(--ws-sticky-top, 76px); z-index: 6; box-shadow: 0 2px 4px rgba(58,51,42,.10); border-bottom: 1px solid var(--cal-line-h); border-right: 1px dashed var(--cal-line-v); }
+.ws-time-col { position: relative; font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--cal-time-ink); align-self: stretch; line-height: 1; background: var(--cal-axis-bg); border-right: 1px solid var(--cal-line-h); }
+.ws-time-col .ws-tlabel { position: absolute; top: 3px; right: 8px; line-height: 1; }
+.ws-day-header { font-family: var(--mono); font-size: 11px; color: var(--ink3); text-align: center; padding: 7px 0; font-weight: 500; background: var(--cal-axis-bg); position: sticky; top: var(--ws-sticky-top, 76px); z-index: 6; box-shadow: 0 2px 4px rgba(58,51,42,.10); border-bottom: 1px solid var(--cal-line-h); border-right: 1px solid var(--cal-line-v); }
 .ws-corner { position: sticky; top: var(--ws-sticky-top, 76px); z-index: 7; background: var(--cal-axis-bg); border-right: 1px solid var(--cal-line-h); border-bottom: 1px solid var(--cal-line-h); box-shadow: 0 2px 4px rgba(58,51,42,.10); }
-.ws-day-header .date { font-family: var(--sans); font-weight: 700; font-size: 18px; display: block; color: var(--cal-date-ink); margin-bottom: 2px; }
+.ws-day-header .date { font-family: var(--sans); font-weight: 700; font-size: 16px; display: block; color: var(--cal-date-ink); margin-bottom: 2px; }
 .ws-day-header.today { background: var(--cal-today-bg); }
 .ws-day-header.today .date { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--cal-today-badge); color: var(--ink-inverse); font-size: 16px; margin-bottom: 2px; }
-.ws-cell { background: var(--cal-cell-bg); height: 66px; position: relative; border-bottom: 1px solid var(--cal-line-h); border-right: 1px dashed var(--cal-line-v); }
+.ws-cell { background: var(--cal-cell-bg); height: 66px; position: relative; border-bottom: 1px solid var(--cal-line-h); border-right: 1px solid var(--cal-line-v); }
 .ws-cell.today-col { background: var(--cal-today-bg); }
 .ws-lunch-band {
   grid-column: span 5;
@@ -590,20 +591,20 @@ body.viewonly .cloud-sync-sec { display: none; }
 }
 .ws-event {
   position: absolute; left: 2px; right: 2px;
-  border-radius: var(--r4); padding: 6px 12px;
+  border-radius: var(--r6); padding: 8px 12px;
   font-size: 11px; line-height: 1.3;
   overflow: hidden; cursor: pointer;
   border-left: 4px solid; transition: transform .1s;
   box-shadow: 0 1px 2px rgba(58,51,42,.04);
   z-index: 1;
 }
-.ws-event.ws-ev-task { display: flex; align-items: flex-start; padding: 5px 8px; }
+.ws-event.ws-ev-task { display: flex; align-items: center; padding: 8px 12px; }
 .ws-event.ws-ev-task b { display: inline; padding-left: 0; }
-.ws-event .ws-ev-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; padding-right: 14px; }
+.ws-event .ws-ev-line { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; padding-right: 14px; }
 .ws-event b { font-size: 13px; font-weight: 600; display: block; }
-.ws-event .ev-meta { font-size: 10.5px; color: var(--ink3); margin-top: 1px; font-family: var(--mono); }
+.ws-event .ev-meta { font-size: 11px; color: var(--ink3); margin-top: 1px; font-family: var(--mono); }
 .ws-event:hover { transform: scale(1.02); z-index: 2; }
-.ws-event.deep { background: var(--sage-50); border-color: var(--sage-500); color: var(--sage-800); }
+.ws-event.deep { background: var(--paper); border: 1px solid var(--cal-line-h); border-left: 4px solid var(--sage-600); color: var(--sage-800); }
 .ws-event.admin { background: var(--amber-l); border-color: var(--amber); color: var(--amber-ink); }
 .ws-event.meeting {
   background: var(--cal-mtg-bg);
