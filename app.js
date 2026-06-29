@@ -5208,11 +5208,25 @@ App.bindTaskTimeListeners = function() {
   App._taskTimeDelegated = true;
   const f = (e) => {
     const id = e.target && e.target.id;
+    if (e.target && e.target.classList) e.target.classList.remove('tf-invalid');   // 修正2：必填欄位輸入即消紅
     if (id === 'tf-start' && e.target.dataset) delete e.target.dataset.autostart;   // 重構：手改開始日 → 落為手動錨點
     if (id === 'tf-duration' || id === 'tf-start') App.recalcTaskTimeFields();
   };
   document.addEventListener('input', f);
   document.addEventListener('change', f);
+};
+
+// 修正2：必填欄位驗證——空的標紅(.tf-invalid)、有值清紅，回傳缺漏欄位名（saveNewTask/saveTask 共用，單一真實來源）
+App._markTaskRequired = function(reqs) {
+  const missing = [];
+  reqs.forEach(r => {
+    const e = document.getElementById(r.id);
+    if (!e) return;
+    const empty = !((e.value || '').trim());
+    e.classList.toggle('tf-invalid', empty);
+    if (empty) missing.push(r.name);
+  });
+  return missing;
 };
 
 // ─── HintBox：區塊級說明框公版（展開/收起持久化 + 收起態 hover 浮出，複用 data-tip 引擎）───
@@ -5273,7 +5287,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
     <div class="task-form tf-redesign" data-measure="${measure}">
     ${mode === 'new' ? `
     <div class="form-field">
-      <label>專案</label>
+      <label>專案 *</label>
       <select id="tf-project"><option value="" ${!t.project ? 'selected' : ''}>— 請選擇 —</option>${DATA.projects.map(p => `<option value="${p.id}" ${t.project === p.id ? 'selected' : ''}>${U.esc(p.name)}</option>`).join('')}</select>
     </div>` : `
     <div class="form-field tf-proj-field">
@@ -5285,7 +5299,7 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
       <input type="text" id="tf-name" value="${U.esc(v(t.name))}" placeholder="例：完成 BOM 表 6 型壁掛機">
     </div>
     <div class="form-row">
-      <div class="form-field"><label>階段</label>
+      <div class="form-field"><label>階段 *</label>
         <input type="text" id="tf-stage" list="tf-stage-list" value="${U.esc(v(t.stage))}" placeholder="輸入或選擇階段" onchange="App.onTaskStageChange()">
         <datalist id="tf-stage-list">${this.stageDatalistOptions(t.project)}</datalist>
       </div>
@@ -5301,8 +5315,8 @@ App.buildTaskFormHtml = function(task, mode, measure = 'duration') {
 
     <div class="tf-section-label">權責</div>
     <div class="form-row">
-      <div class="form-field"><label>擔當</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
-      <div class="form-field"><label>類型 <span data-tip="類型|任務=要排程的工作；里程碑=時間點標記（工期0）；群組=純分類母項，不排程" style="cursor:help;">?</span></label>
+      <div class="form-field"><label>擔當 *</label><input type="text" id="tf-owner" value="${U.esc(v(t.owner) || (mode === 'new' ? (DATA.settings.userName || '') : ''))}"></div>
+      <div class="form-field"><label>類型 * <span data-tip="類型|任務=要排程的工作；里程碑=時間點標記（工期0）；群組=純分類母項，不排程" style="cursor:help;">?</span></label>
         <select id="tf-taskType">
           <option value="task" ${t.taskType === 'task' || !t.taskType ? 'selected' : ''}>📋 任務</option>
           <option value="milestone" ${t.taskType === 'milestone' ? 'selected' : ''}>◆ 里程碑</option>
@@ -5459,12 +5473,12 @@ App.openHoursTaskDialog = function() {
 App.saveNewTask = function(projId, _skipNegCheck) {
   if (App._roGuard()) return;
   // M2 表單改造：必填檢查（專案/名稱/擔當/類型/階段/預計開始；house style：toast warning + return）
-  if (!(document.getElementById('tf-project').value || '').trim()) { U.toast('⚠ 請選擇專案', 'warning'); return; }
+  const _miss = App._markTaskRequired([
+    { id: 'tf-project', name: '專案' }, { id: 'tf-name', name: '任務名稱' }, { id: 'tf-owner', name: '擔當' },
+    { id: 'tf-taskType', name: '類型' }, { id: 'tf-stage', name: '階段' },
+  ]);
+  if (_miss.length) { U.toast('⚠ 請填必填欄位：' + _miss.join('、'), 'warning'); return; }
   const name = document.getElementById('tf-name').value.trim();
-  if (!name) { U.toast('⚠ 請填任務名稱', 'warning'); return; }
-  if (!document.getElementById('tf-owner').value.trim()) { U.toast('⚠ 請填擔當', 'warning'); return; }
-  if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
-  if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
 
   const status = document.getElementById('tf-status').value;
   const startField = App.readStartField();   // 2-A：預計開始雙態 → {start, startMode}（與 saveTask 共用）
@@ -5638,11 +5652,12 @@ App.saveTask = function(id, _skipNegCheck) {
   const t = DATA.tasks.find(x => x.id === id);
   if (!t) return;
   // M2 表單改造：必填檢查（名稱/擔當/類型/階段/預計開始；編輯版專案是唯讀 div 無 tf-project，不檢查）
+  const _miss = App._markTaskRequired([
+    { id: 'tf-name', name: '任務名稱' }, { id: 'tf-owner', name: '擔當' },
+    { id: 'tf-taskType', name: '類型' }, { id: 'tf-stage', name: '階段' },
+  ]);
+  if (_miss.length) { U.toast('⚠ 請填必填欄位：' + _miss.join('、'), 'warning'); return; }
   const name = document.getElementById('tf-name').value.trim();
-  if (!name) { U.toast('⚠ 請填任務名稱', 'warning'); return; }
-  if (!document.getElementById('tf-owner').value.trim()) { U.toast('⚠ 請填擔當', 'warning'); return; }
-  if (!document.getElementById('tf-taskType').value.trim()) { U.toast('⚠ 請選擇類型', 'warning'); return; }
-  if (!document.getElementById('tf-stage').value.trim()) { U.toast('⚠ 請填階段', 'warning'); return; }
 
   // §6.5 塊三：負工期（完成早於開始）不擋死，改 confirm modal（核心哲學：不替使用者做主、只提示）。判定讀 readEffStart 與塊四/save 端口徑一致（涵蓋自動態）。
   const _negStart = App.readEffStart();
