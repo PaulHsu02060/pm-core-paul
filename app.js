@@ -6023,17 +6023,22 @@ App._flowBlankCommit = function(name, color, note) {
   const np = { id: U.id(), name, color, note, depts: JSON.parse(JSON.stringify(App._tplDepts || [])), synced: false, createdAt: new Date().toISOString() };
   // §15 同名告警 + 並存（三模式齊全，鏡像 _stage2Commit）：blank 無 importedAt（不假造匯入日；段4 sidebar 用 importedAt||createdAt fallback）
   const dup = DATA.projects.filter(p => p.name === name);
-  if (dup.length && !confirm('已有 ' + dup.length + ' 個同名專案「' + name + '」。\n\n確定 = 建立新版本（兩者並存，可在側邊欄辨識版號）\n取消 = 返回修改')) return;
-  np.version = dup.length ? Math.max(...dup.map(p => p.version || 1)) + 1 : 1;
-  ensurePdcaData(np);
-  DATA.projects.push(np);
-  this.currentProjectId = np.id;
-  Storage.save();
-  App._createFlow = null;   // 流程結束，清狀態
-  this.closeModal();
-  this.refreshAll();
-  U.toast('✓ 專案已建立');
-  this.showPage('project', null);
+  const _commit = () => {
+    np.version = dup.length ? Math.max(...dup.map(p => p.version || 1)) + 1 : 1;
+    ensurePdcaData(np);
+    DATA.projects.push(np);
+    App.currentProjectId = np.id;
+    Storage.save();
+    App._createFlow = null;   // 流程結束，清狀態
+    App.closeModal();
+    App.refreshAll();
+    U.toast('✓ 專案已建立');
+    App.showPage('project', null);
+  };
+  if (dup.length) {
+    App.confirmModal({ icon: 'ti-copy', iconBg: '--amber-l', iconColor: '--amber-ink',
+      title: `已有 ${dup.length} 個同名專案「${name}」`, msg: '要建立新版本嗎？兩者並存，可在側邊欄辨識版號。', okText: '建立新版本', cancelText: '返回修改', onConfirm: _commit });
+  } else { _commit(); }
 };
 
 App.openProjectDialog = function(projId) {
@@ -7039,31 +7044,40 @@ App._stage2Commit = function() {
   if (App._roGuard()) return;
   const res = this._tplPreview;
   if (!res) { U.toast('\u26a0 無範本預覽資料，請重新套用範本', 'warning'); return; }
-  const unassigned = res.tasks.filter(t => !t.owner).length;
-  if (unassigned > 0 && !confirm('還有 ' + unassigned + ' 個任務未指派負責人，確定建立？')) return;
   // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到（步驟1 從 saveProject 挪來此落地步）
   res.project.depts = res.depts;
   res.project.variants = res.variants;
-  // §15 同名告警 + 並存：偵測同名 → confirm 建新版本；version/importedAt 巢狀欄位自動持久化（§15.5）
   const dup = DATA.projects.filter(p => p.name === res.project.name);
-  if (dup.length && !confirm('已有 ' + dup.length + ' 個同名專案「' + res.project.name + '」。\n\n確定 = 建立新版本（兩者並存，可在側邊欄辨識版號）\n取消 = 返回修改')) return;
-  res.project.version = dup.length ? Math.max(...dup.map(p => p.version || 1)) + 1 : 1;
-  res.project.importedAt = D.fmt(new Date(), 'iso');
-  DATA.projects.push(res.project);
-  res.tasks.forEach(t => DATA.tasks.push(t));
-  this.currentProjectId = res.project.id;
-  Storage.save();
-  this._tplPreview = null;               // 清 preview，防重複建
-  App._createFlow = null;   // 範本流程落地完成，清狀態（對齊 _flowBlankCommit）
-  this.refreshAll();
-  if (res.warnings.length) {
-    console.warn('套範本提醒:', res.warnings);
-    this._showTplWarnings(res.warnings);
-    U.toast('\u2713 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒見上方）', 'warning');
-  } else {
-    U.toast('\u2713 已建立 ' + res.tasks.length + ' 筆任務', 'success');
-  }
-  this.showPage('project', null);
+  const unassigned = res.tasks.filter(t => !t.owner).length;
+  const _commit = () => {
+    res.project.version = dup.length ? Math.max(...dup.map(p => p.version || 1)) + 1 : 1;
+    res.project.importedAt = D.fmt(new Date(), 'iso');
+    DATA.projects.push(res.project);
+    res.tasks.forEach(t => DATA.tasks.push(t));
+    App.currentProjectId = res.project.id;
+    Storage.save();
+    App._tplPreview = null;
+    App._createFlow = null;
+    App.refreshAll();
+    if (res.warnings.length) {
+      console.warn('套範本提醒:', res.warnings);
+      App._showTplWarnings(res.warnings);
+      U.toast('\u2713 已建立 ' + res.tasks.length + ' 筆（' + res.warnings.length + ' 項提醒見上方）', 'warning');
+    } else {
+      U.toast('\u2713 已建立 ' + res.tasks.length + ' 筆任務', 'success');
+    }
+    App.showPage('project', null);
+  };
+  const _checkDup = () => {
+    if (dup.length) {
+      App.confirmModal({ icon: 'ti-copy', iconBg: '--amber-l', iconColor: '--amber-ink',
+        title: `已有 ${dup.length} 個同名專案「${res.project.name}」`, msg: '要建立新版本嗎？兩者並存，可在側邊欄辨識版號。', okText: '建立新版本', cancelText: '返回修改', onConfirm: _commit });
+    } else { _commit(); }
+  };
+  if (unassigned > 0) {
+    App.confirmModal({ icon: 'ti-alert-triangle', iconBg: '--amber-l', iconColor: '--amber-ink',
+      title: `還有 ${unassigned} 個任務未指派負責人`, msg: '確定建立？', okText: '確定建立', cancelText: '取消', onConfirm: _checkDup });
+  } else { _checkDup(); }
 };
 
 // ─── 範本第二階段 步驟4：任務清單可編輯（負責人下拉＋需交付勾選，不碰工期/不重算）───
@@ -8017,16 +8031,22 @@ App.deptUI = {
   removeDept(mode, projId, deptId) {
     const store = this._store(mode, projId);
     if (!store) return;
+    const self = this;
+    const _doRemove = () => {
+      const i = store.findIndex(x => x.id === deptId);
+      if (i >= 0) store.splice(i, 1);
+      if (mode === 'tpl' && store.length === 0) store.push({ id: U.id(), name: '', members: [{ id: U.id(), name: '' }] });   // 模板維持至少 1 列
+      self._after(mode, projId);
+    };
     if (mode === 'edit') {
       const n = DATA.tasks.filter(t => t.dept === deptId).length;
       if (n > 0) { App.openDeptReassign(projId, deptId); return; }   // 有任務掛著 → 改派彈窗（安全網）
       const d0 = store.find(x => x.id === deptId);
-      if (!confirm('確定刪除部門「' + (d0 ? d0.name : deptId) + '」?')) return;
+      App.confirmModal({ icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink',
+        title: `確定刪除部門「${d0 ? d0.name : deptId}」？`, okText: '刪除', cancelText: '取消', okClass: 'danger', onConfirm: _doRemove });
+      return;
     }
-    const i = store.findIndex(x => x.id === deptId);
-    if (i >= 0) store.splice(i, 1);
-    if (mode === 'tpl' && store.length === 0) store.push({ id: U.id(), name: '', members: [{ id: U.id(), name: '' }] });   // 模板維持至少 1 列
-    this._after(mode, projId);
+    _doRemove();
   },
   addMember(mode, projId, deptId) {
     const store = this._store(mode, projId);
@@ -10733,18 +10753,22 @@ App.cloudDownloadNow = function() {
     U.toast('⚠ 請先設定 Apps Script URL 並儲存', 'warning');
     return;
   }
-  if (!confirm('☁ 從雲端下載最新資料？\n\n這會用雲端的資料「完全覆蓋」本地所有任務、專案、設定。\n建議先按「⬇ 下載 JSON 備份」備份本地資料。\n\n確定繼續？')) return;
-  CloudSync.download(false).then(success => {
-    if (success) {
-      this.refreshAll();
-      this.renderSidebar();
-      // 重新渲染目前頁面（包含設定頁）
-      const currentPage = this.currentPage;
-      if (currentPage) {
-        const btn = document.querySelector(`[data-page="${currentPage}"]`);
-        this.showPage(currentPage, btn);
-      }
-    }
+  App.confirmModal({
+    icon: 'ti-cloud-download', iconBg: '--amber-l', iconColor: '--amber-ink',
+    title: '從雲端下載最新資料？', msg: '這會用雲端的資料「完全覆蓋」本地所有任務、專案、設定。建議先按「⬇ 下載 JSON 備份」備份本地資料。', okText: '下載並覆蓋', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      CloudSync.download(false).then(success => {
+        if (success) {
+          App.refreshAll();
+          App.renderSidebar();
+          const currentPage = App.currentPage;
+          if (currentPage) {
+            const btn = document.querySelector(`[data-page="${currentPage}"]`);
+            App.showPage(currentPage, btn);
+          }
+        }
+      });
+    },
   });
 };
 
@@ -10991,12 +11015,17 @@ App.toggleRecurringMeeting = function(id) {
 };
 
 App.deleteRecurringMeeting = function(id) {
-  if (!confirm('確定刪除這個定期事件？')) return;
-  DATA.settings.recurringMeetings = (DATA.settings.recurringMeetings || []).filter(m => m.id !== id);
-  Storage.save();
-  document.getElementById('recurringMeetingList').innerHTML = this.buildRecurringMeetingsHtml();
-  U.toast('✓ 已刪除');
-  if (App.currentPage === 'workspace') Workspace.render();
+  App.confirmModal({
+    icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: '確定刪除這個定期事件？', okText: '刪除', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      DATA.settings.recurringMeetings = (DATA.settings.recurringMeetings || []).filter(m => m.id !== id);
+      Storage.save();
+      document.getElementById('recurringMeetingList').innerHTML = App.buildRecurringMeetingsHtml();
+      U.toast('✓ 已刪除');
+      if (App.currentPage === 'workspace') Workspace.render();
+    },
+  });
 };
 
 App.addSpecialMeeting = function() {
@@ -11091,24 +11120,34 @@ App.saveSpecialMeeting = function(id) {
 };
 
 App.deleteSpecialMeeting = function(id) {
-  if (!confirm('確定刪除這個會議？')) return;
-  DATA.settings.specialMeetings = (DATA.settings.specialMeetings || []).filter(m => m.id !== id);
-  Storage.save();
-  document.getElementById('specialMeetingList').innerHTML = this.buildSpecialMeetingsHtml();
-  U.toast('✓ 已刪除');
-  if (App.currentPage === 'workspace') Workspace.render();
+  App.confirmModal({
+    icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: '確定刪除這個會議？', okText: '刪除', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      DATA.settings.specialMeetings = (DATA.settings.specialMeetings || []).filter(m => m.id !== id);
+      Storage.save();
+      document.getElementById('specialMeetingList').innerHTML = App.buildSpecialMeetingsHtml();
+      U.toast('✓ 已刪除');
+      if (App.currentPage === 'workspace') Workspace.render();
+    },
+  });
 };
 
 App.googleSignOut = function() {
-  if (!confirm('確定要登出？')) return;
-  DATA.settings._loggedInEmail = '';
-  DATA.settings._loggedInPicture = '';
-  DATA.settings._role = undefined;   // 登出清身份（否則 isAdmin() 仍 true，只是被 overlay 遮住）；auth_admin_bound 保留不清
-  Storage.save();
-  if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-    google.accounts.id.disableAutoSelect();
-  }
-  location.reload();
+  App.confirmModal({
+    icon: 'ti-logout', iconBg: '--amber-l', iconColor: '--amber-ink',
+    title: '確定要登出？', okText: '登出', cancelText: '取消',
+    onConfirm: () => {
+      DATA.settings._loggedInEmail = '';
+      DATA.settings._loggedInPicture = '';
+      DATA.settings._role = undefined;   // 登出清身份（否則 isAdmin() 仍 true，只是被 overlay 遮住）；auth_admin_bound 保留不清
+      Storage.save();
+      if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+        google.accounts.id.disableAutoSelect();
+      }
+      location.reload();
+    },
+  });
 };
 
 
@@ -11632,10 +11671,15 @@ App.openWbsImport = function(projId) {
 
     btn.addEventListener('click', () => {
       if (!parsed || !parsed.ok) return;
-      if (!confirm('即將用此 Excel 覆蓋「' + projName + '」所有任務，現有任務清空重灌，確定？')) return;
-      const res = performWbsImport(parsed, projId);
-      U.toast(`✅ 已匯入 ${res.imported} 筆任務到「${projName}」`, 'success', { duration: 10000, closable: true });
-      App.closeModal();
+      App.confirmModal({
+        icon: 'ti-alert-triangle', iconBg: '--rose-l', iconColor: '--rose-ink',
+        title: `用此 Excel 覆蓋「${projName}」？`, msg: '現有任務會清空重灌，確定？', okText: '覆蓋匯入', cancelText: '取消', okClass: 'danger',
+        onConfirm: () => {
+          const res = performWbsImport(parsed, projId);
+          U.toast(`✅ 已匯入 ${res.imported} 筆任務到「${projName}」`, 'success', { duration: 10000, closable: true });
+          App.closeModal();
+        },
+      });
     });
   }, 50);
 };
@@ -11981,28 +12025,37 @@ App.backupAll = function() {
 
 App.restoreAll = function(file) {
   if (!file) return;
-  if (!confirm('還原將覆蓋目前所有資料，確定繼續？')) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const obj = JSON.parse(e.target.result);
-      if (!obj.DATA) throw new Error('檔案格式錯誤');
-      DATA = obj.DATA;
-      Storage.save();
-      this.refreshAll();
-      U.toast('✓ 資料已還原');
-    } catch (err) {
-      U.toast(`❌ 還原失敗：${err.message}`, 'error');
-    }
-  };
-  reader.readAsText(file);
+  App.confirmModal({
+    icon: 'ti-alert-triangle', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: '還原將覆蓋目前所有資料', msg: '確定用此備份檔還原？目前所有任務、專案、設定會被覆蓋。', okText: '還原', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const obj = JSON.parse(e.target.result);
+          if (!obj.DATA) throw new Error('檔案格式錯誤');
+          DATA = obj.DATA;
+          Storage.save();
+          App.refreshAll();
+          U.toast('✓ 資料已還原');
+        } catch (err) {
+          U.toast(`❌ 還原失敗：${err.message}`, 'error');
+        }
+      };
+      reader.readAsText(file);
+    },
+  });
 };
 
 App.clearAll = function() {
-  if (!confirm('⚠ 確定清除所有資料？此操作無法復原！')) return;
-  if (!confirm('真的要全部清掉嗎？')) return;
-  Object.values(STORE).forEach(key => localStorage.removeItem(key));
-  location.reload();
+  App.confirmModal({
+    icon: 'ti-alert-triangle', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: '確定清除所有資料？', msg: '將清空本機所有任務、專案、設定，<b>此操作無法復原</b>。建議先「下載 JSON 備份」再清除。', okText: '清除全部', cancelText: '取消', okClass: 'danger',
+    onConfirm: () => {
+      Object.values(STORE).forEach(key => localStorage.removeItem(key));
+      location.reload();
+    },
+  });
 };
 
 // ═══════════════════════════════════════════════════════
