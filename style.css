@@ -56,7 +56,7 @@
   --cal-mtg-bg: #E4EDE8; --cal-mtg-line: #2D5A42; --cal-mtg-ink: #12291C;     /* 會議 優雅灰綠/深炭綠字/主深綠線 */
   --cal-misc-bg: #FDF6E2; --cal-misc-line: #D97706; --cal-misc-ink: #5C330A;  /* 雜項 暖杏底/深褐字/溫潤琥珀線 */
   --cal-axis-bg: #F2EFE6; --cal-noon-text: #8A8275;     /* 時間軸＋午休 暖沙灰底 / 暖灰字 */
-  --cal-today-bg: #EEF5EF; --cal-today-badge: #2D5A42;  /* 今日直欄底 淡sage / 圓圈 主深綠 */
+  --cal-today-bg: #F4F2EA; --cal-today-badge: #2D5A42;  /* 今日直欄底 暖沙灰(方案一,中性軌道讓彩色卡片跳出) / 圓圈 主深綠 */
   --cal-date-ink: #1E293B;       /* 頂部日期大字（Paul 指定深藍灰，照 Mockup 定版） */
   --cal-time-ink: #57534E;       /* 左側時間軸 中性深暖灰 */
   --xl-gantt-holiday: #F7DDE4;  /* Excel甘特 假日(淡粉紅,僅標表頭) */
