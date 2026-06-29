@@ -2392,8 +2392,10 @@ const App = {
   },
 
   // ─── PAGE NAV ───
-  showPage(name, btn) {
+  showPage(name, btn, _force) {
     if (name === 'settings' && !isAdmin()) { return this.showPage('workspace', document.querySelector('[data-page=workspace]')); }
+    // 修正3：離開設定頁且有未儲存變更 → 先彈窗問是否儲存（_force 跳過，供彈窗按鈕回呼）
+    if (!_force && this.currentPage === 'settings' && name !== 'settings' && this._settingsDirty) { this._confirmLeaveSettings(name, btn); return; }
     this.currentPage = name;
     if (name === 'portfolio') this.currentView = 'overview';
     if (name === 'project') this.projectView = 'dashboard';
@@ -10377,6 +10379,8 @@ App.buildLoadedHolidaysHtml = function() {
 
 App.renderSettings = function() {
   if (!isAdmin()) return;
+  App._settingsDirty = false;   // 修正3：重繪＝乾淨狀態
+  App._bindSettingsDirty();
   const s = DATA.settings;
 
   document.getElementById('page-settings').innerHTML = `
@@ -10396,7 +10400,7 @@ App.renderSettings = function() {
           <input type="number" id="set-hours" min="1" max="24" step="0.5" value="${s.dailyHours}">
         </div>
         <div class="form-field" style="margin-top:14px;"><label>每週工作日</label>
-          <div id="dayPills" class="day-pills">${[[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']].map(p => `<button type="button" class="day-pill${(s.workDays || []).includes(p[0]) ? ' on' : ''}" data-day="${p[0]}" onclick="this.classList.toggle('on')">${p[1]}</button>`).join('')}</div>
+          <div id="dayPills" class="day-pills">${[[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']].map(p => `<button type="button" class="day-pill${(s.workDays || []).includes(p[0]) ? ' on' : ''}" data-day="${p[0]}" onclick="this.classList.toggle('on');App._settingsDirty=true">${p[1]}</button>`).join('')}</div>
         </div>
       </div>
 
@@ -10623,6 +10627,31 @@ App.renderSettings = function() {
   Auth.renderLists();   // ④ 名單容器在「編輯權限」tab 模板，innerHTML 設好後即時填
 };
 
+// 修正3：設定頁未存提醒——dirty 旗標 + 離開攔截彈窗（儲存並離開／放棄並離開／取消）
+App._bindSettingsDirty = function() {
+  if (App._settingsDirtyBound) return;
+  App._settingsDirtyBound = true;
+  const mark = (e) => { if (e.target && e.target.closest && e.target.closest('#page-settings')) App._settingsDirty = true; };
+  document.addEventListener('input', mark);
+  document.addEventListener('change', mark);
+};
+App._confirmLeaveSettings = function(name, btn) {
+  App._pendingNav = { name, btn };
+  App.openModal({
+    title: '設定尚未儲存',
+    body: '<div style="font-size:14px;color:var(--ink2);line-height:1.7;">你在設定頁有未儲存的變更。要先儲存再離開嗎？</div>',
+    footer: `<button class="tb-action ghost" onclick="App.closeModal()">取消</button>
+             <button class="tb-action ghost" onclick="App._leaveSettings(false)">放棄變更離開</button>
+             <button class="tb-action" onclick="App._leaveSettings(true)">儲存並離開</button>`,
+  });
+};
+App._leaveSettings = function(doSave) {
+  const nav = App._pendingNav || {}; App._pendingNav = null;
+  if (doSave) App.saveSettings(true);   // 跳過工時 confirm，直接存（含 Storage.save + 清 dirty）
+  App._settingsDirty = false;
+  App.closeModal();
+  if (nav.name) App.showPage(nav.name, nav.btn, true);
+};
 App.saveSettings = function(_skipWorkConfirm) {
   const el = (id) => document.getElementById(id);
   const sv = (id) => { const e = el(id); return e ? e.value : null; };
@@ -10677,6 +10706,7 @@ App.saveSettings = function(_skipWorkConfirm) {
   if (caEl) DATA.settings.cloudAutoSync = caEl.value === 'true';
 
   Storage.save();
+  App._settingsDirty = false;   // 修正3：存檔後清除未存旗標
   this.refreshUserBadge();
   U.toast('✓ 設定已儲存');
 };
