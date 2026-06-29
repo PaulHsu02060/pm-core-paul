@@ -2912,21 +2912,50 @@ Portfolio.projectProgress = function(projId, today) {
   return { actual, planned };
 };
 
-// 部門負載：未完成 WBS 工期任務工時（工期×日工時），跨專案依部門名彙整（⚠ 僅 WBS、必有漏算）
+// 週容量（部門負載容量線）：每日工時 × 每週工作日數 ＝ KPI4 availableHours（單一口徑，§18.10）
+Portfolio.weekCapacity = function() {
+  return (DATA.settings.dailyHours || 6) * ((DATA.settings.workDays || []).length || 0);
+};
+
+// 部門負載（本週負荷，§18.10）：綠＝WBS 工期任務本週均攤（本週重疊工作天 × 日工時）、橘＝本週排程格子時段任務工時；跨專案依部門名彙整。
+// ⚠ 個人雜事資料偏頗：僅含已記錄並掛部門的時段任務、且須被智慧排程排進本週格子才計、不含會議（Phase 2 ③），必有漏算。
 Portfolio.deptLoad = function() {
   const daily = DATA.settings.dailyHours || 6;
-  const byName = {};
-  (DATA.projects || []).forEach(p => {
-    const nameOf = {};
-    (p.depts || []).forEach(d => { nameOf[d.id] = d.name; });
-    this._live().filter(t => t.project === p.id && t.measureType !== 'hours' && t.status !== 'done').forEach(t => {
-      const dur = Number(t.durationDays) || 0;
-      if (dur <= 0) return;
-      const nm = (t.dept && nameOf[t.dept]) ? nameOf[t.dept] : '未指派';
-      byName[nm] = (byName[nm] || 0) + dur * daily;
-    });
+  const monday = D.monday(), sunday = D.addDays(monday, 6), wk = D.weekKey(monday);
+  const cap = this.weekCapacity();
+  // 跨專案 dept id→名稱表（部門名穩健解析：先查 id→名稱、查無則值本身當名稱，容納 dept 欄 Y 池存的名稱）
+  const idToName = {};
+  (DATA.projects || []).forEach(p => (p.depts || []).forEach(d => { idToName[d.id] = d.name; }));
+  const deptName = v => v ? (idToName[v] || v) : '未指派';
+  const byName = {};  // 名稱 → {proj, chore}
+  const bump = (nm, key, h) => { (byName[nm] = byName[nm] || { proj: 0, chore: 0 })[key] += h; };
+
+  // 綠塊：未完成 WBS 工期任務，本週重疊工作天 × 日工時（攤平到本週，§三）
+  this._live().filter(t => t.measureType !== 'hours' && t.status !== 'done').forEach(t => {
+    const e = getEffectiveSchedule(t);
+    if (!e || !e.start || !e.end) return;                  // 待排無區間→不計
+    const eS = new Date(e.start), eE = new Date(e.end);
+    if (isNaN(eS) || isNaN(eE)) return;
+    const ovS = eS > monday ? eS : monday;                 // 重疊頭 ＝ max(start, 週一)
+    const ovE = eE < sunday ? eE : sunday;                 // 重疊尾 ＝ min(end, 週日)
+    if (ovS > ovE) return;                                 // 本週無重疊
+    const wd = D.workdaysBetween(ovS, ovE);                // 含頭尾工作天（跳假日）
+    if (wd <= 0) return;
+    bump(deptName(t.dept), 'proj', wd * daily);
   });
-  return Object.keys(byName).map(nm => ({ name: nm, hours: Math.round(byName[nm]) })).sort((a, b) => b.hours - a.hours);
+
+  // 橘塊：本週排程格子的時段任務工時（duration 分→H），依 item.taskId→task.dept 分流（與 KPI4 totalHours 同源）
+  const taskById = {};
+  (DATA.tasks || []).forEach(t => { taskById[t.id] = t; });
+  ((DATA.schedule && DATA.schedule.items) || []).filter(it => it.week === wk).forEach(it => {
+    const t = taskById[it.taskId];
+    bump(deptName(t && t.dept), 'chore', (Number(it.duration) || 0) / 60);
+  });
+
+  return Object.keys(byName).map(nm => {
+    const proj = Math.round(byName[nm].proj), chore = Math.round(byName[nm].chore), hours = proj + chore;
+    return { name: nm, proj, chore, hours, over: cap > 0 && hours > cap };
+  }).sort((a, b) => b.hours - a.hours);
 };
 
 // 當週待處理 Top N：本週內預計開始/到期且未完成；逾期優先，其餘依緊急度+到期日
