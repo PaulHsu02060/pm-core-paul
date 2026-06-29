@@ -388,7 +388,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* ─── STATS ─── */
 .stats-row {
   display: flex; align-items: stretch;
-  background: var(--pearl); border: 1px solid var(--rule); border-radius: var(--r12);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12);
   overflow: hidden; margin-bottom: 14px;
 }
 .stat {
@@ -723,7 +723,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 
 /* ─── MEMO ─── */
 .memo-board {
-  background: var(--stone-50); border: 1px solid var(--rule);
+  background: var(--surface); border: 1px solid var(--rule);
   border-radius: var(--r12); padding: 16px;
   position: relative; min-height: 540px;
   background-image:
