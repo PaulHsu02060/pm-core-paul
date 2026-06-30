@@ -64,7 +64,7 @@
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：版本號 app.js／style.css `?v=20260630-15`｜PDCA 報表區**拔除第一刀（UI/頁面）已落地·線上驗 Pass**（§18.14，−563 行；夾島 getProjectStages/datalist 保留；可販日方案 A 保留；處 6/7 隨此收掉）；Phase 2 ② 較上週趨勢（§18.12）；口徑收斂（§18.13，160＋差異 84/0）；Excel WBS 狀態 round-trip 修正（踩坑坑9）；安全硬化 #1/#2＋安全頁——以上均**線上驗 Pass**
+**目前 HEAD**：版本號 app.js `?v=20260630-16`／style.css `?v=20260630-15`｜PDCA 報表區**拔除完成（第一刀 UI −563 行＋第二刀資料層孤兒）·線上驗 Pass**（§18.14；夾島 getProjectStages/datalist 保留、可販日 `pdcaData.targetDate` 保留、migration 不動、處 6/7 收掉）；Phase 2 ② 較上週趨勢（§18.12）；口徑收斂（§18.13，160＋差異 84/0）；Excel WBS 狀態 round-trip 修正（踩坑坑9）；安全硬化 #1/#2＋安全頁——以上均**線上驗 Pass**
 
 **已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
 - 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
@@ -112,13 +112,12 @@
 - 砍 17 個 `App.*pdca*` render 函式（含口徑收斂處 6/7）＋導覽 4 處＋CSS `.pdca-*`/`.pst-*`；**−563 行**。可販日方案 A（保留 `pdcaData.targetDate`、不動 KPI）。
 - **夾島保留**（盤點報告誤判可整段砍、實讀才抓到）：`getProjectStages`＋三個 datalist helper。用 node 腳本錨點刪 3 段跳 2 島；計數證明（PDCA 函式 17→0、島不變、class 歸零）＋`node --check`＋160 PASS＋線上驗。`?v=20260630-15`。
 - **踩坑**：node 改中文檔讀寫編碼要一致 utf8（踩過讀 utf8 寫 latin1 寫壞中文，git checkout 還原）→ 記入坑5。
-- **第二刀（待辦，見下一件）**：清資料層孤兒（ensure 函式／`STORE.pdcaGroups` load-save／`task.pdcaGroup` 初始化），保留 targetDate、migration 不動。
+- **第二刀已落地**：清資料層孤兒（`STORE.pdcaGroups` key/load/save／`DATA_SUFFIXES`／`ensurePdcaGroupsRoot`/`ensureTaskPdcaGroup`/`ensureAllPdcaData`＋呼叫＋殘留註解）；保留 `ensurePdcaData`＋`pdcaData.targetDate`＋`DATA.pdcaGroups` 預設（migration 用）。`node --check`＋160 PASS。`?v=20260630-16`。
 
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
 2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；② 趨勢「較上週」**已落地（§18.12，B 方案前端快照、線上驗 Pass）**。Phase 2 三刀全落地。見 §18.10b／§18.12／§18.5。
    - **口徑收斂 已落地（§18.13，等值重構）**：逾期 4 處改 call 現成 `isTaskDelayed`＋工時抽 `weeklyScheduledHours`/`weekCapacityHours` 共用（Portfolio／工作台四處）。`node --check`＋160 PASS＋**差異測試 84/0**（OLD≟NEW 逐筆相等，無對照版改用程式邏輯驗）。PDCA 處 6/7 **已隨 PDCA 拔除第一刀收掉**（§18.14）。`?v=20260630-13`。
-3. **PDCA 拔除·第二刀（清資料層孤兒）**：移除 `ensurePdcaData`/`ensurePdcaGroupsRoot`/`ensureTaskPdcaGroup`/`ensureAllPdcaData` 及呼叫、`STORE.pdcaGroups` load/save/雲端同步、`task.pdcaGroup` 初始化、646 行殘留註解。**保留 `proj.pdcaData.targetDate`（KPI 可販日用）；migration 不動（坑1）**。見 §18.14。
-4. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。**做完後回頭更新「🛡 安全」頁 `SECURITY_INFO`**：把 roadmap 的「全域定期備份與一鍵還原」移到 groups 防護網（論述從「規劃中」改「已具備」）。
-5. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
-6. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI 較上週首週/清快取時 4 卡留白「—」（需累積一週才亮趨勢，符合不放假數字）；overflow 面板字級（規範過時待重看）。
+3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。**做完後回頭更新「🛡 安全」頁 `SECURITY_INFO`**：把 roadmap 的「全域定期備份與一鍵還原」移到 groups 防護網（論述從「規劃中」改「已具備」）。
+4. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
+5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI 較上週首週/清快取時 4 卡留白「—」（需累積一週才亮趨勢，符合不放假數字）；overflow 面板字級（規範過時待重看）。

@@ -71,7 +71,6 @@ const STORE = {
   settings: `pmw::${PATH_KEY}::settings`,
   password: `pmw::${PATH_KEY}::password`,
   weekNotes: `pmw::${PATH_KEY}::weeknotes`,
-  pdcaGroups: `pmw::${PATH_KEY}::pdcagroups`,
   calendars: `pmw::${PATH_KEY}::calendars`,
 };
 
@@ -137,7 +136,7 @@ let DATA = {
   schedule: { week: null, items: [] },
   settings: { ...DEFAULT_SETTINGS },
   weekNotes: {}, // { 'W21-2026': 'note text' }
-  pdcaGroups: {}, // { [pid]: { [group]: { level, owner, note, workContent, actualStart, targetDate, delayDaysOverride, delayReason, recoveryMethod, recoveryDate, affectsLaunch } } }
+  pdcaGroups: {}, // 殘留：PDCA 報表已拔除（§18.14）；僅供 migration 寫入相容、無人讀、不 load/save/sync
   // 工作日曆（架構文件 §第四部分之二）：base 公版假日 + override 公司調休，兩層疊加供 isWorkday/addWorkdays。
   // 步驟 2-1：先建初始結構（holidays 空物件、weekends 先不放維持讀 DATA.settings.workDays、override 待之二.6）；
   // 2-2 才把 isWorkday 改讀此處；第 3 步灌公司公休（約 28 筆範例）進 base.holidays。
@@ -155,7 +154,6 @@ const Storage = {
       DATA.schedule  = JSON.parse(localStorage.getItem(STORE.schedule)  || '{"week":null,"items":[]}');
       DATA.settings  = { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(STORE.settings) || '{}')) };
       DATA.weekNotes = JSON.parse(localStorage.getItem(STORE.weekNotes) || '{}');
-      DATA.pdcaGroups = JSON.parse(localStorage.getItem(STORE.pdcaGroups) || '{}');
       // 工作日曆：舊環境無此 key → fallback 完整預設結構（非 undefined，避免 isWorkday 讀 .base 炸）
       DATA.calendars = JSON.parse(localStorage.getItem(STORE.calendars) || 'null') || { base: { name: '台灣公版', holidays: {} }, override: null };
 
@@ -201,10 +199,8 @@ const Storage = {
           console.log('Settings migrated: added cleaning defaults + new fields');
         }
       }
-      // PDCA：確保資料結構（DATA.pdcaGroups / project.pdcaData / task.pdcaGroup）
-      ensurePdcaGroupsRoot();
+      // 可販日：確保 project.pdcaData 殼存在（KPI WORKDAYS LEFT 讀 targetDate；PDCA 報表已拔除 §18.14）
       DATA.projects.forEach(ensurePdcaData);
-      DATA.tasks.forEach(ensureTaskPdcaGroup);
       DATA.tasks.forEach(ensureTaskType);
       DATA.tasks.forEach(ensureDeliverFields);
       runMigrations();
@@ -225,7 +221,6 @@ const Storage = {
     localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
     localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
     localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
-    localStorage.setItem(STORE.pdcaGroups, JSON.stringify(DATA.pdcaGroups || {}));
     localStorage.setItem(STORE.calendars, JSON.stringify(DATA.calendars || { base: { name: '台灣公版', holidays: {} }, override: null }));
 
     // ─── 雲端自動同步（debounced，避免頻繁上傳）───
@@ -238,7 +233,7 @@ const Storage = {
   //   其他路徑(舊部署/平行部署) → 只清專案資料類，保留其 ::settings(不誤傷平行部署的設定)。
   //   被清資料雲端皆有：登入後後端位址來自 config.js 的 BACKEND_URL、自動下載還原，故清除安全、不掉資料。
   clearLocalData() {
-    const DATA_SUFFIXES = ['projects', 'tasks', 'meetings', 'memos', 'schedule', 'weeknotes', 'pdcagroups', 'calendars'];
+    const DATA_SUFFIXES = ['projects', 'tasks', 'meetings', 'memos', 'schedule', 'weeknotes', 'calendars'];
     const curPrefix = 'pmw::' + PATH_KEY + '::';
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
@@ -623,8 +618,8 @@ const D = {
   },
 };
 
-// ─── PDCA 報告：資料模型（方式 1 — 任務掛 pdcaGroup，大項目動態聚合）───
-// project.pdcaData：整個專案的時間軸 + 摘要（不含 milestones/delays array）
+// ─── 可販日：project.pdcaData（PDCA 報表已拔除 §18.14，僅保留供 KPI「WORKDAYS LEFT」讀 targetDate）───
+// pdcaData：{ startDate, targetDate（可販日，KPI 用）, summary }；startDate/summary 已成殘欄（無 UI 編輯、無人讀）
 function ensurePdcaData(project) {
   if (!project) return project;
   const p = project.pdcaData || (project.pdcaData = {});
@@ -632,22 +627,6 @@ function ensurePdcaData(project) {
   if (p.targetDate === undefined) p.targetDate = '';
   if (p.summary === undefined) p.summary = '';
   return project;
-}
-// DATA.pdcaGroups[projectId][groupName] = { level, owner, note, workContent, actualStart, targetDate, delayDaysOverride, delayReason, recoveryMethod, recoveryDate, affectsLaunch }
-function ensurePdcaGroupsRoot() {
-  if (!DATA.pdcaGroups || typeof DATA.pdcaGroups !== 'object') DATA.pdcaGroups = {};
-}
-// task.pdcaGroup：歸屬的大項目名稱（""＝未歸類）
-function ensureTaskPdcaGroup(task) {
-  if (!task) return task;
-  if (typeof task.pdcaGroup !== 'string') task.pdcaGroup = '';
-  return task;
-}
-// 一次確保全部 PDCA 結構（renderPdca 進頁保險用，涵蓋 J/cloud 後來才進來的專案）
-function ensureAllPdcaData() {
-  ensurePdcaGroupsRoot();
-  (DATA.projects || []).forEach(ensurePdcaData);
-  (DATA.tasks || []).forEach(ensureTaskPdcaGroup);
 }
 
 // M2-T：Sheet/Excel 類型欄原字串 → taskType 正典值（task=排甘特 / milestone=節點工期0 / group=母項不執行）
@@ -658,7 +637,7 @@ function mapTaskType(rawType) {
   if (s === '群組') return 'group';
   return 'task';
 }
-// M2-T：taskType 形狀保險（照 ensureTaskPdcaGroup 模式，每次 load 跑、只補缺不蓋值）。
+// M2-T：taskType 形狀保險（每次 load 跑、只補缺不蓋值）。
 // 單一兜底點：手動建任務三路徑（quickAdd/saveNew/excelImport）刻意不各寫預設，避免多份各自演化。
 function ensureTaskType(task) {
   if (!task) return task;
