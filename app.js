@@ -10502,6 +10502,73 @@ App.buildLoadedHolidaysHtml = function() {
     `<table class="data-table cal-table">${groups}</table>`;
 };
 
+// ─── 安全防護網（設定→安全 tab，給 MIS/主管審閱）───────────────
+//   資料驅動：文案集中此物件，Gemini 潤稿後只改這裡的字串、不動版面/render。
+//   ⚠ 每項都對應實際 code/後端，禁浮報——改文案前先核對對應機制（§8f 權限、§14 雲端授權、§8f.6 硬化）。
+const SECURITY_INFO = {
+  principle: '系統安全界線鎖在「後端授權」，不依賴隱藏前端程式碼。前端公開（GitHub Pages）屬正常——未通過後端授權，即使取得程式碼也讀不到任何資料。',
+  groups: [
+    { title: '🔑 身分驗證', items: [
+      { name: 'Google 帳號登入（OAuth 2.0），不自建密碼', desc: '系統內不存任何密碼，消滅密碼庫外洩風險；沿用 Google 企業級身分驗證（含雙重驗證）。' },
+      { name: '後端簽章嚴格校對', desc: '後端在讀寫資料時向 Google 官方端點重驗 id_token 的簽章真偽、受眾（aud）與 Email 驗證狀態，偽造或過期 Token 一律封鎖。' },
+    ]},
+    { title: '🛡 授權（系統的真正防線）', items: [
+      { name: '四層權限白名單', desc: 'SuperAdmin / Admin / Editor / Viewonly；不在名單者預設無權限、完全無法進入系統。' },
+      { name: '後端強制授權閘', desc: '權限不由前端判定。即使直接叫用 API，後端皆依身分反查：讀取 ≥ Viewonly、寫入 ≥ Editor、改名單限 Admin、改 Admin 名單限 SuperAdmin（防自我提權）。' },
+      { name: '失敗即關閉（Fail-Closed）', desc: '驗證流程一發生非預期錯誤（連線逾時／回應異常），預設判定「無權限」直接擋下，絕不放行。' },
+    ]},
+    { title: '🔒 防竄改機制', items: [
+      { name: '最高權限死鎖', desc: 'SuperAdmin 由後端環境變數（Script Properties）指定，前端不提供任何可改寫最高權限的介面或管道。' },
+      { name: '唯讀模式咽喉', desc: 'Viewonly 帳號在「本機存檔」與「上傳雲端」兩處後端接口皆被硬編碼攔阻，只能檢視、無法修改或外傳。' },
+    ]},
+    { title: '📦 資料保護與隱私', items: [
+      { name: '機密與前端抽離', desc: '白名單 Email、資料表位置均存於後端，公開程式碼不含任何敏感設定；本機機密檔不進版本控制。' },
+      { name: '登入前零資料載入', desc: '資料僅在通過後端驗證後才下載至瀏覽器；未授權者即使打開開發者工具（F12），網頁背後也無資料可讀。' },
+      { name: '登出即清空快取', desc: '登出時立即銷毀本機快取；資料以雲端為唯一真實來源、未登入不寫入任何資料，防裝置遺失外洩。' },
+      { name: '上傳自動剝除個資', desc: '同步至雲端時自動剔除使用者 Email、頭像與角色資訊，落實資料最小化。' },
+      { name: '憑證不落地、短時效', desc: 'Google 身分憑證僅留存於記憶體且時效極短，本機不存放長期存取憑證。' },
+    ]},
+    { title: '🔐 傳輸安全', items: [
+      { name: '全程 HTTPS 加密', desc: '網頁與後端 API 之間所有通訊強制加密傳輸。' },
+    ]},
+  ],
+  positioning: '本系統屬「Google 身分驗證 ＋ 後端授權的內部工具」等級，防護強度與多數 SaaS 內部後台同級（非國防／零信任架構）。',
+  limits: [
+    '被授權的合法使用者，在其權限範圍內本就能檢視並匯出他被允許的資料（由權限分級與人員管理控管）。',
+    '資料同步採整份覆蓋、目前不做欄位級合併；單人輪流編輯安全，多人同時編輯存在覆蓋風險。',
+  ],
+  roadmap: [
+    '全域定期備份與一鍵還原機制（對抗誤刪、覆蓋與資料損壞）。',
+  ],
+};
+
+// 安全 tab 內層 HTML（由 SECURITY_INFO 渲染；版面固定、文字吃資料）
+App._securityTabHtml = function() {
+  const g = SECURITY_INFO.groups.map(grp => `
+    <div class="settings-section">
+      <div class="ss-title">${grp.title}</div>
+      <ol class="sec-list">
+        ${grp.items.map(it => `<li><b>${U.esc(it.name)}</b>：${U.esc(it.desc)}</li>`).join('')}
+      </ol>
+    </div>`).join('');
+  return `<div class="settings-grid">
+    <div class="settings-section sec-banner">
+      <div class="ss-title">🛡 安全防護網</div>
+      <div class="ss-desc">${U.esc(SECURITY_INFO.principle)}</div>
+    </div>
+    ${g}
+    <div class="settings-section">
+      <div class="ss-title">📋 定位與範圍（誠實揭露，供 MIS 評估）</div>
+      <div class="sec-sub">定位</div>
+      <div class="sec-pos">${U.esc(SECURITY_INFO.positioning)}</div>
+      <div class="sec-sub">既有限制（任何 Web 系統共通）</div>
+      <ul class="sec-ul">${SECURITY_INFO.limits.map(x => `<li>${U.esc(x)}</li>`).join('')}</ul>
+      <div class="sec-sub">規劃中強化</div>
+      <ul class="sec-ul">${SECURITY_INFO.roadmap.map(x => `<li>${U.esc(x)}</li>`).join('')}</ul>
+    </div>
+  </div>`;
+};
+
 App.renderSettings = function() {
   if (!isAdmin()) return;
   App._settingsDirty = false;   // 修正3：重繪＝乾淨狀態
@@ -10513,6 +10580,7 @@ App.renderSettings = function() {
       <button class="tab-btn active" onclick="App.showSettingsTab(this,'排程')">排程</button>
       <button class="tab-btn" onclick="App.showSettingsTab(this,'資料')">資料</button>
       <button class="tab-btn" onclick="App.showSettingsTab(this,'編輯權限')">編輯權限</button>
+      <button class="tab-btn" onclick="App.showSettingsTab(this,'安全')">🛡 安全</button>
       <button class="tab-btn" onclick="App.showSettingsTab(this,'關於')">關於</button>
     </div>
 
@@ -10744,6 +10812,8 @@ App.renderSettings = function() {
         </div>
       </div>
       <!-- /關於 --></div></div>
+
+    <div class="tab-panel" id="安全">${App._securityTabHtml()}</div>
 
     <div style="text-align:center; margin-top:14px;">
       <button class="tb-action" onclick="App.saveSettings()" style="padding:12px 32px;">💾 儲存所有設定</button>
