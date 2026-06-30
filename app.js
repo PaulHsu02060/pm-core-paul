@@ -214,6 +214,10 @@ const Storage = {
     // 唯讀防線（咽喉）：viewonly 一律不落地。鎖 body.viewonly（非 _role——viewonly 進來只設 body class、無 _role，鎖 _role 會誤擋）。
     // 靜默 return（不 toast）：save 也被 migration/download 等內部流程呼叫，toast 會誤報；UX 提示放各編輯動作入口（第 3 處）。
     if (document.body.classList.contains('viewonly')) return;
+    // 安全(§8f.6 Level 2/B)：未登入(無 _role 且非 localDev)不落地——登出清快取後的載入流程(migration／排程殘留整理等)
+    //   不再把空殼寫回 localStorage，F12 保持全空。authed(admin/editor/superadmin 登入即設 _role)與 localDev 正常存檔；
+    //   雲端 download 走直接 setItem、不經此函式，且登入後 _role 已設，故不受影響。
+    if (!isLocalDev && !DATA.settings._role) return;
     localStorage.setItem(STORE.projects, JSON.stringify(DATA.projects));
     localStorage.setItem(STORE.tasks,    JSON.stringify(DATA.tasks));
     localStorage.setItem(STORE.meetings, JSON.stringify(DATA.meetings));
@@ -229,15 +233,17 @@ const Storage = {
       CloudSync.scheduleUpload();
     }
   },
-  // 安全(§8f.6 Level 2)：登出時清掉本機快取的專案/工作資料。
-  //   掃整個 localStorage，清掉所有 pmw::<任何路徑>::<資料類> 鍵——含舊路徑(改名/搬路徑前的部署)殘留的孤兒專案資料，
-  //   不只當前路徑。保留 ::settings/::password/::synclog(設定/非專案資料；settings 供雲端重連)。
-  //   被清資料雲端皆有(登入後自動下載還原)，故跨路徑清除安全、不掉資料。
+  // 安全(§8f.6 Level 2/B)：登出時清本機快取。
+  //   當前 app(PATH_KEY) → 全清(含 settings/schedule/synclog，潔癖，登出後 F12 該路徑全空)。
+  //   其他路徑(舊部署/平行部署) → 只清專案資料類，保留其 ::settings(不誤傷平行部署的設定)。
+  //   被清資料雲端皆有：登入後後端位址來自 config.js 的 BACKEND_URL、自動下載還原，故清除安全、不掉資料。
   clearLocalData() {
     const DATA_SUFFIXES = ['projects', 'tasks', 'meetings', 'memos', 'schedule', 'weeknotes', 'pdcagroups', 'calendars'];
+    const curPrefix = 'pmw::' + PATH_KEY + '::';
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
-      if (k && k.startsWith('pmw::') && DATA_SUFFIXES.includes(k.split('::').pop())) {
+      if (!k || !k.startsWith('pmw::')) continue;
+      if (k.startsWith(curPrefix) || DATA_SUFFIXES.includes(k.split('::').pop())) {
         localStorage.removeItem(k);
       }
     }
