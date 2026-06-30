@@ -2918,6 +2918,40 @@ Portfolio.choreRatio = function() {
   return { totalHours: Math.round(totalHours), availableHours };
 };
 
+// ═══ 較上週 KPI 輕量週快照（§18.12，純前端 localStorage，與 §17 後端全量快照獨立）═══
+// 只快取「當下算出的 4 個 KPI 值」做週對比，不碰 DATA、不進雲端 blob、不被 migration 影響。
+Portfolio._KPI_SNAP_KEY = 'pm_kpi_snapshot_v1';
+Portfolio._kpiSnapRead = function() {
+  try { return JSON.parse(localStorage.getItem(this._KPI_SNAP_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+};
+// upsert 本週快照（idempotent）＋只留最近 2 週（本週＋上週），回傳上週快照（無則 null）。
+Portfolio._kpiSnap = function(cur) {
+  const monday = D.monday();
+  const curKey = D.weekKey(monday), prevKey = D.weekKey(D.addDays(monday, -7));
+  const store = this._kpiSnapRead();
+  const prev = store[prevKey] || null;
+  store[curKey] = { ...cur, ts: D.fmt(D.today(), 'iso') };
+  const keep = [curKey, prevKey];
+  Object.keys(store).forEach(k => { if (!keep.includes(k)) delete store[k]; });
+  try { localStorage.setItem(this._KPI_SNAP_KEY, JSON.stringify(store)); } catch (e) {}
+  return prev;
+};
+// 趨勢徽章：cur/prev 同指標數值。opt.betterWhenDown=數字變小=改善；opt.neutral=不判好壞（雜事偏忙）。
+// 無上週（prev null）或本期無值→灰「—」。色義看「好壞」不看箭頭方向（§18.12）。
+Portfolio._trendBadge = function(cur, prev, opt) {
+  opt = opt || {};
+  if (prev === null || prev === undefined || cur === null || cur === undefined)
+    return '<span class="pf-trend pf-trend-none">—</span>';
+  const d = cur - prev, suffix = opt.suffix || '', prefix = opt.prefix || '';
+  if (d === 0) return `<span class="pf-trend pf-trend-flat"><i class="ti ti-minus"></i>${prefix}0${suffix}</span>`;
+  const arrow = d > 0 ? 'ti-arrow-up' : 'ti-arrow-down';
+  let tone;
+  if (opt.neutral) tone = 'busy';
+  else tone = (opt.betterWhenDown ? d < 0 : d > 0) ? 'good' : 'bad';
+  return `<span class="pf-trend pf-trend-${tone}"><i class="ti ${arrow}"></i>${prefix}${Math.abs(d)}${suffix}</span>`;
+};
+
 // C 當前階段：首個未全完成階段顯示名（getProjectStages 的 minWbs 序）
 Portfolio.currentStage = function(projId) {
   const stages = App.getProjectStages(projId).filter(s => s.name !== '未分階段');
@@ -3059,31 +3093,38 @@ Portfolio.renderOverview = function(mountId) {
   const hc = this.healthCounts(), tp = this.totalProgress(), ov = this.overdueTasks();
   const cr = this.choreRatio(), dl = this.deptLoad(), wk = this.weeklyTop(8);
 
+  // 較上週趨勢（§18.12）：快取本週 4 KPI、取上週同指標比對；色義看好壞不看箭頭。
+  const prevSnap = this._kpiSnap({ hcG: hc.green, hcY: hc.yellow, hcR: hc.red, tp: tp, ov: ov.length, chT: cr.totalHours, chA: cr.availableHours });
+  const tHealth = this._trendBadge(hc.red, prevSnap ? prevSnap.hcR : null, { betterWhenDown: true, prefix: '紅' });
+  const tProg = this._trendBadge(tp, prevSnap ? prevSnap.tp : null, { betterWhenDown: false, suffix: '%' });
+  const tOver = this._trendBadge(ov.length, prevSnap ? prevSnap.ov : null, { betterWhenDown: true });
+  const tChore = this._trendBadge(cr.totalHours, prevSnap ? prevSnap.chT : null, { neutral: true, suffix: 'h' });
+
   const kpiHtml = `<div class="pf-kpi-row">
     <div class="pf-kpi" style="border-top-color:var(--sage-700)">
-      <i class="ti ti-info-circle pf-kpi-i" data-tip="專案健康度|紅=有逾期任務／黃=14 工作天內到期未逾期／綠=其餘"></i>
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="專案健康度|紅=有逾期任務／黃=14 工作天內到期未逾期／綠=其餘|徽章＝較上週紅燈數增減（綠=減少改善／紅=增加惡化／—無上週快照）"></i>
       <div class="pf-kpi-lbl">專案健康度</div>
-      <div class="pf-kpi-health"><span class="pf-hd pf-hd-g">●</span>${hc.green}<span class="pf-hd pf-hd-y">●</span>${hc.yellow}<span class="pf-hd pf-hd-r">●</span>${hc.red}</div>
+      <div class="pf-kpi-metric"><div class="pf-kpi-health"><span class="pf-hd pf-hd-g">●</span>${hc.green}<span class="pf-hd pf-hd-y">●</span>${hc.yellow}<span class="pf-hd pf-hd-r">●</span>${hc.red}</div>${tHealth}</div>
       <div class="pf-kpi-sub">健康 / 注意 / 延誤</div>
     </div>
     <div class="pf-kpi" style="border-top-color:var(--sage-700)">
-      <i class="ti ti-info-circle pf-kpi-i" data-tip="跨專案總進度|全任務進度（progress）簡單平均"></i>
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="跨專案總進度|全任務進度（progress）簡單平均|徽章＝較上週進度增減（綠=上升／紅=下降／—無上週快照）"></i>
       <div class="pf-kpi-lbl">跨專案總進度</div>
-      <div class="pf-kpi-num">${tp === null ? '—' : tp + '<span class="pf-kpi-unit">%</span>'}</div>
+      <div class="pf-kpi-metric"><div class="pf-kpi-num">${tp === null ? '—' : tp + '<span class="pf-kpi-unit">%</span>'}</div>${tProg}</div>
       <div class="pf-bar pf-bar-sm"><span class="pf-bar-act" style="width:${tp || 0}%; background:var(--navy)"></span></div>
       <div class="pf-kpi-sub">全任務進度平均</div>
     </div>
     <div class="pf-kpi" style="border-top-color:var(--danger)">
-      <i class="ti ti-info-circle pf-kpi-i" data-tip="核心延誤警報|有效完成日 小於 今天且未完成的任務數（工作日逾期天數）"></i>
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="核心延誤警報|有效完成日 小於 今天且未完成的任務數（工作日逾期天數）|徽章＝較上週逾期數增減（綠=減少改善／紅=增加惡化／—無上週快照）"></i>
       <div class="pf-kpi-lbl">核心延誤警報</div>
-      <div class="pf-kpi-num pf-num-rose">${ov.length}<span class="pf-kpi-unit"> 筆逾期</span></div>
+      <div class="pf-kpi-metric"><div class="pf-kpi-num pf-num-rose">${ov.length}<span class="pf-kpi-unit"> 筆逾期</span></div>${tOver}</div>
       <div class="pf-kpi-sub">${ov.length ? '最久：' + U.esc(ov[0].t.name) + ' 逾 ' + ov[0].days + ' 天' : '目前無逾期'}</div>
     </div>
     <div class="pf-kpi" style="border-top-color:var(--sage-700)">
-      <i class="ti ti-info-circle pf-kpi-i" data-tip="本週個人雜事佔比|本週時段制工時 / (每日工時 × 工作天數)"></i>
+      <i class="ti ti-info-circle pf-kpi-i" data-tip="本週個人雜事佔比|本週時段制工時 / (每日工時 × 工作天數)|徽章＝較上週時段工時增減（琥珀=偏忙提示·不判好壞／—無上週快照）"></i>
       <div class="pf-kpi-lbl">本週個人雜事佔比</div>
-      <div class="pf-kpi-num">${cr.totalHours}h<span class="pf-kpi-unit">/${cr.availableHours}h</span></div>
-      <div class="pf-kpi-sub">較上週 — 待快照</div>
+      <div class="pf-kpi-metric"><div class="pf-kpi-num">${cr.totalHours}h<span class="pf-kpi-unit">/${cr.availableHours}h</span></div>${tChore}</div>
+      <div class="pf-kpi-sub">本週時段任務工時</div>
     </div>
   </div>`;
   const kpiHint = App.buildHintBox({ key: 'portfolio-kpi', icon: 'ti-help-circle', collapsed: true, title: '快速看懂數據指標', summary: '健康度／總進度／延誤／雜事佔比',

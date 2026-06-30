@@ -1988,6 +1988,13 @@ body.viewonly .cloud-sync-sec { display: none; }
 .pf-hd-g { color: var(--sage-600); }
 .pf-hd-y { color: var(--amber-accent); }
 .pf-hd-r { color: var(--rose); }
+.pf-kpi-metric { display: flex; align-items: center; gap: 9px; }
+.pf-trend { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+.pf-trend i { font-size: 12px; }
+.pf-trend-good { background: var(--sage-50); color: var(--sage-700); }
+.pf-trend-bad { background: var(--rose-l); color: var(--rose-ink); }
+.pf-trend-busy { background: var(--amber-l); color: var(--amber-ink); }
+.pf-trend-flat, .pf-trend-none { background: var(--stone-50); color: var(--ink4); }
 .pf-bar { display: block; height: 6px; background: var(--stone-100); border-radius: 99px; overflow: hidden; }
 .pf-bar.pf-bar-sm { height: 5px; margin-top: 7px; }
 .pf-bar > span { display: block; height: 100%; border-radius: 99px; }
