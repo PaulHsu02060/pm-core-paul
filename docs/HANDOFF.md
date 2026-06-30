@@ -64,7 +64,7 @@
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：`a4d1dd1`｜版本號 app.js／style.css `?v=20260630-12`｜Phase 2 ② 較上週趨勢**已落地·線上驗 Pass**（§18.12）；安全硬化 #1/#2＋安全頁**全線上驗 Pass**；Phase 2 一刀/二刀 JS 閘門**已補（160 PASS）**、剩 github.io 全量線上驗
+**目前 HEAD**：版本號 app.js `?v=20260630-13`／style.css `?v=20260630-12`｜Phase 2 ② 較上週趨勢**已落地·線上驗 Pass**（§18.12）；口徑收斂（逾期/工時抽共用）**已落地·等值（160＋差異 84/0）**（§18.13）；安全硬化 #1/#2＋安全頁**全線上驗 Pass**；Phase 2 一刀/二刀 JS 閘門**已補（160 PASS）**、剩 github.io 全量線上驗
 
 **已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
 - 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
@@ -106,7 +106,7 @@
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
 2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；② 趨勢「較上週」**已落地（§18.12，B 方案前端快照、線上驗 Pass）**。Phase 2 三刀全落地。見 §18.10b／§18.12／§18.5。
-   - **口徑收斂（進行中／下一刀）**：抽 `isOverdue(t)`（收逾期判斷 7+ 處複製）＋`weeklyHours/weekCapacity`（收工時公式 3 處複製）共用 helper。等值重構、動既有邏輯→需 `node --check`＋160 案＋逐處 diff 審＋線上驗。獨立 commit、勿混功能。
+   - **口徑收斂 已落地（§18.13，等值重構）**：逾期 4 處改 call 現成 `isTaskDelayed`＋工時抽 `weeklyScheduledHours`/`weekCapacityHours` 共用（Portfolio／工作台四處）。`node --check`＋160 PASS＋**差異測試 84/0**（OLD≟NEW 逐筆相等，無對照版改用程式邏輯驗）。PDCA 處 6/7 待整區拔除時處理。`?v=20260630-13`。
 3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。**做完後回頭更新「🛡 安全」頁 `SECURITY_INFO`**：把 roadmap 的「全域定期備份與一鍵還原」移到 groups 防護網（論述從「規劃中」改「已具備」）。
 4. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
 5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI 較上週首週/清快取時 4 卡留白「—」（需累積一週才亮趨勢，符合不放假數字）；overflow 面板字級（規範過時待重看）。

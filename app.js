@@ -1248,6 +1248,15 @@ function isTaskDelayed(task, today) {
   return !!end && new Date(end) < new Date(today);
 }
 
+// 本週已排程時段任務工時（schedule.items duration 分→H 加總）：Portfolio 雜事佔比與工作台本週工時的單一來源。
+function weeklyScheduledHours(wk) {
+  return (DATA.schedule.items || []).filter(it => it.week === wk).reduce((s, it) => s + (it.duration / 60), 0);
+}
+// 週容量：每日工時 × 每週工作日數（單一口徑，§18.10）：Portfolio.weekCapacity／雜事佔比 availableHours／工作台本週可用工時共用。
+function weekCapacityHours() {
+  return (DATA.settings.dailyHours || 6) * ((DATA.settings.workDays || []).length || 0);
+}
+
 function groupTasksForBoard(tasks, today) {
   const cols = [
     { key: 'pending', label: '未開始', tasks: [] },
@@ -2869,9 +2878,7 @@ Portfolio._live = function() { return (DATA.tasks || []).filter(t => !t._deleted
 
 // 逾期口徑（與 §4.6/KPI 一致）：未完成/未擱置且有效完成日 < 今天
 Portfolio._overdue = function(t, today) {
-  if (t.status === 'done' || t.status === 'hold') return false;
-  const end = getEffectiveSchedule(t).end;
-  return !!(end && new Date(end) < today);
+  return isTaskDelayed(t, today);   // 逾期口徑單一來源（§4.6：未完成/未擱置 + 有效迄日<今天）
 };
 
 // A 健康度：紅=有逾期／黃=14 工作天內到期未逾期／綠=其餘
@@ -2913,9 +2920,7 @@ Portfolio.overdueTasks = function() {
 // 本週個人雜事佔比：時段制本週工時 / 可用工時
 Portfolio.choreRatio = function() {
   const wk = D.weekKey(D.monday());
-  const totalHours = (DATA.schedule.items || []).filter(it => it.week === wk).reduce((s, it) => s + (it.duration / 60), 0);
-  const availableHours = (DATA.settings.dailyHours || 6) * ((DATA.settings.workDays || []).length || 0);
-  return { totalHours: Math.round(totalHours), availableHours };
+  return { totalHours: Math.round(weeklyScheduledHours(wk)), availableHours: weekCapacityHours() };
 };
 
 // ═══ 較上週 KPI 輕量週快照（§18.12，純前端 localStorage，與 §17 後端全量快照獨立）═══
@@ -2983,7 +2988,7 @@ Portfolio.projectProgress = function(projId, today) {
 
 // 週容量（部門負載容量線）：每日工時 × 每週工作日數 ＝ KPI4 availableHours（單一口徑，§18.10）
 Portfolio.weekCapacity = function() {
-  return (DATA.settings.dailyHours || 6) * ((DATA.settings.workDays || []).length || 0);
+  return weekCapacityHours();
 };
 
 // 部門負載（本週負荷，§18.10）：綠＝WBS 工期任務本週均攤（本週重疊工作天 × 日工時）、橘＝本週排程格子時段任務工時；跨專案依部門名彙整。
@@ -3239,10 +3244,8 @@ Workspace.render = function() {
     return t.urgency === 'high' || (sch.end && D.daysBetween(today, new Date(sch.end)) <= 1);
   });
 
-  const totalHours = (DATA.schedule.items || [])
-    .filter(it => it.week === wk)
-    .reduce((s, it) => s + (it.duration / 60), 0);
-  const availableHours = DATA.settings.dailyHours * DATA.settings.workDays.length;
+  const totalHours = weeklyScheduledHours(wk);
+  const availableHours = weekCapacityHours();
 
   // Week schedule (uses dashboardWeekOffset)
   const scheduleHtml = this.buildWeekScheduleHtml(monday);
@@ -4278,9 +4281,8 @@ App.buildProjKpiHtml = function(proj) {
   let delayed = 0, noEnd = 0;
   tasks.forEach(t => {
     if (t.status === 'done' || t.status === 'hold') return;
-    const end = getEffectiveSchedule(t).end;
-    if (!end) { noEnd++; return; }
-    if (new Date(end) < today) delayed++;
+    if (isTaskDelayed(t, today)) { delayed++; return; }
+    if (!getEffectiveSchedule(t).end) noEnd++;
   });
 
   // OVERALL:件數等權(拍板:不用 estHours 加權,粗衍生值不可靠)。
@@ -4437,10 +4439,7 @@ App.buildProjDeptHtml = function(proj) {
     const g = groups[k] || (groups[k] = { done: 0, wip: 0, delayed: 0, todo: 0, hold: 0, total: 0 });
     g.total++;
     if (t.status === 'done') { g.done++; return; }
-    if (t.status !== 'hold') {
-      const end = getEffectiveSchedule(t).end;
-      if (end && new Date(end) < today) { g.delayed++; return; }
-    }
+    if (isTaskDelayed(t, today)) { g.delayed++; return; }   // 逾期口徑單一來源（已排 done/hold）
     if (t.status === 'wip') g.wip++;
     else { g.todo++; if (t.status === 'hold') g.hold++; }
   });
@@ -4459,11 +4458,8 @@ App.buildProjDeptHtml = function(proj) {
   }).join('');
 
   // 逾期迷你清單:口徑同上方 delayed(非hold、有效迄日<today、非done),前5筆逾期天數降冪
-  const overdue = tasks.filter(t => {
-    if (t.status === 'done' || t.status === 'hold') return false;
-    const end = getEffectiveSchedule(t).end;
-    return end && new Date(end) < today;
-  }).map(t => ({ t, days: -D.daysBetween(today, new Date(getEffectiveSchedule(t).end)) }))
+  const overdue = tasks.filter(t => isTaskDelayed(t, today))
+    .map(t => ({ t, days: -D.daysBetween(today, new Date(getEffectiveSchedule(t).end)) }))
     .sort((a,b) => b.days - a.days).slice(0, 5);
   const overdueHtml = overdue.length === 0 ? '' : `
     <div class="dept-overdue">
