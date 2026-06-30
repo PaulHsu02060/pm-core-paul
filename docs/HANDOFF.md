@@ -64,7 +64,7 @@
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：版本號 app.js `?v=20260630-13`／style.css `?v=20260630-12`｜Phase 2 ② 較上週趨勢**已落地·線上驗 Pass**（§18.12）；口徑收斂（逾期/工時抽共用）**已落地·等值（160＋差異 84/0）**（§18.13）；安全硬化 #1/#2＋安全頁**全線上驗 Pass**；Phase 2 一刀/二刀 JS 閘門**已補（160 PASS）**、剩 github.io 全量線上驗
+**目前 HEAD**：版本號 app.js `?v=20260630-14`／style.css `?v=20260630-12`｜Phase 2 ② 較上週趨勢**已落地·線上驗 Pass**（§18.12）；口徑收斂（逾期/工時抽共用）**已落地·等值（160＋差異 84/0）**（§18.13）；Excel WBS 狀態 round-trip 修正**已落地·線上驗 Pass**（踩坑坑9）；安全硬化 #1/#2＋安全頁**全線上驗 Pass**；Phase 2 一刀/二刀 JS 閘門**已補（160 PASS）**、剩 github.io 全量線上驗
 
 **已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
 - 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
@@ -102,6 +102,11 @@
 - **走 B 方案**（前端 localStorage 快取，不為較上週做 §17 後端快照）；4 KPI 公式不動（沿用 §18.8），快照只捕捉當下值。
 - `a4d1dd1`：`Portfolio._kpiSnap`（key `pm_kpi_snapshot_v1`、DATA 外、只留本週＋上週）＋`_trendBadge`（色義看好壞不看箭頭）；4 卡加趨勢徽章（健康度比紅燈數／進度比%／延誤比筆數／雜事比工時，琥珀中性）；無上週留白「—」；`?v=20260630-12`。**160 PASS＋線上驗（首載留白＋注入假上週彩色）兩態 Pass**。
 - **口徑稽核（讀檔比對，無改 code）**：進度全系統共用 `taskDisplayProgress`（零分歧）；逾期 Portfolio／Project DELAYED 口徑一致；工時 Portfolio choreRatio／工作台一致。無衝突。**唯二可選收斂**：逾期判斷複製 7+ 處、工時公式複製 3 處（值一致、潛在漂移）→ 抽 `isOverdue`／`weeklyHours` 共用 helper（獨立批次，見下一件）。
+
+**已落地（2026-06-30，本 session）——Excel WBS 狀態 round-trip 修正（線上驗 Pass），詳見踩坑坑9**
+- 起因：Prod 下載 Excel 匯入 Dev，兩邊 KPI 對不上。查出 WBS Excel＝計畫骨架交換、非全狀態鏡像（匯入重設 scheduled/urgency/dept/重算）。
+- **修狀態那半**：`mapStatus` 加認英文內碼 `done/wip/hold`（保留中文，additive）＋匯出 `cellValue` status 改寫中文標籤（複用 `STATUS_LABELS_ZH`）。狀態自此 round-trip 正確（擱置/已完成不再變 pending 誤算逾期）。`node --check`＋round-trip 14/0＋160 PASS；線上驗：Dev 匯出狀態欄中文 ✓、DONE/DELAYED 與 Prod 一致 ✓。`?v=20260630-14`。
+- **殘差為設計侷限**（非 bug）：scheduled/urgency/手動 dept/行事曆不隨 Excel 帶 → WORKDAYS LEFT、部門負荷等仍可能差。要全一致走雲端同步（含 calendars）/JSON/§17。
 
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。

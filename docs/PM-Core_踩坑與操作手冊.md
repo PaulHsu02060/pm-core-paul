@@ -227,3 +227,26 @@ Excel 匯入本來就**沒有「目標上市窗」**，空 schedule 下 `_s2Vari
 - **禁再用原生 `confirm`／`alert`／`prompt`**（UI 規範 §0.6）。要確認/輸入一律 `confirmModal`／`promptModal`／`openModal`。
 - `confirmModal` 公版**無 onCancel callback**（取消只關閉）；需要「取消也跑事」的（如離開設定頁三選一）改用 `openModal` 自訂 footer 多鈕。
 - 大段含 `\n`／`\uXXXX` 字面 escape 的 code 用 Edit 易框不全，改用 node 腳本替換（坑5）。
+
+---
+
+## 坑 9：WBS Excel round-trip 失真——Prod 下載匯入 Dev，兩邊 KPI 值不一樣（2026-06-30）
+
+**現象**
+同一份 Prod 匯出的 WBS Excel 匯入 Dev（含「專案 Excel 覆蓋」），J 系列 KPI 跟 Prod 對不上：DONE/DELAYED、WORKDAYS LEFT、部門負荷數字都有差。直覺以為程式算錯或某次改動改壞。
+
+**根因（已查證，附行號）**
+WBS Excel 是「**計畫骨架交換**」、**非全狀態鏡像**。匯入 `buildWbsPreview`（app.js:11711）會**重設/重推**多個欄位：
+- **狀態編碼對不上（已修）**：匯出走 `cellValue` default 寫**英文內碼** `done/wip/hold`，但匯入 `mapStatus`（app.js:1993）原本**只認中文**「完成/進行/擱置」→ 擱置任務、已完成但沒填實際完成日的任務，匯入後變 `pending`、過期還被誤算逾期 → DONE 變少、DELAYED 變多。
+- **scheduledStart/End 強制清空**（11764-65）：智慧排程套用日全丟，`getEffectiveSchedule` 退回 planned → 日期類 KPI（DELAYED/逾期天數/WORKDAYS LEFT 經此）跟著變。
+- **urgency 一律設 `med`**（11758）、`estHours`/`completedAt` 重算、手動錨點 `start/end` 清空。
+- **dept 依「負責人→部門」重推** `ownerToDept`（11684），**不保留 Prod 的手動 dept**：某任務負責人屬 ME 但 Prod 手動掛「未指派」→ round-trip 改回 ME（總數不變、歸屬移位）。
+- **WORKDAYS LEFT** 用 `D.workdaysBetween`（516）**逐日數**、讀**各機自己的** `settings.workDays`＋`DATA.calendars` 假日 → 同一結束日，兩機行事曆/工作日設定不同就數字不同（Excel 不帶設定、不帶行事曆）。
+
+**正解（狀態那半已修，commit 見 §B）**
+- `mapStatus` 加認英文內碼 `done/wip/hold`（保留中文判斷，additive）＋匯出 `cellValue` status 改寫**中文標籤**（複用既有 `STATUS_LABELS_ZH`，對上 `mapStatus`、人也看得懂）。狀態自此 round-trip 正確。
+- 其餘（scheduled/urgency/dept/行事曆）為**設計上的「重匯入即重排/重推」**，不靠 Excel 帶。
+
+**操作提醒**
+- 要 **Prod↔Dev 全狀態一致**：走**雲端同步**（同一 blob，含 `DATA.calendars`，行事曆自動一致）／**JSON 備份下載·還原**（§15.4）／**§17 快照**。Excel 只管計畫骨架，別拿來當狀態鏡像。
+- 日後若要 Excel 保留手動 dept，得在 `WBS_COLUMNS` 加「部門」欄、匯出/匯入兩側同步（目前只帶負責人、dept 靠重推）。

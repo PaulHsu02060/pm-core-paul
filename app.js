@@ -1993,9 +1993,10 @@ function getEffectiveSchedule(task) {
 function mapStatus(status, progress) {
   if (!status) return 'pending';
   const s = String(status);
-  if (s.includes('完成')) return 'done';
-  if (s.includes('進行') || (parseFloat(progress || 0) > 0 && parseFloat(progress) < 100)) return 'wip';
-  if (s.includes('擱置') || s.includes('暫停')) return 'hold';
+  // 認中文標籤（人工/匯出 WBS）＋英文內碼（自家匯出 round-trip，§13.x Excel 狀態 round-trip 修正）
+  if (s === 'done' || s.includes('完成')) return 'done';
+  if (s === 'wip' || s.includes('進行') || (parseFloat(progress || 0) > 0 && parseFloat(progress) < 100)) return 'wip';
+  if (s === 'hold' || s.includes('擱置') || s.includes('暫停')) return 'hold';
   return 'pending';
 }
 
@@ -9636,6 +9637,7 @@ App.exportProjectWbs = async function(projId, granularity) {
       case 'taskType':    return TYPE_LABEL[t.taskType] || '任務';
       case 'predecessor': return App.predToWbsFormat(t.predecessor, idToWbsMap);
       case 'progress':    return (typeof t.progress === 'number' ? t.progress : 0) / 100;
+      case 'status':      return STATUS_LABELS_ZH[t.status] || '';   // 中文標籤 round-trip（對上 mapStatus，§13.x）
       case 'mustDeliver':
       case 'requiredTask':
       case 'mustIssue':   return t[key] ? '✓' : '';
