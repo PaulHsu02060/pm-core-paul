@@ -64,7 +64,7 @@
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：`c1d5d29`｜版本號 app.js／style.css `?v=20260629-23`｜本 session 多項 DEV 驗 Pass（工作台 UI／彈窗線上驗過），其餘 github.io 待驗
+**目前 HEAD**：`616871d`｜版本號 app.js `?v=20260630-1`／style.css `?v=20260629-23`｜⚠ Phase 2 第二刀（會議納部門負載）全 `[unverified]`——本機無 node，JS 閘門待桌機補；其餘 github.io 待驗
 
 **已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
 - 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
@@ -84,9 +84,15 @@
 - 工作台**白卡化**：時程表拔 `--pearl` 沙底→純白獨立卡＋今日欄極淡暖綠白 `#F4F7F4`＋格線 `#E5E1D7` `42ddc0a`；KPI 字卡＋便利貼底改純白 `--surface` `04b1037`
 - **時程表顯示設定修正**：移除失效密度 toggle＋改範圍不重開 modal（即時可見）＋顯示結束時間（`_ge` 標籤）＋時間軸標籤對齊隔線 `c1d5d29`
 
+**已落地（2026-06-30）——Phase 2 第二刀：會議/事件 `dept`/`owner` ＋ 橘塊納專案會議，詳見架構 §18.10b（全 `[unverified]`，本機無 node）**
+- 設計定案 §18.10b `e260ef0`（三決策：dept 預設未指派/owner 帶 userName、雜項不計只算 category=meeting 且已指派、三入口同步、`__ALL__` 均攤不乘人數、工作日邏輯）
+- Commit 1 引擎級 `b7e9d02`：`Portfolio.deptLoad` 加橘塊納會議（逐日掃本週工作日`D.isWorkday`＋三 store＋`eventOccursOnDate`＋category/dept 過濾＋`__ALL__` 展開）＋偏頗文案更新。**Python oracle 5/5 PASS**（無 node、獨立重算驗算法）
+- Commit 2 UI/schema 級 `616871d`：共用 `App._meetingDeptOptions`（未指派＋Y池＋★全體均攤）；三入口（`addManualMeeting`／`saveRecurringMeeting`／`saveSpecialMeeting`）加 owner/dept 欄＋寫 schema；index.html app.js `?v=20260630-1`。ID 配對 12/12 驗過
+- **桌機待補**：`node --check app.js`＋`node docs/test-schedule-cases.js`(160) 貼原文解 `[unverified]`
+
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
-2. **Phase 2 後續**：② 趨勢「較上週」綁 §17 每日快照 ③ 會議/事件加 `dept`/`owner` 欄（會議也堆進部門負載雜事段、含偏頗標註）。見 §18.10／§18.5。
+2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，待桌機 node 驗＋線上驗）**；剩 ② 趨勢「較上週」綁 §17 每日快照（卡 §17、未動）。見 §18.10b／§18.5。
 3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。
 4. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
-5. **已知尾巴**：部門負載橘塊只含「已掛部門且已排本週」時段任務、不含會議（待 §18.10 ③）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI「較上週」留白；overflow 面板字級（規範過時待重看）。
+5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI「較上週」留白；overflow 面板字級（規範過時待重看）。
