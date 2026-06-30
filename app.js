@@ -4642,6 +4642,16 @@ App._meetingPasteHandler = function(e) {
   U.toast('📋 已貼上截圖，按「🪄 一次解析全部」辨識', 'info');
 };
 
+// 會議部門下拉選項（三入口共用，§18.10b）：未指派（value 空）＋選項Y池（全專案部門名去重）＋★全體均攤（__ALL__）
+App._meetingDeptOptions = function(sel) {
+  const pool = [...new Set((DATA.projects || []).flatMap(p => (p.depts || []).map(d => (d.name || '').trim())).filter(Boolean))];
+  const cur = sel || '';
+  let html = `<option value=""${cur === '' ? ' selected' : ''}>未指派</option>`;
+  html += pool.map(n => `<option value="${U.esc(n)}"${cur === n ? ' selected' : ''}>${U.esc(n)}</option>`).join('');
+  html += `<option value="__ALL__"${cur === '__ALL__' ? ' selected' : ''}>★ 全體均攤（跨部門）</option>`;
+  return html;
+};
+
 // 彈窗 body：截圖（OCR）+ 手動兩 tab（手動頻率 §階段二再補）。包一層 #meetingModalBody 供加入後就地刷新。
 App.buildMeetingModalBody = function() {
   return `<div id="meetingModalBody">
@@ -4711,6 +4721,16 @@ App.buildMeetingModalBody = function() {
           <div class="form-field">
             <label>結束時間 *</label>
             <input type="time" id="mEnd" value="11:00">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>負責人（預設＝我）</label>
+            <input type="text" id="mOwner" value="${U.esc(DATA.settings.userName || '')}">
+          </div>
+          <div class="form-field">
+            <label>部門（負載分流）</label>
+            <select id="mDept">${App._meetingDeptOptions('')}</select>
           </div>
         </div>
         <button class="am-add-btn" data-edit onclick="App.addManualMeeting()">＋ 加入</button>
@@ -4833,20 +4853,22 @@ App.addManualMeeting = function() {
   const end = document.getElementById('mEnd').value;
   const title = document.getElementById('mTitle').value.trim();
   if (!title) { U.toast('⚠ 請填主題', 'warning'); return; }
+  const owner = ((document.getElementById('mOwner') || {}).value || '').trim();   // 負責人（預設帶 userName，§18.10b）
+  const dept = (document.getElementById('mDept') || {}).value || '';              // 部門（空＝未指派；__ALL__＝全體均攤）
   const dayNum = new Date(dateStr + 'T00:00:00').getDay();   // 由日期推星期（0-6），週期性據此重複
 
   if (freq === 'once') {
     // 一次性 → 該日期，存 DATA.meetings
     DATA.meetings.push({
       id: U.id(), date: dateStr, startTime: start, endTime: end,
-      title, category: cat, categoryLabel: catLabel,
+      title, category: cat, categoryLabel: catLabel, owner, dept,
     });
   } else {
     // 週期性（每週/隔週/每月）→ 存 settings.recurringMeetings（與設定頁定期事件同源、自動重複上週曆）；該日期當起算錨點
     if (!DATA.settings.recurringMeetings) DATA.settings.recurringMeetings = [];
     DATA.settings.recurringMeetings.push({
       id: U.id(), category: cat, categoryLabel: catLabel, frequency: freq,
-      day: dayNum, start, end, title, startDate: dateStr, endDate: '', enabled: true,
+      day: dayNum, start, end, title, startDate: dateStr, endDate: '', enabled: true, owner, dept,
     });
   }
   Storage.save();
@@ -10990,6 +11012,16 @@ App.openRecurringMeetingDialog = function(id) {
           <input type="date" id="mtform-endDate" value="${cur.endDate || ''}">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>負責人（預設＝我）</label>
+          <input type="text" id="mtform-owner" value="${U.esc(cur.owner != null ? cur.owner : (DATA.settings.userName || ''))}">
+        </div>
+        <div class="form-field">
+          <label>部門（負載分流）</label>
+          <select id="mtform-dept">${App._meetingDeptOptions(cur.dept)}</select>
+        </div>
+      </div>
       <div style="font-size:11px; color:var(--ink3); padding:6px 10px; background:var(--surface2); border-radius:6px; line-height:1.5;">
         💡 <b>每隔一週/兩週</b>從「開始日期」開始算第一次，之後每隔指定的週數重複<br>
         💡 留空「結束日期」= 永久重複
@@ -11024,6 +11056,8 @@ App.saveRecurringMeeting = function(id) {
   const end = document.getElementById('mtform-end').value;
   const startDate = document.getElementById('mtform-startDate').value;
   const endDate = document.getElementById('mtform-endDate').value;
+  const owner = ((document.getElementById('mtform-owner') || {}).value || '').trim();   // §18.10b
+  const dept = (document.getElementById('mtform-dept') || {}).value || '';
   if (!start || !end || start >= end) { U.toast('⚠ 時間範圍無效', 'warning'); return; }
   if (endDate && startDate && endDate < startDate) { U.toast('⚠ 結束日期不可早於開始日期', 'warning'); return; }
   if (frequency === 'once' && !startDate) { U.toast('⚠ 單次事件請指定日期（填「開始日期」）', 'warning'); return; }
@@ -11035,13 +11069,14 @@ App.saveRecurringMeeting = function(id) {
       m.title = title; m.category = category; m.frequency = frequency;
       m.day = day; m.start = start; m.end = end;
       m.startDate = startDate; m.endDate = endDate;
+      m.owner = owner; m.dept = dept;
     }
   } else {
     DATA.settings.recurringMeetings.push({
       id: 'rm_' + Date.now().toString(36),
       category, frequency, day, start, end, title,
       startDate, endDate,
-      enabled: true,
+      enabled: true, owner, dept,
     });
   }
   Storage.save();
@@ -11125,6 +11160,16 @@ App.openSpecialMeetingDialog = function(id) {
           <input type="time" id="smtform-end" value="${cur.end}">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>負責人（預設＝我）</label>
+          <input type="text" id="smtform-owner" value="${U.esc(cur.owner != null ? cur.owner : (DATA.settings.userName || ''))}">
+        </div>
+        <div class="form-field">
+          <label>部門（負載分流）</label>
+          <select id="smtform-dept">${App._meetingDeptOptions(cur.dept)}</select>
+        </div>
+      </div>
     `,
     footer: `
       <button class="tb-action ghost" onclick="App.closeModal()">取消</button>
@@ -11146,16 +11191,18 @@ App.saveSpecialMeeting = function(id) {
   const date = document.getElementById('smtform-date').value;
   const start = document.getElementById('smtform-start').value;
   const end = document.getElementById('smtform-end').value;
+  const owner = ((document.getElementById('smtform-owner') || {}).value || '').trim();   // §18.10b
+  const dept = (document.getElementById('smtform-dept') || {}).value || '';
   if (!date || !start || !end || start >= end) { U.toast('⚠ 日期或時間無效', 'warning'); return; }
 
   DATA.settings.specialMeetings = DATA.settings.specialMeetings || [];
   if (id) {
     const m = DATA.settings.specialMeetings.find(x => x.id === id);
-    if (m) { m.title = title; m.date = date; m.start = start; m.end = end; }
+    if (m) { m.title = title; m.date = date; m.start = start; m.end = end; m.owner = owner; m.dept = dept; }
   } else {
     DATA.settings.specialMeetings.push({
       id: 'sm_' + Date.now().toString(36),
-      date, start, end, title,
+      date, start, end, title, owner, dept,
     });
   }
   Storage.save();
