@@ -229,6 +229,11 @@ const Storage = {
       CloudSync.scheduleUpload();
     }
   },
+  // 安全(§8f.6 Level 2)：清掉本機快取的專案/工作資料(登出時用)。保留 settings(雲端設定供重連、身份已另清)。
+  clearLocalData() {
+    [STORE.projects, STORE.tasks, STORE.meetings, STORE.memos, STORE.schedule, STORE.weekNotes, STORE.pdcaGroups, STORE.calendars]
+      .forEach(k => localStorage.removeItem(k));
+  },
 };
 
 // ─── CLOUD SYNC MODULE ───
@@ -243,6 +248,15 @@ const CloudSync = {
   scheduleUpload() {
     if (this._uploadTimer) clearTimeout(this._uploadTimer);
     this._uploadTimer = setTimeout(() => this.upload(true), 3000);
+  },
+
+  // 登出/離開前：把待上傳(debounce 中)的改動立即推上雲端，回傳 promise。清本機快取前呼叫，避免遺失最後一次編輯。
+  //   viewonly／無憑證／未設雲端 → 直接 return(無可上傳)。
+  async flushPendingUpload() {
+    if (this._uploadTimer) { clearTimeout(this._uploadTimer); this._uploadTimer = null; }
+    if (document.body.classList.contains('viewonly')) return;
+    if (!Auth._idToken || !DATA.settings.cloudSyncEnabled || !DATA.settings.cloudSyncUrl) return;
+    await this.upload(true);
   },
 
   // 上傳本地資料到雲端
@@ -2191,7 +2205,9 @@ const App = {
     this.cleanExpiredDeletedTasks();
 
     // First time? Set seed data
-    if (DATA.projects.length === 0) {
+    // 安全(§8f.6 Level 2)：僅 localDev 或無雲端時 seed。Prod 有雲端時，空專案＝「尚未下載」，不 seed——
+    //   否則登出清快取後 reload 會生種子專案，可能被 3 秒 auto-upload 推上雲端覆蓋真資料；交由登入後雲端下載填回。
+    if (DATA.projects.length === 0 && (isLocalDev || !DATA.settings.cloudSyncUrl)) {
       this.seedDefaultProjects();
     }
 
@@ -11234,11 +11250,16 @@ App.googleSignOut = function() {
   App.confirmModal({
     icon: 'ti-logout', iconBg: '--amber-l', iconColor: '--amber-ink',
     title: '確定要登出？', okText: '登出', cancelText: '取消',
-    onConfirm: () => {
+    msg: '登出會清除本機快取的專案資料。雲端不受影響，下次登入會自動還原。',
+    onConfirm: async () => {
+      U.toast('☁ 登出中，正在同步…', 'info');
+      // 安全(§8f.6 Level 2)：先把待上傳改動 flush 到雲端，再清本機快取，避免遺失最後一次編輯。flush 失敗(離線/逾時)不擋登出。
+      try { await CloudSync.flushPendingUpload(); } catch (e) { console.error('logout flush failed', e); }
       DATA.settings._loggedInEmail = '';
       DATA.settings._loggedInPicture = '';
       DATA.settings._role = undefined;   // 登出清身份（否則 isAdmin() 仍 true，只是被 overlay 遮住）；auth_admin_bound 保留不清
-      Storage.save();
+      Storage.save();                    // 存回清過身份的 settings
+      Storage.clearLocalData();          // 清本機快取的專案/工作資料(settings 保留供雲端重連)
       if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
         google.accounts.id.disableAutoSelect();
       }
