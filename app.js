@@ -229,10 +229,18 @@ const Storage = {
       CloudSync.scheduleUpload();
     }
   },
-  // 安全(§8f.6 Level 2)：清掉本機快取的專案/工作資料(登出時用)。保留 settings(雲端設定供重連、身份已另清)。
+  // 安全(§8f.6 Level 2)：登出時清掉本機快取的專案/工作資料。
+  //   掃整個 localStorage，清掉所有 pmw::<任何路徑>::<資料類> 鍵——含舊路徑(改名/搬路徑前的部署)殘留的孤兒專案資料，
+  //   不只當前路徑。保留 ::settings/::password/::synclog(設定/非專案資料；settings 供雲端重連)。
+  //   被清資料雲端皆有(登入後自動下載還原)，故跨路徑清除安全、不掉資料。
   clearLocalData() {
-    [STORE.projects, STORE.tasks, STORE.meetings, STORE.memos, STORE.schedule, STORE.weekNotes, STORE.pdcaGroups, STORE.calendars]
-      .forEach(k => localStorage.removeItem(k));
+    const DATA_SUFFIXES = ['projects', 'tasks', 'meetings', 'memos', 'schedule', 'weeknotes', 'pdcagroups', 'calendars'];
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('pmw::') && DATA_SUFFIXES.includes(k.split('::').pop())) {
+        localStorage.removeItem(k);
+      }
+    }
   },
 };
 
