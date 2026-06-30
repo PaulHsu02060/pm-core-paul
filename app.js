@@ -2954,6 +2954,34 @@ Portfolio.deptLoad = function() {
     bump(deptName(t && t.dept), 'chore', (Number(it.duration) || 0) / 60);
   });
 
+  // 橘塊續：本週「專案會議」工時疊進 chore（§18.10b）。只計 category=meeting 且已指派部門/全體均攤；打掃雜項與未指派不計
+  const deptPool = [...new Set(Object.values(idToName))];   // 選項Y池：全專案部門名去重（__ALL__ 展開用）
+  const meetingHours = m => {                               // 會議時數（小時）：once 用 startTime/endTime，recurring/special 用 start/end
+    const st = m.start || m.startTime, et = m.end || m.endTime;
+    if (!st || !et) return 0;
+    const [sh, sm] = st.split(':').map(Number), [eh, em] = et.split(':').map(Number);
+    const mins = (eh * 60 + em) - (sh * 60 + sm);
+    return mins > 0 ? mins / 60 : 0;
+  };
+  const addMeetingLoad = m => {
+    if ((m.category || 'meeting') !== 'meeting') return;   // 打掃/雜項排除（special 無 category＝視為會議）
+    const dv = m.dept;
+    if (!dv || dv === '未指派') return;                    // 未指派不計入橘塊
+    const h = meetingHours(m);
+    if (h <= 0) return;
+    if (dv === '__ALL__') deptPool.forEach(nm => bump(nm, 'chore', h));   // 全體均攤：同時疊所有專案部門、不乘人數
+    else bump(deptName(dv), 'chore', h);                   // 型態甲：具名部門只加該部門
+  };
+  // 逐日掃本週工作日（與容量線同基準：週末/假日會議屬異常加班、不入常態負荷）；recurring 用現成 eventOccursOnDate（單一真實來源，自動吃 frequency/起訖日/enabled）
+  for (let i = 0; i <= 6; i++) {
+    const day = D.addDays(monday, i);
+    if (!D.isWorkday(day)) continue;
+    const dayIso = D.fmt(day, 'iso');
+    (DATA.settings.recurringMeetings || []).forEach(m => { if (eventOccursOnDate(m, dayIso)) addMeetingLoad(m); });
+    (DATA.settings.specialMeetings || []).forEach(m => { if (m.date === dayIso) addMeetingLoad(m); });
+    (DATA.meetings || []).forEach(m => { if (m.date === dayIso) addMeetingLoad(m); });
+  }
+
   return Object.keys(byName).map(nm => {
     const proj = Math.round(byName[nm].proj), chore = Math.round(byName[nm].chore), hours = proj + chore;
     return { name: nm, proj, chore, hours, over: cap > 0 && hours > cap };
@@ -3069,8 +3097,8 @@ Portfolio.renderOverview = function(mountId) {
   const deptLegend = dl.length ? `<div class="pf-dl-legend"><span><i class="pf-lg-sw pf-lg-proj"></i>專案工時</span><span><i class="pf-lg-sw pf-lg-chore"></i>日常雜事工時</span><span><i class="pf-lg-cap"></i>週容量 ${cap}h</span></div>` : '';
   const deptHint = App.buildHintBox({ key: 'portfolio-deptload', icon: 'ti-alert-triangle', collapsed: true, title: '部門負載口徑（必讀）', summary: '本週負荷·僅含已掛部門雜事·必有漏算',
     bodyHtml: `<div class="pf-hint-list">
-      <div><b>口徑</b>：本週各部門工時。綠＝WBS 工期任務（工期均攤到本週工作日 × 每日工時）；琥珀＝個人時段任務（本週排程格子工時）。容量線＝每日工時 × 每週工作日。</div>
-      <div><b>偏頗提醒</b>：個人雜事僅含「已記錄並掛部門、且已排進本週」者，<b>不含會議（待 Phase 2 ③）、必有漏算</b>；未掛部門者歸「未指派」。</div>
+      <div><b>口徑</b>：本週各部門工時。綠＝WBS 工期任務（工期均攤到本週工作日 × 每日工時）；琥珀＝個人時段任務＋專案會議（本週排程格子工時＋會議時數）。容量線＝每日工時 × 每週工作日。</div>
+      <div><b>偏頗提醒</b>：橘塊含時段任務＋<b>專案會議</b>（category=meeting 且已指派部門或全體均攤）；打掃等雜項、未指派會議<b>不計、必有漏算</b>；未掛部門者歸「未指派」。</div>
     </div>` });
 
   const weeklyHtml = wk.length ? wk.map(x => {
