@@ -64,7 +64,7 @@
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：`616871d`｜版本號 app.js `?v=20260630-1`／style.css `?v=20260629-23`｜⚠ Phase 2 第二刀（會議納部門負載）全 `[unverified]`——本機無 node，JS 閘門待桌機補；其餘 github.io 待驗
+**目前 HEAD**：`d2785b2`｜版本號 app.js／style.css `?v=20260630-11`｜安全硬化 #1/#2＋安全頁**全線上驗 Pass**；Phase 2 JS 閘門**已補（160 PASS）**；剩 Phase 2 一刀/二刀 github.io 全量線上驗
 
 **已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
 - 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
@@ -90,9 +90,17 @@
 - Commit 2 UI/schema 級 `616871d`：共用 `App._meetingDeptOptions`（未指派＋Y池＋★全體均攤）；三入口（`addManualMeeting`／`saveRecurringMeeting`／`saveSpecialMeeting`）加 owner/dept 欄＋寫 schema；index.html app.js `?v=20260630-1`。ID 配對 12/12 驗過
 - **桌機待補**：`node --check app.js`＋`node docs/test-schedule-cases.js`(160) 貼原文解 `[unverified]`
 
+**已落地（2026-06-30，本 session）——Node 補測＋總覽 HintBox＋安全硬化＋安全頁（全線上驗 Pass）**
+- **Node 補測**：桌機跑 `node --check`＋160 案 PASS，解掉 Phase 2 第二刀（`b7e9d02`/`616871d`）的 JS 閘門 `[unverified]`。
+- **總覽 HintBox 改版** `abe62bb`：4 框文案校對貼合 code（健康度紅黃燈語意、雜事佔比不含會議）＋深色 Header（`#portfolio-body` scope、`--sage-700` 反白）＋ol 數字序號＋body 12px 呼吸感。標準入 memory `hintbox-writing-standard`。
+- **安全硬化 #1** `3a30940`/`6426b88`：移除無查核「以檢視模式進入」按鈕＋移除 Prod 無作用首登密鑰欄＋清孤兒 CSS。詳見架構 §8f.6（2026-06-30 更新）。
+- **安全硬化 #2** `23c92b7`(L1)／`1a9354e`+`2cf6991`(L2)／`4163e97`(B)：登入前不渲染＋擋頁清 DOM＋登出潔癖全清（F12 全空）＋未登入不落地＋跨路徑清孤兒＋seed race 修正。詳見架構 §8f.6（2026-06-30 續）。
+- **安全介紹頁** `ecd8a59`/`d2785b2`：設定→「🛡 安全」tab，`SECURITY_INFO` 資料驅動、雙欄黃金對稱，供 MIS 審閱。
+- **AGENT_GATE 規則10** 補「移除功能＝順手清孤兒」`c8a22ca`；memory 新增 `orphan-cleanup-standard`。
+
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
-2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，待桌機 node 驗＋線上驗）**；剩 ② 趨勢「較上週」綁 §17 每日快照（卡 §17、未動）。見 §18.10b／§18.5。
+2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；剩 ② 趨勢「較上週」綁 §17 每日快照（卡 §17、未動）。見 §18.10b／§18.5。
 3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。
 4. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
 5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI「較上週」留白；overflow 面板字級（規範過時待重看）。
