@@ -1352,7 +1352,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .hintbox-title { font-weight: 500; color: var(--ink); }
 .hintbox-summary { font-size: 12px; color: var(--ink3); }
 .hintbox-toggle { font-size: 12px; color: var(--sage-600); }
-.hintbox-body { overflow: hidden; max-height: 600px; transition: max-height .25s ease; padding: 0 12px 12px; }
+.hintbox-body { overflow: hidden; max-height: 600px; transition: max-height .25s ease; padding: 12px; }
 .hintbox.collapsed .hintbox-body { max-height: 0; padding-top: 0; padding-bottom: 0; }
 /* HintBox 內四條規則色塊（成對 -l 底 / -ink 字，全走 :root） */
 .ht-rule { display: block; padding: 7px 10px; border-radius: var(--r6); margin-bottom: 6px; font-size: 12px; line-height: 1.6; }
@@ -2048,5 +2048,13 @@ body.viewonly .cloud-sync-sec { display: none; }
 .pf-empty .ti { font-size: 32px; color: var(--ink4); }
 .pf-empty-t { font-size: 15px; font-weight: 600; color: var(--ink2); margin-top: 8px; }
 .pf-empty-s { font-size: 12px; color: var(--ink4); margin-top: 6px; }
-.pf-hint-list { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+ol.pf-hint-list { list-style: none; counter-reset: pfhint; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+ol.pf-hint-list > li { counter-increment: pfhint; position: relative; padding-left: 22px; }
+ol.pf-hint-list > li::before { content: counter(pfhint) "."; position: absolute; left: 0; top: 0; color: var(--sage-600); font-weight: 700; }
 .pf-hint-list b { font-weight: 600; }
+/* 總覽頁 HintBox 深色 Header（只套 #portfolio-body，與圖表卡做區隔；全站公版不動，深底/反白字走既有變數） */
+#portfolio-body .hintbox-bar { background: var(--sage-700); }
+#portfolio-body .hintbox-title { color: var(--ink-inverse); }
+#portfolio-body .hintbox-bar i { color: var(--sage-200); }
+#portfolio-body .hintbox-summary { color: var(--sage-100); }
+#portfolio-body .hintbox-toggle { color: var(--sage-100); }

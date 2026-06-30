@@ -3053,13 +3053,13 @@ Portfolio.renderOverview = function(mountId) {
       <div class="pf-kpi-sub">較上週 — 待快照</div>
     </div>
   </div>`;
-  const kpiHint = App.buildHintBox({ key: 'portfolio-kpi', icon: 'ti-help-circle', collapsed: true, title: '指標卡怎麼算', summary: '健康度／總進度／延誤／雜事佔比',
-    bodyHtml: `<div class="pf-hint-list">
-      <div><b>健康度</b>：紅=有逾期任務／黃=14 工作天內到期未逾期／綠=其餘。</div>
-      <div><b>總進度</b>：全任務進度（progress）簡單平均。</div>
-      <div><b>延誤警報</b>：有效完成日早於今天且未完成的任務數，附最久逾期工作日。</div>
-      <div><b>雜事佔比</b>：本週時段制工時 ÷（每日工時 × 工作天數）。「較上週」需每日快照（Phase 2）。</div>
-    </div>` });
+  const kpiHint = App.buildHintBox({ key: 'portfolio-kpi', icon: 'ti-help-circle', collapsed: true, title: '快速看懂數據指標', summary: '健康度／總進度／延誤／雜事佔比',
+    bodyHtml: `<ol class="pf-hint-list">
+      <li><b>健康度</b>：🔴 紅燈代表專案內有任何任務「已逾期」；🟡 黃燈為目前無逾期，但有任務「14 個工作天內即將到期」🚨 之預警；🟢 綠燈代表進度安全。</li>
+      <li><b>總進度</b>：全專案所有階段的平均進度。</li>
+      <li><b>延遲警報</b>：目前已過期但未完成的任務總數，並標註「最久過期天數」。</li>
+      <li><b>雜事佔比</b>：本週手動排程的「時段任務」佔總工時的百分比（不含會議）。</li>
+    </ol>` });
 
   const matrixRows = projects.map(p => {
     const pr = this.projectProgress(p.id, today);
@@ -3072,13 +3072,12 @@ Portfolio.renderOverview = function(mountId) {
       <div class="pf-mx-line"><span class="pf-mx-tag">實際</span><span class="pf-bar"><span class="pf-bar-act" style="width:${pr.actual || 0}%"></span></span><span class="pf-mx-pct ${behind ? 'pf-mx-behind' : 'pf-mx-ok'}">${pr.actual == null ? '—' : pr.actual + '%'}</span></div>
     </div>`;
   }).join('');
-  const matrixHint = App.buildHintBox({ key: 'portfolio-matrix', icon: 'ti-help-circle', collapsed: true, title: '進度矩陣怎麼看', summary: '預計 vs 實際、當前階段',
-    bodyHtml: `<div class="pf-hint-list">
-      <div><b>預計</b>：各任務「到今天應完成%」平均＝今天落在開始→完成區間的工作日比例。</div>
-      <div><b>實際</b>：各任務進度（progress）平均。</div>
-      <div><b>當前階段</b>：第一個未全部完成的階段。實際低於預計＝落後（數字標紅）。</div>
-      <div>階段層級的細部進度請進各專案頁查看。</div>
-    </div>` });
+  const matrixHint = App.buildHintBox({ key: 'portfolio-matrix', icon: 'ti-help-circle', collapsed: true, title: '專案進度怎麼看（預計 vs 實際）', summary: '預計 vs 實際、當前階段',
+    bodyHtml: `<ol class="pf-hint-list">
+      <li><b>預計進度</b>：依計畫今天「本該完成」的進度比例。</li>
+      <li><b>實際進度</b>：目前團隊「實質做完」的進度比例。</li>
+      <li><b>狀態警示</b>：當「實際 < 預計」時，數字會自動高亮變紅 🚨 提示落後。點擊專案右側可展開子階段。</li>
+    </ol>` });
 
   const cap = this.weekCapacity();
   const maxLoad = Math.max(dl.reduce((m, d) => Math.max(m, d.hours), 0), cap) || 1;
@@ -3095,11 +3094,12 @@ Portfolio.renderOverview = function(mountId) {
     </div>`;
   }).join('') : '<div class="pf-mini-empty">本週各部門無工時</div>';
   const deptLegend = dl.length ? `<div class="pf-dl-legend"><span><i class="pf-lg-sw pf-lg-proj"></i>專案工時</span><span><i class="pf-lg-sw pf-lg-chore"></i>日常雜事工時</span><span><i class="pf-lg-cap"></i>週容量 ${cap}h</span></div>` : '';
-  const deptHint = App.buildHintBox({ key: 'portfolio-deptload', icon: 'ti-alert-triangle', collapsed: true, title: '部門負載口徑（必讀）', summary: '本週負荷·僅含已掛部門雜事·必有漏算',
-    bodyHtml: `<div class="pf-hint-list">
-      <div><b>口徑</b>：本週各部門工時。綠＝WBS 工期任務（工期均攤到本週工作日 × 每日工時）；琥珀＝個人時段任務＋專案會議（本週排程格子工時＋會議時數）。容量線＝每日工時 × 每週工作日。</div>
-      <div><b>偏頗提醒</b>：橘塊含時段任務＋<b>專案會議</b>（category=meeting 且已指派部門或全體均攤）；打掃等雜項、未指派會議<b>不計、必有漏算</b>；未掛部門者歸「未指派」。</div>
-    </div>` });
+  const deptHint = App.buildHintBox({ key: 'portfolio-deptload', icon: 'ti-alert-triangle', collapsed: true, title: '部門忙碌大對齊（本週負荷）', summary: '本週負荷·僅含已掛部門雜事·必有漏算',
+    bodyHtml: `<ol class="pf-hint-list">
+      <li><b>工時口徑</b>：本週均攤專案工時（WBS 任務）＋ 本週工作日專案會議工時。</li>
+      <li><b>容量線基準</b>：由「每日工時 × 本週工作天」自動衍生。</li>
+      <li><b>排除原則</b>：僅計專案相關。打掃、外出或未指派部門的會議「一律不計入」，未指派會議歸在「未指派」長條。</li>
+    </ol>` });
 
   const weeklyHtml = wk.length ? wk.map(x => {
     const proj = App.getProj(x.t.project), pn = proj ? proj.name : '';
@@ -3109,11 +3109,11 @@ Portfolio.renderOverview = function(mountId) {
     const urgent = x.t.urgency === 'high';
     return `<div class="pf-wk-row">${urgent ? '<span class="pf-badge pf-badge-urg">緊急</span>' : ''}<span class="pf-wk-name">${U.esc(x.t.name)}</span><span class="pf-wk-proj">${U.esc(pn)}${x.end ? ' · ' + D.fmt(x.end, 'md') : ''}</span></div>`;
   }).join('') : '<div class="pf-mini-empty">本週無待處理任務</div>';
-  const weeklyHint = App.buildHintBox({ key: 'portfolio-weekly', icon: 'ti-help-circle', collapsed: true, title: '當週待處理怎麼排', summary: '逾期優先、緊急度+到期日',
-    bodyHtml: `<div class="pf-hint-list">
-      <div><b>範圍</b>：本週（一～日）內預計開始或到期、且未完成的任務（逾期亦納入）。</div>
-      <div><b>排序</b>：逾期優先（逾期工作日多者在前），其餘依緊急度與到期日。</div>
-    </div>` });
+  const weeklyHint = App.buildHintBox({ key: 'portfolio-weekly', icon: 'ti-help-circle', collapsed: true, title: '本週戰情急先鋒（排序規則）', summary: '逾期優先、緊急度+到期日',
+    bodyHtml: `<ol class="pf-hint-list">
+      <li><b>任務範圍</b>：本週內「預計開始」或「預計結束」的所有待辦項目（逾期亦納入）。</li>
+      <li><b>優先排序</b>：系統依【逾期天數最多 ➡️ 緊急度最高 ➡️ 預計結束日最早】自動由上至下排序。</li>
+    </ol>` });
 
   el.innerHTML = `${kpiHint}${kpiHtml}
     <div class="pf-grid">
