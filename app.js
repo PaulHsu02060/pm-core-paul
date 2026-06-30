@@ -10544,19 +10544,25 @@ const SECURITY_INFO = {
 
 // 安全 tab 內層 HTML（由 SECURITY_INFO 渲染；版面固定、文字吃資料）
 App._securityTabHtml = function() {
-  const g = SECURITY_INFO.groups.map(grp => `
+  const grp = g => `
     <div class="settings-section">
-      <div class="ss-title">${grp.title}</div>
+      <div class="ss-title">${g.title}</div>
       <ol class="sec-list">
-        ${grp.items.map(it => `<li><b>${U.esc(it.name)}</b>：${U.esc(it.desc)}</li>`).join('')}
+        ${g.items.map(it => `<li><b>${U.esc(it.name)}</b>：${U.esc(it.desc)}</li>`).join('')}
       </ol>
-    </div>`).join('');
-  return `<div class="settings-grid">
+    </div>`;
+  // 雙欄黃金對稱（建議一）：分組順序固定＝身分驗證／授權／防竄改／資料保護／傳輸
+  const [identity, authz, antitamper, dataprot, transport] = SECURITY_INFO.groups;
+  return `<div class="sec-wrap">
     <div class="settings-section sec-banner">
       <div class="ss-title">🛡 安全防護網</div>
-      <div class="ss-desc">${U.esc(SECURITY_INFO.principle)}</div>
+      <div class="ss-desc" style="margin-bottom:0;">${U.esc(SECURITY_INFO.principle)}</div>
     </div>
-    ${g}
+    <div class="sec-cols">
+      <div class="sec-col">${grp(identity)}${grp(authz)}</div>
+      <div class="sec-col">${grp(antitamper)}${grp(transport)}</div>
+    </div>
+    ${grp(dataprot)}
     <div class="settings-section">
       <div class="ss-title">📋 定位與範圍（誠實揭露，供 MIS 評估）</div>
       <div class="sec-sub">定位</div>
