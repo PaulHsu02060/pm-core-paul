@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.44.0/dist/tabler-icons.min.css">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<link rel="stylesheet" href="style.css?v=20260630-4">
+<link rel="stylesheet" href="style.css?v=20260630-5">
 </head>
 <body>
 
@@ -21,12 +21,10 @@
     <div class="login-logo js-brand-name">PM-Core</div>
     <div class="login-sub">Personal Task Board</div>
 
-    <!-- 登入並成為管理員（Gmail + 首登密鑰）。檢視權限改由 Google 登入 + viewonly 白名單授予（移除無身分查核的「以檢視模式進入」捷徑，§8f.5） -->
+    <!-- 純 Google 帳號登入。身分/權限全由後端 Script Properties 判定（SUPERADMIN_EMAIL/ADMIN_EMAILS/ALLOWED_EMAILS/VIEWONLY_EMAILS）；首登密鑰已非前端入口、新站初始化改在 Apps Script 後台設 property，§8f.6 -->
     <div id="loginGoogleMode">
       <div class="login-google-hint">使用 Google 帳號登入</div>
       <div id="gSignInBtn" style="display:flex; justify-content:center; margin-bottom: 14px;"></div>
-      <input type="password" id="loginSetupKey" placeholder="首登密鑰（選填）" autocomplete="off">
-      <div class="login-hint">首次將自己設為管理員才需填，一般登入留空</div>
     </div>
   </div>
 </div>
