@@ -64,7 +64,7 @@
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：`d2785b2`｜版本號 app.js／style.css `?v=20260630-11`｜安全硬化 #1/#2＋安全頁**全線上驗 Pass**；Phase 2 JS 閘門**已補（160 PASS）**；剩 Phase 2 一刀/二刀 github.io 全量線上驗
+**目前 HEAD**：`a4d1dd1`｜版本號 app.js／style.css `?v=20260630-12`｜Phase 2 ② 較上週趨勢**已落地·線上驗 Pass**（§18.12）；安全硬化 #1/#2＋安全頁**全線上驗 Pass**；Phase 2 一刀/二刀 JS 閘門**已補（160 PASS）**、剩 github.io 全量線上驗
 
 **已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
 - 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
@@ -98,9 +98,15 @@
 - **安全介紹頁** `ecd8a59`/`d2785b2`：設定→「🛡 安全」tab，`SECURITY_INFO` 資料驅動、雙欄黃金對稱，供 MIS 審閱。
 - **AGENT_GATE 規則10** 補「移除功能＝順手清孤兒」`c8a22ca`；memory 新增 `orphan-cleanup-standard`。
 
+**已落地（2026-06-30，本 session）——Phase 2 ② 較上週趨勢：前端 KPI 輕量週快照（線上驗 Pass），詳見架構 §18.12**
+- **走 B 方案**（前端 localStorage 快取，不為較上週做 §17 後端快照）；4 KPI 公式不動（沿用 §18.8），快照只捕捉當下值。
+- `a4d1dd1`：`Portfolio._kpiSnap`（key `pm_kpi_snapshot_v1`、DATA 外、只留本週＋上週）＋`_trendBadge`（色義看好壞不看箭頭）；4 卡加趨勢徽章（健康度比紅燈數／進度比%／延誤比筆數／雜事比工時，琥珀中性）；無上週留白「—」；`?v=20260630-12`。**160 PASS＋線上驗（首載留白＋注入假上週彩色）兩態 Pass**。
+- **口徑稽核（讀檔比對，無改 code）**：進度全系統共用 `taskDisplayProgress`（零分歧）；逾期 Portfolio／Project DELAYED 口徑一致；工時 Portfolio choreRatio／工作台一致。無衝突。**唯二可選收斂**：逾期判斷複製 7+ 處、工時公式複製 3 處（值一致、潛在漂移）→ 抽 `isOverdue`／`weeklyHours` 共用 helper（獨立批次，見下一件）。
+
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
-2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；剩 ② 趨勢「較上週」綁 §17 每日快照（卡 §17、未動）。見 §18.10b／§18.5。
+2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；② 趨勢「較上週」**已落地（§18.12，B 方案前端快照、線上驗 Pass）**。Phase 2 三刀全落地。見 §18.10b／§18.12／§18.5。
+   - **口徑收斂（進行中／下一刀）**：抽 `isOverdue(t)`（收逾期判斷 7+ 處複製）＋`weeklyHours/weekCapacity`（收工時公式 3 處複製）共用 helper。等值重構、動既有邏輯→需 `node --check`＋160 案＋逐處 diff 審＋線上驗。獨立 commit、勿混功能。
 3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。**做完後回頭更新「🛡 安全」頁 `SECURITY_INFO`**：把 roadmap 的「全域定期備份與一鍵還原」移到 groups 防護網（論述從「規劃中」改「已具備」）。
 4. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
-5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI「較上週」留白；overflow 面板字級（規範過時待重看）。
+5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI 較上週首週/清快取時 4 卡留白「—」（需累積一週才亮趨勢，符合不放假數字）；overflow 面板字級（規範過時待重看）。
