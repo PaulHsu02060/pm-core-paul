@@ -101,6 +101,6 @@
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
 2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；剩 ② 趨勢「較上週」綁 §17 每日快照（卡 §17、未動）。見 §18.10b／§18.5。
-3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。
+3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。**做完後回頭更新「🛡 安全」頁 `SECURITY_INFO`**：把 roadmap 的「全域定期備份與一鍵還原」移到 groups 防護網（論述從「規劃中」改「已具備」）。
 4. **Workspace／Portfolio 物理拆檔**（§18.7 定案，Paul 同意做完功能後拆）：命名已聚集（`Workspace.*`／`Portfolio.*`），拆成 `workspace.js`＋`portfolio.js`＋`shared-render.js`（甘特/月曆共用）＋`project.js`＝剪下貼上＋顧 `<script>` 載入順序/TDZ/各檔 `?v=`。**獨立批次做、勿混進功能 commit。**
 5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI「較上週」留白；overflow 面板字級（規範過時待重看）。
