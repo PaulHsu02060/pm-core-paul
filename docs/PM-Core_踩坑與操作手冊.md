@@ -157,6 +157,7 @@ old_string 只匹配舊段一部分，新內容疊後面、舊段殘留。整段
 - `replaceUpTo`（後面固定錨點當邊界、吃掉中間整段）或 `replaceSpanIncl`（含頭含尾整段換），每錨點 `count===1` 守門。
 - **dry-run 先印替換結果** + **計數證明**（如替換後 `const userInput` 應=1、舊 class 應=0）確認無並存、無重複，再正式寫。
 - Edit 適合**單行/小範圍**；**整段 render/函式換**用 node replaceSpan 才不會框不全。
+- ⚠ **node 腳本改含中文檔，讀寫編碼必須一致用 `utf8`**：`readFileSync(f,'utf8')` 配 `writeFileSync(f,out,'utf8')`。曾踩「讀 utf8、寫 latin1」→ Unicode 字串用 latin1 寫出把中文全寫成亂碼、整檔毀（`node --check` 才抓到）。還原靠 `git checkout -- <檔>`（改動未 commit 即可救）。CRLF 保留靠「`split('\n')` 留行尾 `\r`、`join('\n')`」＝不翻 LF（坑4）；寫前先 dry-run 印錨點＋計數證明（坑5）。
 
 ---
 
