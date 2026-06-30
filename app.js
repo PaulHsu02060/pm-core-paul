@@ -2024,6 +2024,9 @@ const Auth = {
   // none / Can't view：全屏擋頁，只 render 自己、不碰 task/project 資料（§8f.5 / §8f.8b 隔離紀律）
   enterBlockout() {
     document.body.classList.remove('viewonly'); // 擋頁不是唯讀，清掉 viewonly class
+    // 安全(§8f.6 硬化)：清掉任何已渲染的敏感內容(sidebar 專案＋各頁)，防 DOM 殘留被偷看。DATA 留記憶體但不入 DOM。
+    const pl = document.getElementById('projectList'); if (pl) pl.innerHTML = '';
+    document.querySelectorAll('#content .page').forEach(p => { p.innerHTML = ''; });
     const ov = document.getElementById('loginOverlay');
     if (ov) ov.classList.add('hidden'); // 登入框也藏掉，只剩擋頁
     let el = document.getElementById('authBlockout');
@@ -2194,9 +2197,8 @@ const App = {
 
     this.refreshUserBadge();
     this.updateWeekInfo();
-    this.renderSidebar();
-    this.refreshAll();
-
+    // 安全(§8f.6 硬化)：驗身分前【不渲染】敏感資料(sidebar 專案清單＋頁面內容)，避免 Prod 資料畫進登入遮罩底下的 DOM 被偷看。
+    //   各 auth 成功路徑自行 refreshAll：localDev(checkLoginState)／admin·editor(handleGoogleCredential)／viewonly(enterViewOnly)；none→enterBlockout 不渲染。
 
     // Login check
     this.checkLoginState();
@@ -2382,6 +2384,7 @@ const App = {
     document.body.classList.add('viewonly');
     document.getElementById('loginOverlay').classList.add('hidden');
     this.refreshUserBadge();
+    this.refreshAll();   // 安全(§8f.6 硬化)：init 不再預渲染，viewonly 進來自行畫本地資料(即時顯示，不依賴雲端下載成功)
   },
 
   // 唯讀編輯守門（UX）：viewonly 時 toast 提示並回 true，呼叫端 `if (App._roGuard()) return;`。
