@@ -370,36 +370,7 @@ const CloudSync = {
       }
 
       const cloud = result.data;
-      // 合併雲端 settings（保留本地的 cloud* 相關設定，避免一拉就斷線）
-      const localCloudCfg = {
-        cloudSyncUrl: DATA.settings.cloudSyncUrl,
-        cloudSyncEnabled: DATA.settings.cloudSyncEnabled,
-        cloudAutoSync: DATA.settings.cloudAutoSync,
-        _role: DATA.settings._role,   // 本地 session 身份，不被沒帶 _role 的雲端 blob 洗掉
-      };
-
-      DATA.projects = cloud.projects || [];
-      DATA.tasks = cloud.tasks || [];
-      DATA.meetings = cloud.meetings || [];
-      DATA.memos = cloud.memos || [];
-      DATA.schedule = cloud.schedule || { week: null, items: [] };
-      DATA.settings = { ...DEFAULT_SETTINGS, ...(cloud.settings || {}), ...localCloudCfg };
-      DATA.weekNotes = cloud.weekNotes || {};
-      // ⚠ 防坑：雲端沒帶 calendars（舊 blob）→ 保留本地剛匯入的，不可用空預設蓋掉
-      DATA.calendars = cloud.calendars || DATA.calendars;
-      DATA.settings.cloudLastSync = new Date().toISOString();
-
-      // 寫入 localStorage（直接寫，不觸發 auto-upload）
-      localStorage.setItem(STORE.projects, JSON.stringify(DATA.projects));
-      localStorage.setItem(STORE.tasks,    JSON.stringify(DATA.tasks));
-      localStorage.setItem(STORE.meetings, JSON.stringify(DATA.meetings));
-      localStorage.setItem(STORE.memos,    JSON.stringify(DATA.memos));
-      localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
-      localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
-      localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
-      localStorage.setItem(STORE.calendars, JSON.stringify(DATA.calendars));
-      // 雲端覆蓋後再跑一次 migration（否則 load 時跑的會被雲端蓋掉）；其內 Storage.save 會把結果上傳回雲端
-      runMigrations();
+      this._applyCloudData(cloud);
 
       this._refreshSyncStatus();
       this._downloadErrNotified = false;
@@ -414,6 +385,37 @@ const CloudSync = {
       }
       return false;
     }
+  },
+
+  // 整碗把一份 DATA blob 套進本地（CloudSync.download 與 §17 快照還原共用；保留本地雲端設定、寫 localStorage、跑 migration）
+  _applyCloudData(cloud) {
+    const localCloudCfg = {
+      cloudSyncUrl: DATA.settings.cloudSyncUrl,
+      cloudSyncEnabled: DATA.settings.cloudSyncEnabled,
+      cloudAutoSync: DATA.settings.cloudAutoSync,
+      _role: DATA.settings._role,   // 本地 session 身份，不被沒帶 _role 的雲端 blob 洗掉
+    };
+    DATA.projects = cloud.projects || [];
+    DATA.tasks = cloud.tasks || [];
+    DATA.meetings = cloud.meetings || [];
+    DATA.memos = cloud.memos || [];
+    DATA.schedule = cloud.schedule || { week: null, items: [] };
+    DATA.settings = { ...DEFAULT_SETTINGS, ...(cloud.settings || {}), ...localCloudCfg };
+    DATA.weekNotes = cloud.weekNotes || {};
+    // ⚠ 防坑：雲端沒帶 calendars（舊 blob）→ 保留本地剛匯入的，不可用空預設蓋掉
+    DATA.calendars = cloud.calendars || DATA.calendars;
+    DATA.settings.cloudLastSync = new Date().toISOString();
+    // 寫入 localStorage（直接寫，不觸發 auto-upload）
+    localStorage.setItem(STORE.projects, JSON.stringify(DATA.projects));
+    localStorage.setItem(STORE.tasks,    JSON.stringify(DATA.tasks));
+    localStorage.setItem(STORE.meetings, JSON.stringify(DATA.meetings));
+    localStorage.setItem(STORE.memos,    JSON.stringify(DATA.memos));
+    localStorage.setItem(STORE.schedule, JSON.stringify(DATA.schedule));
+    localStorage.setItem(STORE.settings, JSON.stringify(DATA.settings));
+    localStorage.setItem(STORE.weekNotes,JSON.stringify(DATA.weekNotes));
+    localStorage.setItem(STORE.calendars, JSON.stringify(DATA.calendars));
+    // 覆蓋後再跑一次 migration（否則 load 時跑的會被蓋掉）；其內 Storage.save 會把結果上傳回雲端
+    runMigrations();
   },
 
   _refreshSyncStatus() {

@@ -11,6 +11,7 @@ App.showSettingsTab = function(btn, id) {
   if (btn) btn.classList.add('active');
   const panel = document.getElementById(id);
   if (panel) panel.classList.add('active');
+  if (id === '資料與備份') App._loadBackupPanel();   // §17：進 tab 才拉備份設定 + 快照清單
 };
 
 App._pendingCalendar = null;   // 解析後暫存，確認才寫入
@@ -177,7 +178,7 @@ App.renderSettings = function() {
   document.getElementById('page-settings').innerHTML = `
     <div class="tabs" style="margin-bottom:18px;">
       <button class="tab-btn active" onclick="App.showSettingsTab(this,'排程')">排程</button>
-      <button class="tab-btn" onclick="App.showSettingsTab(this,'資料')">資料</button>
+      <button class="tab-btn" onclick="App.showSettingsTab(this,'資料與備份')">資料與備份</button>
       <button class="tab-btn" onclick="App.showSettingsTab(this,'編輯權限')">編輯權限</button>
       <button class="tab-btn" onclick="App.showSettingsTab(this,'安全')">🛡 安全</button>
       <button class="tab-btn" onclick="App.showSettingsTab(this,'關於')">關於</button>
@@ -213,7 +214,7 @@ App.renderSettings = function() {
         </div>
       </div>
       <!-- /排程 --></div></div>
-    <div class="tab-panel" id="資料"><div class="settings-grid">
+    <div class="tab-panel" id="資料與備份"><div class="settings-grid">
       <!-- 雲端同步（訪客唯讀時隱藏，editor/admin 才顯示：CSS body.viewonly .cloud-sync-sec） -->
       <div class="settings-section cloud-sync-sec">
         <div class="ss-title">☁ ${CFG('APP_NAME', 'PM-Core')} 跨裝置同步</div>
@@ -267,6 +268,50 @@ App.renderSettings = function() {
           4. 部署 → 網頁應用程式（執行身分：我；存取對象：任何人）<br>
           5. 取得 URL 貼到上方欄位，按「啟用」+「儲存所有設定」<br>
           6. 在第二台裝置打開 ${CFG('APP_NAME', 'PM-Core')}、設定一樣的 URL + Token → 自動同步 ✨
+        </div>
+      </div>
+
+      <!-- 雲端每日備份（§17，訪客唯讀時隱藏） -->
+      <div class="settings-section cloud-sync-sec">
+        <div class="ss-title">🕓 雲端每日備份</div>
+        <div class="ss-desc">後端每天自動把雲端資料存成帶日期快照，不需開著網頁；誤刪或故障可回溯還原。設定存後端、admin 才能改。</div>
+        <div class="ss-field">
+          <label>啟用每日備份</label>
+          <div><select id="set-backup-enabled" style="width:160px;"><option value="true">啟用</option><option value="false">停用</option></select></div>
+        </div>
+        <div class="ss-field">
+          <label>備份時間</label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:13px; color:var(--ink3);">每天</span>
+            <select id="set-backup-hour" style="width:90px;">${Array.from({ length: 24 }, (_, h) => `<option value="${h}">${String(h).padStart(2, '0')}</option>`).join('')}</select>
+            <span style="font-size:13px; color:var(--ink3);">時（台灣時間）</span>
+          </div>
+        </div>
+        <div class="ss-field">
+          <label>保留天數</label>
+          <div><select id="set-backup-retention" style="width:160px;"><option value="14">14 天</option><option value="30">30 天</option><option value="60">60 天</option></select></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap;">
+          <button class="tb-action" onclick="App.saveBackupConfig()">💾 儲存備份設定</button>
+          <span id="backupStatusEl" style="font-size:12px; color:var(--ink4);">讀取備份狀態中…</span>
+        </div>
+      </div>
+
+      <!-- 備份還原（§17，訪客唯讀時隱藏） -->
+      <div class="settings-section cloud-sync-sec">
+        <div class="ss-title">⏮ 備份還原</div>
+        <div class="ss-desc">挑一個歷史快照，把全部資料整碗還原到那天的狀態（第一版整碗還原）。還原會覆蓋目前所有資料，動作前建議先「下載 JSON 備份」。</div>
+        <div class="ss-field">
+          <label>選擇還原版本</label>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="restore-snap" style="width:240px;" onchange="App.onSnapshotPick()"><option value="">讀取中…</option></select>
+            <button class="tb-action ghost" onclick="App.loadSnapshots()">🔄 重新整理</button>
+          </div>
+        </div>
+        <div id="restorePreviewEl" style="padding:10px 12px; background:var(--surface2); border-radius:8px; margin-top:6px; font-size:12px; color:var(--ink3);">選一個版本以預覽內容。</div>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap;">
+          <button class="tb-action danger" onclick="App.restoreSnapshot()">⏮ 還原到此版本</button>
+          <span style="font-size:12px; color:var(--ink4);">⚠ 會覆蓋目前所有資料、無法復原</span>
         </div>
       </div>
 
@@ -571,6 +616,117 @@ App.cloudTestConnection = async function() {
     U.toast('⚠ 連線失敗：' + e.message, 'warning');
     console.error(e);
   }
+};
+
+// ─── §17 BACKUP / RESTORE HANDLERS ───
+App._backupUrl = function() { return (DATA.settings.cloudSyncUrl || CFG('BACKEND_URL', '') || '').trim(); };
+
+// GET 後端備份 API（沿用 §14 JWT）：action=snapshots/snapshot/backupConfig。回 parsed JSON；error 或無憑證 throw。
+App._backupGet = async function(action, extra) {
+  const url = App._backupUrl();
+  if (!url) throw new Error('尚未設定雲端 URL');
+  if (!Auth._idToken) throw new Error('登入已過期，請重新登入');
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch(url + sep + 'action=' + action + (extra || '') + '&id_token=' + encodeURIComponent(Auth._idToken), { method: 'GET', mode: 'cors', redirect: 'follow' });
+  const j = await res.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+};
+
+// 進「資料與備份」tab 時載入備份設定 + 快照清單（設定頁本就 admin 才進）
+App._loadBackupPanel = async function() {
+  const st = document.getElementById('backupStatusEl');
+  if (!Auth._idToken || !App._backupUrl()) { if (st) st.textContent = '需登入且設定雲端 URL 後才能使用'; return; }
+  try {
+    const j = await App._backupGet('backupConfig');
+    const c = j.config || {};
+    const setV = (id, v) => { const e = document.getElementById(id); if (e != null && v != null) e.value = String(v); };
+    setV('set-backup-enabled', c.enabled ? 'true' : 'false');
+    setV('set-backup-hour', c.hour);
+    setV('set-backup-retention', c.retentionDays);
+    if (st) st.textContent = c.lastBackup ? `最後備份 ${c.lastBackup} · 共 ${c.count} 份快照` : `尚無快照（啟用後每天自動備份，目前 ${c.count || 0} 份）`;
+  } catch (e) {
+    if (st) st.textContent = '讀取備份狀態失敗：' + e.message;
+  }
+  App.loadSnapshots();
+};
+
+App.loadSnapshots = async function() {
+  const sel = document.getElementById('restore-snap');
+  if (!sel) return;
+  try {
+    const j = await App._backupGet('snapshots');
+    const list = j.snapshots || [];
+    if (!list.length) { sel.innerHTML = '<option value="">（目前沒有快照）</option>'; document.getElementById('restorePreviewEl').textContent = '目前沒有可還原的快照。'; return; }
+    sel.innerHTML = list.map(s => `<option value="${s.date}">${s.date}（${Math.round((s.chars || 0) / 1024)} KB）</option>`).join('');
+    App.onSnapshotPick();
+  } catch (e) {
+    sel.innerHTML = `<option value="">讀取失敗：${U.esc(e.message)}</option>`;
+  }
+};
+
+App.saveBackupConfig = async function() {
+  const gv = id => { const e = document.getElementById(id); return e ? e.value : null; };
+  if (!Auth._idToken) { U.toast('登入已過期，請重新登入', 'error'); return; }
+  const enabled = gv('set-backup-enabled') === 'true';
+  const hour = parseInt(gv('set-backup-hour'), 10);
+  const retentionDays = parseInt(gv('set-backup-retention'), 10);
+  try {
+    const j = await Auth._postBackend({ action: 'setBackupConfig', id_token: Auth._idToken, enabled, hour, retentionDays });
+    if (j.error) throw new Error(j.error);
+    U.toast('✓ 備份設定已儲存', 'success');
+    const c = j.config || {};
+    const st = document.getElementById('backupStatusEl');
+    if (st) st.textContent = c.lastBackup ? `最後備份 ${c.lastBackup} · 共 ${c.count} 份快照` : `尚無快照（目前 ${c.count || 0} 份）`;
+  } catch (e) {
+    U.toast('⚠ 儲存失敗：' + e.message, 'warning');
+  }
+};
+
+App.onSnapshotPick = async function() {
+  const sel = document.getElementById('restore-snap');
+  const prev = document.getElementById('restorePreviewEl');
+  if (!sel || !prev) return;
+  const date = sel.value;
+  if (!date) { prev.textContent = '選一個版本以預覽內容。'; App._restorePreviewData = null; return; }
+  prev.textContent = '讀取中…';
+  try {
+    const j = await App._backupGet('snapshot', '&date=' + encodeURIComponent(date));
+    const d = j.data || {};
+    prev.innerHTML = `👁 這個版本有 <b>${(d.projects || []).length}</b> 個專案、<b>${(d.tasks || []).length}</b> 筆任務`;
+    App._restorePreviewData = d; App._restorePreviewDate = date;   // 快取，還原直接用免重抓
+  } catch (e) {
+    prev.textContent = '預覽失敗：' + e.message; App._restorePreviewData = null;
+  }
+};
+
+App.restoreSnapshot = function() {
+  const sel = document.getElementById('restore-snap');
+  const date = sel ? sel.value : '';
+  if (!date) { U.toast('⚠ 請先選一個還原版本', 'warning'); return; }
+  App.confirmModal({
+    icon: 'ti-alert-triangle', iconBg: '--rose-l', iconColor: '--rose-ink',
+    title: `還原到 ${date}？`,
+    msg: `會把目前<b>所有</b>資料（含這天之後的改動、其他專案）覆蓋成 <b>${date}</b> 的狀態，<b>無法復原</b>。<br>建議先按「⬇ 下載 JSON 備份」再還原。`,
+    okText: '還原並覆蓋', cancelText: '取消', okClass: 'danger',
+    onConfirm: async () => {
+      if (!Auth._idToken) { U.toast('登入已過期，請重新登入', 'error'); return; }
+      U.toast('⏮ 還原中…', 'info');
+      try {
+        let data = (App._restorePreviewDate === date && App._restorePreviewData) ? App._restorePreviewData : null;
+        if (!data) { const j = await App._backupGet('snapshot', '&date=' + encodeURIComponent(date)); data = j.data; }
+        if (!data) throw new Error('找不到該快照資料');
+        CloudSync._applyCloudData(data);   // 整碗替換本地（含 localStorage + migration）
+        await CloudSync.upload(true);       // 決策3：回寫雲端最新，避免下次同步被舊 blob 蓋回
+        App.refreshAll();
+        App.renderSidebar();
+        const cp = App.currentPage; if (cp) { const btn = document.querySelector(`[data-page="${cp}"]`); App.showPage(cp, btn); }
+        U.toast(`✓ 已還原到 ${date}`, 'success');
+      } catch (e) {
+        U.toast('⚠ 還原失敗：' + e.message, 'warning'); console.error(e);
+      }
+    },
+  });
 };
 
 App.googleSignOut = function() {
