@@ -2013,9 +2013,5 @@ ol.pf-hint-list { list-style: none; counter-reset: pfhint; margin: 0; padding: 0
 ol.pf-hint-list > li { counter-increment: pfhint; position: relative; padding-left: 22px; }
 ol.pf-hint-list > li::before { content: counter(pfhint) "."; position: absolute; left: 0; top: 0; color: var(--sage-600); font-weight: 700; }
 .pf-hint-list b { font-weight: 600; }
-/* 總覽頁 HintBox 深色 Header（只套 #portfolio-body，與圖表卡做區隔；全站公版不動，深底/反白字走既有變數） */
-#portfolio-body .hintbox-bar { background: var(--sage-700); }
-#portfolio-body .hintbox-title { color: var(--ink-inverse); }
-#portfolio-body .hintbox-bar i { color: var(--sage-200); }
-#portfolio-body .hintbox-summary { color: var(--sage-100); }
-#portfolio-body .hintbox-toggle { color: var(--sage-100); }
+/* §6.5b reg A（2026-07-02）：HintBox 全站統一淺色（淡沙底 header --sage-50 ＋白底 body ＋深字），
+   總覽頁不再深色 override，回落基礎 .hintbox 淺色公版。 */
