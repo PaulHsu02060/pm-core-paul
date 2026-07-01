@@ -63,6 +63,11 @@
 - 鐵則「不重構除非底層假設錯」防的是「對穩定不再動的 code 亂改結構」；
   但新需求若不打底會製造兩份重複時，**先合併再加＝正解**，不違反鐵則。
 
+## 規則 11：架構文件三檔分工（2026-07-01 起）
+- 主檔 `pm-core-architecture.md` **只放現役 spec**；已完成功能的落地紀錄／施工歷史／退役草稿一律進 `docs/archive/<功能群>.md`（`architecture-archive.md` 為 router）；全文地圖與「已完成功能去哪找」的反查看 `architecture-INDEX.md`。
+- 功能落地後：落地紀錄搬對應 archive 群檔、主檔留現役 spec＋一行指標、**INDEX 同步更新該 § 的狀態與所在檔**。過時／退役內容（拆檔前 monolith 舊行號等）直接刪、不留。
+- 動這三檔的**大段搬移**：用 node 腳本（錨點抓段＋dry-run 印計數證明＋utf8 讀寫＋split/join 保留換行），不用 Edit 硬框大段（坑5）；搬完 `git diff --ignore-all-space --shortstat` 與一般 shortstat 對齊＝無 CRLF flip（坑4）。找 code 以函式名為錨、檔案歸屬查主檔 §18.7.2。
+
 ---
 
 ## 每步自檢（你回覆前先在心裡跑一遍，不通過就不准送出）

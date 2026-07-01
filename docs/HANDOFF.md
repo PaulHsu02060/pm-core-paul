@@ -58,13 +58,20 @@
 - 三台機器各自 clone、Git＋GitHub 同步。開工先 `git pull`、收工 commit＋push、不留未同步工作。
 - `config.local.js`／`seed.local.js` 本地機密檔，不入版控、看到要警示、絕不 add。
 
+### 架構文件三檔分工（2026-07-01 起，取代單一巨檔）
+- **`pm-core-architecture.md`＝現役 spec 單一真實來源**（原則／未完成設計／現行行為規格）。已完成功能只留現役規格＋一行指標，不留落地流水帳。
+- **`architecture-archive.md`（router）＋`docs/archive/<功能群>.md`＝歷史沉澱**：已完成功能落地紀錄／施工計畫／退役草稿。保存可查、非現役。
+- **`architecture-INDEX.md`＝全文地圖**：每節 §→狀態(現役/落地/退役/草稿/未做)→所在檔，是「查已完成功能去哪找」的反查表。
+- **維護流程**：功能落地→該節落地紀錄搬對應功能群 archive、主檔留現役 spec＋指標行、INDEX 更新狀態/所在檔；過時或退役內容（如拆檔前 monolith 行號）直接刪不留。找 code 以**函式名**為錨（行號會漂），檔案歸屬查 §18.7.2。
+- **大段搬移**用 node 腳本（錨點抓段＋dry-run 計數＋utf8＋保留換行，坑5），搬完 `git diff --ignore-all-space --shortstat` 對帳防 CRLF flip（坑4）。
+
 ---
 
 ## §B 本週進度（每週滾動，只留當週）
 
 ### 2026-06-29（本週）
 
-**目前 HEAD**：版本號 app.js `?v=20260630-16`／style.css `?v=20260630-15`｜PDCA 報表區**拔除完成（第一刀 UI −563 行＋第二刀資料層孤兒）·線上驗 Pass**（§18.14；夾島 getProjectStages/datalist 保留、可販日 `pdcaData.targetDate` 保留、migration 不動、處 6/7 收掉）；Phase 2 ② 較上週趨勢（§18.12）；口徑收斂（§18.13，160＋差異 84/0）；Excel WBS 狀態 round-trip 修正（踩坑坑9）；安全硬化 #1/#2＋安全頁——以上均**線上驗 Pass**
+**目前 HEAD**：版本號 app.js／各拆檔 `?v=20260630-26`／style.css `?v=20260630-26`｜**app.js 物理拆檔完成（11 檔·批1–10·160 全綠，§18.7.2）**｜**§19 ECN 設變模組設計草稿落地（待拍板）**｜PDCA 報表區**拔除完成（第一刀 UI −563 行＋第二刀資料層孤兒）·線上驗 Pass**（§18.14；夾島 getProjectStages/datalist 保留、可販日 `pdcaData.targetDate` 保留、migration 不動、處 6/7 收掉）；Phase 2 ② 較上週趨勢（§18.12）；口徑收斂（§18.13，160＋差異 84/0）；Excel WBS 狀態 round-trip 修正（踩坑坑9）；安全硬化 #1/#2＋安全頁——以上均**線上驗 Pass**
 
 **已落地（本 session）——Phase 2 第一刀（部門負載改本週負荷＋個人雜事疊加），詳見架構 §18.10**
 - 設計定案：§18.10 部門負載本週負荷／§6.5b HintBox 放置標準 `7c849e5` `d217f3a`
@@ -114,10 +121,14 @@
 - **踩坑**：node 改中文檔讀寫編碼要一致 utf8（踩過讀 utf8 寫 latin1 寫壞中文，git checkout 還原）→ 記入坑5。
 - **第二刀已落地**：清資料層孤兒（`STORE.pdcaGroups` key/load/save／`DATA_SUFFIXES`／`ensurePdcaGroupsRoot`/`ensureTaskPdcaGroup`/`ensureAllPdcaData`＋呼叫＋殘留註解）；保留 `ensurePdcaData`＋`pdcaData.targetDate`＋`DATA.pdcaGroups` 預設（migration 用）。`node --check`＋160 PASS。`?v=20260630-16`。
 
+**已落地（2026-06-30→07-01，本 session）——app.js 物理拆檔完成（11 檔）＋ §19 ECN 草稿，詳見架構 §18.7.2／§19**
+- **拆檔（批1–10 全落地）**：`app.js`(11928 行)→ **app-core**（地基＋跨檔共用 helper＋modal＋bootstrap）＋ portfolio／meeting／settings／schedule／shared-render／report／excel／workspace／project／template。**零行為變更（純剪貼）**，每批 `node --check`＋160 測試全綠、獨立 commit；5 個關鍵跨檔夾島照 §18.7.2 歸位（getProjectStages／taskDisplayProgress／modal→core、_gantt 系列＋exportProjectWbs→excel）。載入序 app-core 最先、bootstrap 結尾，`?v=20260630-26`。**剩 github.io 線上驗**（重點驗載入序/TDZ：登入頁正常隱藏、各頁渲染、智慧排程/匯出入無 console 紅字）。
+- **§19 ECN 設變案管理模組（設計草稿）** `dd5d594`：複用三劍客排程／Stage 2 大表／智慧面板＋新增 S/M/L 範本·投入比例%·負荷雙指標(人横切·案縱切)·迴圈/重啟紅旗·結案版本快照·BOM 差額面板。**整節 `[待拍板]`**，等 RD/老闆會議鎖定；§19.1 有決策表（已填建議值）。
+
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
 2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；② 趨勢「較上週」**已落地（§18.12，B 方案前端快照、線上驗 Pass）**。Phase 2 三刀全落地。見 §18.10b／§18.12／§18.5。
    - **口徑收斂 已落地（§18.13，等值重構）**：逾期 4 處改 call 現成 `isTaskDelayed`＋工時抽 `weeklyScheduledHours`/`weekCapacityHours` 共用（Portfolio／工作台四處）。`node --check`＋160 PASS＋**差異測試 84/0**（OLD≟NEW 逐筆相等，無對照版改用程式邏輯驗）。PDCA 處 6/7 **已隨 PDCA 拔除第一刀收掉**（§18.14）。`?v=20260630-13`。
 3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。**做完後回頭更新「🛡 安全」頁 `SECURITY_INFO`**：把 roadmap 的「全域定期備份與一鍵還原」移到 groups 防護網（論述從「規劃中」改「已具備」）。
-4. **app.js 全檔物理拆檔**（§18.7 定案＋**§18.7.2 全檔總盤已盤點＋驗證，2026-06-30，權威**）：app.js 11928 行 → **11 檔**（app-core/schedule/template/portfolio/workspace/project/shared-render/report/settings/meeting/excel）。**新 session 照 §18.7.2 執行**：每檔來源行界、5 個關鍵跨檔夾島（已驗：getProjectStages/taskDisplayProgress/modal→core、_gantt 系列+predToWbsFormat+exportProjectWbs→excel）、建議批次順序（portfolio→meeting→settings→schedule→shared-render→report→excel→workspace→project→template，低風險先）、3 個必停審點都列好。載入序 app-core 先＋bootstrap 在後＋各檔 `?v=`。每檔 node --check＋160＋線上驗、獨立 commit。§18.7.1 為早期 3 批草案（已修正 _gantt 歸屬，以 §18.7.2 為準）。**Paul 將開新 session 執行。**
+4. **app.js 全檔物理拆檔——✅ 已完成**（批1–10，2026-06-30→07-01）：11 檔全落地、每批 160 全綠、`?v=20260630-26`，詳見上方落地紀錄與架構 §18.7.2。**僅剩 github.io 線上驗**（拆檔零行為變更，重點驗載入序/TDZ）。
 5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI 較上週首週/清快取時 4 卡留白「—」（需累積一週才亮趨勢，符合不放假數字）；overflow 面板字級（規範過時待重看）。
