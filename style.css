@@ -70,6 +70,7 @@
   --memo-g: #D9EBC8; --memo-o: #FFD8B5;
 
   --bg: #F5F4EE; --surface: #FFFFFF; --surface2: var(--cream); --pearl: #F9F8F3;   /* --bg 暖沙降亮(§18 工作台); --pearl 珍珠柔白卡面 */
+  --hint-head: #F1EFE8;   /* HintBox header 淡沙底（reg A V1，暖中性淺色·非綠） */
   --rule: #E8E4D8; --rule2: #D6D1C2;
   --ink: var(--stone-900); --ink2: var(--stone-600); --ink3: var(--stone-500); --ink4: var(--stone-400);
   --ink-inverse: #FFFFFF;   /* 彩色底上的反白前景字(深色主題時仍須為白,勿與 --surface 混用) */
@@ -1351,7 +1352,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 
 /* ── HintBox：區塊級說明框公版（展開/收起 + 收起態 hover 浮出 data-tip，§6.5b）── */
 .hintbox { border: 0.5px solid var(--sage-100); border-radius: var(--r8); background: var(--surface); margin: 10px 0; }
-.hintbox-bar { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 9px 12px; background: var(--sage-50); border-radius: var(--r8) var(--r8) 0 0; }
+.hintbox-bar { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 9px 12px; background: var(--hint-head); border-radius: var(--r8) var(--r8) 0 0; }
 .hintbox.collapsed .hintbox-bar { border-radius: var(--r8); }
 .hintbox-head { display: flex; align-items: center; gap: 8px; flex: 1; }
 .hintbox-bar i { font-size: 18px; color: var(--sage-600); }
@@ -1361,14 +1362,12 @@ body.viewonly .cloud-sync-sec { display: none; }
 .hintbox-body { overflow: hidden; max-height: 600px; transition: max-height .25s ease; padding: 12px; }
 .hintbox.collapsed .hintbox-body { max-height: 0; padding-top: 0; padding-bottom: 0; }
 /* HintBox 內四條規則色塊（成對 -l 底 / -ink 字，全走 :root） */
-.ht-rule { display: block; padding: 7px 10px; border-radius: var(--r6); margin-bottom: 6px; font-size: 12px; line-height: 1.6; }
+/* reg A：HintBox body 全站統一白底、一種規則——原 ht-start/dur/end/down 四色塊中性化（不再綠/琥珀/藍/粉多段） */
+.ht-rule { display: block; padding: 4px 2px; margin-bottom: 5px; font-size: 12px; line-height: 1.6; color: var(--ink2); }
 .ht-rule:last-child { margin-bottom: 0; }
-.ht-rule b { display: block; margin-bottom: 3px; font-weight: 600; }
+.ht-rule b { display: block; margin-bottom: 3px; font-weight: 600; color: var(--ink); }
 .ht-rule span { text-wrap: pretty; word-break: keep-all; overflow-wrap: break-word; }
-.ht-rule.ht-start { background: var(--sage-50); color: var(--sage-700); }
-.ht-rule.ht-dur { background: var(--amber-l); color: var(--amber-ink); }
-.ht-rule.ht-end { background: var(--slate-l); color: var(--slate-ink); }
-.ht-rule.ht-down { background: var(--rose-l); color: var(--rose-ink); }
+.ht-rule.ht-start, .ht-rule.ht-dur, .ht-rule.ht-end, .ht-rule.ht-down { background: transparent; }
 
 
 /* 計量方式切換（第27項，殼）：總開關在表單頂，data-measure 放 .task-form 遙控下方分散欄位 */
@@ -1760,7 +1759,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 .s2n-gd-row > i.ti-pointer { color: var(--sage-600); }
 .s2n-gd-row > i.ti-bulb { color: var(--amber-accent); }
 /* HintBox Title 列加底色＋區隔（scoped 不影響 Stage 1）；展開時只圓上緣 */
-.s2n-wrap .hintbox-bar { background: var(--sage-50); border-radius: var(--r8) var(--r8) 0 0; }
+.s2n-wrap .hintbox-bar { background: var(--hint-head); border-radius: var(--r8) var(--r8) 0 0; }
 .s2n-wrap .hintbox.collapsed .hintbox-bar { border-radius: var(--r8); }
 .s2n-wrap .hintbox-body { padding-top: 10px; }
 /* 每案 body：左部門面板（加寬）＋右甘特並排（窄欄收折成上下） */
