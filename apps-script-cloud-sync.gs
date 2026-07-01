@@ -27,6 +27,17 @@ function doGet(e) {
     if (e && e.parameter && e.parameter.action === 'role') {
       return _checkRole(e.parameter.email, e.parameter.setupKey);
     }
+    // 備份/快照讀取路（JWT + role≥editor）——additive，§17.8。寫快照只在 trigger 內、不開放前端。
+    if (e && e.parameter && ['snapshots', 'snapshot', 'backupConfig'].indexOf(e.parameter.action) >= 0) {
+      const a = _authUser({ id_token: e.parameter.id_token });
+      if (!a.ok) return a.resp;
+      if (a.role !== 'superadmin' && a.role !== 'admin' && a.role !== 'editor') return _json({ error: 'Forbidden' });
+      if (e.parameter.action === 'snapshots') return _json({ ok: true, snapshots: _listSnapshots() });
+      if (e.parameter.action === 'backupConfig') return _json({ ok: true, config: _backupStatus() });
+      const snap = _readSnapshotData(String(e.parameter.date || ''));
+      if (snap === null) return _json({ error: 'Snapshot not found' });
+      return _json({ ok: true, data: snap, date: String(e.parameter.date || '') });
+    }
     // 資料路：驗 JWT + role≥viewonly（取代公開唯讀）。role 分支維持公開（登入 bootstrap）。
     const auth = _authUser({ id_token: e.parameter.id_token });
     if (!auth.ok) return auth.resp;
@@ -171,6 +182,17 @@ function doPost(e) {
       return _getLists(body);
     }
 
+    // 備份設定寫入（admin/superadmin），§17.8。trigger 讀這些值決定何時備份、留幾天。
+    if (body.action === 'setBackupConfig') {
+      const a = _authAdmin(body);
+      if (!a.ok) return a.resp;
+      const p = PropertiesService.getScriptProperties();
+      if (typeof body.enabled === 'boolean') p.setProperty('BACKUP_ENABLED', body.enabled ? 'true' : 'false');
+      if (body.hour != null) { const h = parseInt(body.hour, 10); if (h >= 0 && h <= 23) p.setProperty('BACKUP_HOUR', String(h)); }
+      if (body.retentionDays != null) { const r = parseInt(body.retentionDays, 10); if (r >= 1 && r <= 365) p.setProperty('BACKUP_RETENTION_DAYS', String(r)); }
+      return _json({ ok: true, config: _backupStatus() });
+    }
+
     // 同步寫入：JWT 驗身分 + role≥editor（取代舊 CHECK_TOKEN）。viewonly/none 擋。
     const auth = _authUser(body);
     if (!auth.ok) return auth.resp;
@@ -238,6 +260,112 @@ function _json(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §17 全域每日備份 + 還原（additive；沿用 §14 JWT+role；寫快照只在 trigger 內）
+// 快照＝把 data 分頁複製成 snap_YYYY-MM-DD 分頁（複用 45000 分格，blob 超大照樣分格）
+// ═══════════════════════════════════════════════════════════════
+const BACKUP_TZ = 'Asia/Taipei';
+
+function _backupCfg() {
+  const p = PropertiesService.getScriptProperties();
+  return {
+    enabled: p.getProperty('BACKUP_ENABLED') !== 'false',              // 預設 true
+    hour: parseInt(p.getProperty('BACKUP_HOUR') || '3', 10),          // 預設 3 時
+    retentionDays: parseInt(p.getProperty('BACKUP_RETENTION_DAYS') || '30', 10)  // 預設 30 天
+  };
+}
+
+function _backupStatus() {
+  const cfg = _backupCfg();
+  const snaps = _listSnapshots();
+  return {
+    enabled: cfg.enabled, hour: cfg.hour, retentionDays: cfg.retentionDays,
+    lastBackup: snaps.length ? snaps[0].date : null, count: snaps.length
+  };
+}
+
+// time-trigger（每小時跑一次）：只有「啟用」且「當前台灣時鐘點 === 設定時」才動作。
+function dailySnapshot() {
+  const cfg = _backupCfg();
+  if (!cfg.enabled) return;
+  const now = new Date();
+  const hour = parseInt(Utilities.formatDate(now, BACKUP_TZ, 'H'), 10);
+  if (hour !== cfg.hour) return;
+  const today = Utilities.formatDate(now, BACKUP_TZ, 'yyyy-MM-dd');
+  _copyDataToSnapshot(today);
+  _pruneSnapshots(cfg.retentionDays);
+}
+
+function _copyDataToSnapshot(dateStr) {
+  const ss = SpreadsheetApp.openById(CLOUD_SHEET_ID);
+  const src = ss.getSheetByName(CLOUD_SHEET_NAME);
+  if (!src) return;
+  const name = 'snap_' + dateStr;
+  const old = ss.getSheetByName(name);
+  if (old) ss.deleteSheet(old);            // 同日重跑＝覆蓋（冪等）
+  const copy = src.copyTo(ss);
+  copy.setName(name);
+}
+
+function _pruneSnapshots(retentionDays) {
+  const ss = SpreadsheetApp.openById(CLOUD_SHEET_ID);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - retentionDays);
+  const cutoffStr = Utilities.formatDate(cutoff, BACKUP_TZ, 'yyyy-MM-dd');
+  ss.getSheets().forEach(function (sh) {
+    const n = sh.getName();
+    if (n.indexOf('snap_') === 0 && n.slice(5) < cutoffStr) ss.deleteSheet(sh);   // ISO 日期字串比較即時序
+  });
+}
+
+function _listSnapshots() {
+  const ss = SpreadsheetApp.openById(CLOUD_SHEET_ID);
+  const out = [];
+  ss.getSheets().forEach(function (sh) {
+    const n = sh.getName();
+    if (n.indexOf('snap_') !== 0) return;
+    const lastRow = sh.getLastRow();
+    let chars = 0;
+    if (lastRow >= 2) {
+      const vals = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < vals.length; i++) if (vals[i][0]) chars += String(vals[i][0]).length;
+    }
+    out.push({ date: n.slice(5), chars: chars });
+  });
+  out.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });  // 新→舊
+  return out;
+}
+
+function _readSnapshotData(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const ss = SpreadsheetApp.openById(CLOUD_SHEET_ID);
+  const sh = ss.getSheetByName('snap_' + dateStr);
+  if (!sh) return null;
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return null;
+  const vals = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let json = '';
+  for (let i = 0; i < vals.length; i++) if (vals[i][0]) json += vals[i][0];
+  if (!json) return null;
+  try { return JSON.parse(json); } catch (e) { return null; }
+}
+
+// 一次性：部署後在 Apps Script 編輯器手動執行一次，建立每小時 trigger（會先清掉舊的同名 trigger）。
+function setupBackupTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'dailySnapshot') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('dailySnapshot').timeBased().everyHours(1).create();
+  Logger.log('每小時 trigger 已建立；備份時鐘點＝' + _backupCfg().hour + ' 時（台灣）');
+}
+
+// 測試：立刻複製一份今天快照（不管時鐘點），並印出快照清單。
+function testSnapshotNow() {
+  const today = Utilities.formatDate(new Date(), BACKUP_TZ, 'yyyy-MM-dd');
+  _copyDataToSnapshot(today);
+  Logger.log('snapshots: ' + JSON.stringify(_listSnapshots()));
 }
 
 // ─── 測試函式 ───

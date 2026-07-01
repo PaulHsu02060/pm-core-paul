@@ -15,7 +15,7 @@
  */
 var APP_CONFIG = {
   CLOUD_SHEET_ID: 'PASTE_YOUR_SHEET_ID_HERE',
-  BACKEND_URL: 'https://script.google.com/macros/s/AKfycbwXBJCM9G21RHbxECyaRUG7M3G7tNdyJaIIhKDxC6C_VEiCZZ3sb_QFr4SY4JbWYE6gjA/exec',  // 後端單一部署 exec URL（讀寫+role+名單；doGet/doPost 已綁登入 §14；進 git，URL 非機密）
+  BACKEND_URL: 'https://script.google.com/macros/s/AKfycbwWbctiIbovezEsl3mJXF_R6SBn8Z37Z5my1_zcdtz4ijPm2tNp0H9AfjnxGSIaLYfzEw/exec',  // 後端單一部署 exec URL（讀寫+role+名單+§17備份；doGet/doPost 已綁登入 §14；進 git，URL 非機密）
   WBS_SHEET_NAME: 'WBS主表',
   OAUTH_CLIENT_ID: '463155721513-vpcjoakeudb8r4jpuid98h8idp3grmsp.apps.googleusercontent.com',
   COMPANY_NAME: 'My Company',
