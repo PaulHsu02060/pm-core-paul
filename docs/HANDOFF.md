@@ -125,10 +125,16 @@
 - **拆檔（批1–10 全落地）**：`app.js`(11928 行)→ **app-core**（地基＋跨檔共用 helper＋modal＋bootstrap）＋ portfolio／meeting／settings／schedule／shared-render／report／excel／workspace／project／template。**零行為變更（純剪貼）**，每批 `node --check`＋160 測試全綠、獨立 commit；5 個關鍵跨檔夾島照 §18.7.2 歸位（getProjectStages／taskDisplayProgress／modal→core、_gantt 系列＋exportProjectWbs→excel）。載入序 app-core 最先、bootstrap 結尾，`?v=20260630-26`。**剩 github.io 線上驗**（重點驗載入序/TDZ：登入頁正常隱藏、各頁渲染、智慧排程/匯出入無 console 紅字）。
 - **§19 ECN 設變案管理模組（設計草稿）** `dd5d594`：複用三劍客排程／Stage 2 大表／智慧面板＋新增 S/M/L 範本·投入比例%·負荷雙指標(人横切·案縱切)·迴圈/重啟紅旗·結案版本快照·BOM 差額面板。**整節 `[待拍板]`**，等 RD/老闆會議鎖定；§19.1 有決策表（已填建議值）。
 
+**已落地（2026-07-01，本 session）——§17 全域每日備份＋還原（Prod 線上驗 Pass），詳見架構 §17.8**
+- **後端**（`apps-script-cloud-sync.gs`，additive、不動現有寫入路）`fd2e391`：`dailySnapshot` 每小時 trigger、命中設定時鐘點才把 `data` 分頁複製成 `snap_YYYY-MM-DD`（複用 45000 分格）＋清超期；`snapshots`／`snapshot`／`backupConfig`(GET,role≥editor)＋`setBackupConfig`(POST,admin)，沿用 §14 JWT。編輯器驗（testSnapshotNow／setupBackupTrigger）＋Prod 測試連線 Pass。config.js `BACKEND_URL` 換新部署。
+- **前端**（`settings.js`「資料與備份」tab）`ab48873`：雲端每日備份（啟用／時間／保留天數／狀態）＋備份還原（版本下拉→預覽→confirmModal→整碗替換＋回寫雲端）；抽 `CloudSync._applyCloudData` 共用（app-core，download 與還原共用）。`?v=20260701-1`。
+- **安全頁**：`SECURITY_INFO` 把備份從 roadmap 移到「📦 資料保護」防護網（論述改已具備）＋roadmap 換「單一專案精準還原」。`?v=20260701-2`。
+- **決策**：保留 30 天（UI 可改）／存法＝同試算表 snap 分頁／還原回寫雲端／備份時間 UI 可設。**尾巴**：Dev（`file://`）無法 Google 登入故不跨機同步、**維持現狀**（Paul 拍板不做，要做需 localhost＋OAuth＋獨立測試 Sheet）；單一專案還原列 §17.6 後續。
+
 **下一件 / 待辦**
 1. **線上驗證（github.io）**：Phase 2 第一刀（部門負載 stacked／容量線／爆單、HintBox 位置、小時 Task 部門分流、工時設定彈窗、設定未存提醒）部署後全量過一遍；工作台 UI（v6 週曆／白卡化／KPI 卡／時程表設定）DEV 已驗多項 Pass。
 2. **Phase 2 後續**：③ 會議/事件 `dept`/`owner` ＋橘塊納會議 **已落地（§18.10b，node 驗已補 160 PASS、剩 github.io 線上驗）**；② 趨勢「較上週」**已落地（§18.12，B 方案前端快照、線上驗 Pass）**。Phase 2 三刀全落地。見 §18.10b／§18.12／§18.5。
    - **口徑收斂 已落地（§18.13，等值重構）**：逾期 4 處改 call 現成 `isTaskDelayed`＋工時抽 `weeklyScheduledHours`/`weekCapacityHours` 共用（Portfolio／工作台四處）。`node --check`＋160 PASS＋**差異測試 84/0**（OLD≟NEW 逐筆相等，無對照版改用程式邏輯驗）。PDCA 處 6/7 **已隨 PDCA 拔除第一刀收掉**（§18.14）。`?v=20260630-13`。
-3. **§17 全域定時備份+還原**（Paul 拍板）：後端 .gs 起（最高風險、獨立 session）。規格見 §17。**做完後回頭更新「🛡 安全」頁 `SECURITY_INFO`**：把 roadmap 的「全域定期備份與一鍵還原」移到 groups 防護網（論述從「規劃中」改「已具備」）。
+3. **§17 全域每日備份+還原——✅ 已完成**（2026-07-01，Prod 驗 Pass）：後端每日快照 API＋前端「資料與備份」tab＋安全頁論述已改，詳見上方落地紀錄與 §17.8。單一專案還原（§17.6）列後續增強。
 4. **app.js 全檔物理拆檔——✅ 已完成**（批1–10，2026-06-30→07-01）：11 檔全落地、每批 160 全綠、`?v=20260630-26`，詳見上方落地紀錄與架構 §18.7.2。**僅剩 github.io 線上驗**（拆檔零行為變更，重點驗載入序/TDZ）。
 5. **已知尾巴**：部門負載橘塊現含時段任務＋專案會議（category=meeting 且已指派/全體均攤；打掃與未指派不計、週末會議不計）；設定 cal-paste 打字也算 dirty（離開可能多跳一次提醒、按放棄即可）；「儲存並離開」走 `saveSettings(true)` 跳過工時影響彈窗；KPI 較上週首週/清快取時 4 卡留白「—」（需累積一週才亮趨勢，符合不放假數字）；overflow 面板字級（規範過時待重看）。
