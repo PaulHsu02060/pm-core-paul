@@ -69,7 +69,18 @@
 
 ## §B 本週進度（每週滾動，只留當週）
 
-### 2026-06-29（本週）
+### 2026-07-02（本週）
+
+**目前 HEAD**：`3e7dd30`｜app.js `?v=20260702-1`／style.css `?v=20260702-3`／各拆檔 `20260630-26`｜**§19 ECN 設變模組 Phase 1 三方碰撞定案＋三張 Mockup 定版＋規格全回寫**（§19.1b/19.2/19.3/19.4/19.5/19.6/19.9/19.10 A·B·C/19.11）；**Phase 1 開工首塊：sidebar 依 `ecnType` 分兩群（NPI／設變案 ECN，V3 區塊底帶群標）`71c398c`·線上驗 Pass**；**HintBox 全站統一淺色（reg A：暖沙 `#F1EFE8` header＋白底 body＋一種規則）`3778393`+`3e7dd30`·線上驗 Pass**
+
+**已落地（2026-07-01→07-02，本 session）——§19 ECN Phase 1 定案 + 開工首塊**
+- **§19 三方碰撞（Paul×Claude×Gemini）定案**：瘦流程骨架（6 階段＋條件/迷霧池，取代 S/M/L 胖範本）／Model Y PM 常駐協調列（death-by-small-cases 盾）／雙軌變異（執行落後 vs 範圍蔓延）／成因 Hybrid 標記／暴走告警客戶端界線／BOM ROI 差異四區·目標成本（設變差額＋採購降價·每行納入布林）／切換方式（即刻/漸進）→呆滯（含刪除料）／整台年效益·可設年限／幣別三情境軟擋／無單價核對／**存資料不存 Excel 走 exceljs 重生**／生效日雙卡／多交付軌／DR 回歸。commit `d457b78`/`2ebea97`。
+- **三張 Mockup 定版**：開案畫面（方向 C·S/M/L 動態·PM 協調條·排程建議行跟隨·Fan-out·**前置白話三欄零 FS**）／設變專屬 dashboard（左 HUD 健康三指標＋右 3 資料夾頁籤·成因 Enum·迴圈列·PM 常駐列）／BOM·ROI 差異四區。開案即落地跳 dashboard、sidebar 設變案群組、ECN 簡化實體（無 view 工具列）、**跨案 135% 推 Phase 2**。
+- **開工首塊 `71c398c`**：`renderSidebar` 抽 `renderProj`、依 `ecnType` 分 NPI／ECN 兩群、各自新增鈕、V3 區塊底帶群標（`.sb-grp` 色點 NPI 綠/ECN 琥珀，全走 :root）、`openEcnDialog` 占位 toast。
+- **HintBox 淺色 `3778393`+`3e7dd30`**：移除總覽 `#portfolio-body` 深色 override、header 暖沙 `--hint-head #F1EFE8`、body 四色塊中性化統一白底（一種規則）。§6.5b 更新。
+- **下一件**：設變案**開案畫面**（把 `openEcnDialog` 占位換真流程，複用 `_flowStep1`＋ECN 三處＋名冊挪前＋分級按鈕＋PM 協調條＋排程建議行＋Fan-out）→ 建立即落地跳 dashboard。
+
+### 2026-06-29
 
 **目前 HEAD**：版本號 app.js／各拆檔 `?v=20260630-26`／style.css `?v=20260630-26`｜**app.js 物理拆檔完成（11 檔·批1–10·160 全綠，§18.7.2）**｜**§19 ECN 設變模組設計草稿落地（待拍板）**｜PDCA 報表區**拔除完成（第一刀 UI −563 行＋第二刀資料層孤兒）·線上驗 Pass**（§18.14；夾島 getProjectStages/datalist 保留、可販日 `pdcaData.targetDate` 保留、migration 不動、處 6/7 收掉）；Phase 2 ② 較上週趨勢（§18.12）；口徑收斂（§18.13，160＋差異 84/0）；Excel WBS 狀態 round-trip 修正（踩坑坑9）；安全硬化 #1/#2＋安全頁——以上均**線上驗 Pass**
 
