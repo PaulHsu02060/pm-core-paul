@@ -240,6 +240,17 @@ button { cursor: pointer; }
   color: var(--sidebar-ink2); text-transform: uppercase;
   padding: 0 10px; margin-bottom: 6px;
 }
+/* §19.3 sidebar NPI／ECN 兩群標題（V3 區塊底帶＋色點＋加粗）；空群淡字 placeholder */
+.sb-grp {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0 8px 7px; padding: 5px 10px;
+  background: var(--sidebar-card); border-radius: var(--r6);
+  font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--sage-50);
+}
+.sb-grp.sb-grp-ecn { margin-top: 14px; }
+.sb-grp-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--sage-300); }
+.sb-grp-ecn .sb-grp-dot { background: var(--amber-accent); }
+.sb-group-empty { font-size: 11px; color: var(--sidebar-ink2); padding: 3px 10px 4px; }
 .sb-nav, .sb-proj-list { display: flex; flex-direction: column; gap: 1px; }
 .sb-item {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px;

@@ -1891,7 +1891,8 @@ const App = {
     // §15 段4：同名群組（count>1）才顯版號副標，單一專案不顯（避免雜訊）
     const nameCount = {};
     DATA.projects.forEach(p => { nameCount[p.name] = (nameCount[p.name] || 0) + 1; });
-    list.innerHTML = DATA.projects.map(p => {
+    // 單一專案列 HTML（NPI／ECN 兩群共用）
+    const renderProj = (p) => {
       const cnt = DATA.tasks.filter(t => t.project === p.id && t.status !== 'done' && !t._deleted).length;
       const isActive = this.currentPage === 'project' && this.currentProjectId === p.id;
       // 版號 + 日期副標：日期 importedAt||createdAt（B 方案 fallback）、D.fmt 本地避 -1 天；version||1 兜底舊專案
@@ -1906,7 +1907,17 @@ const App = {
         </span>
         <span class="count">${cnt}</span>
       </button>`;
-    }).join('');
+    };
+    // §19.3：sidebar 依 ecnType 分兩群——NPI 開發案（非 ecn）＋ 設變案 ECN；各群尾放自己的新增鈕
+    const npiProjs = DATA.projects.filter(p => !p.ecnType);
+    const ecnProjs = DATA.projects.filter(p => p.ecnType);
+    list.innerHTML =
+      `<div class="sb-grp"><span class="sb-grp-dot"></span>NPI 開發案</div>`
+      + (npiProjs.length ? npiProjs.map(renderProj).join('') : `<div class="sb-group-empty">（尚無開發案）</div>`)
+      + `<button class="sb-add-proj" onclick="App.openProjectDialog()"><span class="sb-add-ico">＋</span>新增專案</button>`
+      + `<div class="sb-grp sb-grp-ecn"><span class="sb-grp-dot"></span>設變案 · ECN</div>`
+      + (ecnProjs.length ? ecnProjs.map(renderProj).join('') : `<div class="sb-group-empty">（尚無設變案）</div>`)
+      + `<button class="sb-add-proj" onclick="App.openEcnDialog()"><span class="sb-add-ico">＋</span>新增設變案</button>`;
 
 
     const setBtn = document.querySelector('[data-page=settings]');
@@ -1920,6 +1931,11 @@ const App = {
   openProject(id, btn) {
     this.currentProjectId = id;
     this.showPage('project', btn);
+  },
+
+  // §19.3 ECN 開案：占位——設變案開案畫面為 Phase 1 下一步施工項
+  openEcnDialog() {
+    U.toast('設變案開案畫面為 Phase 1 下一步施工項');
   },
 };
 
