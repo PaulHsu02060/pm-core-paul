@@ -78,8 +78,10 @@
 - **三張 Mockup 定版**：開案畫面（方向 C·S/M/L 動態·PM 協調條·排程建議行跟隨·Fan-out·**前置白話三欄零 FS**）／設變專屬 dashboard（左 HUD 健康三指標＋右 3 資料夾頁籤·成因 Enum·迴圈列·PM 常駐列）／BOM·ROI 差異四區。開案即落地跳 dashboard、sidebar 設變案群組、ECN 簡化實體（無 view 工具列）、**跨案 135% 推 Phase 2**。
 - **開工首塊 `71c398c`**：`renderSidebar` 抽 `renderProj`、依 `ecnType` 分 NPI／ECN 兩群、各自新增鈕、V3 區塊底帶群標（`.sb-grp` 色點 NPI 綠/ECN 琥珀，全走 :root）、`openEcnDialog` 占位 toast。
 - **HintBox 淺色 `3778393`+`3e7dd30`**：移除總覽 `#portfolio-body` 深色 override、header 暖沙 `--hint-head #F1EFE8`、body 四色塊中性化統一白底（一種規則）。§6.5b 更新。
-- **選型引導頁 Mockup 定版＋§19 spec 回寫（2026-07-02，本 session，未 commit）**：統一入口重建（sidebar 頂端單一「＋建立新案」、移除兩群尾＋鈕、兩群退為 View 篩選器）＋選型頁兩欄型別卡（開發 範本/Excel/空白｜設變 S/M/L）＋不可互轉界線＋純白線框＋全套潤稿文案＋型別 Banner＋排程列複用 `.s1-dynhint` 擇一必填。回寫 §19.3／§19.10 A.0(新)/A.1/E／§19.11／INDEX。新增 AGENT_GATE 規則12＋memory `mockup-detail-into-docs`。
-- **下一件**：設變案**入口重建＋選型引導頁＋開案畫面**開發（§19.10 A.0/A.1；把 `openEcnDialog` 占位換真流程，複用 `_flowStep1`＋型別 Banner＋ECN 三處＋名冊挪前＋分級按鈕＋PM 協調條＋排程列複用＋Fan-out）→ 建立即落地跳 dashboard。
+- **統一入口＋選型引導頁 落地** `4c4bb51`：sidebar 頂端單一「＋建立新案」、兩群退為 View 分類清單、兩欄型別卡＋不可互轉警示＋防過勞條。規格 §19.10 A.0；AGENT_GATE 規則12＋memory `mockup-detail-into-docs`（`f578348`）。
+- **ECN 開案畫面＋範本引擎 落地** `ad8a73f`（§19.10 A/A.1 定版，多輪線上驗＋Gemini 覆核）：`templates/ecn-template.js`（§19.9 瘦骨架 e1–e13＋sizeMeta，oracle 三級前置零懸空）＋`_ecnTplForSize`/`_s1Tpl` 引擎＋三列式表單（分級全寬+固定高度提示塊／類型40·需求單號60／背景原因 textarea 整併·選填）＋S/M/L 即時反饋＋ROI 純手動下拉雙 hint＋?氣泡＋名冊挪前(HintBox 展開)＋PM 協調條＋單案制＋琥珀主題白底＋建立前防呆彈窗(Banner 方案廢)＋落地寫 §19.2 欄位(`sourceNo` 新)＋動態生成 PM 常駐任務。選型 Modal XL(88vw)＋subgrid 表頭對齊＋`_s1Back` 上一步不留背景＋色點補點擊。**過渡：建立後暫落一般內頁**（戰情室做完改跳）。尾兩修（日期引導同底色/名冊 HintBox 展開）未線上驗。
+- **Design Tokens 定版** `07a638d`：UI 規範 §6（Modal S400/M600/L800/XL1140·8px 網格·五級字階·Icon 24/20/16·高度 40/32/48）＋AGENT_GATE 規則 7 補「禁清單外自定 px」＋memory `design-tokens-standard`。
+- **下一件**：**ECN 戰情室 dashboard（§19.10 B）**——同流程：細節討論→Mockup 定版→施工；接著 大表投入%批量修改、BOM·ROI（§19.6）。受影響機種/多子案＝Phase 2 與 variant 一起（§19.11）。
 
 ### 2026-06-29
 
