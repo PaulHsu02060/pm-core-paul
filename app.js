@@ -1908,16 +1908,15 @@ const App = {
         <span class="count">${cnt}</span>
       </button>`;
     };
-    // §19.3：sidebar 依 ecnType 分兩群——NPI 開發案（非 ecn）＋ 設變案 ECN；各群尾放自己的新增鈕
+    // §19.10 A.0：sidebar 依 ecnType 分兩群（NPI 開發案／設變案 ECN），兩群上方單一「＋建立新案」→ 選型引導頁；兩群退為 View 分類清單、不再各自帶＋鈕
     const npiProjs = DATA.projects.filter(p => !p.ecnType);
     const ecnProjs = DATA.projects.filter(p => p.ecnType);
     list.innerHTML =
-      `<div class="sb-grp"><span class="sb-grp-dot"></span>NPI 開發案</div>`
+      `<button class="sb-add-proj sb-add-main" onclick="App._flowStep1()"><span class="sb-add-ico">＋</span>建立新案</button>`
+      + `<div class="sb-grp"><span class="sb-grp-dot"></span>NPI 開發案</div>`
       + (npiProjs.length ? npiProjs.map(renderProj).join('') : `<div class="sb-group-empty">（尚無開發案）</div>`)
-      + `<button class="sb-add-proj" onclick="App.openProjectDialog()"><span class="sb-add-ico">＋</span>新增專案</button>`
       + `<div class="sb-grp sb-grp-ecn"><span class="sb-grp-dot"></span>設變案 · ECN</div>`
-      + (ecnProjs.length ? ecnProjs.map(renderProj).join('') : `<div class="sb-group-empty">（尚無設變案）</div>`)
-      + `<button class="sb-add-proj" onclick="App.openEcnDialog()"><span class="sb-add-ico">＋</span>新增設變案</button>`;
+      + (ecnProjs.length ? ecnProjs.map(renderProj).join('') : `<div class="sb-group-empty">（尚無設變案）</div>`);
 
 
     const setBtn = document.querySelector('[data-page=settings]');
@@ -1933,10 +1932,7 @@ const App = {
     this.showPage('project', btn);
   },
 
-  // §19.3 ECN 開案：占位——設變案開案畫面為 Phase 1 下一步施工項
-  openEcnDialog() {
-    U.toast('設變案開案畫面為 Phase 1 下一步施工項');
-  },
+  // §19.10 A.0 ECN 開案：選型頁 ECN 三卡目前為純引導展示（.wiz-static 不可點）；設變創建表單＋型別 Banner＋建立跳戰情室 dashboard 為下一波施工項（屆時掛回卡片 onclick）
 };
 
 // 雙軌導覽分包（§18.7）：個人工作台 / 全專案總覽 各自命名空間，未來拆檔即剪貼。

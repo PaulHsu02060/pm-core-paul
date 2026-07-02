@@ -388,22 +388,52 @@ ${App._deptEditorHtml()}
 App._flowStep1 = function() {
   App._createFlow = { step: 1, mode: 'template', stage1Data: null };
   App.openModal({
-    title: '新增專案',
-    body: `<div class="form-field"><label>建立方式</label>
-      <div class="create-mode-cards flow-cards">
-        <div class="cm-card on" data-mode="template" onclick="App._flowPickMode('template')">
-          <i class="ti ti-template cm-ico"></i>
-          <div class="cm-text"><div class="cm-title">套用範本</div><div class="cm-desc">產品開發範本，含階段與部門</div></div>
-          <i class="ti ti-circle-check cm-check"></i></div>
-        <div class="cm-card" data-mode="excel" onclick="App._flowPickMode('excel')">
-          <i class="ti ti-table-import cm-ico"></i>
-          <div class="cm-text"><div class="cm-title">從 Excel 匯入</div><div class="cm-desc">上傳 WBS Excel 自動建立任務</div></div>
-          <i class="ti ti-circle-check cm-check"></i></div>
-        <div class="cm-card" data-mode="blank" onclick="App._flowPickMode('blank')">
-          <i class="ti ti-file cm-ico"></i>
-          <div class="cm-text"><div class="cm-title">空白專案</div><div class="cm-desc">從零開始，自行新增任務</div></div>
-          <i class="ti ti-circle-check cm-check"></i></div>
-      </div></div>`,
+    title: '建立新案 · 選擇類型',
+    wide: true,
+    body: `<div class="wiz">
+      <div class="wiz-warn"><i class="ti ti-alert-triangle wiz-warn-ic"></i><span>「新產品開發」與「工程設變」的管理重點與介面完全不同，<b>立案後無法互轉</b>，請依任務性質謹慎選擇。（設變案的 S/M/L 規模，開案後仍可隨進度調整）</span></div>
+      <div class="wiz-cols">
+        <div class="wiz-col wiz-npi">
+          <div class="wiz-colhead"><span class="wiz-dot"></span>開發專案 · NPI</div>
+          <div class="wiz-colnote">適合「從無到有」的新產品開發，提供甘特圖、WBS 與月曆等多種排程檢視。</div>
+          <div class="wiz-card" onclick="App._flowPickMode('template')">
+            <div class="wiz-ct"><i class="ti ti-template wiz-ci"></i><span class="wiz-cn">套用範本</span></div>
+            <div class="wiz-cd">載入標準開發流程，自動帶入各部門負責人與預設工期，最快建立完整骨架。</div>
+            <div class="wiz-ch">→ 產出：一般專案 Dashboard（含甘特／WBS）</div>
+          </div>
+          <div class="wiz-card" onclick="App._flowPickMode('excel')">
+            <div class="wiz-ct"><i class="ti ti-table-import wiz-ci"></i><span class="wiz-cn">從 Excel 匯入</span></div>
+            <div class="wiz-cd">上傳既有 WBS Excel，自動解析並轉為任務排程，無縫接軌。</div>
+            <div class="wiz-ch">→ 產出：一般專案 Dashboard（依 Excel 長甘特）</div>
+          </div>
+          <div class="wiz-card" onclick="App._flowPickMode('blank')">
+            <div class="wiz-ct"><i class="ti ti-file wiz-ci"></i><span class="wiz-cn">空白專案</span></div>
+            <div class="wiz-cd">從零開始建立，無預設流程框架，適合階段特殊或不適用標準範本的微型專案。</div>
+            <div class="wiz-ch">→ 產出：一般專案 Dashboard（全空白自建）</div>
+          </div>
+        </div>
+        <div class="wiz-col wiz-ecn">
+          <div class="wiz-colhead"><span class="wiz-dot"></span>設變案 · ECN</div>
+          <div class="wiz-colnote">啟用設變專屬戰情室，精準追蹤「進度落差」、「重工次數」與「降本效益（ROI）」。</div>
+          <div class="wiz-card wiz-static">
+            <div class="wiz-ct"><span class="wiz-sev wiz-sev-s"></span><span class="wiz-cn">S 級 · 輕量換料</span></div>
+            <div class="wiz-cd">適合單純的零件替代或文件修改。免安規重測，僅需走完「評估 → 改圖 → 結案」3 階段即可快速放行。</div>
+            <div class="wiz-ch">→ 產出：ECN 輕量戰情室（極簡 3 階段）</div>
+          </div>
+          <div class="wiz-card wiz-static">
+            <div class="wiz-ct"><span class="wiz-sev wiz-sev-m"></span><span class="wiz-cn">M 級 · 結構認定</span></div>
+            <div class="wiz-cd">適合牽涉結構變更的中型案件。開啟標準 6 階段流程，包含實體打樣、品保測試與安規驗證等檢核節點。</div>
+            <div class="wiz-ch">→ 產出：ECN 標準戰情室（完整 6 階段）</div>
+          </div>
+          <div class="wiz-card wiz-static">
+            <div class="wiz-ct"><span class="wiz-sev wiz-sev-l"></span><span class="wiz-cn">L 級 · 重大改模</span></div>
+            <div class="wiz-cd">適合牽涉改模或高風險的大型案件。除完整 6 階段外，強制追加跨部門「DR 設計審查」大關卡，嚴格卡控進度。</div>
+            <div class="wiz-ch">→ 產出：ECN 高規戰情室（含 DR 審查節點）</div>
+          </div>
+          <div class="wiz-prot"><i class="ti ti-shield-check wiz-prot-ic"></i>防過勞機制：全級別皆強制掛載「PM 協調工時」以計算跨案負載。</div>
+        </div>
+      </div>
+    </div>`,
     footer: `<button class="tb-action ghost" onclick="App.closeModal()">取消</button>`,
   });
 };

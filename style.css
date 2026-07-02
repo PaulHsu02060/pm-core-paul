@@ -439,23 +439,35 @@ body.viewonly .cloud-sync-sec { display: none; }
 .stage-pick { font-size: 12.5px; font-weight: 500; padding: 4px 12px; border-radius: 99px; cursor: pointer; border: 1px dashed var(--rule2); background: var(--surface2); color: var(--ink3); transition: background .12s, color .12s, border-color .12s; }
 .stage-pick:hover { border-color: var(--ink4); }
 .stage-pick.on { background: var(--sage-50); color: var(--sage-700); border: 1px solid var(--sage-100); }
-/* 建立方式三卡（openProjectDialog；取代原 select 下拉）：直式、左 icon 右標題說明、選中右側勾選 */
-.create-mode-cards { display: flex; flex-direction: column; gap: 8px; }
-.cm-card {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; border: 1px solid var(--rule); border-radius: var(--r8);
-  background: var(--surface); cursor: pointer; transition: all .15s;
-}
-.cm-card:hover { border-color: var(--sage-300); }
-.cm-card.on { border-color: var(--sage-500); background: var(--sage-50); }  /* 選中:sage 框+淡 sage 底,複用 --sage-50(同 .stage-pick.on 選中底) */
-.cm-ico { font-size: 22px; color: var(--ink3); flex: none; }
-.cm-card.on .cm-ico { color: var(--sage-600); }
-.cm-text { flex: 1; min-width: 0; }
-.cm-title { font-size: 13px; font-weight: 500; color: var(--ink); }
-.cm-desc { font-size: 11px; color: var(--ink3); margin-top: 2px; }
-.cm-check { font-size: 20px; color: var(--sage-500); flex: none; opacity: 0; transition: opacity .15s; }
-.cm-card.on .cm-check { opacity: 1; }
-.cm-card.cm-locked { pointer-events: none; opacity: .55; }   /* viewonly:三卡鎖死不可點 */
+/* 選型引導頁（建立新案 wizard，§19.10 A.0）：兩欄型別卡、純白線框；NPI 綠／ECN 琥珀對齊 sidebar 色點，全走 :root */
+.sb-add-main { margin-bottom: 8px; }
+.wiz-warn { display: flex; align-items: flex-start; gap: 8px; background: var(--hint-head); border: 1px solid var(--rule); border-radius: var(--r8); padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: var(--ink2); line-height: 1.55; }
+.wiz-warn-ic { color: var(--amber-accent); font-size: 16px; flex: none; margin-top: 1px; }
+.wiz-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.wiz-colhead { display: flex; align-items: center; gap: 7px; border-radius: var(--r8); padding: 8px 11px; font-size: 13px; font-weight: 600; }
+.wiz-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.wiz-npi .wiz-colhead { background: var(--sage-50); border: 1px solid var(--sage-200); color: var(--sage-700); }
+.wiz-npi .wiz-dot { background: var(--sage-500); }
+.wiz-ecn .wiz-colhead { background: var(--amber-l); border: 1px solid var(--amber-border); color: var(--amber-ink); }
+.wiz-ecn .wiz-dot { background: var(--amber-accent); }
+.wiz-colnote { font-size: 11px; color: var(--ink4); padding: 5px 3px 8px; line-height: 1.5; }
+.wiz-card { border: 1px solid var(--rule); border-radius: var(--r12); padding: 10px 12px; margin-bottom: 8px; background: var(--surface); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.wiz-npi .wiz-card { border-color: var(--sage-100); }
+.wiz-ecn .wiz-card { border-color: var(--amber-border); }
+.wiz-card:hover { border-color: var(--sage-400); box-shadow: var(--shadow-sm); }
+.wiz-card.wiz-static { cursor: default; }   /* ECN 三卡：純引導展示（開案表單下一波接上前不可點），無 hover 假互動 */
+.wiz-card.wiz-static:hover { border-color: var(--amber-border); box-shadow: none; }
+.wiz-ct { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.wiz-ci { font-size: 17px; color: var(--sage-600); flex: none; }
+.wiz-cn { font-size: 13px; font-weight: 600; color: var(--ink); }
+.wiz-sev { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.wiz-sev-s { background: var(--sage-500); }
+.wiz-sev-m { background: var(--amber-accent); }
+.wiz-sev-l { background: var(--rose); }
+.wiz-cd { font-size: 12px; color: var(--ink3); line-height: 1.55; margin-bottom: 7px; }
+.wiz-ch { font-size: 11px; color: var(--ink4); border-top: 1px solid var(--rule); padding-top: 6px; }
+.wiz-prot { display: flex; align-items: flex-start; gap: 6px; font-size: 11px; color: var(--sage-700); background: var(--sage-50); border: 1px solid var(--sage-100); border-radius: var(--r8); padding: 7px 10px; line-height: 1.5; }
+.wiz-prot-ic { color: var(--sage-600); font-size: 14px; flex: none; margin-top: 1px; }
 
 /* Excel 上傳區（路線B ② 選檔鈕 + 三態狀態） */
 .excel-upload .eu-filebtn { display:inline-flex; align-items:center; gap:var(--r4); padding:var(--r6) var(--r10); border:1px solid var(--rule); border-radius:var(--r6); background:var(--surface); font-size:13px; color:var(--ink); cursor:pointer; }
