@@ -1921,7 +1921,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 /* ═══ §4.8.7.4b 塊3a-刀1（步2）：教育卡 + 第一頁文案版面 ═══ */
 .s1-edu-lead { font-size: 13px; color: var(--ink2); margin-bottom: 14px; }
 .s1-edu-cards { display: flex; gap: 12px; flex-wrap: wrap; }
-.s1-edu-card { flex: 1; min-width: 200px; padding: 14px; border: 1.5px solid var(--amber-accent); border-radius: var(--r8); background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; }
+.s1-edu-card { flex: 1; min-width: 200px; padding: 14px; border: 1.5px solid var(--sage-400); border-radius: var(--r8); background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; }   /* NPI 專屬指引頁＝綠框（琥珀只留 ECN） */
 .s1-edu-coretop { min-height: 80px; }
 .s1-edu-cardhd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .s1-edu-ico { font-size: 22px; color: var(--ink3); }

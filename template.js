@@ -1112,7 +1112,7 @@ App._scheduleEduCard = function() {
       '<div class="s1-edu-cards">' + cardsHtml + '</div>' +
       '<div class="s1-edu-bulb"><i class="ti ti-bulb"></i><span>免煩惱！下一頁不論您填哪一格，系統都會自動判斷最佳排程方向。如果手頭都有日期，建議全部填上，算出來的時間最精準。</span></div>' +
     '</div>',
-    footer: '<button class="tb-action ghost" onclick="App.closeModal()">取消</button>' +
+    footer: '<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>' +   // 回開案入口選型頁（原「取消」直接關掉＝死路）
       '<button class="tb-action" onclick="App.closeModal();App._renderStage1Preview()">我懂了，開始填寫 →</button>',
   });
 };
