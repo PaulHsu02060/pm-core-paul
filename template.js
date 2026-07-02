@@ -431,13 +431,20 @@ App._flowStartEcn = function(size) {
   App.closeModal();
   App._renderStage1Preview();
 };
-// s1 頁「上一步」：先離開 s1 頁（還原 topbar＋切回原頁，背景不殘留）再回上一動——
-// NPI＝教育卡（排程模式說明指南，教育卡的上一步再回選型頁，鏈條完整）；ECN 無教育卡＝直回選型頁。
+// s1 頁「上一步」：先彈資料不保留警告（本頁輸入活在 DOM、重繪即失，無備份機制——NPI/ECN 都擋誤觸），
+// 確定才離開（還原 topbar＋切回原頁）再回上一動——NPI＝教育卡（其上一步再回選型頁，鏈條完整）；ECN 無教育卡＝直回選型頁。
 App._s1Back = function() {
-  const tb = document.querySelector('.main > .topbar');
-  if (tb) tb.classList.remove('topbar-hidden');
-  App.showPage(App.currentPage || 'workspace', null);
-  if (App._s1Ecn) App._flowStep1(); else App._scheduleEduCard();
+  App.confirmModal({
+    icon: 'ti-alert-triangle', iconBg: '--amber-l', iconColor: '--amber-ink',
+    title: '返回上一步？', msg: '本頁已填寫的資料（名稱、日期、各項設定）<b>將不會保留</b>，確定要返回？',
+    okText: '返回上一步', cancelText: '留在本頁',
+    onConfirm: function() {
+      const tb = document.querySelector('.main > .topbar');
+      if (tb) tb.classList.remove('topbar-hidden');
+      App.showPage(App.currentPage || 'workspace', null);
+      if (App._s1Ecn) App._flowStep1(); else App._scheduleEduCard();
+    },
+  });
 };
 // s1 頁辨識顏色點選（swatch 切 .on；_s1CollectInput 讀 .on 的 data-color）。
 App._s1PickColor = function(el) {
@@ -879,6 +886,9 @@ App._flowStage1Next = function() {
     });
     return;
   }
+  // §19.10 A.1（2026-07-02 定案）：ECN 按「建立專案」直落地（跳過 Stage 2 檢視——任務調整在戰情室大表 §19.10 B）；
+  // _stage2Commit 內含 ECN 防呆彈窗＋未指派/同名 confirm 鏈。NPI 照舊進 Stage 2。
+  if (App._s1Ecn) { App._stage2Commit(); return; }
   App._s2From = 'stage1';   // §第3：綠/黃直接進 Stage 2（未經 overflow 面板）→「上一步」回 Stage 1
   this._renderStage2New();
 };
@@ -1215,7 +1225,7 @@ App._renderStage1Preview = function() {
       roster +
       '<div class="stage2-foot">' +
         '<button class="tb-action ghost" onclick="App._s1Back()">上一步</button>' +
-        '<button class="tb-action" onclick="App._flowStage1Next()">下一步：檢視任務</button>' +
+        '<button class="tb-action" onclick="App._flowStage1Next()">' + (App._s1Ecn ? '建立專案' : '下一步：檢視任務') + '</button>' +
       '</div>' +
     '</div>';
   // date input 改動即時重算改用各案卡 inline onchange（支援動態新增的子案卡，§4.8.7.4b 3-5）
@@ -1836,6 +1846,8 @@ App._stage2Commit = function() {
   const dup = DATA.projects.filter(p => p.name === res.project.name);
   const unassigned = res.tasks.filter(t => !t.owner).length;
   const _commit = () => {
+    const tb = document.querySelector('.main > .topbar');   // ECN 直落地路徑不經 _s2DoCommit → 此處還原（idempotent，NPI 再 remove 無害）
+    if (tb) tb.classList.remove('topbar-hidden');
     res.project.version = dup.length ? Math.max(...dup.map(p => p.version || 1)) + 1 : 1;
     res.project.importedAt = D.fmt(new Date(), 'iso');
     DATA.projects.push(res.project);
