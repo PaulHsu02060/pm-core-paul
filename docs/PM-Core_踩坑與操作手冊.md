@@ -252,4 +252,25 @@ WBS Excel 是「**計畫骨架交換**」、**非全狀態鏡像**。匯入 `bui
 
 **操作提醒**
 - 要 **Prod↔Dev 全狀態一致**：走**雲端同步**（同一 blob，含 `DATA.calendars`，行事曆自動一致）／**JSON 備份下載·還原**（§15.4）／**§17 快照**。Excel 只管計畫骨架，別拿來當狀態鏡像。
+
+---
+
+## 坑 10：新元件寬度爆版／文字被裁——grid item 缺 `min-width:0`、橫捲掛錯層（2026-07-02，ECN 戰情室）
+
+**現象**
+ECN 戰情室 HintBox 文字超出框、任務名/投入%下拉被裁、日期欄擠爆任務名。反覆調 `overflow-wrap` 沒完全解決。
+
+**根因**
+1. **grid/flex item 預設 `min-width:auto`＝內容撐開、不縮**：`.ecn-layout` 的 `minmax(0,1fr)` 只管一欄；`.ecn-hud`/`.ecn-main` 未給 `min-width:0`，寬內容（大表）把欄撐開、旁邊 HintBox 跟著被撐、文字不換行。
+2. **橫向捲動掛錯層**：一開始把 `overflow-x:auto` 掛在整個 `.ecn-panel`，寬表雖能捲，但**面板/HintBox 一起被寬表影響**。正解是把捲動只掛在「該捲的那塊」——大表外包一層 `.ecn-tbl-scroll{overflow-x:auto}`，面板與說明框回到容器寬、正常換行。
+3. **控制項塞過長文字**：22px 圓形插入鈕塞「＋ 插入任務」被裁成「入」（比照 Stage 2 應只放「＋」＋hover tooltip）；投入%下拉標籤過長→`select` 顯示值被裁（改精簡標籤＋`min-width`）。
+
+**正解（已根治）**
+- `.ecn-layout, .ecn-hud, .ecn-main { min-width: 0; }`（grid item 可縮的關鍵）。
+- 橫捲只包大表：`<div class="ecn-tbl-scroll">…table…</div>` + `.ecn-tbl-scroll{overflow-x:auto}`；面板不掛 overflow。
+- 全 `.ecn-dash` 下 HintBox `overflow-wrap:anywhere`＋`word-break`；窄欄 HintBox 拿掉 summary、body 收字級。
+- 圓鈕只放單字＋tooltip；下拉標籤精簡＋`min-width`。
+
+**鐵則（入 AGENT_GATE 規則14）**
+新元件寬度一律自適應：**grid/flex item 給 `min-width:0`**、長字 `overflow-wrap:anywhere`、**橫捲只掛在該捲的那塊**、控制項別塞超長文字（放 tooltip/HintBox）。「表單本來就該自適應、不該 overflow」是底線。
 - 日後若要 Excel 保留手動 dept，得在 `WBS_COLUMNS` 加「部門」欄、匯出/匯入兩側同步（目前只帶負責人、dept 靠重推）。

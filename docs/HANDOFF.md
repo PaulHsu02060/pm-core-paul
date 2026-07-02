@@ -71,7 +71,7 @@
 
 ### 2026-07-02（本週）
 
-**目前 HEAD**：`3e7dd30`｜app.js `?v=20260702-1`／style.css `?v=20260702-3`／各拆檔 `20260630-26`｜**§19 ECN 設變模組 Phase 1 三方碰撞定案＋三張 Mockup 定版＋規格全回寫**（§19.1b/19.2/19.3/19.4/19.5/19.6/19.9/19.10 A·B·C/19.11）；**Phase 1 開工首塊：sidebar 依 `ecnType` 分兩群（NPI／設變案 ECN，V3 區塊底帶群標）`71c398c`·線上驗 Pass**；**HintBox 全站統一淺色（reg A：暖沙 `#F1EFE8` header＋白底 body＋一種規則）`3778393`+`3e7dd30`·線上驗 Pass**
+**目前 HEAD**：`6aae2e0`｜project.js `?v=20260702-12`／style.css `?v=20260702-25`／template.js `?v=20260702-18`／templates/ecn-template `?v=20260702-3`／app.js `?v=20260702-3`｜**§19 ECN 戰情室 Tab A 全落地並上線 `6aae2e0`（開案→戰情室 dashboard 全欄可操作，多輪線上驗 Pass）**；先前：§19 Phase 1 三方碰撞定案＋Mockup 定版＋規格全回寫（§19.1b/19.2/19.4/19.5/19.6/19.9/19.10 A·B·C）＋開案畫面＋範本引擎（`ad8a73f`）＋HintBox 全站淺色 reg A（`3778393`）
 
 **已落地（2026-07-01→07-02，本 session）——§19 ECN Phase 1 定案 + 開工首塊**
 - **§19 三方碰撞（Paul×Claude×Gemini）定案**：瘦流程骨架（6 階段＋條件/迷霧池，取代 S/M/L 胖範本）／Model Y PM 常駐協調列（death-by-small-cases 盾）／雙軌變異（執行落後 vs 範圍蔓延）／成因 Hybrid 標記／暴走告警客戶端界線／BOM ROI 差異四區·目標成本（設變差額＋採購降價·每行納入布林）／切換方式（即刻/漸進）→呆滯（含刪除料）／整台年效益·可設年限／幣別三情境軟擋／無單價核對／**存資料不存 Excel 走 exceljs 重生**／生效日雙卡／多交付軌／DR 回歸。commit `d457b78`/`2ebea97`。
@@ -82,7 +82,9 @@
 - **ECN 開案畫面＋範本引擎 落地** `ad8a73f`（§19.10 A/A.1 定版，多輪線上驗＋Gemini 覆核）：`templates/ecn-template.js`（§19.9 瘦骨架 e1–e13＋sizeMeta，oracle 三級前置零懸空）＋`_ecnTplForSize`/`_s1Tpl` 引擎＋三列式表單（分級全寬+固定高度提示塊／類型40·需求單號60／背景原因 textarea 整併·選填）＋S/M/L 即時反饋＋ROI 純手動下拉雙 hint＋?氣泡＋名冊挪前(HintBox 展開)＋PM 協調條＋單案制＋琥珀主題白底＋建立前防呆彈窗(Banner 方案廢)＋落地寫 §19.2 欄位(`sourceNo` 新)＋動態生成 PM 常駐任務。選型 Modal XL(88vw)＋subgrid 表頭對齊＋`_s1Back` 上一步不留背景＋色點補點擊。**過渡：建立後暫落一般內頁**（戰情室做完改跳）。尾兩修（日期引導同底色/名冊 HintBox 展開）未線上驗。
 - **Design Tokens 定版** `07a638d`：UI 規範 §6（Modal S400/M600/L800/XL1140·8px 網格·五級字階·Icon 24/20/16·高度 40/32/48）＋AGENT_GATE 規則 7 補「禁清單外自定 px」＋memory `design-tokens-standard`。
 - **戰情室細節＋Mockup 終版定版（2026-07-02，§19.10 B.1/B.2）**：6 點細節定案（雙軌口徑+baselineHours/雙旗入口/案內重排/頁籤C=事件時間軸/結案下波/升降級）＋Mockup 七輪迭代 v7 定版——滿版流動 HUD 280、HUD 白話四卡+進度條視覺化、說明回歸 HintBox（左展開/右收合，文案 Gemini 定稿）、**大表複用 Stage 2 真實結構琥珀化**（前置三窄格 inline、投入%佔需交付位、表頭淡琥珀+深字、關鍵路徑左紅框、操作欄「⚙編輯▾」統一入口→打回重測/刪除）、成因窗（enum 必填+fade-in）、重做歸屬=loopFromId 自動綁非前置判定、進度不進大表。ECN 開案改「建立專案」直落地+上一步資料警告（`b7aaa71`）。
-- **下一件**：**戰情室 Tab A 施工**（§19.11 清單：ecnType 分流→滿版佈局+HUD+大表+互動+頁籤C殼+baselineHours/ecnEvents 落地）→ 投入%批量修改 → 總覽「PM 跨案負荷」區塊 → BOM·ROI（Tab B 先設計）。受影響機種/多子案＝Phase 2 與 variant 一起（§19.11）。
+- **戰情室 Tab A 全落地並上線 `6aae2e0`（§19.10 B/B.1/B.2 定版·多輪線上驗 Pass）**：`renderEcnDashboard` 依 `ecnType` 分流（`renderProject` 開頭）＋滿版佈局（HUD 280 sticky＋右工作區）＋HUD 四卡（工時·異常統計·雙軌進度條·部門卡）＋三頁籤（A 大表／B BOM 佔位／C 事件時間軸）。大表**複用 `.s2-tbl`／`_s2PredCells`／既有 `_s2*` handler**（hijack `_tplPreview` 指向 ECN live res，`_s2RefreshCase`/`_s2SetOwner` 加 `_s2EcnPersist` 存檔重繪），欄位＝部門(下拉·雙向連動擔當)·擔當·前置三窄格·工期·**投入%(六檔行為錨點 0/10/25/50/75/100)**·**計畫日期(可編輯)**·**狀態(實際優先衍生·唯讀)**·⚙編輯。**編輯彈窗**＝實際開工/完工日＋擱置(附原因)＋打回重測(有實際完工日才有→成因窗→`isLoopTask` 重做列)＋刪除(二次確認)。列間「＋」＝中途追加(成因窗＋`scopeGrowthCount++`)。**ECN 一律 forward 排程**（`_ecnForwardVariants` 清 `endDate` 存 `targetEndDate`，因 `_effScheduleDir` 雙日期強制 interval）。範本 `effortRatio` 歸六檔＋生管PMC→生管。開案落地補 `baselineHours`/`ecnEvents`。名冊卡複用 `_s2DeptPanelHtml`＋`_s2OpenDeptModal`（`_s2ApplyDepts` 加 ECN 分支）。
+- **今日確立的鐵則（見文件，勿再犯）**：①共用是預設決策·別問 A/B（AGENT_GATE 規則13）②UI 元件一律自適應·grid item `min-width:0` 防 overflow（踩坑 坑10）③狀態模型：日期分「計畫/實際」·狀態衍生不手選·時間到≠完成·完成靠實際（§19.10 設計原則）④外層大表＝排程監控·內層彈窗＝進度回報/異常處置（§19.10 設計原則）。
+- **下一件**：投入% 批量修改（Paul 需求）→ 全專案總覽「PM 跨案負荷」區塊（§19.4 Phase 1 交付 b）→ BOM·ROI（Tab B 先設計）→ 結案流程/epoch 凍結/翻案重啟。**專案範本管理頁分 NPI/ECN·Admin 直接編修**（§19.11 待做，取代改 Excel）。受影響機種/多子案＝Phase 2 與 variant 一起。
 
 ### 2026-06-29
 

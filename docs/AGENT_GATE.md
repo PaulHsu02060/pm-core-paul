@@ -75,6 +75,14 @@
 - **禁止文件只留「大概方向」**：方向性描述不算定版 spec。過往痛點＝細節散在對話、每次重開 session 又重新討論 Mockup、一直重工。
 - 落檔位置依規則 11 三檔分工（現役 spec 進主檔、施工細節/歷史進 archive、INDEX 更新）。
 
+## 規則 13：共用是預設決策，別把「共用 vs 另寫」當問題來問（2026-07-02 定）
+- 碰到「複用既有 render/元件/handler」vs「另寫平行版」時，**預設就是共用＋參數化差異**，不要停下來問 Paul A/B。Paul 明講：「能共用就共用、部分差異用改的，這是設計準則規範的，不需要來問我。」
+- 實例：ECN 戰情室大表沿用 `_s2ListHtml`／`.s2-tbl`／`_s2PredCells`／既有 `_s2*` handler（hijack `_tplPreview` 指向 ECN res），只改欄位差異＋CSS scope 琥珀化；**不另寫 `_ecnListHtml` 讓 Table 肥大**。
+- 呼應規則 10（抽共用 vs 複製一律選共用）＋memory `reuse-shared-no-hardcode`。技術上有侵入風險時（如動到共用 handler），用「加旗標分流、預設路徑零變更」保護既有功能，而非複製一份。
+
+## 規則 14：UI 元件一律自適應，禁 overflow 爆版（2026-07-02 定）
+- Paul 鐵則：「理論上表單都是自適應的，不該有 overflow 這問題。」新元件（HintBox/表格/卡片/彈窗）**寬度交給容器自適應**，長字走 `overflow-wrap:anywhere`＋`word-break`，**grid/flex item 一律給 `min-width:0`**（否則內容撐爆、不縮）。橫向捲動只掛在「該捲的那塊」（如大表包 `overflow-x:auto` 容器），別讓整個面板被寬內容撐開連累旁邊的說明框。詳見踩坑 坑10。
+
 ---
 
 ## 每步自檢（你回覆前先在心裡跑一遍，不通過就不准送出）
