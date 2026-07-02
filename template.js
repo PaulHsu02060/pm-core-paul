@@ -242,6 +242,8 @@ App.applyTemplate = function(template, userInput) {
           delivered: '',
           deliverableLink: '',
           note: '',
+          effortRatio: (tk.effortRatio != null) ? tk.effortRatio : 100,   // §19.4 投入比例%（ECN 範本帶值；NPI/手動預設 100）
+          taskAttr: tk.taskAttr || 'baseline',                            // §19.9 baseline/conditional/fog
         });
       });
     });
@@ -384,7 +386,66 @@ ${App._deptEditorHtml()}
 };
 
 // ═══ 路線B 建立流程（UI 流程層，兩步 modal）：① 選建立方式卡 → ② 填表單。B-1a 純新增、不接 openProjectDialog ═══
+// ─── §19.10 ECN 範本引擎接線 ───
+// _ecnTplForSize(size)：從 ECN_TEMPLATE 依 S/M/L 派生「該分級的子範本」——過濾 sizes 不含該級的任務、
+//   解析 predBySize 覆寫前置（過濾＋覆寫後所有前置必指向留存任務，applyTemplate 零改動可吃）。
+App._ecnTplForSize = function(size) {
+  const src = (typeof ECN_TEMPLATE !== 'undefined') ? ECN_TEMPLATE : null;
+  if (!src) return null;
+  const filterMods = (mods) => (mods || []).map(m => ({
+    stage: m.stage, stageNameCN: m.stageNameCN,
+    tasks: (m.tasks || [])
+      .filter(tk => String(tk.sizes || 'SML').indexOf(size) >= 0)
+      .map(tk => {
+        const t = Object.assign({}, tk);
+        if (tk.predBySize && tk.predBySize[size] != null) t.predecessor = tk.predBySize[size];
+        delete t.predBySize; delete t.sizes;
+        return t;
+      })
+  })).filter(m => m.tasks.length);
+  return {
+    templateId: src.templateId + '-' + size,
+    templateName: src.templateName,
+    stageDefaults: src.stageDefaults,
+    roles: src.roles,
+    sizeMeta: src.sizeMeta,
+    cases: (src.cases || []).map(c => ({
+      variant: c.variant,
+      stages: (src.sizeMeta[size] ? src.sizeMeta[size].stages : []).slice(),
+      modules: filterMods(c.modules),
+    })),
+  };
+};
+// _s1Tpl()：s1 流程使用中的範本單一取用點——ECN 模式回分級派生範本，否則回產品開發範本。
+App._s1Tpl = function() {
+  if (App._s1Ecn) return App._ecnTplForSize(App._s1Ecn.size);
+  return (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
+};
+// _flowStartEcn(size)：選型頁 ECN 卡入口——設 ECN 模式狀態、預載名冊角色、直進 s1 頁（跳過教育卡，時程說明由開案小幫手 HintBox 承載）。
+App._flowStartEcn = function(size) {
+  App._createFlow = { step: 1, mode: 'ecn', stage1Data: null };
+  App._s1Ecn = { size: size || 'S' };
+  App._s1Cases = null;   // 重置案卡（ECN 階段集與 NPI 不同）
+  const _roles = (typeof ECN_TEMPLATE !== 'undefined' && ECN_TEMPLATE.roles) ? ECN_TEMPLATE.roles : [''];
+  App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
+  App.closeModal();
+  App._renderStage1Preview();
+};
+// s1 頁「上一步」：先離開 s1 頁（還原 topbar＋切回原頁，背景不殘留）再開選型 modal（Gemini 覆核修訂）。
+App._s1Back = function() {
+  const tb = document.querySelector('.main > .topbar');
+  if (tb) tb.classList.remove('topbar-hidden');
+  App.showPage(App.currentPage || 'workspace', null);
+  App._flowStep1();
+};
+// s1 頁辨識顏色點選（swatch 切 .on；_s1CollectInput 讀 .on 的 data-color）。
+App._s1PickColor = function(el) {
+  el.parentNode.querySelectorAll('.cp-swatch').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+};
 // 第一步：選建立方式（範本→Excel→空白，預設範本 .on）。重置 _createFlow。
+// （_s1Ecn／_s1Cases 不在此清——只在模式切換點清：NPI 入口 _flowPickMode('template')、ECN 入口 _flowStartEcn，
+//   保留既有「上一步回 s1 輸入仍在」行為。）
 App._flowStep1 = function() {
   App._createFlow = { step: 1, mode: 'template', stage1Data: null };
   App.openModal({
@@ -415,17 +476,17 @@ App._flowStep1 = function() {
         <div class="wiz-col wiz-ecn">
           <div class="wiz-colhead"><span class="wiz-dot"></span>設變案 · ECN</div>
           <div class="wiz-colnote">啟用設變專屬戰情室，精準追蹤「進度落差」、「重工次數」與「降本效益（ROI）」。</div>
-          <div class="wiz-card wiz-static">
+          <div class="wiz-card" onclick="App._flowStartEcn('S')">
             <div class="wiz-ct"><span class="wiz-sev wiz-sev-s"></span><span class="wiz-cn">S 級 · 輕量換料</span></div>
             <div class="wiz-cd">適合單純的零件替代或文件修改。免安規重測，僅需走完「評估 → 改圖 → 結案」3 階段即可快速放行。</div>
             <div class="wiz-ch">→ 產出：ECN 輕量戰情室（極簡 3 階段）</div>
           </div>
-          <div class="wiz-card wiz-static">
+          <div class="wiz-card" onclick="App._flowStartEcn('M')">
             <div class="wiz-ct"><span class="wiz-sev wiz-sev-m"></span><span class="wiz-cn">M 級 · 結構認定</span></div>
             <div class="wiz-cd">適合牽涉結構變更的中型案件。開啟標準 6 階段流程，包含實體打樣、品保測試與安規驗證等檢核節點。</div>
             <div class="wiz-ch">→ 產出：ECN 標準戰情室（完整 6 階段）</div>
           </div>
-          <div class="wiz-card wiz-static">
+          <div class="wiz-card" onclick="App._flowStartEcn('L')">
             <div class="wiz-ct"><span class="wiz-sev wiz-sev-l"></span><span class="wiz-cn">L 級 · 重大改模</span></div>
             <div class="wiz-cd">適合牽涉改模或高風險的大型案件。除完整 6 階段外，強制追加跨部門「DR 設計審查」大關卡，嚴格卡控進度。</div>
             <div class="wiz-ch">→ 產出：ECN 高規戰情室（含 DR 審查節點）</div>
@@ -441,6 +502,7 @@ App._flowStep1 = function() {
 // 點卡：記 mode、清 stage1Data，進第二步。
 App._flowPickMode = function(mode) {
   if (App._createFlow) { App._createFlow.mode = mode; App._createFlow.stage1Data = null; }
+  if (App._s1Ecn) { App._s1Ecn = null; App._s1Cases = null; }   // §19.10：從 ECN 模式切回 NPI → 清 ECN 狀態＋案卡（階段集不同）
   if (mode === 'template') { App._scheduleEduCard(); return; }   // §4.8.7.4b 3-7：範本走新流程（教育卡→第一階段預覽頁）；Excel/空白維持舊 _flowStep2
   App._flowStep2();
 };
@@ -782,13 +844,25 @@ App._renderStage2 = function() {
 // 第一階段「下一步：檢視任務」：掃第一階段輸入 → applyTemplate（不落地）→ 進新 Stage 2。
 // 上一步靠切 .active 不重繪 page-stage1，故回上一步輸入仍在（DOM 不清）。
 App._flowStage1Next = function() {
-  const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
+  const tpl = App._s1Tpl();   // §19.10：ECN 分級派生範本／NPI 產品開發範本，單一取用點
   if (!tpl) { U.toast('⚠ 找不到範本', 'warning'); return; }
   const input = App._s1CollectInput();
   if (!input || !input.cases.length) { U.toast('⚠ 無案別資料，請重新套用範本', 'warning'); return; }
   const main = input.cases[0];
   if (!main.startDate && !main.endDate) { U.toast('⚠ 主案請至少填開始日或上市日期', 'warning'); return; }
-  input.depts = App._tplDepts || [];   // 新流程部門多在 Stage 2 才編；此處沿用既有暫存（通常為空）
+  input.depts = App._tplDepts || [];   // 新流程部門多在 Stage 2 才編（ECN＝名冊挪前，此處已有值）
+  // §19.10 A.1 ECN：收開案 meta（分級/原因/ROI/單號/PM Effort）暫存 _createFlow.ecn，_stage2Commit 落地時寫進專案
+  if (App._s1Ecn) {
+    App._createFlow = App._createFlow || {};
+    App._createFlow.ecn = {
+      size: App._s1Ecn.size,
+      changeReason: ((document.getElementById('s1-ecn-reason') || {}).value || '').trim(),   // 設變背景與原因（整併欄，textarea 自由文字）
+      roiType: ((document.getElementById('s1-ecn-roi') || {}).value) || 'forced',   // 純手動下拉（效益型/被迫型）
+      sourceNo: ((document.getElementById('s1-ecn-src') || {}).value || '').trim(),   // 溯源：需求單號（客訴單/CAR/會議記錄）
+      ecnNo: '',   // 正式 ECN 單號＝結案時打進 PLM/ERP 才產生，開案不填（§19.2 結案必填）
+      pmEffort: (typeof ECN_TEMPLATE !== 'undefined' && ECN_TEMPLATE.sizeMeta[App._s1Ecn.size]) ? ECN_TEMPLATE.sizeMeta[App._s1Ecn.size].pmEffort : 20,
+    };
+  } else if (App._createFlow) { App._createFlow.ecn = null; }
   this._tplPreview = App.applyTemplate(tpl, input);
   // ③ 過渡中繼彈窗：偵測到任一案別時程不足（紅燈）→ 先彈智慧排程引導窗，按「開始智慧排程」才進 Stage 2；夠就直接進。
   const reds = (this._tplPreview.variants || []).filter(v => { const s = App._s2VariantSlack(v.id); return s && s.light === 'red'; });
@@ -1050,15 +1124,28 @@ App._renderStage1Preview = function() {
   // demo fallback 假案（首開/無輸入不空白）走 App._s1FallbackCase；甘特＋真燈號膠囊建構移至
   // App._s1PreviewBlocksHtml（初次 render 與 date 改動 re-render 共用單一真實來源，§4.8.7.4b 3-3）。
   // 每案獨立狀態（§4.8.7.4b 3-5）：主案＋各子案各自 stages/renames；首次用範本主案階段（缺則退 demo）
+  const _tpl0 = App._s1Tpl();   // §19.10：ECN 模式吃分級派生範本，否則產品開發範本（單一取用點）
   if (!App._s1Cases) {
-    const tplMain = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.cases && PRODUCT_DEV_TEMPLATE.cases[0])
-      ? PRODUCT_DEV_TEMPLATE.cases[0].stages.slice() : App._s1FallbackCase().stages.map(s => s.stage);
+    const tplMain = (_tpl0 && _tpl0.cases && _tpl0.cases[0])
+      ? _tpl0.cases[0].stages.slice() : App._s1FallbackCase().stages.map(s => s.stage);
     App._s1Cases = [{ key: 'main', templateVariant: '主案', stages: tplMain, renames: {} }];
   }
   const casesHtml = App._s1Cases.map((c, i) => App._s1CaseColHtml(c, i === 0)).join('');
-  const addCase = '<div class="s1-add-case" onclick="App._s1AddSubcase()"><i class="ti ti-plus"></i><span>新增子案</span></div>';
-  // 說明區（文-B；箭頭統一中文冒號「：」，防呆句 terracotta 強調）
-  const tips = App.buildHintBox({
+  // §19.10 A.1（2026-07-02 覆核修訂）：ECN Phase 1＝單案制——受影響機種/多子案（含 per-機種 BOM）留 Phase 2 與 variant 架構一起規劃
+  const addCase = App._s1Ecn ? '' : '<div class="s1-add-case" onclick="App._s1AddSubcase()"><i class="ti ti-plus"></i><span>新增子案</span></div>';
+  // 說明區：NPI＝排程小秘訣（文-B）；ECN＝開案小幫手（§19.10 A.2 四條、預設收合、時程說明由此承載——不走教育卡）
+  const tips = App._s1Ecn
+    ? App.buildHintBox({
+        key: 's1-ecn-helper', icon: 'ti-bulb', title: '開案小幫手', summary: '點擊了解分級與時程推算邏輯', collapsed: true,
+        bodyHtml:
+          '<ol class="s1-ecn-helpol">' +
+            '<li><b>設變分級（S/M/L）</b>：S 為單純換料（免認證）；M 涉及結構變更（需重新認定）；L 涉及改模。開案時依初步評估選擇，執行中若範圍擴大，系統會自動提醒您升級。</li>' +
+            '<li><b>原因分類</b>：「效益型」（如 Cost Down）結案時系統自動對比新舊 BOM 算出省下的成本；「被迫型」（如停產／法規）系統會著重追蹤舊料消耗率、卡控生效日以降低報廢損失。</li>' +
+            '<li><b>時程推算</b>：填「開始日」系統順推預估完工日；只填「上市日」回推最晚必須動工的日期；若算出工期超出上市死線，進度條將亮紅燈警示。</li>' +
+            '<li><b>PM 協調工時（防呆保護）</b>：設變不是只有 RD 在忙——每張單都預設保留 PM 的跨部門協調時間。多案疊加總負載超過 100% 時，系統會發出排擠告警，避免隱形過勞。</li>' +
+          '</ol>'
+      })
+    : App.buildHintBox({
     key: 's1-sched-tips', icon: 'ti-info-circle', title: '排程小秘訣', summary: '怎麼填日期決定排程方向', collapsed: false,
     bodyHtml:
       '<div class="s1-tips-line"><span class="s1-tips-dot"></span>只填開始日：自動順推，算出預計完工日。</div>' +
@@ -1076,13 +1163,30 @@ App._renderStage1Preview = function() {
     '</div>';
   const hint = App.buildHintBox({ key: 's1-slack-help', icon: 'ti-info-circle', title: '甘特圖階段顏色說明', summary: '一分鐘看懂各階段排程緊迫度', bodyHtml: helpBody, collapsed: true });
   // 頂部：專案名稱（label+窄 input） + 顏色 + 範本 橫排
-  const swatches = (typeof PROJ_COLORS !== 'undefined' ? PROJ_COLORS : []).map((c, i) => '<div class="cp-swatch' + (i === 0 ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '"></div>').join('');
+  const swatches = (typeof PROJ_COLORS !== 'undefined' ? PROJ_COLORS : []).map((c, i) => '<div class="cp-swatch' + (i === 0 ? ' on' : '') + '" style="background:' + c + '" data-color="' + c + '" onclick="App._s1PickColor(this)"></div>').join('');
   const top =
     '<div class="s1-top">' +
       '<div class="s1-top-col"><span class="s1-top-label">專案名稱</span><input type="text" class="s1-proj-name" value="範例專案" placeholder="專案名稱" oninput="App._s1SyncMainName();App._s1RefreshPreview()"></div>' +
       '<div class="s1-top-col"><span class="s1-top-label">辨識顏色</span><div class="color-picker s1-colors">' + swatches + '</div></div>' +
-      '<div class="s1-top-col"><span class="s1-top-label">選擇範本</span><select class="s1-tpl-sel"><option>產品開發範本</option></select></div>' +
+      (App._s1Ecn ? '' : '<div class="s1-top-col"><span class="s1-top-label">選擇範本</span><select class="s1-tpl-sel"><option>產品開發範本</option></select></div>') +
     '</div>';
+  // §19.10 A.1（2026-07-02 覆核修訂）：型別 Banner 拔除——不可轉警示改「按建立時」一次性防呆彈窗（_stage2Commit）；
+  // ECN 專屬列（分級 S/M/L＋分級說明行／ROI 下拉＋原因／單號）
+  const ecnMeta = App._s1Ecn ? App._s1EcnMetaHtml() : '';
+  // §19.10 A：ECN 名冊挪前到 Stage 1（複用共用部門元件，讀 App._tplDepts；套範本依「部門→人」帶擔當）＋ 目的 HintBox（賦能非麻煩）
+  // 名冊 HintBox 預設展開（Paul 定版：讓人一眼知道這區要填什麼、為什麼填）
+  const rosterHint = App._s1Ecn ? App.buildHintBox({
+    key: 's1-roster-help', icon: 'ti-info-circle', title: '為什麼要先填名冊？', summary: '先填人，後面全自動帶入', collapsed: false,
+    bodyHtml:
+      '<ol class="s1-ecn-helpol">' +
+        '<li><b>自動帶擔當</b>：套範本時系統依「部門 → 人」把名冊自動填進各任務的擔當欄，不用一筆一筆指派。</li>' +
+        '<li><b>大表下拉直選</b>：後續任務大表的「擔當」欄＝直接下拉選名冊，改人一鍵完成。</li>' +
+        '<li><b>負荷自動計算</b>：每個人的投入比例會自動疊進部門／個人負荷，跨案同人同日超過 100% 立即紅旗示警。</li>' +
+      '</ol>'
+  }) : '';
+  const roster = App._s1Ecn
+    ? '<div class="s1-roster"><div class="s1-prev-title">部門 / 負責人名冊</div>' + rosterHint + App._deptEditorHtml() + '</div>'
+    : '';
   // 預覽區塊（本步只主案一條；甘特＋真燈號膠囊由 _s1PreviewBlocksHtml 建，date 改動時局部重畫此容器）
   const previewBlocks = '<div id="s1-prev-blocks">' + App._s1PreviewBlocksHtml() + '</div>';
   // 隱藏全域 topbar（智慧排程鈕/重複標題不屬此頁）；本頁自帶麵包屑 + 大標題。（flow 接線後離開頁面再恢復）
@@ -1092,21 +1196,24 @@ App._renderStage1Preview = function() {
   const page = document.getElementById('page-stage1');
   page.classList.add('active');
   page.innerHTML =
-    '<div class="s1-preview">' +
+    '<div class="s1-preview' + (App._s1Ecn ? ' s1-ecnpage' : '') + '">' +
       '<div class="s1-pagehd">' +
-        '<div class="s1-crumb">總儀表板 <span class="s1-crumb-sep">/</span> 新增專案</div>' +
-        '<div class="s1-pagetitle">套用範本創建</div>' +
+        '<div class="s1-crumb">總儀表板 <span class="s1-crumb-sep">/</span> ' + (App._s1Ecn ? '新增設變案' : '新增專案') + '</div>' +
+        '<div class="s1-pagetitle">' + (App._s1Ecn ? '套用範本創建 · 設變案' : '套用範本創建') + '</div>' +
+        (App._s1Ecn ? '<div class="s1-pagesub">點 S / M / L 看時程與 PM 負荷即時變化。排程模式由你填的日期系統自判。</div>' : '') +
       '</div>' +
       top +
       tips +
+      ecnMeta +
       '<div class="s1-cases">' + casesHtml + addCase + '</div>' +
       '<div class="s1-prev-section">' +
         '<div class="s1-prev-title">階段區間預覽</div>' +
         hint +
         previewBlocks +
       '</div>' +
+      roster +
       '<div class="stage2-foot">' +
-        '<button class="tb-action ghost" onclick="App._flowStep1()">上一步</button>' +
+        '<button class="tb-action ghost" onclick="App._s1Back()">上一步</button>' +
         '<button class="tb-action" onclick="App._flowStage1Next()">下一步：檢視任務</button>' +
       '</div>' +
     '</div>';
@@ -1115,6 +1222,63 @@ App._renderStage1Preview = function() {
   App._s1RefreshPreview();   // DOM 就緒後校正一次：依實際輸入（初始留空）同步動態提示與甘特空狀態
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
+
+// ─── §19.10 A.1 ECN 開案專屬列（分級 S/M/L＋分級說明行／ROI 下拉＋原因分類／單號）───
+// 分級/原因/單號值活在 DOM＋_s1Ecn 狀態；S/M/L 切換只重繪膠囊與預覽（不整頁重繪，日期輸入不掉）。
+// 各級白話說明（選型頁文案濃縮＋PM Effort）：點誰顯示誰，掛按鈕列下方（同日期 dynhint 模式）。
+App._S1_SZ_HINT = {
+  S: '單純零件替代或文件修改，免安規重測——「評估 → 改圖 → 結案」3 階段快速放行。PM 常駐 Effort 15%。',
+  M: '牽涉結構變更的中型案件，標準 6 階段流程，含實體打樣、品保測試與安規驗證檢核。PM 常駐 Effort 20%。',
+  L: '改模或高風險大型案件，6 階段外強制追加跨部門「DR 設計審查」關卡，嚴格卡控。PM 常駐 Effort 40%。',
+};
+// ROI 型別 inline hint（選什麼顯示什麼——Progressive Disclosure，不藏 HintBox）
+App._S1_ROI_HINT = {
+  benefit: '系統將於結案時比對新舊 BOM 表，自動結算降本效益（ROI）。',
+  forced: '系統將著重追蹤舊料消耗率，協助卡控生效日以降低報廢損失。',
+};
+App._s1EcnRoiChanged = function(v) {
+  if (!App._s1Ecn) return;
+  const h = document.getElementById('s1-roi-hint');
+  if (h) h.textContent = App._S1_ROI_HINT[v] || '';
+};
+App._s1EcnMetaHtml = function() {
+  const size = App._s1Ecn.size;
+  const szBtn = (s, lbl) => '<button type="button" class="s1-szbtn' + (s === size ? ' on' : '') + '" data-size="' + s + '" onclick="App._s1SetEcnSize(\'' + s + '\')"><b>' + s + '</b><span>' + lbl + '</span></button>';
+  // 三列式（Gemini 定稿，全寬→雙欄→全寬交錯）：Row1 分級全寬（按鈕正下方緊貼「固定高度」淺灰提示塊，防版面跳動）；
+  // Row2 類型 40%（下方動態輔助字）｜需求單號 60%（+? hover 溯源氣泡）；Row3 設變背景與原因＝全寬 textarea（原因欄整併，不再拆設變原因/需求原因）。
+  return '<div class="s1-ecnmeta">' +
+    '<div class="s1-ecnmeta-col">' +
+      '<span class="s1-top-label">設變分級（S/M/L，點選看時程變化）</span>' +
+      '<div class="s1-szrow">' + szBtn('S', '換料·免認證') + szBtn('M', '結構·需認定') + szBtn('L', '改模·認證') + '</div>' +
+      '<div class="s1-szpanel" id="s1-sz-hint">' + App._S1_SZ_HINT[size] + '</div>' +
+    '</div>' +
+    '<div class="s1-ecnrow">' +
+      '<div class="s1-ecnmeta-col"><span class="s1-top-label">設變類型</span>' +
+        '<select id="s1-ecn-roi" class="s1-roisel" onchange="App._s1EcnRoiChanged(this.value)">' +
+          '<option value="forced">被迫型</option><option value="benefit">效益型</option>' +
+        '</select>' +
+        '<div class="s1-inlhint" id="s1-roi-hint">' + App._S1_ROI_HINT.forced + '</div></div>' +
+      '<div class="s1-ecnmeta-col"><span class="s1-top-label">需求單號（選填）<span class="s1-qmark">?<span class="s1-qtip">此單號往後會與正式 ECN 單號關聯，記錄在專案內頁中，作為開案與結案的追溯紀錄。</span></span></span>' +
+        '<input type="text" id="s1-ecn-src" placeholder="觸發此案的客訴單或異常單號"></div>' +
+    '</div>' +
+    '<div class="s1-ecnmeta-col">' +
+      '<span class="s1-top-label">設變背景與原因</span>' +
+      '<textarea id="s1-ecn-reason" rows="3" placeholder="請描述變更背景，例：客戶反映壓縮機外殼異音，需增加緩衝墊片"></textarea>' +
+    '</div>' +
+  '</div>';
+};
+// S/M/L 切換（§19.10 A.1 核心互動）：改分級 → 各案階段集重設為該級 sizeMeta＋膠囊/甘特/PM 條/排程建議/分級說明行即時重繪。
+// renames 保留（keys 不在新階段集就不顯示，切回來仍在）；日期/名稱在 DOM 不動。
+App._s1SetEcnSize = function(size) {
+  if (!App._s1Ecn) return;
+  App._s1Ecn.size = size;
+  const meta = (typeof ECN_TEMPLATE !== 'undefined' && ECN_TEMPLATE.sizeMeta[size]) || null;
+  (App._s1Cases || []).forEach(c => { if (meta) c.stages = meta.stages.slice(); });   // ECN 案卡無膠囊列，只更新 state（甘特預覽吃 state）
+  document.querySelectorAll('#page-stage1 .s1-szbtn').forEach(b => b.classList.toggle('on', b.dataset.size === size));
+  const h = document.getElementById('s1-sz-hint'); if (h) h.textContent = App._S1_SZ_HINT[size] || '';
+  App._s1RefreshPreview();
+};
+// 原因分類 → ROI 下拉自動推導（Cost Down＝效益型、其餘＝被迫型；§19.2 可覆寫——手動改過下拉後不再自動動它）。
 
 // _s1FallbackCase：第一階段預覽 demo 假案的階段清單來源（範本缺時退此），名稱/日期已不再使用。
 App._s1FallbackCase = function() {
@@ -1137,24 +1301,29 @@ App._s1CaseColHtml = function(c, isMain) {
   const nameVal = isMain ? '' : (c.dname || '');
   const ph = isMain ? '主案名稱' : '子案名稱（例：2.2kW）';
   return '<div class="s1-case-col case-card ' + (isMain ? 's2-case-main' : 's2-case-other') + '" data-case="' + (isMain ? 'main' : c.key) + '" data-case-key="' + c.key + '" data-tplvariant="' + c.templateVariant + '">' +
+      // ECN 單案制：不渲染主案膠囊/名稱欄——上方「專案名稱」即唯一值（_s1CollectInput fallback 帶入）
+      (App._s1Ecn ? '' :
       '<div class="s1-case-head">' + pill +
         '<input type="text" class="s1-case-name" value="' + U.esc(nameVal) + '" placeholder="' + ph + '" oninput="App._s1RefreshPreview()">' + del +
-      '</div>' +
+      '</div>') +
       '<div class="s1-case-dates">' +
         '<label>開始日<input type="date" class="s1-in-start" value="" onchange="App._s1RefreshPreview()"></label>' +
         '<label>上市日期<input type="date" class="s1-in-end" value="" onchange="App._s1RefreshPreview()"></label>' +
       '</div>' +
       '<div class="s1-dynhint s1-dynhint-init">' + App._s1DynHintHtml('', '', '') + '</div>' +
+      // ECN 不渲染階段膠囊列（Gemini 覆核痛點三：與下方甘特預覽重複——ECN 階段由 S/M/L 分級決定，增刪改名留 NPI）
+      (App._s1Ecn ? '' :
       '<div class="s1-stage-hd">開發階段</div>' +
       '<div class="s1-stage-note"><i class="ti ti-info-circle"></i>此處直接決定專案流程（由左至右）：點擊膠囊可重新命名和刪除階段，按 ＋ 可增加階段。<br><b class="s1-stage-note-em">調整後系統將自動重排下方甘特圖、並重新精算時間餘裕與燈號。</b></div>' +
-      '<div class="s1-stagelist">' + App._s1StageChipsHtml(c) + '</div>' +
+      '<div class="s1-stagelist">' + App._s1StageChipsHtml(c) + '</div>') +
     '</div>';
 };
 
 // _s1AddSubcase：新增一張子案卡（預設帶範本另案階段＋唯一預設名），append 不重繪其他卡。
 App._s1AddSubcase = function() {
   if (!App._s1Cases) return;
-  const tplCases = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined' && PRODUCT_DEV_TEMPLATE.cases) ? PRODUCT_DEV_TEMPLATE.cases : [];
+  const _tpl = App._s1Tpl();
+  const tplCases = (_tpl && _tpl.cases) ? _tpl.cases : [];
   const tplSub = (tplCases[1] ? tplCases[1].stages : (tplCases[0] ? tplCases[0].stages : [])).slice();
   App._s1SubSeq = (App._s1SubSeq || 0) + 1;
   const c = { key: 'c' + App._s1SubSeq, templateVariant: '另案', stages: tplSub, renames: {}, dname: '子案 ' + App._s1SubSeq };
@@ -1234,6 +1403,10 @@ App._s1PreviewBlocksHtml = function(real) {
           '<span class="s1-pill-tip"><span class="s1-pill-tip-hd s1-tiphd-' + v.light + '"><i class="ti ' + PILL_IC[v.light] + '"></i>' + PILL_LB[v.light] + '</span>' + PILL_TIP[v.light] + '</span>' +
         '</span>'
       : '';
+    // §19.10 A.1 PM 協調負荷條（Model Y 招牌）：ECN 模式甘特最下方固定一條、每案強制、不可降級；Effort 依 S15/M20/L40
+    const pmRow = (App._s1Ecn && typeof ECN_TEMPLATE !== 'undefined' && ECN_TEMPLATE.sizeMeta[App._s1Ecn.size])
+      ? '<div class="s1-pm-bar"><div class="s2-gname">PM 協調</div><div class="s1-pm-track">常駐 · 全程鎖定 · Effort ' + ECN_TEMPLATE.sizeMeta[App._s1Ecn.size].pmEffort + '%</div><div class="s2-gdate">全程</div></div>'
+      : '';
     return '<div class="s1-prev-case case-card ' + cls + '">' +
         '<div class="s1-prev-head">' +
           '<span class="s1-prev-name">' + U.esc(v.name || '') + '</span>' +
@@ -1241,6 +1414,7 @@ App._s1PreviewBlocksHtml = function(real) {
           pill +
         '</div>' +
         miniGantt(v.stages) +
+        pmRow +
       '</div>';
   };
   return real.map((v, i) => blockOf(v, i === 0)).join('');
@@ -1313,7 +1487,9 @@ App._s1CollectInput = function() {
   page.querySelectorAll('.s1-case-col').forEach(col => {
     const key = col.dataset.caseKey;
     const cs = App._s1CaseByKey(key);
-    const rawName = ((col.querySelector('.s1-case-name') || {}).value || '').trim();
+    const nameEl = col.querySelector('.s1-case-name');
+    // ECN 單案制無案名欄 → 用上方專案名稱當 variant 名（唯一值）；NPI 照舊讀案卡輸入
+    const rawName = nameEl ? (nameEl.value || '').trim() : (App._s1Ecn ? (projectName || '').trim() : '');
     const variantName = rawName || ('案-' + (key || ''));   // 空名退回唯一 key（防 applyTemplate variantNameToId 撞 id）
     const templateVariant = col.dataset.tplvariant || '主案';
     const startDate = (col.querySelector('.s1-in-start') || {}).value || '';
@@ -1386,7 +1562,7 @@ App._chainStagesBackward = function(stages, deadline) {
 };
 
 App._s1ComputePreview = function() {
-  const tpl = (typeof PRODUCT_DEV_TEMPLATE !== 'undefined') ? PRODUCT_DEV_TEMPLATE : null;
+  const tpl = App._s1Tpl();
   if (!tpl) return null;
   const input = App._s1CollectInput();
   if (!input || !input.cases.length) return null;
@@ -1609,11 +1785,53 @@ App._flowStage3Back = function() {
 // 建立專案：步驟5 落地，吃 _tplPreview push/save（depts/variants 掛回 res.project + DATA push + Storage.save + 清 preview 防重複建）。
 App._stage2Commit = function() {
   if (App._roGuard()) return;
+  // §19.10 A.1（2026-07-02 覆核修訂）：ECN 建立前一次性防呆彈窗（取代常駐型別 Banner）——不可逆操作的最後閘門
+  const ecnGate = App._createFlow && App._createFlow.ecn;
+  if (ecnGate && !App._createFlow._ecnWarned) {
+    App.confirmModal({
+      icon: 'ti-settings', iconBg: '--amber-l', iconColor: '--amber-ink',
+      title: '此案將建立為工程設變案（ECN）',
+      msg: '建立後將使用設變專屬儀表板，<b>無法轉為一般開發案</b>。（S/M/L 分級之後仍可調整）確定建立？',
+      okText: '確定建立', cancelText: '返回修改',
+      onConfirm: function() { App._createFlow._ecnWarned = true; App._stage2Commit(); },
+    });
+    return;
+  }
   const res = this._tplPreview;
   if (!res) { U.toast('\u26a0 無範本預覽資料，請重新套用範本', 'warning'); return; }
   // 掛回 project（同 performWbsImport），否則 task 的 dept/variant id 解析不到（步驟1 從 saveProject 挪來此落地步）
   res.project.depts = res.depts;
   res.project.variants = res.variants;
+  // §19.10／§19.2 ECN 落地：寫設變專案欄位 ＋ 動態生成 PM 常駐協調任務（範本不含——工期＝全案跨度需排程後才知）
+  const ecn = App._createFlow && App._createFlow.ecn;
+  if (ecn && !res.project.ecnType) {
+    Object.assign(res.project, {
+      ecnType: true, size: ecn.size, changeReason: ecn.changeReason, roiType: ecn.roiType,
+      sourceNo: ecn.sourceNo, ecnNo: ecn.ecnNo, status: 'active', loopCount: 0, scopeGrowthCount: 0, reopenCount: 0,
+    });
+    const ds = res.tasks.map(t => t.plannedStart).filter(Boolean).sort();
+    const de = res.tasks.map(t => t.plannedEnd).filter(Boolean).sort();
+    if (ds.length && de.length) {
+      const s0 = ds[0], e0 = de[de.length - 1];
+      const span = Math.max(D.workdaysBetween(s0, e0), 1);
+      const dailyHours = (DATA.settings && DATA.settings.dailyHours) || 6;
+      const pmDept = (res.depts || []).find(d => d.name === 'PM');
+      res.tasks.push({
+        id: U.id(), project: res.project.id, wbs: 99, parentWbsId: '',
+        name: 'PM 設變協調／文件彙整（常駐）', desc: '全程 / PM 協調', category: 'deep', taskType: '任務',
+        predecessor: '', durationDays: span, owner: '', dept: pmDept ? pmDept.id : '', role: 'PM',
+        variant: (res.variants[0] || {}).id || null,
+        start: '', end: '', plannedStart: s0, plannedEnd: e0, actualStart: '', actualEnd: '',
+        progress: 0, status: 'pending', urgency: 'med',
+        estHours: Math.round(span * dailyHours * (ecn.pmEffort / 100) * 10) / 10,   // §19.4 工時點數＝比例×日工時×工期
+        method: '', canSplit: false, completedAt: null, createdAt: new Date().toISOString(),
+        scheduledStart: '', scheduledEnd: '', synced: false, stage: '', subgroup: '',
+        mustDeliver: false, deliverableType: '', requiredTask: true, mustIssue: false,
+        deliverable: '', riskIssue: '', delivered: '', deliverableLink: '', note: '',
+        effortRatio: ecn.pmEffort, taskAttr: 'baseline', isPmCoord: true,   // Model Y 常駐盾，不可降級（§19.4）
+      });
+    }
+  }
   const dup = DATA.projects.filter(p => p.name === res.project.name);
   const unassigned = res.tasks.filter(t => !t.owner).length;
   const _commit = () => {

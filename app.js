@@ -1932,7 +1932,7 @@ const App = {
     this.showPage('project', btn);
   },
 
-  // §19.10 A.0 ECN 開案：選型頁 ECN 三卡目前為純引導展示（.wiz-static 不可點）；設變創建表單＋型別 Banner＋建立跳戰情室 dashboard 為下一波施工項（屆時掛回卡片 onclick）
+  // §19.10 A.0 ECN 開案：選型頁 ECN 三卡 onclick=App._flowStartEcn(size)（template.js）；建立跳戰情室 dashboard 為下一波（現落地一般內頁過渡）
 };
 
 // 雙軌導覽分包（§18.7）：個人工作台 / 全專案總覽 各自命名空間，未來拆檔即剪貼。

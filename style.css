@@ -441,33 +441,71 @@ body.viewonly .cloud-sync-sec { display: none; }
 .stage-pick.on { background: var(--sage-50); color: var(--sage-700); border: 1px solid var(--sage-100); }
 /* 選型引導頁（建立新案 wizard，§19.10 A.0）：兩欄型別卡、純白線框；NPI 綠／ECN 琥珀對齊 sidebar 色點，全走 :root */
 .sb-add-main { margin-bottom: 8px; }
-.wiz-warn { display: flex; align-items: flex-start; gap: 8px; background: var(--hint-head); border: 1px solid var(--rule); border-radius: var(--r8); padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: var(--ink2); line-height: 1.55; }
-.wiz-warn-ic { color: var(--amber-accent); font-size: 16px; flex: none; margin-top: 1px; }
-.wiz-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
-.wiz-colhead { display: flex; align-items: center; gap: 7px; border-radius: var(--r8); padding: 8px 11px; font-size: 13px; font-weight: 600; }
+.modal:has(.wiz) { width: min(1150px, 88vw); }   /* 選型精靈＝重大不可逆選擇：Modal 放大到近滿版，字級升舒適閱讀（Gemini 覆核） */
+.wiz-warn { display: flex; align-items: flex-start; gap: 9px; background: var(--hint-head); border: 1px solid var(--rule); border-radius: var(--r8); padding: 11px 14px; margin-bottom: 16px; font-size: 13.5px; color: var(--ink2); line-height: 1.6; }
+.wiz-warn-ic { color: var(--amber-accent); font-size: 18px; flex: none; margin-top: 1px; }
+/* subgrid：左右兩欄共用 6 條 row 軌（表頭/說明/卡1/卡2/卡3/防過勞），同 row 等高 → 左右卡片表頭對齊，短卡在 row 內自然留白 */
+.wiz-cols { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(6, auto); column-gap: 20px; row-gap: 10px; }
+.wiz-col { display: grid; grid-template-rows: subgrid; grid-row: span 6; row-gap: 10px; }
+.wiz-colhead { display: flex; align-items: center; gap: 8px; border-radius: var(--r8); padding: 9px 13px; font-size: 15px; font-weight: 600; }
 .wiz-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .wiz-npi .wiz-colhead { background: var(--sage-50); border: 1px solid var(--sage-200); color: var(--sage-700); }
 .wiz-npi .wiz-dot { background: var(--sage-500); }
 .wiz-ecn .wiz-colhead { background: var(--amber-l); border: 1px solid var(--amber-border); color: var(--amber-ink); }
 .wiz-ecn .wiz-dot { background: var(--amber-accent); }
-.wiz-colnote { font-size: 11px; color: var(--ink4); padding: 5px 3px 8px; line-height: 1.5; }
-.wiz-card { border: 1px solid var(--rule); border-radius: var(--r12); padding: 10px 12px; margin-bottom: 8px; background: var(--surface); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.wiz-colnote { font-size: 12.5px; color: var(--ink4); padding: 2px 3px 0; line-height: 1.55; }   /* 上下距交給 row-gap */
+.wiz-card { border: 1px solid var(--rule); border-radius: var(--r12); padding: 13px 15px; background: var(--surface); cursor: pointer; transition: border-color .15s, box-shadow .15s; }   /* 卡距改由 .wiz-col row-gap 統一（subgrid） */
 .wiz-npi .wiz-card { border-color: var(--sage-100); }
-.wiz-ecn .wiz-card { border-color: var(--amber-border); }
-.wiz-card:hover { border-color: var(--sage-400); box-shadow: var(--shadow-sm); }
-.wiz-card.wiz-static { cursor: default; }   /* ECN 三卡：純引導展示（開案表單下一波接上前不可點），無 hover 假互動 */
-.wiz-card.wiz-static:hover { border-color: var(--amber-border); box-shadow: none; }
+.wiz-ecn .wiz-card { border-color: var(--rule); }   /* 預設淡（中性細框，色點已足以識別），hover 才亮琥珀 */
+.wiz-npi .wiz-card:hover { border-color: var(--sage-400); box-shadow: var(--shadow-sm); }
+.wiz-ecn .wiz-card:hover { border-color: var(--amber-accent); box-shadow: var(--shadow-sm); }   /* ECN 卡 hover＝琥珀高亮，不落回 sage */
 .wiz-ct { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
 .wiz-ci { font-size: 17px; color: var(--sage-600); flex: none; }
-.wiz-cn { font-size: 13px; font-weight: 600; color: var(--ink); }
+.wiz-cn { font-size: 14.5px; font-weight: 600; color: var(--ink); }
 .wiz-sev { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .wiz-sev-s { background: var(--sage-500); }
 .wiz-sev-m { background: var(--amber-accent); }
 .wiz-sev-l { background: var(--rose); }
-.wiz-cd { font-size: 12px; color: var(--ink3); line-height: 1.55; margin-bottom: 7px; }
-.wiz-ch { font-size: 11px; color: var(--ink4); border-top: 1px solid var(--rule); padding-top: 6px; }
-.wiz-prot { display: flex; align-items: flex-start; gap: 6px; font-size: 11px; color: var(--sage-700); background: var(--sage-50); border: 1px solid var(--sage-100); border-radius: var(--r8); padding: 7px 10px; line-height: 1.5; }
-.wiz-prot-ic { color: var(--sage-600); font-size: 14px; flex: none; margin-top: 1px; }
+.wiz-cd { font-size: 13.5px; color: var(--ink3); line-height: 1.6; margin-bottom: 8px; }
+.wiz-ch { font-size: 12px; color: var(--ink4); border-top: 1px solid var(--rule); padding-top: 7px; }
+.wiz-prot { display: flex; align-items: flex-start; gap: 7px; font-size: 12.5px; color: var(--sage-700); background: var(--sage-50); border: 1px solid var(--sage-100); border-radius: var(--r8); padding: 9px 12px; line-height: 1.55; }
+.wiz-prot-ic { color: var(--sage-600); font-size: 15px; flex: none; margin-top: 1px; }
+
+/* §19.10 A.1 ECN 開案畫面（s1 頁 ECN 層）：分級 S/M/L＋說明行／ROI 下拉＋原因／PM 協調條／名冊（2026-07-02 覆核修訂：Banner/徽章/Fan-out 拔除） */
+.s1-pagesub { font-size: 12px; color: var(--ink4); margin-top: 2px; }
+.s1-ecnmeta { display: flex; flex-direction: column; gap: 12px; margin: 2px 0 12px; }
+.s1-ecnrow { display: grid; grid-template-columns: 2fr 3fr; gap: 18px; align-items: start; }   /* Row2 不對稱雙欄：類型 40%｜需求單號 60%（消化留白，Gemini 定稿） */
+.s1-ecnmeta-col { display: flex; flex-direction: column; gap: 5px; }
+.s1-ecnmeta-col textarea { padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 13px; font-family: inherit; line-height: 1.6; resize: vertical; }
+.s1-szpanel { min-height: 40px; font-size: 12px; line-height: 1.6; color: var(--amber-ink); background: var(--amber-l); border: 1px solid var(--amber-border); border-radius: var(--r6); padding: 8px 11px; margin-top: 2px; }   /* 分級提示＝固定高度淡琥珀底塊（緊貼按鈕正下方，不跳版、不蒼白） */
+.s1-ecnmeta-col .s1-inlhint { max-width: none; width: fit-content; color: var(--amber-ink); background: var(--amber-l); border-radius: var(--r6); padding: 5px 10px; margin-top: 2px; }   /* 類型下方動態輔助字（淡琥珀底） */
+.s1-roisel { padding: 7px 8px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 13px; background: var(--surface); width: fit-content; min-width: 120px; }
+.s1-qmark { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 4px; border-radius: 50%; background: var(--stone-100); color: var(--ink3); font-size: 10.5px; font-weight: 600; cursor: help; }
+.s1-qtip { display: none; position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%); width: 300px; background: var(--stone-600); color: var(--ink-inverse); font-size: 11px; font-weight: 400; line-height: 1.6; text-align: left; padding: 8px 11px; border-radius: var(--r6); z-index: 60; box-shadow: var(--shadow-sm); }
+.s1-qmark:hover .s1-qtip { display: block; }
+.s1-ecnmeta-col input { padding: 7px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 13px; min-width: 220px; }
+.s1-szrow { display: flex; gap: 8px; }
+.s1-szbtn { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 7px 16px; border: 1px solid var(--rule2); border-radius: var(--r8); background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s; }
+.s1-szbtn b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.s1-szbtn span { font-size: 10.5px; color: var(--ink4); }
+.s1-szbtn:hover { border-color: var(--sage-400); }
+.s1-szbtn.on { border: 1.5px solid var(--sage-500); background: var(--sage-50); }
+.s1-szbtn.on b { color: var(--sage-700); }
+.s1-inlhint { max-width: 340px; font-size: 11.5px; line-height: 1.55; color: var(--amber-ink); padding: 2px 2px 0; }   /* 欄內純文字 inline hint（無框，寬度對齊該欄控制項，不撐破三欄水平對齊） */
+
+/* §19.10 A.1 ECN 頁琥珀主題（Gemini 覆核：內外層色彩一致——選型頁 ECN 琥珀 → 開案頁操作元件同琥珀；白底共用 .s1-preview） */
+.s1-ecnpage .s1-szbtn:hover { border-color: var(--amber-accent); }
+.s1-ecnpage .s1-szbtn.on { border: 1.5px solid var(--amber-accent); background: var(--amber-l); }
+.s1-ecnpage .s1-szbtn.on b { color: var(--amber-ink); }
+.s1-ecnpage .s1-dynhint:not(.s1-dynhint-alert) { background: var(--amber-l); color: var(--amber-ink); }   /* 含初始引導態，與分級/類型提示同底色（alert 紅警示保留） */
+.s1-ecnpage .s1-pm-track { color: var(--amber-ink); background: rgba(217,154,60,.18); border-color: var(--amber-accent); }
+.s1-ecnpage .stage2-foot .tb-action:not(.ghost) { background: var(--amber-accent); color: var(--amber-icon-fg); }
+.s1-ecnpage .stage2-foot .tb-action:not(.ghost):hover { background: var(--amber-accent-hover); }
+.s1-ecnpage .case-card { border-left: 1px solid var(--rule); border-radius: var(--r12); }   /* 單案制：左側粗綠裝飾線拿掉（Fan-out 縮排視覺已無意義） */
+.s1-ecn-helpol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.7; color: var(--ink2); }
+.s1-roster { margin: 14px 0 2px; }
+.s1-pm-bar { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); }
+.s1-pm-track { flex: 1; font-size: 11px; font-weight: 600; color: var(--sage-700); background: rgba(74,124,92,.20); border: 1px dashed var(--sage-500); border-radius: var(--r6); padding: 3px 10px; }
 
 /* Excel 上傳區（路線B ② 選檔鈕 + 三態狀態） */
 .excel-upload .eu-filebtn { display:inline-flex; align-items:center; gap:var(--r4); padding:var(--r6) var(--r10); border:1px solid var(--rule); border-radius:var(--r6); background:var(--surface); font-size:13px; color:var(--ink); cursor:pointer; }
@@ -1828,7 +1866,7 @@ body.viewonly .cloud-sync-sec { display: none; }
 #authBlockout.hidden { display: none; }
 
 /* ═══ §4.8.7.4b 塊3a-刀1：第一階段「大局時間」預覽頁（靜態版面） ═══ */
-.s1-preview { max-width: 957px; margin: 0 auto; padding: 16px; zoom: 1.15; }   /* 整頁等比放大 1.15（zoom 統一縮放、比例不破）；max-width 同步縮小(=1100/1.15)維持原視覺寬度、不溢出 */
+.s1-preview { max-width: 957px; margin: 0 auto; padding: 16px 20px 20px; zoom: 1.15; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); }   /* 整頁等比放大 1.15；白底卡容器（內外層一致：選型 modal 白 → 開案表單白，NPI/ECN 共用） */
 .s1-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .s1-proj-name { width: 300px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--rule2); border-radius: var(--r6); font-size: 12px; font-weight: 400; }
 .s1-colors { display: flex; gap: 6px; align-items: center; min-height: 38px; }
