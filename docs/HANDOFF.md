@@ -30,7 +30,7 @@
 - 要 diff 就**貼完整原文**，不給摘要結論。
 
 ### 工作流程
-- 大功能（尤其 CSS/UI）**先出 Mockup 定版再寫 code**，避免來回改。
+- 大功能（尤其 CSS/UI）**先出 Mockup 定版再寫 code**，避免來回改；**Mockup 一定版即把細節（版面/欄位/逐條文案/色彩 token/互動）完整回寫架構文件**，不留「大概方向」，避免下次 session 重討論 Mockup 重工（AGENT_GATE 規則12）。
 - 機械性改動一口氣做完、最後貼總結；只有「測試 FAIL／邏輯分支或語意改變／anchor 不確定／動既有邏輯／commit-gate」要停下貼審。
 - Paul 明說「自主執行不用同意」時，照建議連續做完再貼總結；否則一次一件、做完停等放行。
 - **寫完先停、線上驗過才 commit**（除非 Paul 明說「先 commit」，例如要在本機測）。未線上驗的 commit message 標 `[unverified]`。
@@ -78,7 +78,8 @@
 - **三張 Mockup 定版**：開案畫面（方向 C·S/M/L 動態·PM 協調條·排程建議行跟隨·Fan-out·**前置白話三欄零 FS**）／設變專屬 dashboard（左 HUD 健康三指標＋右 3 資料夾頁籤·成因 Enum·迴圈列·PM 常駐列）／BOM·ROI 差異四區。開案即落地跳 dashboard、sidebar 設變案群組、ECN 簡化實體（無 view 工具列）、**跨案 135% 推 Phase 2**。
 - **開工首塊 `71c398c`**：`renderSidebar` 抽 `renderProj`、依 `ecnType` 分 NPI／ECN 兩群、各自新增鈕、V3 區塊底帶群標（`.sb-grp` 色點 NPI 綠/ECN 琥珀，全走 :root）、`openEcnDialog` 占位 toast。
 - **HintBox 淺色 `3778393`+`3e7dd30`**：移除總覽 `#portfolio-body` 深色 override、header 暖沙 `--hint-head #F1EFE8`、body 四色塊中性化統一白底（一種規則）。§6.5b 更新。
-- **下一件**：設變案**開案畫面**（把 `openEcnDialog` 占位換真流程，複用 `_flowStep1`＋ECN 三處＋名冊挪前＋分級按鈕＋PM 協調條＋排程建議行＋Fan-out）→ 建立即落地跳 dashboard。
+- **選型引導頁 Mockup 定版＋§19 spec 回寫（2026-07-02，本 session，未 commit）**：統一入口重建（sidebar 頂端單一「＋建立新案」、移除兩群尾＋鈕、兩群退為 View 篩選器）＋選型頁兩欄型別卡（開發 範本/Excel/空白｜設變 S/M/L）＋不可互轉界線＋純白線框＋全套潤稿文案＋型別 Banner＋排程列複用 `.s1-dynhint` 擇一必填。回寫 §19.3／§19.10 A.0(新)/A.1/E／§19.11／INDEX。新增 AGENT_GATE 規則12＋memory `mockup-detail-into-docs`。
+- **下一件**：設變案**入口重建＋選型引導頁＋開案畫面**開發（§19.10 A.0/A.1；把 `openEcnDialog` 占位換真流程，複用 `_flowStep1`＋型別 Banner＋ECN 三處＋名冊挪前＋分級按鈕＋PM 協調條＋排程列複用＋Fan-out）→ 建立即落地跳 dashboard。
 
 ### 2026-06-29
 
