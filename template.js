@@ -431,12 +431,13 @@ App._flowStartEcn = function(size) {
   App.closeModal();
   App._renderStage1Preview();
 };
-// s1 頁「上一步」：先離開 s1 頁（還原 topbar＋切回原頁，背景不殘留）再開選型 modal（Gemini 覆核修訂）。
+// s1 頁「上一步」：先離開 s1 頁（還原 topbar＋切回原頁，背景不殘留）再回上一動——
+// NPI＝教育卡（排程模式說明指南，教育卡的上一步再回選型頁，鏈條完整）；ECN 無教育卡＝直回選型頁。
 App._s1Back = function() {
   const tb = document.querySelector('.main > .topbar');
   if (tb) tb.classList.remove('topbar-hidden');
   App.showPage(App.currentPage || 'workspace', null);
-  App._flowStep1();
+  if (App._s1Ecn) App._flowStep1(); else App._scheduleEduCard();
 };
 // s1 頁辨識顏色點選（swatch 切 .on；_s1CollectInput 讀 .on 的 data-color）。
 App._s1PickColor = function(el) {
