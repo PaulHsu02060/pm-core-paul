@@ -81,7 +81,8 @@
 - **統一入口＋選型引導頁 落地** `4c4bb51`：sidebar 頂端單一「＋建立新案」、兩群退為 View 分類清單、兩欄型別卡＋不可互轉警示＋防過勞條。規格 §19.10 A.0；AGENT_GATE 規則12＋memory `mockup-detail-into-docs`（`f578348`）。
 - **ECN 開案畫面＋範本引擎 落地** `ad8a73f`（§19.10 A/A.1 定版，多輪線上驗＋Gemini 覆核）：`templates/ecn-template.js`（§19.9 瘦骨架 e1–e13＋sizeMeta，oracle 三級前置零懸空）＋`_ecnTplForSize`/`_s1Tpl` 引擎＋三列式表單（分級全寬+固定高度提示塊／類型40·需求單號60／背景原因 textarea 整併·選填）＋S/M/L 即時反饋＋ROI 純手動下拉雙 hint＋?氣泡＋名冊挪前(HintBox 展開)＋PM 協調條＋單案制＋琥珀主題白底＋建立前防呆彈窗(Banner 方案廢)＋落地寫 §19.2 欄位(`sourceNo` 新)＋動態生成 PM 常駐任務。選型 Modal XL(88vw)＋subgrid 表頭對齊＋`_s1Back` 上一步不留背景＋色點補點擊。**過渡：建立後暫落一般內頁**（戰情室做完改跳）。尾兩修（日期引導同底色/名冊 HintBox 展開）未線上驗。
 - **Design Tokens 定版** `07a638d`：UI 規範 §6（Modal S400/M600/L800/XL1140·8px 網格·五級字階·Icon 24/20/16·高度 40/32/48）＋AGENT_GATE 規則 7 補「禁清單外自定 px」＋memory `design-tokens-standard`。
-- **下一件**：**ECN 戰情室 dashboard（§19.10 B）**——同流程：細節討論→Mockup 定版→施工；接著 大表投入%批量修改、BOM·ROI（§19.6）。受影響機種/多子案＝Phase 2 與 variant 一起（§19.11）。
+- **戰情室細節＋Mockup 終版定版（2026-07-02，§19.10 B.1/B.2）**：6 點細節定案（雙軌口徑+baselineHours/雙旗入口/案內重排/頁籤C=事件時間軸/結案下波/升降級）＋Mockup 七輪迭代 v7 定版——滿版流動 HUD 280、HUD 白話四卡+進度條視覺化、說明回歸 HintBox（左展開/右收合，文案 Gemini 定稿）、**大表複用 Stage 2 真實結構琥珀化**（前置三窄格 inline、投入%佔需交付位、表頭淡琥珀+深字、關鍵路徑左紅框、操作欄「⚙編輯▾」統一入口→打回重測/刪除）、成因窗（enum 必填+fade-in）、重做歸屬=loopFromId 自動綁非前置判定、進度不進大表。ECN 開案改「建立專案」直落地+上一步資料警告（`b7aaa71`）。
+- **下一件**：**戰情室 Tab A 施工**（§19.11 清單：ecnType 分流→滿版佈局+HUD+大表+互動+頁籤C殼+baselineHours/ecnEvents 落地）→ 投入%批量修改 → 總覽「PM 跨案負荷」區塊 → BOM·ROI（Tab B 先設計）。受影響機種/多子案＝Phase 2 與 variant 一起（§19.11）。
 
 ### 2026-06-29
 
