@@ -1888,15 +1888,16 @@ const App = {
   // ─── SIDEBAR ───
   renderSidebar() {
     const list = document.getElementById('projectList');
-    // §15 段4：同名群組（count>1）才顯版號副標，單一專案不顯（避免雜訊）
+    // §15 段4：同名群組（count>1）才顯版號副標，單一專案不顯（避免雜訊）。key 含分類＝NPI/ECN 同名分開計（問題4）
     const nameCount = {};
-    DATA.projects.forEach(p => { nameCount[p.name] = (nameCount[p.name] || 0) + 1; });
+    const _nkey = (p) => (p.ecnType ? 'E:' : 'N:') + p.name;
+    DATA.projects.forEach(p => { nameCount[_nkey(p)] = (nameCount[_nkey(p)] || 0) + 1; });
     // 單一專案列 HTML（NPI／ECN 兩群共用）
     const renderProj = (p) => {
       const cnt = DATA.tasks.filter(t => t.project === p.id && t.status !== 'done' && !t._deleted).length;
       const isActive = this.currentPage === 'project' && this.currentProjectId === p.id;
       // 版號 + 日期副標：日期 importedAt||createdAt（B 方案 fallback）、D.fmt 本地避 -1 天；version||1 兜底舊專案
-      const ver = nameCount[p.name] > 1
+      const ver = nameCount[_nkey(p)] > 1
         ? `<span style="font-size:9.5px; font-family:var(--mono); color:var(--sidebar-ink2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">V${p.version || 1} · ${D.fmt(p.importedAt || p.createdAt, 'iso')}</span>`
         : '';
       return `<button class="sb-proj ${isActive ? 'active' : ''}" onclick="App.openProject('${p.id}', this)">

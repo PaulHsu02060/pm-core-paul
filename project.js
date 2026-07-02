@@ -77,6 +77,10 @@ App.renderProject = function() {
     return;
   }
 
+  // §19：ECN 設變案走專屬戰情室 dashboard（依 ecnType 分流，不套一般專案 view 工具列）；NPI 走原路並清 ECN hijack 旗標
+  if (proj.ecnType) return App.renderEcnDashboard(proj);
+  App._s2EcnMode = null;
+
   const html = `
     ${this.buildProjectHeaderHtml()}
     <div class="view-tabs-bar">${this.buildProjectViewTabsHtml()}</div>
@@ -2021,6 +2025,449 @@ App.renderKanban = function(targetId = 'page-kanban', pid = null) {
         c.tasks.map(t => App.buildKanbanCardHtml(t)).join('') +
       '</div>' +
     '</div>'
+  ).join('') + '</div>';
+};
+
+// ═══════════════════════════════════════════════════════
+//  §19 ECN 設變案戰情室 dashboard（Tab A 任務與排程；複用 Stage 2 .s2-tbl 結構＋_s2PredCells＋既有 setter，
+//  資料源 hijack：renderEcnDashboard 把 _tplPreview 指向 ECN live res（tasks＝DATA 活引用），
+//  _s2* handler 全部沿用不改；編輯即改 DATA，_s2RefreshCase 於 ECN 模式走 _s2EcnPersist 存檔＋重繪。§19.10 B/B.1/B.2）
+// ═══════════════════════════════════════════════════════
+
+// §19 問題2/3：ECN live 專案一律 forward（開始為錨）。_effScheduleDir 在「開始+結束都有」時強制回 interval（反推），
+// 故必須清 endDate（改存 targetEndDate 保留上市日資訊）才會走 forward。無開始日者補起算日＝該案最早 plannedStart。
+// 回傳 migrated＝是否清過 endDate（true→呼叫端需重排+存檔，矯正既有 interval 案的日期）。
+App._ecnForwardVariants = function(variants, tasks) {
+  let migrated = false;
+  (variants || []).forEach(v => {
+    if (!v.schedule) return;
+    if (!v.schedule.startDate && tasks) {
+      const ss = tasks.filter(t => t.variant === v.id).map(t => t.plannedStart).filter(Boolean).sort();
+      if (ss.length) v.schedule.startDate = ss[0];
+    }
+    if (v.schedule.endDate) { v.schedule.targetEndDate = v.schedule.endDate; v.schedule.endDate = ''; migrated = true; }
+    v.schedule.direction = 'forward';
+  });
+  return migrated;
+};
+// 工時點數＝effortRatio% × 每日工時 × 工期（§19.4）
+App._ecnPts = function(t) {
+  const dh = (DATA.settings && DATA.settings.dailyHours) || 6;
+  return ((t.effortRatio != null ? t.effortRatio : 100) / 100) * dh * (t.durationDays || 0);
+};
+// 投入%六檔行為錨點下拉選項（§19.4；0＝掛名未出力舉證）
+App._ecnEffortOptions = function(v) {
+  const opts = [[0, '0% 未出力'], [10, '10% 點一下'], [25, '25% 零星盯'], [50, '50% 半天'], [75, '75% 大半天'], [100, '100% 獨佔']];
+  const cur = (v != null) ? v : 100;
+  return opts.map(o => '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>').join('');
+};
+// PM 常駐列投入%下拉（§19.4：可上調、不可低於該級預設 floor）＝floor 本身＋六檔中 > floor 者
+App._ecnPmEffortOptions = function(cur, floor) {
+  const six = [0, 10, 25, 50, 75, 100];
+  let vals = [floor].concat(six.filter(v => v > floor));
+  if (cur != null && vals.indexOf(cur) < 0) vals.push(cur);
+  vals = Array.from(new Set(vals)).sort((a, b) => a - b);
+  const c = (cur != null) ? cur : floor;
+  return vals.map(v => '<option value="' + v + '"' + (v === c ? ' selected' : '') + '>' + v + '%</option>').join('');
+};
+App._ecnSetEffort = function(taskId, val) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.effortRatio = parseInt(val, 10);   // 投入%不影響日期，改值即存不重排
+  App._s2EcnPersist();
+};
+// 部門下拉選項（§19 #5：設變思維＝任務由哪部門做不固定，部門可換）：名冊各部門名＋「—」未指派
+App._ecnDeptOptions = function(cur) {
+  const res = App._tplPreview; const depts = (res && res.depts) || [];
+  let html = '<option value=""' + (cur ? '' : ' selected') + '>—</option>';
+  depts.forEach(d => { html += '<option value="' + U.esc(d.name) + '"' + (d.name === cur ? ' selected' : '') + '>' + U.esc(d.name) + '</option>'; });
+  return html;
+};
+// 換部門：改 t.role（顯示部門）＋ t.dept（id）。#1 選部門→自動帶該部門第一個有名字的擔當；現擔當已屬新部門則保留。
+App._ecnSetDept = function(taskId, deptName) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const d = (res.depts || []).find(x => x.name === deptName);
+  t.role = deptName;
+  t.dept = d ? d.id : '';
+  if (!(d && (d.members || []).some(m => m.name === t.owner))) {
+    const fm = d ? (d.members || []).find(m => m.name) : null;
+    t.owner = fm ? fm.name : '';
+  }
+  App._s2EcnPersist();
+};
+// #1 選擔當 → 自動帶入該人所屬部門（ECN 專用；NPI 用 _s2SetOwner 不連動部門）。
+App._ecnSetOwner = function(taskId, value) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.owner = value;
+  if (value) {
+    const d = (res.depts || []).find(dp => (dp.members || []).some(m => m.name === value));
+    if (d) { t.role = d.name; t.dept = d.id; }
+  }
+  App._s2EcnPersist();
+};
+// §6.5 開始為錨：改開始日＝釘手填錨點 t.start（computeSchedule ① 尊重不覆蓋）；清空＝回歸前置驅動。forward 重排＋存檔。
+App._ecnSetStart = function(taskId, val) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  t.start = val || '';
+  App._reschedulePreview(res.tasks, res.variants, []);
+  App._s2EcnPersist();
+};
+// §6.5 改完成日→回算工期（開始當錨，不反推開始）。dur＝workdaysBetween(開始, 完成)（含頭尾）。
+App._ecnSetEnd = function(taskId, val) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const eff = getEffectiveSchedule(t);
+  const s = t.start || t.plannedStart || eff.start;
+  if (val && s) t.durationDays = Math.max(1, D.workdaysBetween(s, val));
+  App._reschedulePreview(res.tasks, res.variants, []);
+  App._s2EcnPersist();
+};
+// 狀態＝唯讀·衍生（實際優先，§五對齊）：實際完工→已完工＞擱置＞實際開工→進行中＞計畫結束已過(無實際)→逾期＞計畫已到開工日→進行中＞未開始。
+// 大表「日期」是計畫排程；實際開工/完工日在「⚙ 編輯」記錄。逾期＝計畫結束日過了但沒實際完工。
+App._ecnStatusDerive = function(t) {
+  const todayIso = D.fmt(D.today(), 'iso');
+  if (t.actualEnd || t.status === 'done') return { label: '已完工', cls: 'done' };
+  if (t.status === 'hold') return { label: '擱置', cls: 'hold' };
+  if (t.actualStart) return { label: '進行中', cls: 'wip' };
+  if (t.plannedEnd && t.plannedEnd < todayIso) return { label: '逾期', cls: 'delayed' };
+  if (t.plannedStart && t.plannedStart <= todayIso) return { label: '進行中', cls: 'wip' };
+  return { label: '未開始', cls: 'todo' };
+};
+// #3 任務名點擊編輯：span→input、focus 全選，失焦/Enter 存檔（_s2SetName→ECN persist 重繪回省略態）
+App._ecnEditName = function(span, taskId) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const inp = document.createElement('input');
+  inp.className = 's2-name-inp'; inp.value = t.name;
+  inp.onblur = function() { App._s2SetName(taskId, inp.value); };
+  inp.onkeydown = function(e) { if (e.key === 'Enter') inp.blur(); };
+  span.replaceWith(inp); inp.focus(); if (inp.select) inp.select();
+};
+// 刪除任務（二次確認，列出連帶影響後置數）→ 走共用 _s2DelRow（ECN 模式自動存檔重繪）
+App._ecnDelTask = function(taskId) {
+  const res = App._tplPreview; if (!res) return;
+  const dependents = (res.tasks || []).filter(t => String(t.predecessor || '').split(/[,，;；]/).some(p => p.split('#')[0].trim() === taskId)).length;
+  App.confirmModal({
+    icon: 'ti-trash', iconBg: '--rose-l', iconColor: '--rose-ink', okClass: 'danger',
+    title: '刪除任務', msg: '此舉將連帶影響 <b>' + dependents + '</b> 個後置任務的排程，確定刪除？', okText: '刪除', cancelText: '取消',
+    onConfirm: function() { App._s2DelRow(taskId); },
+  });
+};
+// ⚙ 編輯任務 modal（特殊操作）：狀態＝自動/已完工/擱置(＋原因)、打回重測(已完工才有)、刪除。
+App._ecnEditTask = function(taskId) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const isDone = t.status === 'done' || !!t.actualEnd;
+  const isHold = t.status === 'hold';
+  const anomaly = isDone
+    ? '<div class="form-field"><label>異常變更</label><button class="tb-action ghost" style="color:var(--rose-ink);border-color:var(--rose-l)" onclick="App._ecnLoopTask(\'' + taskId + '\')">↩ 打回重測</button><div class="ecn-edit-hint">👉 點擊後直接連動成因選單（＝完工後被退重做）。</div></div>'
+    : '<div class="form-field"><label>異常變更</label><div class="ecn-edit-hint">※ 任務有「實際完工日」後，方可解鎖「打回重測」。<br>中途追加請用大表列間的「＋」；結案後翻案重啟屬整案結案流程（下一波）。</div></div>';
+  App.openModal({
+    title: '⚙ 編輯任務 · ' + U.esc(t.name),
+    body:
+      '<div class="ecn-edit-hint" style="margin-bottom:12px">💡 進度狀態由<b>實際日期</b>判定。（外層大表的「計畫日期」僅供排程參考，不影響狀態）</div>' +
+      '<div class="form-row">' +
+        '<div class="form-field"><label>實際開工日</label><input type="date" id="ecn-edit-astart" value="' + (t.actualStart || '') + '"><div class="ecn-edit-hint">填寫即轉為「進行中」</div></div>' +
+        '<div class="form-field"><label>實際完工日</label><input type="date" id="ecn-edit-aend" value="' + (t.actualEnd || '') + '"><div class="ecn-edit-hint">填寫即轉為「已完工」，自動退出待消化工時</div></div>' +
+      '</div>' +
+      '<div class="form-field" style="margin-top:8px"><label class="ecn-edit-chk"><input type="checkbox" id="ecn-edit-hold"' + (isHold ? ' checked' : '') + ' onchange="App._ecnEditToggleHold()"> 擱置（暫停這項）</label></div>' +
+      '<div class="form-field" id="ecn-edit-holdwrap" style="' + (isHold ? '' : 'display:none') + '">' +
+        '<label>擱置原因（為何暫停這項？結案檢討會用到）</label>' +
+        '<textarea id="ecn-edit-holdreason" rows="2" placeholder="例：等客戶確認規格／供應商缺料／上級喊停">' + U.esc(t.holdReason || '') + '</textarea></div>' +
+      anomaly,
+    footer:
+      '<button class="tb-action ghost" style="color:var(--rose-ink);margin-right:auto" onclick="App._ecnDelTask(\'' + taskId + '\')">🗑 刪除任務</button>' +
+      '<button class="tb-action ghost" onclick="App.closeModal()">取消</button>' +
+      '<button class="tb-action" onclick="App._ecnEditTaskSave(\'' + taskId + '\')">儲存</button>',
+  });
+};
+App._ecnEditToggleHold = function() {
+  const c = document.getElementById('ecn-edit-hold');
+  const w = document.getElementById('ecn-edit-holdwrap');
+  if (w) w.style.display = (c && c.checked) ? '' : 'none';
+};
+App._ecnEditTaskSave = function(taskId) {
+  const res = App._tplPreview; if (!res) return;
+  const t = (res.tasks || []).find(x => x.id === taskId); if (!t) return;
+  const hold = !!(document.getElementById('ecn-edit-hold') || {}).checked;
+  const reason = (document.getElementById('ecn-edit-holdreason') || {}).value || '';
+  const astart = (document.getElementById('ecn-edit-astart') || {}).value || '';
+  const aend = (document.getElementById('ecn-edit-aend') || {}).value || '';
+  t.actualStart = astart;
+  t.actualEnd = aend;
+  if (hold) { t.status = 'hold'; t.holdReason = reason; }
+  else {
+    t.holdReason = '';
+    if (aend) { t.status = 'done'; t.progress = 100; }   // 有實際完工日＝完成、退待消化工時
+    else { t.status = astart ? 'wip' : 'pending'; if (typeof t.progress === 'number' && t.progress >= 100) t.progress = 0; }
+  }
+  App.closeModal();
+  App._s2EcnPersist();
+};
+// 打回重測（重測迴圈🔄）：成因窗 → loopCount++ ＋ ecnEvents ＋ 生成 isLoopTask 重做列（接原任務、帶原工期/比例）→ 重排存檔。
+App._ecnLoopTask = function(taskId) {
+  App.closeModal();
+  App._ecnCauseModal('loop', function(cause) {
+    const res = App._tplPreview; if (!res) return;
+    const orig = (res.tasks || []).find(x => x.id === taskId); if (!orig) return;
+    const proj = App.getProj(App._s2EcnMode);
+    if (proj) { proj.loopCount = (proj.loopCount || 0) + 1; (proj.ecnEvents = proj.ecnEvents || []).push({ type: 'loop', date: D.fmt(new Date(), 'iso'), label: '打回重測：' + orig.name, cause: cause }); }
+    const idx = res.tasks.findIndex(x => x.id === taskId);
+    const dh = (DATA.settings && DATA.settings.dailyHours) || 6;
+    const nt = {
+      id: U.id(), project: res.project.id, wbs: '', parentWbsId: '',
+      name: '重工：' + orig.name, desc: orig.stage || '', category: 'deep', taskType: '任務',
+      predecessor: orig.id + '#FS', durationDays: orig.durationDays || 1, owner: orig.owner || '', dept: orig.dept || '', role: orig.role || '', variant: orig.variant,
+      start: '', end: '', plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '',
+      progress: 0, status: 'pending', urgency: 'med', estHours: dh,
+      method: '', canSplit: false, completedAt: null, createdAt: new Date().toISOString(), scheduledStart: '', scheduledEnd: '', synced: false, stage: orig.stage || '', subgroup: '',
+      mustDeliver: false, deliverableType: '', requiredTask: true, mustIssue: false, deliverable: '', riskIssue: '', delivered: '', deliverableLink: '', note: '',
+      effortRatio: (orig.effortRatio != null ? orig.effortRatio : 50), taskAttr: 'baseline', isLoopTask: true, loopFromId: orig.id, causeTag: cause,
+    };
+    res.tasks.splice(idx + 1, 0, nt);
+    App._reschedulePreview(res.tasks, res.variants, []);
+    App._s2EcnPersist();
+  });
+};
+App._ecnSetTab = function(tab) { App._ecnTab = tab; const p = App.getProj(App.currentProjectId); if (p) App.renderEcnDashboard(p); };
+
+// 成因窗（§19.5 六項 enum，必填）：插入=中途追加／打回重測共用；onConfirm(cause) 回選的成因
+App._ecnCauseModal = function(kind, onConfirm) {
+  const sub = kind === 'loop' ? '這筆退回重做是誰造成的？' : '這筆中途追加是誰造成的？';
+  App.openModal({
+    title: '記錄異常成因（必填，不可跳過）',
+    body: '<div class="form-field"><label>' + sub + '</label>' +
+      '<select id="ecn-cause-sel">' + ['客戶方', '供應商', '內部設計', '物理干涉', '法規追加', '測試不確定'].map(c => '<option>' + c + '</option>').join('') + '</select></div>' +
+      '<div class="form-field"><label>備註（選填，一句話）</label><input id="ecn-cause-note" type="text" placeholder="例：客戶反映外殼異音，需追加緩衝墊"></div>',
+    footer: '<button class="tb-action ghost" onclick="App.closeModal()">取消</button><button class="tb-action" onclick="App._ecnCauseOk()">確認記錄</button>',
+  });
+  App._ecnCauseCb = onConfirm;
+};
+App._ecnCauseOk = function() {
+  const cause = (document.getElementById('ecn-cause-sel') || {}).value || '';
+  const cb = App._ecnCauseCb; App._ecnCauseCb = null;
+  App.closeModal();
+  if (cb) cb(cause);
+};
+// 列間插入＝中途追加（範圍蔓延🌫）：成因窗 → scopeGrowthCount++ ＋ ecnEvents ＋ 走共用 _s2InsertRow（ECN 模式自動存檔重繪）
+App._ecnInsertTask = function(afterId, variantId) {
+  App._ecnCauseModal('scope', function(cause) {
+    const proj = App.getProj(App._s2EcnMode);
+    if (proj) {
+      proj.scopeGrowthCount = (proj.scopeGrowthCount || 0) + 1;
+      (proj.ecnEvents = proj.ecnEvents || []).push({ type: 'scope', date: D.fmt(new Date(), 'iso'), label: '中途追加任務', cause: cause });
+    }
+    App._s2InsertRow(afterId, variantId);
+  });
+};
+
+// 主入口：依 ecnType 由 renderProject 分流進來
+App.renderEcnDashboard = function(proj) {
+  const tasks = DATA.tasks.filter(t => t.project === proj.id && !t._deleted);
+  // hijack：_tplPreview 指向 ECN live res（tasks 為 DATA 活引用，欄位編輯即改 DATA）；_s2* handler 讀此不改
+  App._tplPreview = { project: proj, tasks: tasks, variants: proj.variants || [], depts: proj.depts || [], warnings: [] };
+  App._s2EcnMode = proj.id;
+  // §19 問題2/3：既有 interval 案（有 endDate）首次進來 → 清 endDate 轉 forward、重排、存檔，矯正「改工期→開始移動」的日期
+  if (App._ecnForwardVariants(proj.variants, tasks)) { App._reschedulePreview(tasks, proj.variants || [], []); Storage.save(); }
+  const tab = App._ecnTab || 'a';
+  const sizeLbl = { S: 'S 級 · 輕量換料', M: 'M 級 · 結構認定', L: 'L 級 · 重大改模' }[proj.size] || (proj.size + ' 級');
+  const stLbl = { active: '進行中', closed: '已結案', reopened: '已重啟' }[proj.status] || '進行中';
+  const roiLbl = proj.roiType === 'forced' ? '被迫型 · 合規/停線' : '效益型 · Cost Down';
+  const on = (t) => tab === t ? ' on' : '';
+  const panel = tab === 'b' ? App._ecnTabBHtml(proj)
+    : tab === 'c' ? App._ecnTabCHtml(proj)
+    : App._ecnTabAHtml(proj);
+  document.getElementById('page-project').innerHTML =
+    '<div class="ecn-dash">' +
+      '<div class="ecn-hd">' +
+        '<span class="ecn-hd-dot" style="background:' + proj.color + '"></span>' +
+        '<span class="ecn-hd-name">' + U.esc(proj.name) + '</span>' +
+        '<span class="ecn-tag ecn-tag-size">' + sizeLbl + '</span>' +
+        '<span class="ecn-tag ecn-tag-st">' + stLbl + '</span>' +
+        '<span class="ecn-tag ecn-tag-roi">' + roiLbl + '</span>' +
+        '<span class="ecn-hd-ver">目前版本 · v' + (proj.version || 1) + '</span>' +
+      '</div>' +
+      '<div class="ecn-layout">' +
+        '<div class="ecn-hud">' + App._ecnHudHtml(proj, tasks) + '</div>' +
+        '<div class="ecn-main">' +
+          '<div class="ecn-tabs">' +
+            '<span class="ecn-tab' + on('a') + '" onclick="App._ecnSetTab(\'a\')">任務與排程</span>' +
+            '<span class="ecn-tab' + on('b') + '" onclick="App._ecnSetTab(\'b\')">BOM · ROI</span>' +
+            '<span class="ecn-tab' + on('c') + '" onclick="App._ecnSetTab(\'c\')">版本歷史</span>' +
+          '</div>' +
+          '<div class="ecn-panel">' + panel + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// 左側 HUD 四卡（§19.10 B.2）
+App._ecnHudHtml = function(proj, tasks) {
+  const pending = tasks.filter(t => t.status !== 'done').reduce((s, t) => s + App._ecnPts(t), 0);
+  const total = tasks.reduce((s, t) => s + App._ecnPts(t), 0);
+  // 雙軌變異（§19.10 B.1 第1點）：實際＝taskDisplayProgress 工時點數加權；預期＝今天對排程「已過工作天/工期」加權
+  let wsum = 0, actW = 0, expW = 0;
+  const todayIso = D.fmt(D.today(), 'iso');
+  tasks.forEach(t => {
+    const w = App._ecnPts(t); if (w <= 0) return; wsum += w;
+    actW += w * (taskDisplayProgress(t) || 0);
+    const eff = getEffectiveSchedule(t); let exp = 0;
+    if (eff.start && eff.end) {
+      if (todayIso <= eff.start) exp = 0;
+      else if (todayIso >= eff.end) exp = 100;
+      else exp = Math.max(0, Math.min(100, (D.workdaysBetween(eff.start, todayIso) - 1) / Math.max(1, D.workdaysBetween(eff.start, eff.end) - 1) * 100));
+    }
+    expW += w * exp;
+  });
+  const actual = wsum ? Math.round(actW / wsum) : 0;
+  const expected = wsum ? Math.round(expW / wsum) : 0;
+  const behind = actual - expected;
+  const scopeGrowth = proj.baselineHours ? Math.round((total - proj.baselineHours) / proj.baselineHours * 100) : 0;
+  // 異常成因彙總（isLoopTask 的 causeTag 分佈；Phase 1 打回重測未接前多為空）
+  const loopTasks = tasks.filter(t => t.isLoopTask && t.causeTag);
+  const causeAgg = {};
+  loopTasks.forEach(t => { causeAgg[t.causeTag] = (causeAgg[t.causeTag] || 0) + 1; });
+  const causeTxt = loopTasks.length
+    ? '異常成因：' + Object.keys(causeAgg).map(k => k + ' ' + Math.round(causeAgg[k] / loopTasks.length * 100) + '%').join('｜')
+    : '';
+  // #1 名冊＝複用既有部門卡（圖一：卡片＋「新增/編輯部門」鈕 → _s2OpenDeptModal 彈窗編輯，ECN 模式讀 _tplPreview 即 ECN res）
+  const variantId = (proj.variants && proj.variants[0]) ? proj.variants[0].id : ((tasks[0] || {}).variant || null);
+
+  const helpBox = App.buildHintBox({
+    key: 'ecn-hud-help', icon: 'ti-bulb', title: '戰情指標面板說明', summary: '', collapsed: false,
+    bodyHtml: '<ol>' +
+      '<li><b>工時水位</b>：「待消化」＝本版尚未結案任務時數（完工即自動扣除）；「歷史總投入」＝含重工/退件的所有沉沒心血。</li>' +
+      '<li><b>防彈衣機制（異常變更）</b>：記錄中途追加/退回重做/結案翻案，每筆綁成因＝結案檢討與進度延遲的客觀舉證。</li>' +
+      '<li><b>雙軌進度對比</b>：豎線＝預期、實心＝實際，自動精算落差、釐清是執行落後還是範圍蔓延。</li>' +
+      '</ol>',
+  });
+  const bar = '<div class="ecn-vbar"><div class="ecn-vbar-act" style="width:' + actual + '%"></div>' +
+    (actual < expected ? '<div class="ecn-vbar-gap" style="left:' + actual + '%;width:' + (expected - actual) + '%"></div>' : '') +
+    '<div class="ecn-vbar-mark" style="left:' + expected + '%"></div></div>' +
+    '<div class="ecn-vbar-lbl"><span class="a">實際 ' + actual + '%</span><span class="g">' + (behind < 0 ? '落後 ' + Math.abs(behind) + '%' : '達標') + '</span></div>';
+  return helpBox +
+    '<div class="ecn-hudcard"><div class="ecn-hud-t">工時</div><div class="ecn-hud-nums">' +
+      '<div class="ecn-hud-num"><b>' + Math.round(pending) + '<span>h</span></b><span>待消化工時</span></div>' +
+      '<div class="ecn-hud-num"><b>' + Math.round(total) + '<span>h</span></b><span>歷史總投入</span></div>' +
+    '</div></div>' +
+    '<div class="ecn-hudcard"><div class="ecn-hud-t">異常變更統計</div>' +
+      '<div class="ecn-flagrow ecn-fl-red"><span>📌 中途追加任務（案子被加大）</span><b>' + (proj.scopeGrowthCount || 0) + '</b></div>' +
+      '<div class="ecn-flagrow ecn-fl-red"><span>↩ 完工後被退重做</span><b>' + (proj.loopCount || 0) + '</b></div>' +
+      '<div class="ecn-flagrow"><span>↻ 結案後翻案重啟</span><b>' + (proj.reopenCount || 0) + '</b></div>' +
+      (causeTxt ? '<div class="ecn-cause">' + causeTxt + '</div>' : '<div class="ecn-empty-edu">出現中途追加或退回重做時，這裡會自動計數並記錄成因。</div>') +
+    '</div>' +
+    '<div class="ecn-hudcard"><div class="ecn-hud-t">進度：目標 vs 實際</div>' + bar +
+      '<div class="ecn-badges">' +
+        '<div class="ecn-vb ecn-vb-amber"><b>' + (behind >= 0 ? '+' : '') + behind + '%</b>真的做慢</div>' +
+        '<div class="ecn-vb ecn-vb-rose"><b>+' + scopeGrowth + '%</b>案子變大被稀釋</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="ecn-hudcard ecn-hud-dept">' + App._s2DeptPanelHtml(variantId) + '</div>';
+};
+
+// Tab A：操作指南 HintBox（收合）＋ 大表（共用 .s2-tbl）
+App._ecnTabAHtml = function(proj) {
+  const guide = App.buildHintBox({
+    key: 'ecn-tbl-guide', icon: 'ti-bulb', title: '任務大表操作指南', summary: '負荷警示／行內速改／智慧排程連動', collapsed: true,
+    bodyHtml: '<ol>' +
+      '<li><b>負荷警示燈與投入級別</b>：投入%改採「行為錨點」下拉評估，無須硬湊 100%。系統會自動跨案疊加，同人單日 >100% 即亮紅燈。' +
+        '<ul class="ecn-hint-lv">' +
+          '<li><b>100% 獨佔</b>：這天只有這件。</li>' +
+          '<li><b>75% 大半天</b>：這天主要在做它。</li>' +
+          '<li><b>50% 半天</b>：佔掉半個工作天。</li>' +
+          '<li><b>25% 零星盯</b>：發出去等回來，一天巡幾趟。</li>' +
+          '<li><b>10% 點一下</b>：幾分鐘、一兩個觸點。</li>' +
+          '<li><b>0% 舉證專用（掛名未出力）</b>：列在他名下但實際由別人代打或擺爛。<b>請勿刪除任務</b>，保留此 0% 紀錄作為結案檢討的客觀鐵證。</li>' +
+        '</ul></li>' +
+      '<li><b>行內編輯與權限</b>：點擊儲存格直接修改任務、擔當、工期與投入級別。PM 具全局權限，各擔當僅限更新自身任務。</li>' +
+      '<li><b>智慧排程連動</b>：前置任務採全白話設定。修改前置或工期後，系統會自動重算整體時程（手動鎖定之日期除外）。</li>' +
+      '<li><b>異常與進度回報</b>：點列表右側「⚙ 編輯」回報實際開／完工日。中途追加請點列與列之間的「＋」；「打回重測」或「刪除」請進編輯彈窗操作，系統會強制記錄成因以保全客觀證據。</li>' +
+      '</ol>',
+  });
+  return guide +
+    '<div class="ecn-panel-toolrow"><span class="ecn-pt-title">任務大表</span></div>' +
+    '<div class="ecn-tbl-scroll">' + App._ecnTableHtml(proj) + '</div>';
+};
+
+// Tab A 大表：複用 .s2-tbl 結構＋_s2PredCells，欄位＝序/任務名/部門/擔當/前置三窄格/工期/投入%(六檔 select)/日期/狀態·成因/操作
+App._ecnTableHtml = function(proj) {
+  const res = App._tplPreview;
+  const variants = (proj.variants && proj.variants.length) ? proj.variants : [{ id: ((res.tasks[0] || {}).variant) || null }];
+  let rows = '', seq = 0;
+  variants.forEach(v => {
+    const g = App._s2GroupByStage(v.id);
+    g.order.forEach(st => { (g.byStage[st] || []).forEach(t => { seq++; rows += App._ecnRowHtml(t, v.id, seq); }); });
+  });
+  if (!rows) rows = '<tr><td colspan="12" class="ecn-empty">尚無任務</td></tr>';
+  return '<table class="data-table s2-tbl ecn-tbl"><thead>' +
+    '<tr>' +
+      '<th class="col-num" rowspan="2">序</th>' +
+      '<th class="col-flex" rowspan="2">任務名</th>' +
+      '<th class="col-mid" rowspan="2">部門</th>' +
+      '<th class="col-mid" rowspan="2">擔當</th>' +
+      '<th class="col-pred-group" colspan="3">前置任務</th>' +
+      '<th class="col-mid s2-dur-th" rowspan="2">工期</th>' +
+      '<th class="col-mid" rowspan="2">投入%</th>' +
+      '<th class="col-mid" rowspan="2">計畫日期（起訖）</th>' +
+      '<th class="col-mid" rowspan="2">狀態 · 成因</th>' +
+      '<th class="col-action" rowspan="2">操作</th>' +
+    '</tr>' +
+    '<tr><th class="col-pred-sub">序號</th><th class="col-pred-sub">銜接方式</th><th class="col-pred-sub">緩衝</th></tr>' +
+    '</thead><tbody>' + rows + '</tbody></table>';
+};
+
+App._ecnRowHtml = function(t, variantId, seq) {
+  if (t.isPmCoord) {
+    const _proj = App.getProj(App._s2EcnMode);
+    const _floor = (_proj && typeof ECN_TEMPLATE !== 'undefined' && ECN_TEMPLATE.sizeMeta && ECN_TEMPLATE.sizeMeta[_proj.size]) ? ECN_TEMPLATE.sizeMeta[_proj.size].pmEffort : 15;
+    return '<tr class="ecn-pmrow" data-taskid="' + t.id + '">' +
+      '<td class="col-num">—</td>' +
+      '<td class="col-flex"><span class="ecn-pm-nm">' + U.esc(t.name) + '</span></td>' +
+      '<td class="col-mid">PM</td><td class="col-mid">PM</td>' +
+      '<td class="col-pred">—</td><td class="col-pred">—</td><td class="col-pred"></td>' +
+      '<td class="col-mid">全程</td>' +
+      '<td class="col-mid s2-pct-cell"><select class="s2-pct-sel ecn-pm-pct" title="PM 常駐可上調、不可低於該級預設 ' + _floor + '%" onchange="App._ecnSetEffort(\'' + t.id + '\', this.value)">' + App._ecnPmEffortOptions(t.effortRatio, _floor) + '</select></td>' +
+      '<td class="col-mid s2-date">全程</td>' +
+      '<td class="col-mid"><span class="ecn-lock">🔒 常駐 · 不可降級</span></td>' +
+      '<td class="col-action"></td>' +
+    '</tr>';
+  }
+  const isLoop = !!t.isLoopTask;
+  const causeTag = (isLoop && t.causeTag) ? ' <span class="ecn-ct">' + U.esc(t.causeTag) + ' ▾</span>' : '';
+  const _st = App._ecnStatusDerive(t);
+  return '<tr class="' + (seq % 2 === 0 ? 's2-rz ' : '') + (isLoop ? 'ecn-loop ' : '') + '" data-taskid="' + t.id + '">' +
+    '<td class="col-num">' + (isLoop ? '↳' : seq) + '</td>' +
+    '<td class="col-flex s2-namecell" title="' + U.esc(t.name) + '"><div class="s2-nameflex"><span class="ecn-name-txt" title="' + U.esc(t.name) + '（點擊編輯）" onclick="App._ecnEditName(this, \'' + t.id + '\')">' + U.esc(t.name) + '</span>' + (isLoop ? '<span class="ecn-loop-tag">重做 +1</span>' : '') + '</div></td>' +
+    '<td class="col-mid s2-deptcell"><select class="ecn-dept-sel" title="可換部門（設變思維：任務由哪部門做不固定）" onchange="App._ecnSetDept(\'' + t.id + '\', this.value)">' + App._ecnDeptOptions(t.role) + '</select></td>' +
+    '<td class="col-mid s2-ownercell"><select class="s2-owner-sel' + (t.owner ? '' : ' s2-owner-unassigned') + '" onchange="App._ecnSetOwner(\'' + t.id + '\', this.value)">' + App._s2OwnerOptions(t) + '</select></td>' +
+    App._s2PredCells(t, variantId) +
+    '<td class="col-mid s2-dur"><input class="s2-dur-inp" type="number" min="0" value="' + (t.durationDays != null ? t.durationDays : '') + '" onchange="App._s2SetDuration(\'' + t.id + '\', this.value)"></td>' +
+    '<td class="col-mid s2-pct-cell"><select class="s2-pct-sel" onchange="App._ecnSetEffort(\'' + t.id + '\', this.value)">' + App._ecnEffortOptions(t.effortRatio) + '</select></td>' +
+    '<td class="col-mid s2-datecell"><div class="ecn-dates"><input type="date" class="ecn-date-in" value="' + (t.plannedStart || '') + '" title="開始日（手動改＝釘錨點；清空＝回歸前置驅動）" onchange="App._ecnSetStart(\'' + t.id + '\', this.value)"><input type="date" class="ecn-date-in" value="' + (t.plannedEnd || '') + '" title="結束日（改＝回算工期，開始為錨）" onchange="App._ecnSetEnd(\'' + t.id + '\', this.value)"></div></td>' +
+    '<td class="col-mid s2-stcell"><span class="ecn-st ecn-st-' + _st.cls + '" title="狀態依時間自動判定；完工/擱置在「⚙ 編輯」設定">' + _st.label + '</span>' + causeTag + '</td>' +
+    '<td class="col-action"><button class="ecn-op-btn ecn-op-edit" title="編輯／特殊操作（完工·擱置·打回重測·刪除）" onclick="App._ecnEditTask(\'' + t.id + '\')">⚙ 編輯</button></td>' +
+  '</tr>' +
+  '<tr class="dt-insert-row"><td colspan="12" class="dt-insert-cell"><div class="dt-insert"><button class="dt-insert-btn" title="在此列後插入（記為中途追加）" onclick="App._ecnInsertTask(\'' + t.id + '\', \'' + variantId + '\')">＋</button></div></td></tr>';
+};
+
+// Tab B：BOM·ROI（施工前先設計，Phase 1 佔位）
+App._ecnTabBHtml = function(proj) {
+  return '<div class="ecn-ph"><div class="ecn-ph-ico">📦</div><b>BOM · ROI 差異工具</b>' +
+    '<p>匯入舊/新版 BOM → 差異四區 → 切換方式/呆滯 → 每台目標成本 → ROI。此頁籤待 Tab A 完成後開設計施工（§19.6）。</p></div>';
+};
+
+// Tab C：版本歷史＝事件時間軸（讀 ecnEvents，§19.10 B.1 第4點）
+App._ecnTabCHtml = function(proj) {
+  const ev = proj.ecnEvents || [];
+  if (!ev.length) return '<div class="ecn-ph"><div class="ecn-ph-ico">🕓</div><b>事件時間軸</b><p>尚無事件紀錄。</p></div>';
+  return '<div class="ecn-timeline">' + ev.map(e =>
+    '<div class="ecn-tl-item"><span class="ecn-tl-dot"></span><span class="ecn-tl-date">' + U.esc(e.date || '') + '</span>' +
+    '<span class="ecn-tl-label">' + U.esc(e.label || e.type || '') + '</span>' +
+    (e.cause ? '<span class="ecn-tl-cause">' + U.esc(e.cause) + '</span>' : '') + '</div>'
   ).join('') + '</div>';
 };
 

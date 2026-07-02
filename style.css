@@ -2064,3 +2064,127 @@ ol.pf-hint-list > li::before { content: counter(pfhint) "."; position: absolute;
 .pf-hint-list b { font-weight: 600; }
 /* §6.5b reg A（2026-07-02）：HintBox 全站統一淺色（淡沙底 header --sage-50 ＋白底 body ＋深字），
    總覽頁不再深色 override，回落基礎 .hintbox 淺色公版。 */
+
+/* ═══ §19 ECN 設變案戰情室 dashboard（Tab A）：琥珀主題，大表複用 .s2-tbl 結構＋琥珀 CSS scope；全走 :root ═══ */
+.ecn-dash { padding: 4px 2px 24px; }
+.ecn-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.ecn-hd-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.ecn-hd-name { font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+.ecn-tag { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 99px; }
+.ecn-tag-size { background: var(--amber-l); color: var(--amber-ink); border: 1px solid var(--amber-border); }
+.ecn-tag-st { background: var(--amber-l); color: var(--amber-ink); }
+.ecn-tag-roi { background: var(--hint-head); color: var(--ink3); }
+.ecn-hd-ver { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--amber-ink); background: var(--amber-l); border: 1px solid var(--amber-border); padding: 3px 10px; border-radius: 99px; }
+
+.ecn-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+.ecn-hud { position: sticky; top: 12px; align-self: start; }
+.ecn-hudcard { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r12); padding: 13px 14px; margin-bottom: 10px; }
+.ecn-hud-t { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 9px; }
+.ecn-hud-nums { display: flex; gap: 16px; }
+.ecn-hud-num b { display: block; font-size: 20px; font-weight: 700; color: var(--ink); }
+.ecn-hud-num b span { font-size: 12px; }
+.ecn-hud-num > span { font-size: 10.5px; color: var(--ink4); }
+.ecn-flagrow { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 3px 0; color: var(--ink2); }
+.ecn-flagrow b { font-size: 14px; }
+.ecn-fl-red b { color: var(--rose); }
+.ecn-empty-edu { font-size: 10.5px; color: var(--ink4); line-height: 1.5; padding: 2px 0 0; }
+.ecn-cause { font-size: 11px; color: var(--ink3); border-top: 1px solid var(--rule2); margin-top: 6px; padding-top: 6px; line-height: 1.6; }
+.ecn-vbar { position: relative; height: 16px; background: var(--stone-100); border-radius: 99px; margin: 4px 0 6px; }
+.ecn-vbar-act { position: absolute; left: 0; top: 0; bottom: 0; background: var(--amber-accent); border-radius: 99px 0 0 99px; }
+.ecn-vbar-gap { position: absolute; top: 0; bottom: 0; background: var(--rose-l); border: 1px dashed var(--rose); border-left: none; }
+.ecn-vbar-mark { position: absolute; top: -4px; bottom: -4px; width: 2.5px; background: var(--ink2); border-radius: 2px; }
+.ecn-vbar-lbl { display: flex; justify-content: space-between; font-size: 10.5px; margin-top: 6px; }
+.ecn-vbar-lbl .a { color: var(--amber-ink); font-weight: 600; }
+.ecn-vbar-lbl .g { color: var(--rose); font-weight: 600; }
+.ecn-badges { display: flex; gap: 6px; margin-top: 8px; }
+.ecn-vb { flex: 1; text-align: center; border-radius: var(--r8); padding: 5px 4px; font-size: 10.5px; font-weight: 600; }
+.ecn-vb b { display: block; font-size: 14px; }
+.ecn-vb-amber { background: var(--amber-l); color: var(--amber-ink); border: 1px solid var(--amber-border); }
+.ecn-vb-rose { background: var(--rose-l); color: var(--rose-ink); border: 1px solid var(--rose-l); }
+.ecn-ros-row { display: flex; gap: 10px; font-size: 12px; padding: 2px 0; color: var(--ink2); }
+.ecn-ros-d { color: var(--ink4); width: 52px; flex: none; }
+
+.ecn-tabs { display: flex; gap: 4px; }
+.ecn-tab { font-size: 13px; font-weight: 600; padding: 9px 18px; border: 1px solid var(--rule); border-bottom: none; border-radius: var(--r10) var(--r10) 0 0; background: var(--pearl); color: var(--ink4); cursor: pointer; }
+.ecn-tab.on { background: var(--surface); color: var(--amber-ink); border-color: var(--amber-border); position: relative; }
+.ecn-tab.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--surface); }
+.ecn-panel { background: var(--surface); border: 1px solid var(--amber-border); border-radius: 0 var(--r12) var(--r12) var(--r12); padding: 13px 16px 16px; }
+.ecn-panel-toolrow { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; }
+.ecn-pt-title { font-size: 13px; font-weight: 600; color: var(--ink2); }
+
+/* 大表琥珀化：override .s2-tbl 的 sage 表頭/斑馬/hover（只在 .ecn-tbl，NPI Stage 2 不受影響）；附在檔尾 → 同 specificity 後者勝 */
+.data-table.s2-tbl.ecn-tbl thead th { color: var(--amber-ink); background: var(--amber-l); }
+.data-table.s2-tbl.ecn-tbl thead th.col-pred-sub { color: var(--amber-accent); }
+.data-table.s2-tbl.ecn-tbl thead tr:last-child th { border-bottom: 2px solid var(--amber-accent); }
+.data-table.s2-tbl.ecn-tbl tbody tr.s2-rz { background: var(--pearl); }
+.data-table.s2-tbl.ecn-tbl tbody tr[data-taskid]:hover { background: var(--amber-l); }
+.data-table.s2-tbl.ecn-tbl tbody tr[data-taskid]:hover td:first-child { box-shadow: inset 3px 0 0 0 var(--amber-accent); }
+.ecn-tbl .s2-pct-sel { font-size: 12px; padding: 3px 4px; border: 1px solid var(--stone-200); border-radius: var(--r6); background: var(--surface); color: var(--stone-600); width: 100px; }
+.ecn-tbl .ecn-dept-sel { font-size: 12.5px; padding: 3px 5px; border: 1px solid var(--stone-200); border-radius: var(--r6); background: var(--surface); color: var(--stone-600); min-width: 84px; max-width: 100%; }
+.ecn-tbl .s2-stcell { white-space: nowrap; }
+/* #3 任務名＝省略顯示（固定寬+…）＋ hover 全文（title）＋ 點擊才變輸入框編輯 */
+.ecn-name-txt { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; cursor: text; }
+.ecn-name-txt:hover { text-decoration: underline dotted var(--stone-300); }
+/* #2/#4/#8：橫向捲動只掛「大表」本身，面板/HintBox 不被寬表撐爆 */
+.ecn-tbl-scroll { overflow-x: auto; }
+.ecn-panel .hintbox-body { overflow-wrap: anywhere; word-break: break-word; }
+/* 問題1/2/7：HintBox 全面收斂——grid item 可縮(min-width:0)、header/body 斷字、nested 級別清單、字級收斂 */
+.ecn-layout, .ecn-hud, .ecn-main { min-width: 0; }
+.ecn-dash .hintbox { max-width: 100%; box-sizing: border-box; margin: 0 0 10px; }
+.ecn-dash .hintbox-bar { flex-wrap: wrap; }
+.ecn-dash .hintbox-head { flex-wrap: wrap; min-width: 0; }
+.ecn-dash .hintbox-title, .ecn-dash .hintbox-summary { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.ecn-dash .hintbox-body { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.ecn-dash .hintbox-body ol { margin: 0; padding-left: 18px; }
+.ecn-dash .hintbox-body li { overflow-wrap: anywhere; word-break: break-word; }
+.ecn-hud .hintbox-body { padding: 10px 12px; font-size: 11.5px; line-height: 1.6; }
+.ecn-hud .hintbox-body ol { padding-left: 16px; }
+.ecn-hint-lv { margin: 5px 0 0; padding-left: 15px; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.ecn-hint-lv li { color: var(--ink3); }
+/* 問題3：日期欄＝開始/結束兩個 date input 直向堆疊（省寬） */
+.ecn-tbl .s2-datecell { white-space: nowrap; }
+.ecn-dates { display: flex; flex-direction: column; gap: 3px; }
+.ecn-date-in { font-size: 11px; padding: 2px 4px; border: 1px solid var(--stone-200); border-radius: var(--r6); background: var(--surface); color: var(--stone-600); width: 122px; }
+/* ECN 列間插入鈕琥珀化（Stage 2 為 sage） */
+.ecn-tbl .dt-insert-btn { background: var(--amber-accent); color: var(--surface); }
+/* 狀態＝唯讀·時間衍生 pill（完工/擱置由「⚙ 編輯」設；逾期紅／進行中琥珀／未開始灰／擱置中性／完工綠） */
+.ecn-st { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.ecn-st.ecn-st-done { background: var(--sage-50); color: var(--sage-700); }
+.ecn-st.ecn-st-wip { background: var(--amber-l); color: var(--amber-ink); }
+.ecn-st.ecn-st-delayed { background: var(--rose-l); color: var(--rose-ink); }
+.ecn-st.ecn-st-hold { background: var(--stone-100); color: var(--ink3); }
+.ecn-st.ecn-st-todo { background: var(--bg); color: var(--ink4); }
+.ecn-edit-hint { font-size: 11px; color: var(--ink4); margin-top: 4px; line-height: 1.5; }
+.ecn-edit-chk { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; }
+.ecn-ct { display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: var(--rose-l); color: var(--rose-ink); cursor: pointer; border: 1px dashed var(--rose); }
+/* PM 常駐列：琥珀底、鎖死 */
+.data-table.s2-tbl.ecn-tbl tbody tr.ecn-pmrow > td { background: var(--amber-l); border-top: 1px dashed var(--amber-accent); cursor: not-allowed; }
+.ecn-pm-nm { color: var(--amber-ink); font-weight: 600; }
+.ecn-lock { font-size: 10px; font-weight: 600; color: var(--amber-ink); white-space: nowrap; }
+.data-table.s2-tbl.ecn-tbl tbody tr.ecn-loop > td { background: var(--rose-l); }
+.ecn-loop-tag { font-size: 10px; font-weight: 700; color: var(--rose); white-space: nowrap; margin-left: 6px; }
+.ecn-op-btn { font-size: 11px; font-weight: 600; background: var(--surface); color: var(--rose-ink); border: 1px solid var(--rose-l); border-radius: var(--r6); padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+.ecn-op-btn:hover { background: var(--rose-l); }
+.ecn-op-btn.ecn-op-edit { color: var(--amber-ink); border-color: var(--amber-border); }
+.ecn-op-btn.ecn-op-edit:hover { background: var(--amber-l); }
+/* #1 ECN 列間插入線琥珀化（base 為 sage） */
+.ecn-tbl .dt-insert::before { background: var(--amber-accent); }
+
+.ecn-timeline { display: flex; flex-direction: column; gap: 0; padding: 6px 4px; }
+.ecn-tl-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-left: 2px solid var(--amber-border); margin-left: 8px; padding-left: 16px; position: relative; font-size: 13px; color: var(--ink2); }
+.ecn-tl-dot { position: absolute; left: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--amber-accent); border: 2px solid var(--surface); }
+.ecn-tl-date { font-size: 11px; color: var(--ink4); font-family: var(--mono, monospace); flex: none; }
+.ecn-tl-label { font-weight: 600; }
+.ecn-tl-cause { font-size: 11px; color: var(--rose-ink); background: var(--rose-l); padding: 1px 7px; border-radius: 99px; }
+.ecn-ph { text-align: center; padding: 48px 20px; color: var(--ink3); }
+.ecn-ph-ico { font-size: 34px; margin-bottom: 10px; }
+.ecn-ph b { display: block; font-size: 15px; color: var(--ink2); margin-bottom: 6px; }
+.ecn-ph p { font-size: 12.5px; color: var(--ink4); line-height: 1.7; max-width: 460px; margin: 0 auto; }
+.ecn-empty { text-align: center; color: var(--ink4); font-size: 12px; padding: 20px; }
+/* #1 HUD 名冊＝複用部門卡（去掉外層 hudcard 雙框，內層 s2n-deptpanel 即卡）＋按鈕琥珀化 */
+.ecn-hud-dept { padding: 0; border: none; background: transparent; }
+.ecn-hud .s2n-deptpanel { margin: 0; }
+.ecn-hud .s2n-dp-btn { background: var(--amber-l); color: var(--amber-ink); border-color: var(--amber-border); }
+/* #2 PM 常駐列投入%改可調下拉：解除該列 cursor:not-allowed，讓 select 可點 */
+.data-table.s2-tbl.ecn-tbl tbody tr.ecn-pmrow > td.s2-pct-cell { cursor: pointer; }
+.ecn-pmrow .ecn-pm-pct { cursor: pointer; width: 92px; }

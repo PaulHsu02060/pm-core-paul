@@ -426,9 +426,9 @@ App._flowStartEcn = function(size) {
   App._createFlow = { step: 1, mode: 'ecn', stage1Data: null };
   App._s1Ecn = { size: size || 'S' };
   App._s1Cases = null;   // 重置案卡（ECN 階段集與 NPI 不同）
+  App.closeModal();   // ⚠ 先關（closeModal 會清 _tplDepts）——名冊種子必須在關閉之後，否則被清成空（問題1 根因）
   const _roles = (typeof ECN_TEMPLATE !== 'undefined' && ECN_TEMPLATE.roles) ? ECN_TEMPLATE.roles : [''];
   App._tplDepts = _roles.map(r => ({ id: U.id(), name: r, members: [{ id: U.id(), name: '' }] }));
-  App.closeModal();
   App._renderStage1Preview();
 };
 // s1 頁「上一步」：先彈資料不保留警告（本頁輸入活在 DOM、重繪即失，無備份機制——NPI/ECN 都擋誤觸），
@@ -455,6 +455,7 @@ App._s1PickColor = function(el) {
 // （_s1Ecn／_s1Cases 不在此清——只在模式切換點清：NPI 入口 _flowPickMode('template')、ECN 入口 _flowStartEcn，
 //   保留既有「上一步回 s1 輸入仍在」行為。）
 App._flowStep1 = function() {
+  App._s2EcnMode = null;   // 進 NPI/建案流程前清 ECN hijack 旗標（防 _s2RefreshCase 誤持久化到已離開的 ECN 案）
   App._createFlow = { step: 1, mode: 'template', stage1Data: null };
   App.openModal({
     title: '建立新案 · 選擇類型',
@@ -1014,6 +1015,12 @@ App._s2ApplyDepts = function() {
     }
   });
   App.closeModal();
+  if (App._s2EcnMode) {   // §19 ECN 戰情室：res.depts 只是 hijack 副本引用 → 同步寫回 proj.depts，存檔重繪 dashboard
+    const proj = App.getProj(App._s2EcnMode);
+    if (proj) proj.depts = depts;
+    App._s2EcnPersist();
+    return;
+  }
   this._renderStage2New();
 };
 
@@ -1842,8 +1849,16 @@ App._stage2Commit = function() {
         effortRatio: ecn.pmEffort, taskAttr: 'baseline', isPmCoord: true,   // Model Y 常駐盾，不可降級（§19.4）
       });
     }
+    // §19 問題2/3：ECN 為 live 專案 → 落地即清 endDate 轉 forward 並重排（開始為錨，_ecnForwardVariants），
+    // 戰情室初次顯示與後續編輯一致、避免「首次改工期日期整批跳動」。工時點數不受日期影響，baselineHours 照算。
+    App._ecnForwardVariants(res.variants, res.tasks);
+    App._reschedulePreview(res.tasks, res.variants, []);
+    // §19.10 B.1／§19.2：開案落地當下凍結 baselineHours（總工時點數＝範圍蔓延分母）＋ ecnEvents 事件時間軸種子（開案）
+    const _dh = (DATA.settings && DATA.settings.dailyHours) || 6;
+    res.project.baselineHours = Math.round(res.tasks.reduce((s, t) => s + ((t.effortRatio != null ? t.effortRatio : 100) / 100) * _dh * (t.durationDays || 0), 0) * 10) / 10;
+    res.project.ecnEvents = [{ type: 'open', date: D.fmt(new Date(), 'iso'), label: '開案（' + ecn.size + ' 級）', cause: '' }];
   }
-  const dup = DATA.projects.filter(p => p.name === res.project.name);
+  const dup = DATA.projects.filter(p => p.name === res.project.name && !!p.ecnType === !!res.project.ecnType);   // 同名檢查限同分類（NPI↔ECN 同名不算重複，問題4）
   const unassigned = res.tasks.filter(t => !t.owner).length;
   const _commit = () => {
     const tb = document.querySelector('.main > .topbar');   // ECN 直落地路徑不經 _s2DoCommit → 此處還原（idempotent，NPI 再 remove 無害）
@@ -2356,8 +2371,20 @@ App._s2SelectStage = function(variantId, si) {
   this._s2Stage[variantId] = st;
   this._s2RefreshCase(variantId);
 };
+// §19 ECN 戰情室存檔：hijack 模式下 _tplPreview.tasks 為 DATA 活引用，欄位編輯已改 DATA；
+// 插入/刪除會重賦 res.tasks（本地陣列），故同步回 DATA（保留本專案 _deleted 任務）→ 存檔 → 重繪 dashboard。
+App._s2EcnPersist = function() {
+  const pid = App._s2EcnMode; if (!pid) return;
+  const proj = App.getProj(pid);
+  if (!proj || !proj.ecnType) { App._s2EcnMode = null; return; }
+  const res = App._tplPreview; if (!res) return;
+  DATA.tasks = DATA.tasks.filter(t => !(t.project === pid && !t._deleted)).concat(res.tasks);
+  Storage.save();
+  App.renderEcnDashboard(proj);
+};
 // 只重繪單一案別的 Gantt 軸 + 任務清單（讀 _tplPreview，已改值不掉）。
 App._s2RefreshCase = function(variantId) {
+  if (App._s2EcnMode) { App._s2EcnPersist(); return; }   // §19 ECN 戰情室：改工期/前置/名稱/刪除/插入 → 存檔重繪
   const slack = document.querySelector('.s2-slack-wrap[data-variant="' + variantId + '"]');
   if (slack) slack.innerHTML = this._s2SlackHtml(variantId);
   const gantt = document.querySelector('.s2-gantt[data-variant="' + variantId + '"]');
